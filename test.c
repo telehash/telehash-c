@@ -39,11 +39,11 @@ int main(void)
     printf("Error making key: %s\n", error_to_string(err)); return -1;
   }
 
-  x = sizeof(str);
-  if ((err = ecc_shared_secret(&mykey,&urkey,str,&x)) != CRYPT_OK) {
+  len = sizeof(str);
+  if ((err = ecc_shared_secret(&mykey,&urkey,str,&len)) != CRYPT_OK) {
     printf("Error making key: %s\n", error_to_string(err)); return -1;
   }
-  printf("shared secret %d %s\n",x,hex(str,x,out));
+  printf("shared secret %d %s\n",x,hex(str,len,out));
   
 
 
@@ -82,19 +82,19 @@ int main(void)
     return -1;
   }
 
-  x = sizeof(str);
-  if ((err = rsa_export(str, &x, PK_PUBLIC, &rkey)) != CRYPT_OK) {
+  len = sizeof(str);
+  if ((err = rsa_export(str, &len, PK_PUBLIC, &rkey)) != CRYPT_OK) {
     printf("Export error: %s\n", error_to_string(err));
     return -1;
   }
-  printf("rsa key size %d key %s\n",x,hex(str,x,out));
+  printf("rsa key size %d key %s\n",x,hex(str,len,out));
 
-  x = sizeof(str);
-  if ((err = rsa_encrypt_key(foo, strlen(foo), str, &x, "TestApp", 7, &prng, find_prng("yarrow"), find_hash("sha1"), &rkey)) != CRYPT_OK) {
+  len = sizeof(str);
+  if ((err = rsa_encrypt_key(foo, strlen(foo), str, &len, "TestApp", 7, &prng, find_prng("yarrow"), find_hash("sha1"), &rkey)) != CRYPT_OK) {
     printf("rsa_encrypt error: %s\n", error_to_string(err));
     return -1;
   }
-  printf("rsa enc size %d of %s\n",x,hex(str,x,out));
+  printf("rsa enc size %d of %s\n",x,hex(str,len,out));
 
 
   return 0;
@@ -102,18 +102,13 @@ int main(void)
 
 char *hex(unsigned char *digest, int len, char *out)
 {
-    int i,j;
+    int j;
     char *c = out;
 
-    for (i = 0; i < len/4; i++) {
-        for (j = 0; j < 4; j++) {
-            sprintf(c,"%02x", digest[i*4+j]);
-            c += 2;
-        }
-        sprintf(c, " ");
-        c += 1;
+    for (j = 0; j < len; j++) {
+      sprintf(c,"%02x", digest[j]);
+      c += 2;
     }
-    *(c - 1) = '\0';
+    *c = '\0';
     return out;
 }
-
