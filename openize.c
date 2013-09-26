@@ -11,9 +11,10 @@ int main(int argc, char *argv[])
 {
   ecc_key mykey, urkey;
   prng_state prng;
-  int err, x, ilen;
-  unsigned char buf[4096], out[4096], str[1024], iv[16], key[32], inner[2048];
-  char inbuf[32768], hn[64], *foo = "just testing";
+  int err, x, ilen, seed_port;
+  unsigned char buf[4096], out[4096], str[1024], iv[16], key[32], inner[2048], *iat;
+  char inbuf[32768], *ibat, *pem, self_hn[64], seed_hn[64], *foo = "just testing", seed_ip[32];
+  char *pem_pre = "-----BEGIN PUBLIC KEY-----\n", *pem_suf = "\n-----END PUBLIC KEY-----\n";
   unsigned long len;
   unsigned short index[32];
   symmetric_CTR ctr;
@@ -33,6 +34,11 @@ int main(int argc, char *argv[])
     return -1;
   }
   idfile = fopen(argv[1],"rb");
+  if(!idfile)
+  {
+    printf("can't open %s\n",argv[1]);
+    return -1;
+  }
   x = fread(inbuf,1,sizeof(inbuf),idfile);
   fclose(idfile);
   if(x < 100)
@@ -60,7 +66,7 @@ int main(int argc, char *argv[])
     printf("Import public error: %s\n", error_to_string(err));
     return -1;
   }
-  if ((err = hashname(buf, len, hn)) != CRYPT_OK) {
+  if ((err = hashname(buf, len, self_hn)) != CRYPT_OK) {
     printf("hashname error: %s\n", error_to_string(err));
     return -1;
   }
@@ -73,9 +79,65 @@ int main(int argc, char *argv[])
     printf("Import private error: %s\n", error_to_string(err));
     return -1;
   }  
-  printf("loaded keys for %.*s\n",64,hn);
+  printf("loaded keys for %.*s\n",64,self_hn);
 
+  // load the seeds file
+  idfile = fopen("seeds.json","rb");
+  if(!idfile)
+  {
+    printf("missing seeds.json\n");
+    return -1;
+  }
+  x = fread(inbuf,1,sizeof(inbuf),idfile);
+  fclose(idfile);
+  if(x < 100)
+  {
+    printf("Error reading seeds json, length %d is too short\n", x);
+    return -1;
+  }
+  inbuf[x] = 0;
   
+  // parse the json
+  j0g(inbuf, index, 32);
+  if(!*index || *inbuf != '[' || inbuf[*index] != '{')
+  {
+    printf("Error parsing seeds json, must be valid and have an array containing an object: %s\n",inbuf);
+    return -1;
+  }
+  inbuf[index[1]+2] = 0; // null terminate the first object
+  ibat = inbuf+*index; // now point to just the object
+  j0g(ibat, index, 32); // re-parse the inner object
+  if(!*index || !j0g_val("pubkey",ibat,index) || !j0g_val("ip",ibat,index) || !j0g_val("port",ibat,index))
+  {
+    printf("Error parsing seeds json, must contain a valid object having a public, ip, and port: %s\n",ibat);
+    return -1;
+  }
+  
+  // load the seed public key and ip:port
+  pem = j0g_str("pubkey",ibat,index);
+  if(strstr(pem,pem_pre) == pem) pem += strlen(pem_pre);
+  if(strstr(pem,pem_suf)) *(strstr(pem,pem_suf)) = 0;
+  // pem should now be just the base64
+  len = sizeof(buf);
+  if ((err = base64_decode(pem, strlen(pem), buf, &len)) != CRYPT_OK) {
+    printf("base64 error: %s\n", error_to_string(err));
+    return -1;
+  }
+  if ((err = rsa_import(buf, len, &rkey)) != CRYPT_OK) {
+    printf("Import public error: %s\n", error_to_string(err));
+    return -1;
+  }
+  if ((err = hashname(buf, len, seed_hn)) != CRYPT_OK) {
+    printf("hashname error: %s\n", error_to_string(err));
+    return -1;
+  }
+  strcpy(seed_ip,j0g_str("ip",ibat,index));
+  seed_port = atoi(j0g_str("port",ibat,index));
+  printf("seed loaded %.*s at %s:%d\n",64,seed_hn,seed_ip,seed_port);
+  
+
+  iat = inner+2;
+//  sprintf(iat, "{\"line\":\"%s\",\"at\":%d,\"to\":\"%s\"}",);
 
   if ((err = rng_make_prng(128, find_prng("yarrow"), &prng, NULL)) != CRYPT_OK) {
     printf("Error setting up PRNG, %s\n", error_to_string(err)); return -1;
