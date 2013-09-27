@@ -1,8 +1,11 @@
 #include <tomcrypt.h>
 #include <tommath.h>
 #include <j0g.h>
-
-// http://forum.doom9.org/showthread.php?t=157470
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <errno.h>
 
 char *hex(unsigned char *digest, int len, char *out);
 int hashname(unsigned char *key, int klen, char *hn);
@@ -11,7 +14,7 @@ int main(int argc, char *argv[])
 {
   ecc_key mykey, urkey;
   prng_state prng;
-  int err, x, ilen, seed_port, inner_len, outer_len;
+  int err, x, ilen, seed_port, inner_len, outer_len, sock;
   unsigned char buf[4096], out[4096], ecc_enc[256], rand16[16], aesiv[16], aeskey[32], inner[2048], inner_enc[2048], inner_sig[512], sighash[32], outer[2048];
   char inbuf[32768], *ibat, *pem, self_hn[65], seed_hn[65], *foo = "just testing", seed_ip[32];
   char *pem_pre = "-----BEGIN PUBLIC KEY-----\n", *pem_suf = "\n-----END PUBLIC KEY-----\n";
@@ -22,6 +25,7 @@ int main(int argc, char *argv[])
   symmetric_CTR ctr;
   rsa_key self_rsa, seed_rsa;
   FILE *idfile;
+  struct	sockaddr_in sad;
 
   ltc_mp = ltm_desc;
   register_cipher(&aes_desc);  
@@ -183,9 +187,10 @@ int main(int argc, char *argv[])
     return -1;
   }
   hex(aesiv,16,iv);
+  printf("aes key %s iv %s\n",hex(aeskey,32,out),iv);
 
   // create aes cipher now and encrypt the inner
-  if ((err = ctr_start(find_cipher("aes"),aesiv,aeskey,32,0,CTR_COUNTER_LITTLE_ENDIAN,&ctr)) != CRYPT_OK) {
+  if ((err = ctr_start(find_cipher("aes"),aesiv,aeskey,32,0,CTR_COUNTER_BIG_ENDIAN,&ctr)) != CRYPT_OK) {
      printf("ctr_start error: %s\n",error_to_string(err));
      return -1;
   }
@@ -236,6 +241,18 @@ int main(int argc, char *argv[])
   memcpy(outer+outer_len,inner_enc,inner_len);
   outer_len += inner_len;
   printf("outer packet len %d: %s\n",outer_len,hex(outer,outer_len,out));  
+
+  // create a client socket
+  if( (sock = socket(PF_INET, SOCK_DGRAM, 0) ) < 0 )
+  {
+	  printf("failed to create socket: %d\n", errno);
+	  return -1;
+  }
+  memset((char *)&sad,0,sizeof(sad));
+  sad.sin_family = AF_INET;
+  sad.sin_port = htons(0);
+  err = connect(sock,(struct sockaddr *)&sad,sizeof(struct sockaddr));
+  printf("connect returned %d\n",err);
 
   return 0;
 }
