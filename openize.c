@@ -14,18 +14,18 @@ int main(int argc, char *argv[])
 {
   ecc_key mykey, urkey;
   prng_state prng;
-  int err, x, ilen, seed_port, inner_len, outer_len, sock;
-  unsigned char buf[4096], out[4096], ecc_enc[256], rand16[16], aesiv[16], aeskey[32], inner[2048], inner_enc[2048], inner_sig[512], sighash[32], outer[2048];
+  int err, x, ilen, seed_port, inner_len, outer_len, sock, body_len;
+  unsigned char buf[4096], out[4096], ecc_enc[256], rand16[16], aesiv[16], aeskey[32], inner[2048], inner_enc[2048], inner_sig[512], sighash[32], outer[2048], *body;
   char inbuf[32768], *ibat, *pem, self_hn[65], seed_hn[65], *foo = "just testing", seed_ip[32];
   char *pem_pre = "-----BEGIN PUBLIC KEY-----\n", *pem_suf = "\n-----END PUBLIC KEY-----\n";
-  char line_out[33], *iat, open[512], iv[33], sig[512];
+  char line_out[33], *iat, open[512], iv[33], sig[512], *popen, *piv, *psig;
   unsigned char self_der[1024], self_eccpub[65];
   unsigned long len, self_der_len;
-  unsigned short index[32], iatlen;
+  unsigned short index[32], iatlen, inlen;
   symmetric_CTR ctr;
   rsa_key self_rsa, seed_rsa;
   FILE *idfile;
-  struct	sockaddr_in sad;
+  struct	sockaddr_in sad, rad, seed_ad;
 
   ltc_mp = ltm_desc;
   register_cipher(&aes_desc);  
@@ -242,17 +242,66 @@ int main(int argc, char *argv[])
   outer_len += inner_len;
   printf("outer packet len %d: %s\n",outer_len,hex(outer,outer_len,out));  
 
-  // create a client socket
-  if( (sock = socket(PF_INET, SOCK_DGRAM, 0) ) < 0 )
+  // create a udp socket
+  if( (sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP) ) < 0 )
   {
-	  printf("failed to create socket: %d\n", errno);
+	  perror("failed to create socket");
 	  return -1;
   }
   memset((char *)&sad,0,sizeof(sad));
   sad.sin_family = AF_INET;
   sad.sin_port = htons(0);
-  err = connect(sock,(struct sockaddr *)&sad,sizeof(struct sockaddr));
-  printf("connect returned %d\n",err);
+  sad.sin_addr.s_addr = htonl(INADDR_ANY);
+  if (bind (sock, (struct sockaddr *)&sad, sizeof(sad)) < 0)
+  {
+	  perror("bind failed");
+	  return -1;
+  }
+
+  // send our open
+  memset((char *)&seed_ad,0,sizeof(seed_ad));
+  seed_ad.sin_family = AF_INET;
+  seed_ad.sin_port = htons(seed_port);
+  if(inet_aton(seed_ip, &seed_ad.sin_addr)==0)
+  {
+	  printf("seed ip failed: %s\n",seed_ip);
+	  return -1;
+  }
+  if(sendto(sock, outer, outer_len, 0, &seed_ad, sizeof(seed_ad))==-1)
+  {
+	  perror("sendto failed");
+	  return -1;
+  }
+
+  // receive answer
+  len = sizeof(rad);
+  if ((x = recvfrom(sock, buf, sizeof(buf), 0, &rad, &len)) == -1)
+  {
+	  perror("recvfrom failed");
+	  return -1;
+  }
+  printf("Received packet from %s:%d len %d data: %s\n", inet_ntoa(rad.sin_addr), ntohs(rad.sin_port), x, hex(buf,x,out));
+
+  // process answer
+  memcpy(&inlen,buf,2);
+  iatlen = ntohs(inlen);
+  iat = buf+2;
+  printf("incoming json length %d\n",iatlen);
+  if(js0n(iat,iatlen,index,sizeof(index)))
+  {
+	  printf("failed to parse json: %.*s\n",iatlen,iat);
+	  return -1;
+  }
+  body = buf+2+iatlen;
+  body_len = x-(2+iatlen);
+  popen = j0g_str("open",iat,index);
+  psig = j0g_str("sig",iat,index);
+  piv = j0g_str("iv",iat,index);
+  if(!popen || !psig || !piv)
+  {
+	  printf("incomplete json packet\n");
+	  return -1;
+  }
 
   return 0;
 }
