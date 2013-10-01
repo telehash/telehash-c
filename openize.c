@@ -1,5 +1,6 @@
 #include <tomcrypt.h>
 #include <tommath.h>
+#include <js0n.h>
 #include <j0g.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -8,19 +9,20 @@
 #include <errno.h>
 
 char *hex(unsigned char *digest, int len, char *out);
+unsigned char *unhex(char *hex, int len, unsigned char *out);
 int hashname(unsigned char *key, int klen, char *hn);
 
 int main(int argc, char *argv[])
 {
   ecc_key mykey, urkey;
   prng_state prng;
-  int err, x, ilen, seed_port, inner_len, outer_len, sock, body_len;
-  unsigned char buf[4096], out[4096], ecc_enc[256], rand16[16], aesiv[16], aeskey[32], inner[2048], inner_enc[2048], inner_sig[512], sighash[32], outer[2048], *body;
-  char inbuf[32768], *ibat, *pem, self_hn[65], seed_hn[65], *foo = "just testing", seed_ip[32];
+  int err, x, seed_port, inner_len, outer_len, sock, body_len;
+  unsigned char buf[4096], ecc_enc[256], rand16[16], aesiv[16], aeskey[32], inner[2048], inner_enc[2048], inner_sig[512], sighash[32], outer[2048], *body;
+  char out[4096], inbuf[32768], *ibat, *pem, self_hn[65], seed_hn[65], seed_ip[32];
   char *pem_pre = "-----BEGIN PUBLIC KEY-----\n", *pem_suf = "\n-----END PUBLIC KEY-----\n";
-  char line_out[33], *iat, open[512], iv[33], sig[512], *popen, *piv, *psig;
-  unsigned char self_der[1024], self_eccpub[65];
-  unsigned long len, self_der_len;
+  char line_out[33], *iat, open[512], iv[33], sig[512], *popen, *piv, *psig, *seed_line;
+  unsigned char self_der[1024], self_eccpub[65], seed_eccpub[65], secret[64], *seed_der;
+  unsigned long len, self_der_len, seed_der_len, len2;
   unsigned short index[32], iatlen, inlen;
   symmetric_CTR ctr;
   rsa_key self_rsa, seed_rsa;
@@ -168,12 +170,15 @@ int main(int argc, char *argv[])
 
   // generate the ecc keys
   if ((err = ecc_make_key(&prng, find_prng("yarrow"), 32, &mykey)) != CRYPT_OK) {
-    printf("Error making key: %s\n", error_to_string(err)); return -1;
+    printf("Error making key: %s\n", error_to_string(err));
+	return -1;
   }
-  *self_eccpub = 0x04;
-  mp_to_unsigned_bin(mykey.pubkey.x, self_eccpub+1);
-  mp_to_unsigned_bin(mykey.pubkey.y, self_eccpub+33);
-  printf("ecc pub key %s\n",hex(self_eccpub,65,(char*)out));
+  len = sizeof(self_eccpub);
+  if ((err = ecc_ansi_x963_export(&mykey, self_eccpub, &len)) != CRYPT_OK) {
+    printf("Error exporting ecc key: %s\n", error_to_string(err));
+	return -1;
+  }
+  printf("ecc pub key %s\n",hex(self_eccpub,65,out));
 
   // create the aes cipher key/iv
   len = 32;
@@ -201,13 +206,13 @@ int main(int argc, char *argv[])
   printf("aes encrypt %s\n",hex(inner_enc,inner_len,out));
 
   // encrypt the ecc key
-  x = sizeof(ecc_enc);
-  if ((err = rsa_encrypt_key(self_eccpub, 65, ecc_enc, &x, 0, 0, &prng, find_prng("yarrow"), find_hash("sha1"), &seed_rsa)) != CRYPT_OK) {
+  len2 = sizeof(ecc_enc);
+  if ((err = rsa_encrypt_key(self_eccpub, 65, ecc_enc, &len2, 0, 0, &prng, find_prng("yarrow"), find_hash("sha1"), &seed_rsa)) != CRYPT_OK) {
     printf("rsa_encrypt error: %s\n", error_to_string(err));
     return -1;
   }
   len = sizeof(open);
-  if ((err = base64_encode(ecc_enc, x, open, &len)) != CRYPT_OK) {
+  if ((err = base64_encode(ecc_enc, len2, (unsigned char*)open, &len)) != CRYPT_OK) {
     printf("base64 error: %s\n", error_to_string(err));
     return -1;
   }
@@ -219,17 +224,17 @@ int main(int argc, char *argv[])
      printf("Error hashing key: %s\n", error_to_string(err));
      return -1;
   }
-  x = sizeof(inner_sig);
-  if ((err = rsa_sign_hash_ex(sighash, 32, inner_sig, &x, LTC_PKCS_1_V1_5, &prng, find_prng("yarrow"), find_hash("sha256"), 12, &self_rsa)) != CRYPT_OK) {
+  len = sizeof(inner_sig);
+  if ((err = rsa_sign_hash_ex(sighash, 32, inner_sig, &len, LTC_PKCS_1_V1_5, &prng, find_prng("yarrow"), find_hash("sha256"), 12, &self_rsa)) != CRYPT_OK) {
     printf("rsa_sign error: %s\n", error_to_string(err));
     return -1;
   }
-  len = sizeof(sig);
-  if ((err = base64_encode(inner_sig, x, sig, &len)) != CRYPT_OK) {
+  len2 = sizeof(sig);
+  if ((err = base64_encode(inner_sig, len, (unsigned char*)sig, &len2)) != CRYPT_OK) {
     printf("base64 error: %s\n", error_to_string(err));
     return -1;
   }
-  sig[len] = 0;
+  sig[len2] = 0;
   
   // create the outer open packet
   iat = (char*)outer+2;
@@ -267,7 +272,7 @@ int main(int argc, char *argv[])
 	  printf("seed ip failed: %s\n",seed_ip);
 	  return -1;
   }
-  if(sendto(sock, outer, outer_len, 0, &seed_ad, sizeof(seed_ad))==-1)
+  if(sendto(sock, outer, outer_len, 0, (struct sockaddr *)&seed_ad, sizeof(seed_ad))==-1)
   {
 	  perror("sendto failed");
 	  return -1;
@@ -275,7 +280,7 @@ int main(int argc, char *argv[])
 
   // receive answer
   len = sizeof(rad);
-  if ((x = recvfrom(sock, buf, sizeof(buf), 0, &rad, &len)) == -1)
+  if ((x = recvfrom(sock, buf, sizeof(buf), 0, (struct sockaddr *)&rad, (socklen_t *)&len)) == -1)
   {
 	  perror("recvfrom failed");
 	  return -1;
@@ -285,9 +290,9 @@ int main(int argc, char *argv[])
   // process answer
   memcpy(&inlen,buf,2);
   iatlen = ntohs(inlen);
-  iat = buf+2;
+  iat = (char*)buf+2;
   printf("incoming json length %d\n",iatlen);
-  if(js0n(iat,iatlen,index,sizeof(index)))
+  if(js0n((unsigned char*)iat,iatlen,index,sizeof(index)))
   {
 	  printf("failed to parse json: %.*s\n",iatlen,iat);
 	  return -1;
@@ -302,6 +307,107 @@ int main(int argc, char *argv[])
 	  printf("incomplete json packet\n");
 	  return -1;
   }
+  
+  // decode and decrypt the open value
+  len = sizeof(buf);
+  if ((err = base64_decode((unsigned char*)popen, strlen(popen), buf, &len)) != CRYPT_OK) {
+    printf("base64 error: %s\n", error_to_string(err));
+    return -1;
+  }
+  len2 = sizeof(seed_eccpub);
+  if ((err = rsa_decrypt_key(buf, len, seed_eccpub, &len2, 0, 0, find_hash("sha1"), &x, &self_rsa)) != CRYPT_OK) {
+      printf("rsa_decrypt error: %s\n", error_to_string(err));
+      return -1;
+  }
+  printf("seed ecc pub %d %s\n",x,hex(seed_eccpub,len2,out));
+
+  // create the aes cipher key/iv
+  len = 32;
+  if ((err = hash_memory(find_hash("sha256"),seed_eccpub,65,aeskey,&len)) != CRYPT_OK) {
+     printf("Error hashing key: %s\n", error_to_string(err));
+     return -1;
+  }
+  printf("aes key %s ",hex(aeskey,32,out));
+  unhex(piv,32,aesiv);
+  printf("iv %s\n",hex(aesiv,16,out));
+
+  // create aes cipher now and decrypt the inner
+  if ((err = ctr_start(find_cipher("aes"),aesiv,aeskey,32,0,CTR_COUNTER_BIG_ENDIAN,&ctr)) != CRYPT_OK) {
+     printf("ctr_start error: %s\n",error_to_string(err));
+     return -1;
+  }
+  if ((err = ctr_decrypt(body,inner,body_len,&ctr)) != CRYPT_OK) {
+     printf("ctr_decrypt error: %s\n", error_to_string(err));
+     return -1;
+  }
+  printf("aes decrypt %s\n",hex(inner,body_len,out));
+  
+  // parse the inner packet
+  memcpy(&inlen,inner,2);
+  iatlen = ntohs(inlen);
+  iat = (char*)inner+2;
+  printf("inner json length %d\n",iatlen);
+  if(js0n((unsigned char*)iat,iatlen,index,sizeof(index)))
+  {
+	  printf("failed to parse json: %.*s\n",iatlen,iat);
+	  return -1;
+  }
+  seed_der = inner+2+iatlen;
+  seed_der_len = body_len-(2+iatlen);
+  seed_line = j0g_str("line",iat,index);
+  if(!seed_line || !j0g_str("at",iat,index) || strcmp(j0g_str("to",iat,index),self_hn) != 0)
+  {
+	  printf("invalid inner json packet: %.*s\n",iatlen,iat);
+	  return -1;
+  }
+  
+  // load and verify the inner body key
+  if ((err = rsa_import(seed_der, seed_der_len, &seed_rsa)) != CRYPT_OK) {
+    printf("Import public error: %s\n", error_to_string(err));
+    return -1;
+  }
+  if ((err = hashname(seed_der, seed_der_len, out)) != CRYPT_OK) {
+    printf("hashname error: %s\n", error_to_string(err));
+    return -1;
+  }
+  if(strcmp(out,seed_hn) != 0)
+  {
+	  printf("hashnames don't match %s %s\n",seed_hn,out);
+	  return -1;
+  }
+  
+  // verify the signature
+  len = sizeof(buf);
+  if ((err = base64_decode((unsigned char*)psig, strlen(psig), buf, &len)) != CRYPT_OK) {
+    printf("base64 error: %s\n", error_to_string(err));
+    return -1;
+  }
+  len2 = 32;
+  if ((err = hash_memory(find_hash("sha256"),body,body_len,sighash,&len2)) != CRYPT_OK) {
+     printf("Error hashing key: %s\n", error_to_string(err));
+     return -1;
+  }
+  if ((err = rsa_verify_hash_ex(buf, len, sighash, len2, LTC_PKCS_1_V1_5, find_hash("sha256"), 0, &x, &seed_rsa)) != CRYPT_OK) {
+    printf("verify sig error: %s\n", error_to_string(err));
+    return -1;
+  }
+  if(x != 1)
+  {
+	  printf("signature not valid\n");
+	  return -1;
+  }
+
+  // do the diffie hellman
+  if ((err = ecc_ansi_x963_import(seed_eccpub, 65, &urkey)) != CRYPT_OK) {
+	  printf("Error importing ecc key: %s\n", error_to_string(err));
+	  return -1;
+  }
+  printf("ecc pub key %s\n",hex(self_eccpub,65,(char*)out));
+  len = sizeof(secret);
+  if ((err = ecc_shared_secret(&mykey,&urkey,secret,&len)) != CRYPT_OK) {
+    printf("Error doing DH: %s\n", error_to_string(err)); return -1;
+  }
+  printf("shared secret %s\n",hex(secret,len,out));
 
   return 0;
 }
@@ -317,6 +423,31 @@ char *hex(unsigned char *digest, int len, char *out)
     }
     *c = '\0';
     return out;
+}
+
+unsigned char hexcode(char x)
+{
+    if (x >= '0' && x <= '9')         /* 0-9 is offset by hex 30 */
+      return (x - 0x30);
+    else if (x >= 'A' && x <= 'F')    /* A-F offset by hex 37 */
+      return(x - 0x37);
+    else if (x >= 'a' && x <= 'f')    /* a-f offset by hex 37 */
+      return(x - 0x57);
+    else {                            /* Otherwise, an illegal hex digit */
+		return x;
+    }
+}
+
+unsigned char *unhex(char *hex, int len, unsigned char *out)
+{
+	int j;
+	unsigned char *c = out;
+	for(j=0; (j+1)<len; j+=2)
+	{
+		*c = ((hexcode(hex[j]) * 16) & 0xF0) + (hexcode(hex[j+1]) & 0xF);
+		c++;
+	}
+	return out;
 }
 
 int hashname(unsigned char *key, int klen, char *hn)
