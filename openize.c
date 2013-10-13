@@ -17,7 +17,7 @@ int main(int argc, char *argv[])
   ecc_key mykey, urkey;
   prng_state prng;
   int err, x, seed_port, inner_len, outer_len, sock, body_len;
-  unsigned char buf[4096], ecc_enc[256], rand16[16], aesiv[16], aeskey[32], inner[2048], inner_enc[2048], inner_sig[512], sighash[32], outer[2048], *body;
+  unsigned char buf[4096], ecc_enc[256], rand16[16], aesiv[16], aeskey[32], inner[2048], inner_enc[2048], inner_sig[512], inner_csig[512], csig[512], sighash[32], outer[2048], *body;
   char out[4096], inbuf[32768], *ibat, *pem, self_hn[65], seed_hn[65], seed_ip[32];
   char *pem_pre = "-----BEGIN PUBLIC KEY-----\n", *pem_suf = "\n-----END PUBLIC KEY-----\n";
   char line_out[33], *iat, open[512], iv[33], sig[512], *popen, *piv, *psig, *seed_line;
@@ -229,8 +229,13 @@ int main(int argc, char *argv[])
     printf("rsa_sign error: %s\n", error_to_string(err));
     return -1;
   }
+	// encrypt the signature
+  if ((err = ctr_encrypt(inner_sig,inner_csig,len,&ctr)) != CRYPT_OK) {
+     printf("ctr_encrypt error: %s\n", error_to_string(err));
+     return -1;
+  }
   len2 = sizeof(sig);
-  if ((err = base64_encode(inner_sig, len, (unsigned char*)sig, &len2)) != CRYPT_OK) {
+  if ((err = base64_encode(inner_csig, len, (unsigned char*)sig, &len2)) != CRYPT_OK) {
     printf("base64 error: %s\n", error_to_string(err));
     return -1;
   }
@@ -382,12 +387,17 @@ int main(int argc, char *argv[])
     printf("base64 error: %s\n", error_to_string(err));
     return -1;
   }
+  if ((err = ctr_decrypt(buf,csig,len,&ctr)) != CRYPT_OK) {
+     printf("ctr_decrypt error: %s\n", error_to_string(err));
+     return -1;
+  }
+	
   len2 = 32;
   if ((err = hash_memory(find_hash("sha256"),body,body_len,sighash,&len2)) != CRYPT_OK) {
      printf("Error hashing key: %s\n", error_to_string(err));
      return -1;
   }
-  if ((err = rsa_verify_hash_ex(buf, len, sighash, len2, LTC_PKCS_1_V1_5, find_hash("sha256"), 0, &x, &seed_rsa)) != CRYPT_OK) {
+  if ((err = rsa_verify_hash_ex(csig, len, sighash, len2, LTC_PKCS_1_V1_5, find_hash("sha256"), 0, &x, &seed_rsa)) != CRYPT_OK) {
     printf("verify sig error: %s\n", error_to_string(err));
     return -1;
   }
