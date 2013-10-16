@@ -21,7 +21,7 @@ int main(int argc, char *argv[])
   char out[4096], inbuf[32768], *ibat, *pem, self_hn[65], seed_hn[65], seed_ip[32];
   char *pem_pre = "-----BEGIN PUBLIC KEY-----\n", *pem_suf = "\n-----END PUBLIC KEY-----\n";
   char line_out[33], *iat, open[512], iv[33], sig[512], *popen, *piv, *psig, *seed_line;
-  unsigned char self_der[1024], self_eccpub[65], seed_eccpub[65], secret[64], *seed_der;
+  unsigned char self_der[1024], self_eccpub[65], seed_eccpub[65], secret[64], *seed_der, seed_line_bytes[16];
   unsigned long len, self_der_len, seed_der_len, len2;
   unsigned short index[32], iatlen, inlen;
   symmetric_CTR ctr;
@@ -229,7 +229,18 @@ int main(int argc, char *argv[])
     printf("rsa_sign error: %s\n", error_to_string(err));
     return -1;
   }
-	// encrypt the signature
+	// encrypt the signature, create the new aes key+cipher first
+  memcpy(csig,self_eccpub,65);
+  memcpy(csig+65,rand16,16);
+  len2 = 32;
+  if ((err = hash_memory(find_hash("sha256"),csig,65+16,aeskey,&len2)) != CRYPT_OK) {
+    printf("Error hashing key: %s\n", error_to_string(err));
+    return -1;
+	}
+  if ((err = ctr_start(find_cipher("aes"),aesiv,aeskey,32,0,CTR_COUNTER_BIG_ENDIAN,&ctr)) != CRYPT_OK) {
+    printf("ctr_start error: %s\n",error_to_string(err));
+    return -1;
+  }
   if ((err = ctr_encrypt(inner_sig,inner_csig,len,&ctr)) != CRYPT_OK) {
      printf("ctr_encrypt error: %s\n", error_to_string(err));
      return -1;
@@ -365,6 +376,7 @@ int main(int argc, char *argv[])
 	  printf("invalid inner json packet: %.*s\n",iatlen,iat);
 	  return -1;
   }
+  unhex(seed_line,32,seed_line_bytes); // need to validate
   
   // load and verify the inner body key
   if ((err = rsa_import(seed_der, seed_der_len, &seed_rsa)) != CRYPT_OK) {
@@ -386,6 +398,18 @@ int main(int argc, char *argv[])
   if ((err = base64_decode((unsigned char*)psig, strlen(psig), buf, &len)) != CRYPT_OK) {
     printf("base64 error: %s\n", error_to_string(err));
     return -1;
+  }
+  // decrypt the sig
+  memcpy(csig,seed_eccpub,65);
+  memcpy(csig+65,seed_line_bytes,16);
+  len2 = 32;
+  if ((err = hash_memory(find_hash("sha256"),csig,65+16,aeskey,&len2)) != CRYPT_OK) {
+    printf("Error hashing key: %s\n", error_to_string(err));
+    return -1;
+	}
+  if ((err = ctr_start(find_cipher("aes"),aesiv,aeskey,32,0,CTR_COUNTER_BIG_ENDIAN,&ctr)) != CRYPT_OK) {
+     printf("ctr_start error: %s\n",error_to_string(err));
+     return -1;
   }
   if ((err = ctr_decrypt(buf,csig,len,&ctr)) != CRYPT_OK) {
      printf("ctr_decrypt error: %s\n", error_to_string(err));
