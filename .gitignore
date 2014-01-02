@@ -1,5 +1,6 @@
-test
+test_crypt
+test_ping
 openize
-openize.dSYM
+*.dSYM
 idgen
 *.json
