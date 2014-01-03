@@ -3,6 +3,9 @@
 
 #include "js0n.h"
 
+// the maximum index size of how many top level elements there are in the json (each keypair is 4)
+#define JSONDENSITY 64
+
 typedef struct packet_struct
 {
   unsigned char *raw;
@@ -10,7 +13,7 @@ typedef struct packet_struct
   unsigned short body_len;
   unsigned char *json;
   unsigned short json_len;
-  unsigned short js[64];
+  unsigned short js[JSONDENSITY];
 } *packet_t;
 
 // these all allocate/free memory
