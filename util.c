@@ -1,4 +1,33 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include "util.h"
+
+packet_t util_file2packet(char *file)
+{
+  unsigned char *buf;
+  int len;
+  struct stat fs;
+  FILE *fd;
+  packet_t p;
+  
+  fd = fopen(file,"rb");
+  if(!fd) return NULL;
+  if(fstat(fileno(fd),&fs) < 0) return NULL;
+  
+  buf = malloc(fs.st_size);
+  len = fread(buf,1,fs.st_size,fd);
+  fclose(fd);
+  if(len != fs.st_size)
+  {
+    free(buf);
+    return NULL;
+  }
+  
+  p = packet_new();
+  packet_json(p, buf, len);
+  return p;
+}
 
 unsigned char *util_hex(unsigned char *in, int len, unsigned char *out)
 {
@@ -37,3 +66,4 @@ unsigned char *util_unhex(unsigned char *in, int len, unsigned char *out)
 	}
 	return out;
 }
+
