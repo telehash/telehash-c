@@ -1,8 +1,6 @@
 #ifndef packet_h
 #define packet_h
 
-#include "js0n.h"
-
 // the maximum index size of how many top level elements there are in the json (each keypair is 4)
 #define JSONDENSITY 64
 

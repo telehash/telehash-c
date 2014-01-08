@@ -3,6 +3,7 @@
 
 #include "crypt.h"
 #include "xht.h"
+#include "path.h"
 
 // a prime number for the internal hashtable used to track all active hashnames
 #define HNMAXPRIME 4211
@@ -11,6 +12,7 @@ typedef struct hn_struct
 {
   unsigned char hashname[32];
   crypt_t c;
+  path_t *paths;
 } *hn_t;
 
 // global index of all hashname structures

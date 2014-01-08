@@ -3,6 +3,7 @@
 #include <strings.h>
 #include <stdlib.h>
 #include <arpa/inet.h>
+#include "js0n.h"
 
 packet_t packet_new()
 {

@@ -5,12 +5,14 @@
 #include "util.h"
 #include "crypt.h"
 #include "hn.h"
+#include "path.h"
 
 int main(void)
 {
   unsigned char out[4096], hn[64];
   packet_t p,p2;
   hn_t id, *seeds;
+  path_t path;
 
   crypt_init();
   hn_init();
@@ -38,6 +40,11 @@ int main(void)
     return -1;
   }
   printf("loaded seed %.*s\n",64,util_hex((*seeds)->hashname,32,hn));
+
+  path = path_new("ipv4");
+  path_ip(path,"127.0.0.1");
+  path_port(path, 42424);
+  printf("path %s\n",path_json(path));
 
   return 0;
 }

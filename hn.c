@@ -12,6 +12,13 @@ void hn_init()
   _hn_index = xht_new(HNMAXPRIME);
 }
 
+void hn_free(hn_t hn)
+{
+  if(hn->c) crypt_free(hn->c);
+  free(hn->paths);
+  free(hn);
+}
+
 void hn_gc()
 {
   // xht_walk and look for unused ones
@@ -29,6 +36,8 @@ hn_t hn_get(unsigned char *bin)
   bzero(hn,sizeof (struct hn_struct));
   memcpy(hn->hashname, bin, 32);
   xht_set(_hn_index, (const char*)hn->hashname, (void*)hn);
+  hn->paths = malloc(sizeof (path_t));
+  hn->paths[0] = NULL;
   return hn;
 }
 
@@ -58,6 +67,12 @@ hn_t hn_getjs(packet_t p)
       crypt_free(c);
       return NULL;
     }
+  }
+  
+  // if any paths are stored, associte them
+  if(j0g_val("paths",(char*)p->json,p->js))
+  {
+    
   }
   
   // get/update our hn value
