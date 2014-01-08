@@ -10,7 +10,7 @@ int main(void)
 {
   unsigned char out[4096], hn[64];
   packet_t p,p2;
-  hn_t id;
+  hn_t id, *seeds;
 
   crypt_init();
   hn_init();
@@ -23,13 +23,21 @@ int main(void)
   p2 = packet_copy(p);
   printf("copy packet %s\n",util_hex(packet_raw(p2),packet_len(p2),out));
 
-  id = hn_idfile("id.json");
+  id = hn_getfile("id.json");
   if(!id)
   {
     printf("failed to load id.json: %s\n", crypt_err());
     return -1;
   }
   printf("loaded hashname %.*s\n",64,util_hex(id->hashname,32,hn));
+
+  seeds = hn_getsfile("seeds.json");
+  if(!*seeds)
+  {
+    printf("failed to load seeds.json: %s\n", crypt_err());
+    return -1;
+  }
+  printf("loaded seed %.*s\n",64,util_hex((*seeds)->hashname,32,hn));
 
   return 0;
 }

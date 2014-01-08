@@ -27,9 +27,9 @@ hn_t hn_get(unsigned char *hn);
 hn_t hn_gethex(char *hex);
 
 // load hashname from file
-hn_t hn_idfile(char *file);
+hn_t hn_getfile(char *file);
 
-// load hashnames from a seeds file and return them, caller must free return array
-hn_t *hn_seeds(char *file);
+// load an array of hashnames from a file and return them, caller must free return array
+hn_t *hn_getsfile(char *file);
 
 #endif
