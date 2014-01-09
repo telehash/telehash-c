@@ -6,6 +6,7 @@
 #include "crypt.h"
 #include "util.h"
 #include "j0g.h"
+#include "js0n.h"
 
 void hn_init()
 {
@@ -52,6 +53,8 @@ hn_t hn_getjs(packet_t p)
   crypt_t c;
   unsigned char *key;
   hn_t hn = NULL;
+  int i, len;
+  unsigned short list[64];
 
   // load the crypt from the public key
   key = (unsigned char*)j0g_str("public",(char*)p->json,p->js);
@@ -68,18 +71,53 @@ hn_t hn_getjs(packet_t p)
       return NULL;
     }
   }
-  
-  // if any paths are stored, associte them
-  if(j0g_val("paths",(char*)p->json,p->js))
-  {
-    
-  }
-  
+
   // get/update our hn value
   hn = hn_get(crypt_hashname(c));
   if(hn->c) crypt_free(hn->c);
   hn->c = c;
+  
+  // if any paths are stored, associte them
+  i = j0g_val("paths",(char*)p->json,p->js);
+  if(i)
+  {
+    key = p->json+p->js[i];
+    len = p->js[i+1];
+    js0n(key, len, list, 64);
+  	for(i=0;list[i];i+=2)
+  	{
+      hn_path(hn, path_parse(key+list[i], list[i+1]));
+  	}
+    
+  }
+  
   return hn;
+}
+
+path_t hn_path(hn_t hn, path_t p)
+{
+  path_t existing = NULL;
+  int i;
+
+  if(!p) return NULL;
+
+  // find existing matching path
+  for(i=0;hn->paths[i];i++)
+  {
+    if(path_match(hn->paths[i], p)) existing = hn->paths[i];
+  }
+  if(existing)
+  {
+    path_free(p);
+    return existing;
+  }
+
+  // add new path, i is the end of the list from above
+  hn->paths = realloc(hn->paths, (i+2) * (sizeof (path_t)));
+  hn->paths[i] = p;
+  hn->paths[i+1] = 0; // null term
+
+  return p;
 }
 
 // load hashname from file
@@ -123,7 +161,7 @@ hn_t *hn_getsfile(char *file)
     hn = hn_getjs(p2);
     packet_free(p2);
     if(!hn) continue;
-    list = realloc(list, len * (sizeof (hn_t *)));
+    list = realloc(list, (len+1) * (sizeof (hn_t)));
     list[len-1] = hn;
     list[len] = 0; // null term
     len++;

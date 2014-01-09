@@ -1,6 +1,6 @@
 [
 {
-    "paths":[{"type":"ipv4","ip": "127.0.0.1","port": 42424}],
+    "paths":[{"type":"ipv4","ip": "127.0.0.1","port": 42424},{"type":"http","http":"http://127.0.0.1"}],
     "public": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwpYq+d5qkc3ReQ0To9t69mRj5O5zR2pje0vJB9Cs7+tRAVfRcQx3NW/NL4BdgNRZiekf1rqnEsjy9QceEqCKrJJeyLnel6pQAb9zJQ9J1HCYIg/NpMJz+U7Wiwpmxd9uGbOY0GloGVCcO/DeAQVSe6l79Y3teiCF5qsM5FW/wSDnA87rK6HdNIKU+gsUgc+9kcywQ1T/rLyG4BRZ168EpTJMsgRY0uUizCtzvoqV8y0ZE1+1x1oJ3EmgFq7HK258C4vhP/AJYFl9mB5WYYpoLz3dSGnnLwn0naU1m6THl5CJVmxf/6JPj7AeGme2KmAdVtaH4WImYg2TwCeIuGQokwIDAQAB"
 }
 ]

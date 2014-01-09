@@ -78,6 +78,7 @@ unsigned char *path_json(path_t p)
   int len;
   char *json;
   
+  if(!p) return NULL;
   if(p->json) free(p->json);
   len = 32+strlen(p->type)+strlen(p->ip);
   if(p->id) len += strlen(p->id)*2; // double for possible escaping
@@ -105,4 +106,18 @@ unsigned char *path_json(path_t p)
   }
   json[strlen(json)] = '}';
   return p->json;
+}
+
+int path_match(path_t p1, path_t p2)
+{
+  if(!p1 || !p2) return 0;
+  if(p1 == p2) return 1;
+  if(strcmp(p1->type,p2->type) != 0) return 0;
+  if(strstr(p1->type,"ipv"))
+  {
+    if(strcmp(p1->ip, p2->ip) == 0 && p1->port == p2->port) return 1;
+  }else{
+    if(strcmp(p1->id, p2->id) == 0) return 1;
+  }
+  return 0;
 }

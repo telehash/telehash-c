@@ -34,4 +34,7 @@ hn_t hn_getfile(char *file);
 // load an array of hashnames from a file and return them, caller must free return array
 hn_t *hn_getsfile(char *file);
 
+// return a matching path, or add it if none
+path_t hn_path(hn_t hn, path_t p);
+
 #endif

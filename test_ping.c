@@ -39,7 +39,7 @@ int main(void)
     printf("failed to load seeds.json: %s\n", crypt_err());
     return -1;
   }
-  printf("loaded seed %.*s\n",64,util_hex((*seeds)->hashname,32,hn));
+  printf("loaded seed %.*s %s\n",64,util_hex((*seeds)->hashname,32,hn), path_json((*seeds)->paths[0]));
 
   path = path_new("ipv4");
   path_ip(path,"127.0.0.1");
