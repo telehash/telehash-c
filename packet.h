@@ -12,6 +12,7 @@ typedef struct packet_struct
   unsigned char *json;
   unsigned short json_len;
   unsigned short js[JSONDENSITY];
+  struct packet_struct *next;
 } *packet_t;
 
 // these all allocate/free memory

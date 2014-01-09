@@ -1,5 +1,5 @@
-DOTC = hn.c packet.c path.c util.c crypt_libtom.c xht.c
-DOTH = hn.h packet.h path.h util.h crypt.h xht.h
+DOTC = hn.c packet.c path.c switch.c dht.c util.c crypt_libtom.c xht.c
+DOTH = hn.h packet.h path.h switch.h dht.h util.h crypt.h xht.h
 JS0N = ../js0n/js0n.c ../js0n/j0g.c -I../js0n
 LTOM = -ltomcrypt -ltommath -DLTM_DESC
 
