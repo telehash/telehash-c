@@ -1,53 +1,44 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "packet.h"
+#include "switch.h"
 #include "util.h"
-#include "crypt.h"
-#include "hn.h"
-#include "hnt.h"
-#include "path.h"
 
 int main(void)
 {
-  unsigned char out[4096], hn[64];
-  packet_t p,p2;
+  unsigned char out[4096];
   hn_t id;
+  switch_t s;
   hnt_t seeds;
-  path_t path;
-  xht_t h;
+  chan_t c;
+  packet_t p;
 
   crypt_init();
-  h = xht_new(4211);
+  s = switch_new();
 
-  p = packet_new();
-  printf("empty packet %s\n",util_hex(packet_raw(p),packet_len(p),out));
-  packet_json(p,(unsigned char*)"{\"foo\":\"bar\"}",strlen("{\"foo\":\"bar\"}"));
-  packet_body(p,(unsigned char*)"BODY",4);
-  printf("full packet %s\n",util_hex(packet_raw(p),packet_len(p),out));
-  p2 = packet_copy(p);
-  printf("copy packet %s\n",util_hex(packet_raw(p2),packet_len(p2),out));
-
-  id = hn_getfile(h, "id.json");
+  id = hn_getfile(s->index, "id.json");
   if(!id)
   {
     printf("failed to load id.json: %s\n", crypt_err());
     return -1;
   }
-  printf("loaded hashname %.*s\n",64,util_hex(id->hashname,32,hn));
+  if(switch_init(s, id))
+  {
+    printf("failed to init switch\n");
+    return -1;
+  }
+  printf("loaded hashname %s\n",s->id->hexname);
 
-  seeds = hn_getsfile(h, "seeds.json");
-  if(!seeds)
+  seeds = hn_getsfile(s->index, "seeds.json");
+  if(!seeds || !hnt_get(seeds, 0))
   {
     printf("failed to load seeds.json: %s\n", crypt_err());
     return -1;
   }
-  printf("loaded seed %.*s %s\n",64,util_hex((*(seeds->hns))->hashname,32,hn), path_json((*(seeds->hns))->paths[0]));
-
-  path = path_new("ipv4");
-  path_ip(path,"127.0.0.1");
-  path_port(path, 42424);
-  printf("path %s\n",path_json(path));
+  
+  c = chan_new(s, hnt_get(seeds, 0), "seek", 0);
+  p = chan_packet(c);
+  printf("chan packet %s\n",util_hex(packet_raw(p),packet_len(p),out));
 
   return 0;
 }

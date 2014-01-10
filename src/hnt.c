@@ -27,3 +27,9 @@ void hnt_add(hnt_t t, hn_t h)
   t->hns[i+1] = NULL;
   t->count = i+1;
 }
+
+hn_t hnt_get(hnt_t t, int index)
+{
+  if(index >= t->count) return NULL;
+  return t->hns[index];
+}

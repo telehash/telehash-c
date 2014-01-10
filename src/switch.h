@@ -12,13 +12,16 @@ typedef struct switch_struct
   hn_t id;
   hnt_t seeds, *buckets;
   packet_t out, last; // packets waiting to be delivered
-  chan_t in; // channels waiting to be processed
+  struct chan_struct *in; // channels waiting to be processed
   int cap;
   xht_t index;
 } *switch_t;
 
-switch_t switch_new(hn_t id);
+switch_t switch_new();
 void switch_free(switch_t s);
+
+// must be called to initialize to an id, return !0 if failed
+int switch_init(switch_t s, hn_t id);
 
 // add hashname as a seed, will automatically trigger a query to it
 void switch_seed(switch_t s, hn_t hn);
@@ -27,7 +30,7 @@ void switch_seed(switch_t s, hn_t hn);
 packet_t switch_sending(switch_t s);
 
 // get a channel that has packets to be processed, NULL if none
-chan_t switch_pop(switch_t s);
+struct chan_struct *switch_pop(switch_t s);
 
 // add a packet to the send queue
 void switch_send(switch_t s, packet_t p);

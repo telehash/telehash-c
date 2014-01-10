@@ -7,6 +7,7 @@ struct crypt_struct
 {
   rsa_key rsa;
   unsigned char hashname[32];
+  int private;
 };
 
 // simple way to track last known error from libtomcrypt and return it for debugging
@@ -79,7 +80,10 @@ int crypt_private(crypt_t c, unsigned char *key, int len)
   unsigned long der_len = 4096;
   unsigned char der[der_len];
   
-  if(!c || !key || !len || len > der_len) return 1;
+  if(!c) return 1;
+  if(c->private) return 0; // already loaded
+
+  if(!key || !len || len > der_len) return 1;
 
   // try to base64 decode in case that's the incoming format
   if(base64_decode(key, len, der, &der_len) != CRYPT_OK) {
@@ -88,6 +92,6 @@ int crypt_private(crypt_t c, unsigned char *key, int len)
   }
   
   if((_crypt_err = rsa_import(der, der_len, &(c->rsa))) != CRYPT_OK) return 1;
-
+  c->private = 1;
   return 0;
 }

@@ -16,7 +16,7 @@ void crypt_free(crypt_t c);
 // returns 32byte hashname (is safe/stored in c)
 unsigned char *crypt_hashname(crypt_t c);
 
-// load a private id key, returns !0 if error
+// load a private id key, returns !0 if error, can pass (c,NULL,0) to check if private is already loaded too
 int crypt_private(crypt_t c, unsigned char *key, int len);
 
 #endif

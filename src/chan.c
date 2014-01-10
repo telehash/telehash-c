@@ -1,4 +1,7 @@
 #include "chan.h"
+#include <string.h>
+#include <strings.h>
+#include <stdlib.h>
 
 chan_t chan_new(switch_t s, hn_t hn, char *type, int reliable)
 {
@@ -7,7 +10,7 @@ chan_t chan_new(switch_t s, hn_t hn, char *type, int reliable)
   bzero(c,sizeof (struct chan_struct));
   c->type = strdup(type);
   c->s = s;
-  c->hn = hn;
+  c->to = hn;
   c->reliable = reliable;
   c->state = STARTING;
   return c;

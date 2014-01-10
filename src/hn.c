@@ -30,6 +30,7 @@ hn_t hn_get(xht_t index, unsigned char *bin)
   xht_set(index, (const char*)hn->hashname, (void*)hn);
   hn->paths = malloc(sizeof (path_t));
   hn->paths[0] = NULL;
+  util_hex(hn->hashname,32,(unsigned char*)hn->hexname);
   return hn;
 }
 

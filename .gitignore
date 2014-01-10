@@ -1,5 +1,6 @@
 test_crypt
 test_ping
+test_misc
 openize
 *.dSYM
 idgen

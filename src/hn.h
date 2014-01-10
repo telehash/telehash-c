@@ -8,6 +8,7 @@
 typedef struct hn_struct
 {
   unsigned char hashname[32];
+  char hexname[65]; // for convenience
   crypt_t c;
   path_t *paths;
 } *hn_t;

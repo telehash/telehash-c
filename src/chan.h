@@ -6,7 +6,7 @@
 typedef struct chan_struct
 {
   struct switch_struct *s;
-  hn_t h;
+  hn_t to;
   char *type;
   int reliable;
   enum {STARTING, OPEN, ENDED} state;
@@ -21,6 +21,6 @@ void chan_free(chan_t c);
 packet_t chan_packet(chan_t c);
 
 // internal, receives/processes incoming packet
-void chan_receive(chan_t c);
+void chan_receive(chan_t c, packet_t p);
 
 #endif

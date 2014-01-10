@@ -19,6 +19,14 @@ switch_t switch_new(hn_t id)
   return s;
 }
 
+int switch_init(switch_t s, hn_t id)
+{
+  if(!id || !id->c) return 1;
+  if(crypt_private(id->c,NULL,0)) return 1;
+  s->id = id;
+  return 0;
+}
+
 void switch_free(switch_t s)
 {
   int i;
