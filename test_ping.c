@@ -5,17 +5,20 @@
 #include "util.h"
 #include "crypt.h"
 #include "hn.h"
+#include "hnt.h"
 #include "path.h"
 
 int main(void)
 {
   unsigned char out[4096], hn[64];
   packet_t p,p2;
-  hn_t id, *seeds;
+  hn_t id;
+  hnt_t seeds;
   path_t path;
+  hns_t h;
 
   crypt_init();
-  hn_init();
+  h = hns_new(4211);
 
   p = packet_new();
   printf("empty packet %s\n",util_hex(packet_raw(p),packet_len(p),out));
@@ -25,7 +28,7 @@ int main(void)
   p2 = packet_copy(p);
   printf("copy packet %s\n",util_hex(packet_raw(p2),packet_len(p2),out));
 
-  id = hn_getfile("id.json");
+  id = hn_getfile(h, "id.json");
   if(!id)
   {
     printf("failed to load id.json: %s\n", crypt_err());
@@ -33,13 +36,13 @@ int main(void)
   }
   printf("loaded hashname %.*s\n",64,util_hex(id->hashname,32,hn));
 
-  seeds = hn_getsfile("seeds.json");
-  if(!*seeds)
+  seeds = hn_getsfile(h, "seeds.json");
+  if(!seeds)
   {
     printf("failed to load seeds.json: %s\n", crypt_err());
     return -1;
   }
-  printf("loaded seed %.*s %s\n",64,util_hex((*seeds)->hashname,32,hn), path_json((*seeds)->paths[0]));
+  printf("loaded seed %.*s %s\n",64,util_hex((*(seeds->hns))->hashname,32,hn), path_json((*(seeds->hns))->paths[0]));
 
   path = path_new("ipv4");
   path_ip(path,"127.0.0.1");

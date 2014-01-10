@@ -2,26 +2,49 @@
 #include <string.h>
 #include <strings.h>
 #include <stdlib.h>
-  
+
+// a prime number for the internal hashtable used to track all active hashnames
+#define HNMAXPRIME 4211
+
 switch_t switch_new(hn_t id)
 {
   switch_t s = malloc(sizeof (struct switch_struct));
   bzero(s, sizeof(struct switch_struct));
   s->id = id;
+  s->cap = 256; // default cap size
+  // create all the buckets
+  s->buckets = malloc(256 * sizeof(hnt_t));
+  bzero(s->buckets, 256 * sizeof(hnt_t));
   return s;
 }
 
 void switch_free(switch_t s)
 {
-  if(s->seeds) dht_free(s->seeds);
-  if(s->all) dht_free(s->all);
+  int i;
+  for(i=0;i<=255;i++) if(s->buckets[i]) hnt_free(s->buckets[i]);
+  if(s->seeds) hnt_free(s->seeds);
   free(s);
 }
 
-void switch_seed(switch_t s, hn_t h)
+void switch_cap(switch_t s, int cap)
 {
-  if(!s->seeds) s->seeds = dht_new();
-  dht_add(s->seeds, h);
+  s->cap = cap;
+}
+
+// add this hashname to our bucket list
+void switch_bucket(switch_t s, hn_t hn)
+{
+  unsigned char bucket = hn_distance(s->id, hn);
+  if(!s->buckets[bucket]) s->buckets[bucket] = hnt_new();
+  hnt_add(s->buckets[bucket], hn);
+  // TODO figure out if there's actually more capacity
+  
+}
+
+void switch_seed(switch_t s, hn_t hn)
+{
+  if(!s->seeds) s->seeds = hnt_new();
+  hnt_add(s->seeds, hn);
 }
 
 packet_t switch_sending(switch_t s)
