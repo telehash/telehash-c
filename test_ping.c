@@ -15,10 +15,10 @@ int main(void)
   hn_t id;
   hnt_t seeds;
   path_t path;
-  hns_t h;
+  xht_t h;
 
   crypt_init();
-  h = hns_new(4211);
+  h = xht_new(4211);
 
   p = packet_new();
   printf("empty packet %s\n",util_hex(packet_raw(p),packet_len(p),out));

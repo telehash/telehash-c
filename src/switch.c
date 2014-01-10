@@ -15,6 +15,7 @@ switch_t switch_new(hn_t id)
   // create all the buckets
   s->buckets = malloc(256 * sizeof(hnt_t));
   bzero(s->buckets, 256 * sizeof(hnt_t));
+  s->index = xht_new(HNMAXPRIME);
   return s;
 }
 
@@ -65,4 +66,13 @@ void switch_send(switch_t s, packet_t p)
     return;
   }
   s->last = s->out = p;
+}
+
+chan_t switch_pop(switch_t s)
+{
+  chan_t c;
+  if(!s->in) return NULL;
+  c = s->in;
+  s->in = c->next;
+  return c;
 }

@@ -9,26 +9,6 @@
 #include "js0n.h"
 #include "hnt.h"
 
-hns_t hns_new(int prime)
-{
-  hns_t h = malloc(sizeof (struct hns_struct));
-  bzero(h,sizeof (struct hns_struct));
-  h->index = xht_new(prime);
-  return h;
-}
-
-void hns_free(hns_t h)
-{
-  // TODO walk and free all hn's
-  xht_free(h->index);
-  free(h);
-}
-
-void hns_gc(hns_t h)
-{
-  // xht_walk and look for unused ones
-}
-
 void hn_free(hn_t hn)
 {
   if(hn->c) crypt_free(hn->c);
@@ -36,30 +16,30 @@ void hn_free(hn_t hn)
   free(hn);
 }
 
-hn_t hn_get(hns_t h, unsigned char *bin)
+hn_t hn_get(xht_t index, unsigned char *bin)
 {
   hn_t hn;
   
-  hn = xht_get(h->index, (const char*)bin);
+  hn = xht_get(index, (const char*)bin);
   if(hn) return hn;
 
   // init new hashname container
   hn = malloc(sizeof (struct hn_struct));
   bzero(hn,sizeof (struct hn_struct));
   memcpy(hn->hashname, bin, 32);
-  xht_set(h->index, (const char*)hn->hashname, (void*)hn);
+  xht_set(index, (const char*)hn->hashname, (void*)hn);
   hn->paths = malloc(sizeof (path_t));
   hn->paths[0] = NULL;
   return hn;
 }
 
-hn_t hn_gethex(hns_t h, char *hex)
+hn_t hn_gethex(xht_t index, char *hex)
 {
   return 0;
 }
 
 // derive a hn from json in a packet
-hn_t hn_getjs(hns_t h, packet_t p)
+hn_t hn_getjs(xht_t index, packet_t p)
 {
   crypt_t c;
   unsigned char *key;
@@ -84,7 +64,7 @@ hn_t hn_getjs(hns_t h, packet_t p)
   }
 
   // get/update our hn value
-  hn = hn_get(h, crypt_hashname(c));
+  hn = hn_get(index, crypt_hashname(c));
   if(hn->c) crypt_free(hn->c);
   hn->c = c;
   
@@ -132,21 +112,21 @@ path_t hn_path(hn_t hn, path_t p)
 }
 
 // load hashname from file
-hn_t hn_getfile(hns_t h, char *file)
+hn_t hn_getfile(xht_t index, char *file)
 {
   hn_t id = NULL;
   packet_t p;
 
   p = util_file2packet(file);
   if(!p) return NULL;
-  id = hn_getjs(h, p);
+  id = hn_getjs(index, p);
   if(id) return id;
   packet_free(p);
   return NULL;
 }
 
 // load hashnames from a file and return them
-hnt_t hn_getsfile(hns_t h, char *file)
+hnt_t hn_getsfile(xht_t index, char *file)
 {
   packet_t p, p2;
   hn_t hn;
@@ -166,7 +146,7 @@ hnt_t hn_getsfile(hns_t h, char *file)
 	{
     p2 = packet_new();
     packet_json(p2, p->json+p->js[i], p->js[i+1]-p->js[i]);
-    hn = hn_getjs(h, p2);
+    hn = hn_getjs(index, p2);
     packet_free(p2);
     if(!hn) continue;
     if(!t) t = hnt_new();

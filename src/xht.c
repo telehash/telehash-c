@@ -49,11 +49,11 @@ xhn _xht_node_find(xhn n, const char *key)
 }
 
 
-xht xht_new(int prime)
+xht_t xht_new(int prime)
 {
-    xht xnew;
+    xht_t xnew;
 
-    xnew = (xht)malloc(sizeof(struct xht_struct));
+    xnew = (xht_t)malloc(sizeof(struct xht_struct));
     xnew->prime = prime;
     xnew->zen = (xhn)malloc(sizeof(struct xhn_struct)*prime); /* array of xhn size of prime */
     bzero(xnew->zen,sizeof(struct xhn_struct)*prime);
@@ -61,7 +61,7 @@ xht xht_new(int prime)
 }
 
 /* does the set work, used by xht_set and xht_store */
-void _xht_set(xht h, const char *key, void *val, char flag)
+void _xht_set(xht_t h, const char *key, void *val, char flag)
 {
     int i;
     xhn n;
@@ -95,14 +95,14 @@ void _xht_set(xht h, const char *key, void *val, char flag)
     n->val = val;
 }
 
-void xht_set(xht h, const char *key, void *val)
+void xht_set(xht_t h, const char *key, void *val)
 {
     if(h == 0 || key == 0)
         return;
     _xht_set(h, key, val, 0);
 }
 
-void xht_store(xht h, const char *key, int klen, void *val, int vlen)
+void xht_store(xht_t h, const char *key, int klen, void *val, int vlen)
 {
     char *ckey, *cval;
 
@@ -119,7 +119,7 @@ void xht_store(xht h, const char *key, int klen, void *val, int vlen)
 }
 
 
-void *xht_get(xht h, const char *key)
+void *xht_get(xht_t h, const char *key)
 {
     xhn n;
 
@@ -130,7 +130,7 @@ void *xht_get(xht h, const char *key)
 }
 
 
-void xht_free(xht h)
+void xht_free(xht_t h)
 {
     xhn n, f;
     int i;
@@ -154,7 +154,7 @@ void xht_free(xht h)
     free(h);
 }
 
-void xht_walk(xht h, xht_walker w, void *arg)
+void xht_walk(xht_t h, xht_walker w, void *arg)
 {
     int i;
     xhn n;
