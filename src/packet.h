@@ -1,6 +1,9 @@
 #ifndef packet_h
 #define packet_h
 
+#include "hn.h"
+#include "path.h"
+
 // the maximum index size of how many top level elements there are in the json (each keypair is 4)
 #define JSONDENSITY 64
 
@@ -13,6 +16,8 @@ typedef struct packet_struct
   unsigned short json_len;
   unsigned short js[JSONDENSITY];
   struct packet_struct *next;
+  hn_t to, from;
+  path_t in, out, direct;
 } *packet_t;
 
 // these all allocate/free memory
@@ -29,5 +34,10 @@ unsigned short packet_len(packet_t p);
 // set/store these in the current packet
 void packet_json(packet_t p, unsigned char *json, unsigned short len);
 void packet_body(packet_t p, unsigned char *body, unsigned short len);
+
+// convenient json setters
+void packet_set(packet_t p, char *key, char *val); // raw
+void packet_set_str(packet_t p, char *key, char *val); // escapes value
+void packet_set_int(packet_t p, char *key, int val);
 
 #endif

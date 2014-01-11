@@ -17,6 +17,7 @@ char *crypt_err()
   return (char*)error_to_string(_crypt_err);
 }
 
+prng_state _crypt_prng;
 int crypt_init()
 {
   ltc_mp = ltm_desc;
@@ -24,6 +25,7 @@ int crypt_init()
   register_prng(&yarrow_desc);
   register_hash(&sha256_desc);
   register_hash(&sha1_desc);
+  if ((_crypt_err = rng_make_prng(128, find_prng("yarrow"), &_crypt_prng, NULL)) != CRYPT_OK) return -1;
   return 0;
 }
 
@@ -94,4 +96,9 @@ int crypt_private(crypt_t c, unsigned char *key, int len)
   if((_crypt_err = rsa_import(der, der_len, &(c->rsa))) != CRYPT_OK) return 1;
   c->private = 1;
   return 0;
+}
+
+void crypt_rand(unsigned char *s, int len)
+{
+  yarrow_read(s,len,&_crypt_prng);
 }

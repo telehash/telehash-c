@@ -2,8 +2,10 @@
 #include <string.h>
 #include <strings.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <arpa/inet.h>
 #include "js0n.h"
+#include "j0g.h"
 
 packet_t packet_new()
 {
@@ -53,14 +55,16 @@ unsigned short packet_len(packet_t p)
 void packet_json(packet_t p, unsigned char *json, unsigned short len)
 {
   uint16_t nlen;
+  printf("JS %d %d %.*s\n",2+p->json_len+p->body_len,2+len+p->body_len,len,json);
+  // new space and update pointers
   p->raw = realloc(p->raw,2+len+p->body_len);
-  // move the body forward to make space
+  p->json = p->raw+2;
   p->body = p->raw+(2+len);
+  // move the body forward to make space
   memmove(p->body,p->raw+(2+p->json_len),p->body_len);
   // copy in new json
-  memcpy(p->raw+2,json,len);
+  memcpy(p->json,json,len);
   p->json_len = len;
-  p->json = p->raw+2;
   nlen = htons(len);
   memcpy(p->raw,&nlen,2);
   js0n(p->json,p->json_len,p->js,JSONDENSITY);
@@ -72,4 +76,83 @@ void packet_body(packet_t p, unsigned char *body, unsigned short len)
   p->body = p->raw+(2+p->json_len);
   memcpy(p->body,body,len);
   p->body_len = len;
+}
+
+void packet_set(packet_t p, char *key, char *val)
+{
+  unsigned char *json, *at, *eval;
+  int existing, vlen, klen, len, evlen;
+
+  if(!p || !key || !val) return;
+  if(!p->json_len) packet_json(p, (unsigned char*)"{}", 2);
+  klen = strlen(key);
+  vlen = strlen(val);
+
+  // make space and copy
+  json = malloc(klen+vlen+p->json_len+4);
+  memcpy(json,p->json,p->json_len);
+
+  // if it's already set, replace the value
+  existing = j0g_val(key,(char*)p->json,p->js);
+  if(existing)
+  {
+    // looks ugly, but is just adjusting the space avail for the value to the new size
+    eval = json+p->js[existing];
+    evlen = p->js[existing+1];
+    // if existing was in quotes, include them
+    if(*(eval-1) == '"')
+    {
+      eval--;
+      evlen += 2;
+    }
+    memmove(eval+vlen,eval+evlen,vlen);
+    memcpy(eval,val,vlen);
+    len = p->json_len - evlen;
+    len += vlen;
+  }else{
+    at = json+(p->json_len-1); // points to the "}"
+    // if there's other keys already, add comma
+    if(p->js[0])
+    {
+      memmove(at+1,at,1);
+      *at = ','; at++;
+    }
+    memmove(at+3+klen,at,3+klen);
+    *at = '"'; at++;
+    memcpy(at,key,klen); at+=klen;
+    *at = '"'; at++;
+    *at = ':'; at++;
+    memmove(at+vlen,at,vlen);
+    memcpy(at,val,vlen); at+=vlen;
+    len = (at+1) - json;
+  }
+  packet_json(p, json, len);
+  free(json);
+}
+
+void packet_set_int(packet_t p, char *key, int val)
+{
+  char num[32];
+  if(!p || !key) return;
+  sprintf(num,"%d",val);
+  packet_set(p, key, num);
+}
+
+void packet_set_str(packet_t p, char *key, char *val)
+{
+  char *escaped;
+  int i, len, vlen = strlen(val);
+  if(!p || !key || !val) return;
+  escaped = malloc(vlen*2+2); // enough space worst case
+  len = 0;
+  escaped[len++] = '"';
+  for(i=0;i<vlen;i++)
+  {
+    if(val[i] == '"' || val[i] == '\\') escaped[len++]='\\';
+    escaped[len++]=val[i];
+  }
+  escaped[len++] = '"';
+  escaped[len] = 0;
+  packet_set(p, key, escaped);
+  free(escaped);
 }

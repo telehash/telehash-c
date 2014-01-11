@@ -8,9 +8,11 @@
 #include "j0g.h"
 #include "js0n.h"
 #include "hnt.h"
+#include "chan.h"
 
 void hn_free(hn_t hn)
 {
+  if(hn->chans) xht_free(hn->chans);
   if(hn->c) crypt_free(hn->c);
   free(hn->paths);
   free(hn);
@@ -161,5 +163,14 @@ hnt_t hn_getsfile(xht_t index, char *file)
 unsigned char hn_distance(hn_t a, hn_t b)
 {
   return 0;
+}
+
+chan_t hn_chan(hn_t hn, unsigned char *id, chan_t c)
+{
+  if(!hn || !id) return NULL;
+  if(!hn->chans) hn->chans = xht_new(17);
+  if(!c) return xht_get(hn->chans,(const char*)id);
+  xht_set(hn->chans,(const char*)id,c);
+  return c;
 }
 

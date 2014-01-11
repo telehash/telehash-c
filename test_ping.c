@@ -38,7 +38,8 @@ int main(void)
   
   c = chan_new(s, hnt_get(seeds, 0), "seek", 0);
   p = chan_packet(c);
-  printf("chan packet %s\n",util_hex(packet_raw(p),packet_len(p),out));
+  packet_set_str(p,"seek",id->hexname);
+  printf("chan packet %.*s %s\n",p->json_len,p->json,util_hex(packet_raw(p),packet_len(p),out));
 
   return 0;
 }

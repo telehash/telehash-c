@@ -11,6 +11,7 @@ typedef struct hn_struct
   char hexname[65]; // for convenience
   crypt_t c;
   path_t *paths;
+  xht_t chans;
 } *hn_t;
 
 // fetch/create matching hn (binary or hex)
@@ -27,5 +28,8 @@ struct hnt_struct *hn_getsfile(xht_t index, char *file);
 path_t hn_path(hn_t hn, path_t p);
 
 unsigned char hn_distance(hn_t a, hn_t b);
+
+// get or set a channel
+struct chan_struct *hn_chan(hn_t h, unsigned char *id, struct chan_struct *c);
 
 #endif

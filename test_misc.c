@@ -26,7 +26,9 @@ int main(void)
   packet_body(p,(unsigned char*)"BODY",4);
   printf("full packet %s\n",util_hex(packet_raw(p),packet_len(p),out));
   p2 = packet_copy(p);
-  printf("copy packet %s\n",util_hex(packet_raw(p2),packet_len(p2),out));
+  packet_set_int(p,"num",42);
+  packet_set_str(p,"foo","quote \"me\"");
+  printf("copy packet json %.*s\n",p->json_len, p->json);
 
   id = hn_getfile(h, "id.json");
   if(!id)

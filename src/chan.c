@@ -2,17 +2,20 @@
 #include <string.h>
 #include <strings.h>
 #include <stdlib.h>
+#include "util.h"
 
-chan_t chan_new(switch_t s, hn_t hn, char *type, int reliable)
+chan_t chan_new(switch_t s, hn_t to, char *type, int reliable)
 {
   chan_t c;
   c = malloc(sizeof (struct chan_struct));
   bzero(c,sizeof (struct chan_struct));
   c->type = strdup(type);
   c->s = s;
-  c->to = hn;
+  c->to = to;
   c->reliable = reliable;
   c->state = STARTING;
+  crypt_rand(c->id, 16);
+  util_hex(c->id,16,(unsigned char*)c->hexid);
   return c;
 }
 
@@ -27,7 +30,14 @@ void chan_free(chan_t c)
 packet_t chan_packet(chan_t c)
 {
   packet_t p = packet_new();
-  if(c->state == STARTING) c->state = OPEN;
+  p->to = c->to;
+  if(c->last) p->out = c->last;
+  if(c->state == STARTING)
+  {
+    c->state = OPEN;
+    packet_set_str(p,"type",c->type);
+  }
+  packet_set_str(p,"c",c->hexid);
   return p;
 }
 
