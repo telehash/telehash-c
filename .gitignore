@@ -5,3 +5,4 @@ openize
 *.dSYM
 idgen
 *.json
+.DS_Store

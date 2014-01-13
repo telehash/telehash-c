@@ -55,7 +55,6 @@ unsigned short packet_len(packet_t p)
 void packet_json(packet_t p, unsigned char *json, unsigned short len)
 {
   uint16_t nlen;
-  printf("JS %d %d %.*s\n",2+p->json_len+p->body_len,2+len+p->body_len,len,json);
   // new space and update pointers
   p->raw = realloc(p->raw,2+len+p->body_len);
   p->json = p->raw+2;
@@ -114,17 +113,15 @@ void packet_set(packet_t p, char *key, char *val)
     // if there's other keys already, add comma
     if(p->js[0])
     {
-      memmove(at+1,at,1);
       *at = ','; at++;
     }
-    memmove(at+3+klen,at,3+klen);
     *at = '"'; at++;
     memcpy(at,key,klen); at+=klen;
     *at = '"'; at++;
     *at = ':'; at++;
-    memmove(at+vlen,at,vlen);
     memcpy(at,val,vlen); at+=vlen;
-    len = (at+1) - json;
+    *at = '}'; at++;
+    len = at - json;
   }
   packet_json(p, json, len);
   free(json);
