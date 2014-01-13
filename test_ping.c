@@ -9,7 +9,7 @@ int main(void)
   unsigned char out[4096];
   hn_t id;
   switch_t s;
-  hnt_t seeds;
+  bucket_t seeds;
   chan_t c;
   packet_t p;
 
@@ -29,14 +29,14 @@ int main(void)
   }
   printf("loaded hashname %s\n",s->id->hexname);
 
-  seeds = hn_getsfile(s->index, "seeds.json");
-  if(!seeds || !hnt_get(seeds, 0))
+  seeds = bucket_load(s->index, "seeds.json");
+  if(!seeds || !bucket_get(seeds, 0))
   {
     printf("failed to load seeds.json: %s\n", crypt_err());
     return -1;
   }
   
-  c = chan_new(s, hnt_get(seeds, 0), "seek", 0);
+  c = chan_new(s, bucket_get(seeds, 0), "seek", 0);
   p = chan_packet(c);
   packet_set_str(p,"seek",id->hexname);
   printf("chan packet %.*s %s\n",p->json_len,p->json,util_hex(packet_raw(p),packet_len(p),out));

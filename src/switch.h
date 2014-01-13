@@ -2,7 +2,7 @@
 #define switch_h
 
 #include "hn.h"
-#include "hnt.h"
+#include "bucket.h"
 #include "packet.h"
 #include "xht.h"
 #include "chan.h"
@@ -10,7 +10,7 @@
 typedef struct switch_struct
 {
   hn_t id;
-  hnt_t seeds, *buckets;
+  bucket_t seeds, *buckets;
   packet_t out, last; // packets waiting to be delivered
   struct chan_struct *in; // channels waiting to be processed
   int cap;

@@ -1,5 +1,5 @@
-DOTC = src/hn.c src/packet.c src/path.c src/switch.c src/hnt.c src/chan.c src/util.c src/crypt_libtom.c src/xht.c
-DOTH = src/hn.h src/packet.h src/path.h src/switch.h src/hnt.h src/chan.h src/util.h src/crypt.h src/xht.h
+DOTC = src/hn.c src/packet.c src/path.c src/switch.c src/bucket.c src/chan.c src/chans.c src/util.c src/crypt_libtom.c src/xht.c
+DOTH = src/hn.h src/packet.h src/path.h src/switch.h src/bucket.h src/chan.h src/chans.h src/util.h src/crypt.h src/xht.h
 JS0N = ../js0n/js0n.c ../js0n/j0g.c -I../js0n
 LTOM = -ltomcrypt -ltommath -DLTM_DESC
 FLAG = -I./src

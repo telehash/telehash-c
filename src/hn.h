@@ -4,6 +4,7 @@
 #include "crypt.h"
 #include "path.h"
 #include "xht.h"
+#include "packet.h"
 
 typedef struct hn_struct
 {
@@ -21,8 +22,8 @@ hn_t hn_gethex(xht_t index, char *hex);
 // load hashname from file
 hn_t hn_getfile(xht_t index, char *file);
 
-// load an array of hashnames from a file and return them, caller must free return array
-struct hnt_struct *hn_getsfile(xht_t index, char *file);
+// derive a hn from json in a packet
+hn_t hn_getjs(xht_t index, struct packet_struct *p);
 
 // return a matching path, or add it if none
 path_t hn_path(hn_t hn, path_t p);

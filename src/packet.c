@@ -6,6 +6,7 @@
 #include <arpa/inet.h>
 #include "js0n.h"
 #include "j0g.h"
+#include "hn.h"
 
 packet_t packet_new()
 {

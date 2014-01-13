@@ -7,7 +7,6 @@
 #include "util.h"
 #include "j0g.h"
 #include "js0n.h"
-#include "hnt.h"
 #include "chan.h"
 
 void hn_free(hn_t hn)
@@ -126,38 +125,6 @@ hn_t hn_getfile(xht_t index, char *file)
   if(id) return id;
   packet_free(p);
   return NULL;
-}
-
-// load hashnames from a file and return them
-hnt_t hn_getsfile(xht_t index, char *file)
-{
-  packet_t p, p2;
-  hn_t hn;
-  hnt_t t = NULL;
-  int i;
-
-  p = util_file2packet(file);
-  if(!p) return t;
-  if(*p->json != '[')
-  {
-    packet_free(p);
-    return t;
-  }
-
-  // parse each object in the array
-	for(i=0;p->js[i];i+=2)
-	{
-    p2 = packet_new();
-    packet_json(p2, p->json+p->js[i], p->js[i+1]-p->js[i]);
-    hn = hn_getjs(index, p2);
-    packet_free(p2);
-    if(!hn) continue;
-    if(!t) t = hnt_new();
-    hnt_add(t, hn);
-	}
-
-  packet_free(p);
-  return t;
 }
 
 unsigned char hn_distance(hn_t a, hn_t b)

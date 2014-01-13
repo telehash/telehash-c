@@ -1,7 +1,6 @@
 #ifndef packet_h
 #define packet_h
 
-#include "hn.h"
 #include "path.h"
 
 // the maximum index size of how many top level elements there are in the json (each keypair is 4)
@@ -16,7 +15,7 @@ typedef struct packet_struct
   unsigned short json_len;
   unsigned short js[JSONDENSITY];
   struct packet_struct *next;
-  hn_t to, from;
+  struct hn_struct *to, *from;
   path_t in, out, direct;
 } *packet_t;
 

@@ -5,7 +5,7 @@
 #include "util.h"
 #include "crypt.h"
 #include "hn.h"
-#include "hnt.h"
+#include "bucket.h"
 #include "path.h"
 
 int main(void)
@@ -13,7 +13,7 @@ int main(void)
   unsigned char out[4096], hn[64];
   packet_t p,p2;
   hn_t id;
-  hnt_t seeds;
+  bucket_t seeds;
   path_t path;
   xht_t h;
 
@@ -38,7 +38,7 @@ int main(void)
   }
   printf("loaded hashname %.*s\n",64,util_hex(id->hashname,32,hn));
 
-  seeds = hn_getsfile(h, "seeds.json");
+  seeds = bucket_load(h, "seeds.json");
   if(!seeds)
   {
     printf("failed to load seeds.json: %s\n", crypt_err());
