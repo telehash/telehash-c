@@ -115,14 +115,14 @@ int main(int argc, char *argv[])
   inbuf[index[1]+2] = 0; // null terminate the first object
   ibat = inbuf+*index; // now point to just the object
   j0g(ibat, index, 32); // re-parse the inner object
-  if(!*index || !j0g_val("pubkey",ibat,index) || !j0g_val("ip",ibat,index) || !j0g_val("port",ibat,index))
+  if(!*index || !j0g_val("public",ibat,index) || !j0g_val("ip",ibat,index) || !j0g_val("port",ibat,index))
   {
     printf("Error parsing seeds json, must contain a valid object having a public, ip, and port: %s\n",ibat);
     return -1;
   }
   
   // load the seed public key and ip:port
-  pem = j0g_str("pubkey",ibat,index);
+  pem = j0g_str("public",ibat,index);
   if(strstr(pem,pem_pre) == pem) pem += strlen(pem_pre);
   if(strstr(pem,pem_suf)) *(strstr(pem,pem_suf)) = 0;
   // pem should now be just the base64

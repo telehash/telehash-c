@@ -82,6 +82,7 @@ void packet_json(packet_t p, unsigned char *json, unsigned short len)
 void packet_body(packet_t p, unsigned char *body, unsigned short len)
 {
   p->raw = realloc(p->raw,2+len+p->json_len);
+  p->json = p->raw+2;
   p->body = p->raw+(2+p->json_len);
   memcpy(p->body,body,len);
   p->body_len = len;

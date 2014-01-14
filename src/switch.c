@@ -89,7 +89,7 @@ void switch_send(switch_t s, packet_t p)
   if(!p->to) return (void)packet_free(p);
 
   // encrypt the packet to the line, chains together
-  out = crypt_lineize(p->to->c, p);
+  out = crypt_lineize(p->to->c, s->id->c, p);
 
   // no line, generate open first
   if(!out)
@@ -97,7 +97,8 @@ void switch_send(switch_t s, packet_t p)
     // queue packet to be sent after opened
     if(p->to->onopen) packet_free(p->to->onopen);
     p->to->onopen = p;
-    out = crypt_openize(p->to->c);
+    out = crypt_openize(p->to->c, s->id->c);
+    if(!out) return;
   }
 
   // direct path given, only that

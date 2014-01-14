@@ -1,6 +1,9 @@
 #ifndef path_h
 #define path_h
 
+#include <sys/socket.h>
+#include <arpa/inet.h>
+
 typedef struct path_struct
 {
   char type[12];
@@ -8,6 +11,7 @@ typedef struct path_struct
   char *id;
   char ip[46];
   int port;
+  struct	sockaddr_in sa;
 } *path_t;
 
 path_t path_new(char *type);

@@ -3,6 +3,10 @@
 #include <strings.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netdb.h>
 #include "js0n.h"
 #include "j0g.h"
 
@@ -13,6 +17,7 @@ path_t path_new(char *type)
   path_t p = malloc(sizeof (struct path_struct));
   bzero(p,sizeof (struct path_struct));
   memcpy(p->type,type,strlen(type)+1);
+  p->sa.sin_family = AF_INET;
   return p;
 }
 
@@ -64,12 +69,14 @@ char *path_ip(path_t p, char *ip)
   if(!ip) return p->ip;
   if(strlen(ip) > 45) return NULL;
   strcpy(p->ip,ip);
+  if(strcmp("ipv4",p->type)==0) inet_aton(ip, &(p->sa.sin_addr));
   return p->ip;
 }
 
 int path_port(path_t p, int port)
 {
   if(port > 0 && port <= 65535) p->port = port;
+  p->sa.sin_port = htons(p->port);
   return p->port;
 }
 

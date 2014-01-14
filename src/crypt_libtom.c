@@ -33,7 +33,8 @@ int crypt_init()
 
 crypt_t crypt_new(unsigned char *key, int len)
 {
-  unsigned long der_len = 2048, hnlen=32;
+  int der_len = 512;
+  unsigned long hnlen=32;
   unsigned char der[der_len];
   
   if(!key || !len || len > der_len) return NULL;
@@ -42,7 +43,7 @@ crypt_t crypt_new(unsigned char *key, int len)
   bzero(c, sizeof (struct crypt_struct));
   
   // try to base64 decode in case that's the incoming format
-  if(base64_decode(key, len, der, &der_len) != CRYPT_OK) {
+  if(base64_decode(key, len, der, (unsigned long*)&der_len) != CRYPT_OK) {
     memcpy(der,key,len);
     der_len = len;
   }
@@ -54,8 +55,8 @@ crypt_t crypt_new(unsigned char *key, int len)
   }
 
   // re-export it to be safe
-  der_len = 2048;
-  if((_crypt_err = rsa_export(der, &der_len, PK_PUBLIC, &(c->rsa))) != CRYPT_OK) {
+  der_len = crypt_der(c, der, 2048);
+  if(!der_len) {
     free(c);
     return NULL;
   }
@@ -67,6 +68,13 @@ crypt_t crypt_new(unsigned char *key, int len)
   }
 
   return c;
+}
+
+int crypt_der(crypt_t c, unsigned char *der, int len)
+{
+  if(!c || !der) return 0;
+  if((_crypt_err = rsa_export(der, (unsigned long*)&len, PK_PUBLIC, &(c->rsa))) != CRYPT_OK) return 0;
+  return len;
 }
 
 void crypt_free(crypt_t c)
@@ -106,7 +114,7 @@ unsigned char *crypt_rand(unsigned char *s, int len)
   return s;
 }
 
-packet_t crypt_lineize(crypt_t c, packet_t p)
+packet_t crypt_lineize(crypt_t c, crypt_t self, packet_t p)
 {
   packet_t line;
   if(!c || !p || !c->lined) return NULL;
@@ -115,14 +123,14 @@ packet_t crypt_lineize(crypt_t c, packet_t p)
 }
 
 // create a new open packet
-packet_t crypt_openize(crypt_t c)
+packet_t crypt_openize(crypt_t c, crypt_t self)
 {
-  unsigned char key[32], iv[16], hex[33], hn[65], pub[65], *enc;
+  unsigned char key[32], iv[16], hex[33], hn[65], pub[65], esig[512], epub[512], b64[512], *enc;
   packet_t open, inner;
-  unsigned long len;
+  unsigned long len, len2;
   symmetric_CTR ctr;
 
-  if(!c) return NULL;
+  if(!c || !self) return NULL;
   hex[32] = hn[64] = 0;
 
   // create transient crypto stuff
@@ -135,9 +143,11 @@ packet_t crypt_openize(crypt_t c)
 
   // create the inner/open packet
   inner = packet_new();
-  packet_set_str(inner,"line",(char*)util_hex(c->lineOut,32,hex));
+  packet_set_str(inner,"line",(char*)util_hex(c->lineOut,16,hex));
   packet_set_str(inner,"to",(char*)util_hex(c->hashname,32,hn));
   packet_set_int(inner,"at",c->at);
+  len = crypt_der(c, b64, 512);
+  packet_body(inner,b64,len);
 
   open = packet_chain(inner);
   packet_set_str(open,"type","open");
@@ -161,65 +171,31 @@ packet_t crypt_openize(crypt_t c)
   packet_body(open,enc,packet_len(inner));
   free(enc);
 
-  /*
-  // encrypt the ecc key
-  len2 = sizeof(ecc_enc);
-  if ((err = rsa_encrypt_key(self_eccpub, 65, ecc_enc, &len2, 0, 0, &prng, find_prng("yarrow"), find_hash("sha1"), &seed_rsa)) != CRYPT_OK) {
-    printf("rsa_encrypt error: %s\n", error_to_string(err));
-    return -1;
-  }
-  len = sizeof(open);
-  if ((err = base64_encode(ecc_enc, len2, (unsigned char*)open, &len)) != CRYPT_OK) {
-    printf("base64 error: %s\n", error_to_string(err));
-    return -1;
-  }
-  open[len] = 0;
+  // encrypt the ecc key and attach it
+  len = sizeof(epub);
+  if((_crypt_err = rsa_encrypt_key(pub, 65, epub, &len, 0, 0, &_crypt_prng, find_prng("yarrow"), find_hash("sha1"), &(c->rsa))) != CRYPT_OK) return packet_free(open);
+  len2 = sizeof(b64);
+  if((_crypt_err = base64_encode(epub, len, b64, &len2)) != CRYPT_OK) return packet_free(open);
+  b64[len2] = 0;
+  packet_set_str(open, "open", (char*)b64);
 
   // sign the inner_enc
   len = 32;
-  if ((err = hash_memory(find_hash("sha256"),inner_enc,inner_len,sighash,&len)) != CRYPT_OK) {
-     printf("Error hashing key: %s\n", error_to_string(err));
-     return -1;
-  }
-  len = sizeof(inner_sig);
-  if ((err = rsa_sign_hash_ex(sighash, 32, inner_sig, &len, LTC_PKCS_1_V1_5, &prng, find_prng("yarrow"), find_hash("sha256"), 12, &self_rsa)) != CRYPT_OK) {
-    printf("rsa_sign error: %s\n", error_to_string(err));
-    return -1;
-  }
+  if((_crypt_err = hash_memory(find_hash("sha256"),open->body,open->body_len,key,&len)) != CRYPT_OK) return packet_free(open);
+  len = sizeof(epub);
+  if((_crypt_err = rsa_sign_hash_ex(key, 32, epub, &len, LTC_PKCS_1_V1_5, &_crypt_prng, find_prng("yarrow"), find_hash("sha256"), 12, &(self->rsa))) != CRYPT_OK) return packet_free(open);
+
 	// encrypt the signature, create the new aes key+cipher first
-  memcpy(csig,self_eccpub,65);
-  memcpy(csig+65,rand16,16);
+  memcpy(b64,pub,65);
+  memcpy(b64+65,c->lineOut,16);
   len2 = 32;
-  if ((err = hash_memory(find_hash("sha256"),csig,65+16,aeskey,&len2)) != CRYPT_OK) {
-    printf("Error hashing key: %s\n", error_to_string(err));
-    return -1;
-	}
-  if ((err = ctr_start(find_cipher("aes"),aesiv,aeskey,32,0,CTR_COUNTER_BIG_ENDIAN,&ctr)) != CRYPT_OK) {
-    printf("ctr_start error: %s\n",error_to_string(err));
-    return -1;
-  }
-  if ((err = ctr_encrypt(inner_sig,inner_csig,len,&ctr)) != CRYPT_OK) {
-     printf("ctr_encrypt error: %s\n", error_to_string(err));
-     return -1;
-  }
-  len2 = sizeof(sig);
-  if ((err = base64_encode(inner_csig, len, (unsigned char*)sig, &len2)) != CRYPT_OK) {
-    printf("base64 error: %s\n", error_to_string(err));
-    return -1;
-  }
-  sig[len2] = 0;
-  
-  // create the outer open packet
-  iat = (char*)outer+2;
-  sprintf(iat, "{\"type\":\"open\",\"open\":\"%s\",\"iv\":\"%s\",\"sig\":\"%s\"}",open,iv,sig);
-  printf("OUTER: %s\n",iat);
-  iatlen = htons(strlen(iat));
-  memcpy(outer,&iatlen,2);
-  outer_len = 2+strlen(iat);
-  memcpy(outer+outer_len,inner_enc,inner_len);
-  outer_len += inner_len;
-  printf("outer packet len %d: %s\n",outer_len,hex(outer,outer_len,out));  
-*/
+  if((_crypt_err = hash_memory(find_hash("sha256"), b64, 65+16, key, &len2)) != CRYPT_OK) return packet_free(open);
+  if((_crypt_err = ctr_start(find_cipher("aes"), iv, key, 32, 0, CTR_COUNTER_BIG_ENDIAN, &ctr)) != CRYPT_OK) return packet_free(open);
+  if((_crypt_err = ctr_encrypt(epub, esig, len, &ctr)) != CRYPT_OK) return packet_free(open);
+  len2 = sizeof(b64);
+  if((_crypt_err = base64_encode(esig, len, b64, &len2)) != CRYPT_OK) return packet_free(open);
+  b64[len2] = 0;
+  packet_set_str(open, "sig", (char*)b64);
   
   return open;
 }
