@@ -29,6 +29,9 @@ char *path_ip(path_t p, char *ip);
 char *path_http(path_t p, char *http);
 int path_port(path_t p, int port);
 
+// inits ip/port from .sa
+void path_sa(path_t p);
+
 // compare to see if they're the same
 int path_match(path_t p1, path_t p2);
 

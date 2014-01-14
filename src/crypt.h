@@ -30,7 +30,10 @@ unsigned char *crypt_rand(unsigned char *s, int len);
 // try to create a line packet chained to this one
 packet_t crypt_lineize(crypt_t c, crypt_t self, packet_t p);
 
-// create a new open packet
+// decrypts or NULL
+packet_t crypt_delineize(crypt_t c, crypt_t self, packet_t p);
+
+// create a new open packet, NULL if error
 packet_t crypt_openize(crypt_t c, crypt_t self);
 
 #endif

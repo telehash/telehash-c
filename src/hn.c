@@ -20,24 +20,28 @@ void hn_free(hn_t hn)
 hn_t hn_get(xht_t index, unsigned char *bin)
 {
   hn_t hn;
+  unsigned char hex[65];
   
-  hn = xht_get(index, (const char*)bin);
+  util_hex(bin,32,hex);
+  hn = xht_get(index, (const char*)hex);
   if(hn) return hn;
 
   // init new hashname container
   hn = malloc(sizeof (struct hn_struct));
   bzero(hn,sizeof (struct hn_struct));
   memcpy(hn->hashname, bin, 32);
-  xht_set(index, (const char*)hn->hashname, (void*)hn);
+  memcpy(hn->hexname, hex, 65);
+  xht_set(index, (const char*)hn->hexname, (void*)hn);
   hn->paths = malloc(sizeof (path_t));
   hn->paths[0] = NULL;
-  util_hex(hn->hashname,32,(unsigned char*)hn->hexname);
   return hn;
 }
 
 hn_t hn_gethex(xht_t index, char *hex)
 {
-  return 0;
+  unsigned char bin[32];
+  util_unhex((unsigned char*)hex,64,bin);
+  return hn_get(index,bin);
 }
 
 // derive a hn from json in a packet

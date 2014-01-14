@@ -80,6 +80,12 @@ int path_port(path_t p, int port)
   return p->port;
 }
 
+void path_sa(path_t p)
+{
+  strcpy(p->ip,inet_ntoa(p->sa.sin_addr));
+  p->port = ntohs(p->sa.sin_port);
+}
+
 unsigned char *path_json(path_t p)
 {
   int len;

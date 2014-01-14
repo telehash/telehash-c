@@ -2,9 +2,10 @@
 #include <string.h>
 #include <strings.h>
 #include <stdlib.h>
+#include "j0g.h"
 
-// a prime number for the internal hashtable used to track all active hashnames
-#define HNMAXPRIME 4211
+// a prime number for the internal hashtable used to track all active hashnames/lines
+#define MAXPRIME 4211
 
 switch_t switch_new(hn_t id)
 {
@@ -15,7 +16,7 @@ switch_t switch_new(hn_t id)
   // create all the buckets
   s->buckets = malloc(256 * sizeof(bucket_t));
   bzero(s->buckets, 256 * sizeof(bucket_t));
-  s->index = xht_new(HNMAXPRIME);
+  s->index = xht_new(MAXPRIME);
   return s;
 }
 
@@ -129,3 +130,29 @@ chan_t switch_pop(switch_t s)
   s->in = c->next;
   return c;
 }
+
+void switch_receive(switch_t s, packet_t p, path_t in)
+{
+  hn_t from;
+  packet_t line;
+
+  if(!s || !p || !in) return;
+  if(strcmp("open",j0g_str("type",(char*)p->json,p->js)) == 0)
+  {
+  }
+  if(strcmp("line",j0g_str("type",(char*)p->json,p->js)) == 0)
+  {
+    from = xht_get(s->index,(const char*)j0g_str("line",(char*)p->json,p->js));
+    if(from)
+    {
+      line = crypt_delineize(from->c, s->id->c, p);
+      if(line)
+      {
+        // TODO channel processing        
+      }
+    }
+  }
+  packet_free(p);
+  path_free(in);
+}
+

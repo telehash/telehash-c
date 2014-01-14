@@ -38,5 +38,7 @@ void switch_send(switch_t s, packet_t p);
 // adjust/set the cap of how many lines to maintain, defaults to 256
 void switch_cap(switch_t s, int cap);
 
+// processes incoming packet, it will free p and in
+void switch_receive(switch_t s, packet_t p, path_t in);
 
 #endif

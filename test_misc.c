@@ -10,7 +10,7 @@
 
 int main(void)
 {
-  unsigned char out[4096], hn[64];
+  unsigned char out[4096], hn[65];
   packet_t p,p2;
   hn_t id;
   bucket_t seeds;

@@ -16,7 +16,7 @@ typedef struct packet_struct
   unsigned short js[JSONDENSITY];
   struct packet_struct *next, *chain;
   struct hn_struct *to, *from;
-  path_t in, out;
+  path_t out;
 } *packet_t;
 
 // these all allocate/free memory

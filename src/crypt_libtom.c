@@ -122,10 +122,16 @@ packet_t crypt_lineize(crypt_t c, crypt_t self, packet_t p)
   return line;
 }
 
+packet_t crypt_delineize(crypt_t c, crypt_t self, packet_t p)
+{
+  if(!c || !self || !p || !c->lined) return NULL;
+  return NULL;
+}
+
 // create a new open packet
 packet_t crypt_openize(crypt_t c, crypt_t self)
 {
-  unsigned char key[32], iv[16], hex[33], hn[65], pub[65], esig[512], epub[512], b64[512], *enc;
+  unsigned char key[32], iv[16], hex[33], hn[65], sig[256], esig[256], pub[65], epub[256], b64[512], *enc;
   packet_t open, inner;
   unsigned long len, len2;
   symmetric_CTR ctr;
@@ -146,7 +152,7 @@ packet_t crypt_openize(crypt_t c, crypt_t self)
   packet_set_str(inner,"line",(char*)util_hex(c->lineOut,16,hex));
   packet_set_str(inner,"to",(char*)util_hex(c->hashname,32,hn));
   packet_set_int(inner,"at",c->at);
-  len = crypt_der(c, b64, 512);
+  len = crypt_der(self, b64, 512);
   packet_body(inner,b64,len);
 
   open = packet_chain(inner);
@@ -179,11 +185,11 @@ packet_t crypt_openize(crypt_t c, crypt_t self)
   b64[len2] = 0;
   packet_set_str(open, "open", (char*)b64);
 
-  // sign the inner_enc
+  // sign the inner packet
   len = 32;
   if((_crypt_err = hash_memory(find_hash("sha256"),open->body,open->body_len,key,&len)) != CRYPT_OK) return packet_free(open);
-  len = sizeof(epub);
-  if((_crypt_err = rsa_sign_hash_ex(key, 32, epub, &len, LTC_PKCS_1_V1_5, &_crypt_prng, find_prng("yarrow"), find_hash("sha256"), 12, &(self->rsa))) != CRYPT_OK) return packet_free(open);
+  len = sizeof(sig);
+  if((_crypt_err = rsa_sign_hash_ex(key, 32, sig, &len, LTC_PKCS_1_V1_5, &_crypt_prng, find_prng("yarrow"), find_hash("sha256"), 12, &(self->rsa))) != CRYPT_OK) return packet_free(open);
 
 	// encrypt the signature, create the new aes key+cipher first
   memcpy(b64,pub,65);
@@ -191,7 +197,7 @@ packet_t crypt_openize(crypt_t c, crypt_t self)
   len2 = 32;
   if((_crypt_err = hash_memory(find_hash("sha256"), b64, 65+16, key, &len2)) != CRYPT_OK) return packet_free(open);
   if((_crypt_err = ctr_start(find_cipher("aes"), iv, key, 32, 0, CTR_COUNTER_BIG_ENDIAN, &ctr)) != CRYPT_OK) return packet_free(open);
-  if((_crypt_err = ctr_encrypt(epub, esig, len, &ctr)) != CRYPT_OK) return packet_free(open);
+  if((_crypt_err = ctr_encrypt(sig, esig, len, &ctr)) != CRYPT_OK) return packet_free(open);
   len2 = sizeof(b64);
   if((_crypt_err = base64_encode(esig, len, b64, &len2)) != CRYPT_OK) return packet_free(open);
   b64[len2] = 0;

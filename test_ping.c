@@ -9,13 +9,14 @@
 
 int main(void)
 {
-//  unsigned char out[4096];
+  unsigned char buf[2048];
   hn_t id;
   switch_t s;
   bucket_t seeds;
   chan_t c;
   packet_t p;
-  int sock;
+  path_t from;
+  int sock, len, blen;
   struct	sockaddr_in sad;
 
   crypt_init();
@@ -78,6 +79,19 @@ int main(void)
     }
     packet_free(p);
   }
+  
+  from = path_new("ipv4");
+  len = sizeof(from->sa);
+  if ((blen = recvfrom(sock, buf, sizeof(buf), 0, (struct sockaddr *)&from->sa, (socklen_t *)&len)) == -1)
+  {
+	  printf("recvfrom failed\n");
+	  return -1;
+  }
+  path_sa(from); // inits ip/port from sa
+  p = packet_new();
+  packet_init(p,buf,blen);
+  printf("Received packet from %s len %d data: %.*s\n", path_json(from), blen, p->json_len, p->json);
+  
 
   return 0;
 }
