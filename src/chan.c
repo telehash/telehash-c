@@ -31,7 +31,7 @@ packet_t chan_packet(chan_t c)
 {
   packet_t p = packet_new();
   p->to = c->to;
-  if(c->last) p->out = c->last;
+  if(path_alive(c->last)) p->out = c->last;
   if(c->state == STARTING)
   {
     c->state = OPEN;

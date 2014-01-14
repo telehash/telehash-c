@@ -121,3 +121,9 @@ int path_match(path_t p1, path_t p2)
   }
   return 0;
 }
+
+int path_alive(path_t p)
+{
+  if(!p) return 0;
+  return 0;
+}

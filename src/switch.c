@@ -66,14 +66,58 @@ packet_t switch_sending(switch_t s)
   return p;
 }
 
-void switch_send(switch_t s, packet_t p)
+// internally adds to sending queue
+void switch_sendingQ(switch_t s, packet_t p)
 {
+  if(!p || !p->out) return;
   if(s->last)
   {
     s->last->next = p;
     return;
   }
-  s->last = s->out = p;
+  s->last = s->out = p;  
+}
+
+void switch_send(switch_t s, packet_t p)
+{
+  packet_t out, dup;
+  int i;
+
+  if(!p) return;
+  
+  // require recipient at least
+  if(!p->to) return (void)packet_free(p);
+
+  // encrypt the packet to the line, chains together
+  out = crypt_lineize(p->to->c, p);
+
+  // no line, generate open first
+  if(!out)
+  {
+    // queue packet to be sent after opened
+    if(p->to->onopen) packet_free(p->to->onopen);
+    p->to->onopen = p;
+    out = crypt_openize(p->to->c);
+  }
+
+  // direct path given, only that
+  if(p->out) out->out = p->out;
+
+  // if the last path is alive, use that
+  if(path_alive(p->to->last)) out->out = p->to->last;
+
+  if(out->out) return switch_sendingQ(s, out);
+  
+  // try sending to all paths
+  for(i=0; p->to->paths[i]; i++)
+  {
+    dup = packet_copy(out);
+    dup->out = p->to->paths[i];
+    switch_sendingQ(s, dup);
+  }
+  
+  // leftover out is out!
+  packet_free(out);
 }
 
 chan_t switch_pop(switch_t s)

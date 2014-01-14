@@ -11,8 +11,9 @@ typedef struct hn_struct
   unsigned char hashname[32];
   char hexname[65]; // for convenience
   crypt_t c;
-  path_t *paths;
+  path_t *paths, last;
   xht_t chans;
+  packet_t onopen;
 } *hn_t;
 
 // fetch/create matching hn (binary or hex)

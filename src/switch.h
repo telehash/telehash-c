@@ -32,7 +32,7 @@ packet_t switch_sending(switch_t s);
 // get a channel that has packets to be processed, NULL if none
 struct chan_struct *switch_pop(switch_t s);
 
-// add a packet to the send queue
+// encrypts a packet and adds it to the sending queue
 void switch_send(switch_t s, packet_t p);
 
 // adjust/set the cap of how many lines to maintain, defaults to 256

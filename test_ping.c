@@ -39,7 +39,13 @@ int main(void)
   c = chan_new(s, bucket_get(seeds, 0), "seek", 0);
   p = chan_packet(c);
   packet_set_str(p,"seek",id->hexname);
-  printf("chan packet %.*s %s\n",p->json_len,p->json,util_hex(packet_raw(p),packet_len(p),out));
+  
+  switch_send(s, p);
+  while((p = switch_sending(s)))
+  {
+    printf("sending packet %.*s %s\n",p->json_len,p->json,util_hex(packet_raw(p),packet_len(p),out));
+    packet_free(p);
+  }
 
   return 0;
 }

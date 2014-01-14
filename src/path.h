@@ -28,4 +28,7 @@ int path_port(path_t p, int port);
 // compare to see if they're the same
 int path_match(path_t p1, path_t p2);
 
+// tell if the path is alive (recently active), 1 = yes, 0 = no
+int path_alive(path_t p);
+
 #endif

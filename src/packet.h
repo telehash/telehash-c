@@ -14,15 +14,18 @@ typedef struct packet_struct
   unsigned char *json;
   unsigned short json_len;
   unsigned short js[JSONDENSITY];
-  struct packet_struct *next;
+  struct packet_struct *next, *chain;
   struct hn_struct *to, *from;
-  path_t in, out, direct;
+  path_t in, out;
 } *packet_t;
 
 // these all allocate/free memory
 packet_t packet_new();
 packet_t packet_copy(packet_t p);
-void packet_free(packet_t p);
+packet_t packet_free(packet_t p); // returns NULL for convenience
+
+// creates a new packet chained to the given one, so freeing the new packet also free's it
+packet_t packet_chain(packet_t p);
 
 // initialize json/body from raw
 void packet_init(packet_t p, unsigned char *raw, unsigned short len);

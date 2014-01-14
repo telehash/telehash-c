@@ -24,10 +24,19 @@ packet_t packet_copy(packet_t p)
   return np;
 }
 
-void packet_free(packet_t p)
+packet_t packet_chain(packet_t p)
 {
+  packet_t np = packet_new();
+  np->chain = p;
+  return np;
+}
+
+packet_t packet_free(packet_t p)
+{
+  if(p->chain) packet_free(p->chain);
   free(p->raw);
   free(p);
+  return NULL;
 }
 
 void packet_init(packet_t p, unsigned char *raw, unsigned short len)
