@@ -1,8 +1,9 @@
 #include <tomcrypt.h>
 #include <tommath.h>
+#include <time.h>
 #include "util.h"
 #include "crypt.h"
-#include <time.h>
+#include "j0g.h"
 
 struct crypt_struct
 {
@@ -10,7 +11,7 @@ struct crypt_struct
   ecc_key eccOut;
   unsigned char hashname[32], keyOut[32], keyIn[32], eccIn[65];
   int private, lined;
-  time_t atOut, atIn;
+  unsigned long atOut, atIn;
   unsigned char lineOut[16], lineIn[16];
 };
 
@@ -144,7 +145,7 @@ int crypt_lineinit(crypt_t c)
   {
     if((_crypt_err = ecc_make_key(&_crypt_prng, find_prng("yarrow"), 32, &(c->eccOut))) != CRYPT_OK) return 0;
     crypt_rand(c->lineOut,16);
-    c->atOut = time(0);
+    c->atOut = (unsigned long)time(0);
   }
   
   // can't make a line w/o their stuff yet
@@ -246,11 +247,82 @@ packet_t crypt_openize(crypt_t self, crypt_t c)
 
 crypt_t crypt_deopenize(crypt_t self, packet_t open)
 {
-//  crypt_t c;
-  
-  if(!self || !open) return NULL;
+  unsigned char enc[256], sig[256], pub[65], *eopen, *esig, key[32], iv[16], *hiv, *hline, *rawinner, sigkey[65+16];
+  unsigned long len, len2;
+  int err;
+  crypt_t c;
+  symmetric_CTR ctr;
+  packet_t inner;
 
-  return NULL;
+  if(!open) return NULL;
+  if(!self) return (crypt_t)packet_free(open);
+
+  // decrypt the open
+  eopen = (unsigned char*)j0g_str("open",(char*)open->json,open->js);
+  len = sizeof(enc);
+  if(!eopen || (_crypt_err = base64_decode(eopen, strlen((char*)eopen), enc, &len)) != CRYPT_OK) return (crypt_t)packet_free(open);;
+  len2 = sizeof(pub);
+  if((_crypt_err = rsa_decrypt_key(enc, len, pub, &len2, 0, 0, find_hash("sha1"), &err, &(self->rsa))) != CRYPT_OK || err || len2 != 65) return (crypt_t)packet_free(open);
+
+  // create the aes key/iv to decipher the body
+  len = 32;
+  if((_crypt_err = hash_memory(find_hash("sha256"),pub,65,key,&len)) != CRYPT_OK) return (crypt_t)packet_free(open);
+  hiv = (unsigned char*)j0g_str("iv",(char*)open->json,open->js);
+  if(!hiv || strlen((char*)hiv) != 32) return (crypt_t)packet_free(open);
+  util_unhex(hiv,32,iv);
+
+  // create aes cipher now and decrypt the inner
+  if((_crypt_err = ctr_start(find_cipher("aes"),iv,key,32,0,CTR_COUNTER_BIG_ENDIAN,&ctr)) != CRYPT_OK) return (crypt_t)packet_free(open);
+  rawinner = malloc(open->body_len);
+  if((_crypt_err = ctr_decrypt(open->body,rawinner,open->body_len,&ctr)) != CRYPT_OK || (inner = packet_parse(rawinner,open->body_len)) == NULL)
+  {
+    free(rawinner);
+    packet_free(open);
+    return NULL;
+  }
+  free(rawinner);
+
+  // extract/validate inner stuff
+  c = crypt_new(inner->body,inner->body_len);
+  if(!c) return (crypt_t)packet_free(open);
+  c->atIn = strtol(j0g_str("at",(char*)inner->json,inner->js), NULL, 10);
+  hline = (unsigned char*)j0g_str("line",(char*)inner->json,inner->js);
+  if(c->atIn <= 0 || strlen((char*)hline) != 32 || !c)
+  {
+    crypt_free(c);
+    packet_free(inner);
+    packet_free(open);
+    return NULL;
+  }
+  packet_free(inner);
+  util_unhex(hline,32,c->lineIn);
+  memcpy(c->eccIn,pub,65);
+
+  // decipher/verify the signature
+  esig = (unsigned char*)j0g_str("sig",(char*)open->json,open->js);
+  len = sizeof(enc);
+  if(!esig || (err = base64_decode(esig, strlen((char*)esig), enc, &len)) != CRYPT_OK)
+  {
+    crypt_free(c);
+    packet_free(open);
+    return NULL;
+  }
+  memcpy(sigkey,pub,65);
+  memcpy(sigkey+65,c->lineIn,16);
+  len2 = 32;
+  if((_crypt_err = hash_memory(find_hash("sha256"),sigkey,65+16,key,&len2)) != CRYPT_OK
+    || (_crypt_err = ctr_start(find_cipher("aes"),iv,key,32,0,CTR_COUNTER_BIG_ENDIAN,&ctr)) != CRYPT_OK
+    || (_crypt_err = ctr_decrypt(enc,sig,len,&ctr)) != CRYPT_OK
+    || (_crypt_err = hash_memory(find_hash("sha256"),open->body,open->body_len,key,&len2)) != CRYPT_OK
+    || (_crypt_err = rsa_verify_hash_ex(sig, len, key, len2, LTC_PKCS_1_V1_5, find_hash("sha256"), 0, &err, &(c->rsa))) != CRYPT_OK
+    || err) {
+      crypt_free(c);
+      packet_free(open);
+      return NULL;
+  }
+	packet_free(open);
+
+  return c;
 }
 
 crypt_t crypt_merge(crypt_t a, crypt_t b)

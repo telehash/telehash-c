@@ -19,9 +19,7 @@ packet_t packet_new()
 
 packet_t packet_copy(packet_t p)
 {
-  packet_t np = packet_new();
-  packet_init(np, packet_raw(p), packet_len(p));
-  return np;
+  return packet_parse(packet_raw(p), packet_len(p));
 }
 
 packet_t packet_chain(packet_t p)
@@ -43,17 +41,30 @@ packet_t packet_free(packet_t p)
   return NULL;
 }
 
-void packet_init(packet_t p, unsigned char *raw, unsigned short len)
+packet_t packet_parse(unsigned char *raw, unsigned short len)
 {
-  uint16_t nlen = 2;
+  packet_t p;
+  uint16_t nlen, jlen;
+
+  // make sure is at least size valid
+  if(!raw || len < 2) return NULL;
+  memcpy(&nlen,raw,2);
+  jlen = ntohs(nlen);
+  if(jlen > len-2) return NULL;
+
+  // copy in and update pointers
+  p = packet_new();
   p->raw = realloc(p->raw,len);
   memcpy(p->raw,raw,len);
-  memcpy(&nlen,raw,2);
-  p->json_len = ntohs(nlen);
+  p->json_len = jlen;
   p->json = p->raw+2;
   p->body_len = len-(2+p->json_len);
   p->body = p->raw+(2+p->json_len);
-  js0n(p->json,p->json_len,p->js,JSONDENSITY);
+  
+  // parse json (if any) and validate
+  if(jlen && js0n(p->json,p->json_len,p->js,JSONDENSITY)) return packet_free(p);
+  
+  return p;
 }
 
 unsigned char *packet_raw(packet_t p)

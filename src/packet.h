@@ -27,8 +27,9 @@ packet_t packet_free(packet_t p); // returns NULL for convenience
 // creates a new packet chained to the given one, so freeing the new packet also free's it
 packet_t packet_chain(packet_t p);
 
-// initialize json/body from raw
-void packet_init(packet_t p, unsigned char *raw, unsigned short len);
+// initialize json/body from raw, parses json
+packet_t packet_parse(unsigned char *raw, unsigned short len);
+
 // return raw info from stored json/body
 unsigned char *packet_raw(packet_t p);
 unsigned short packet_len(packet_t p);

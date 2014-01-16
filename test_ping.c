@@ -88,8 +88,7 @@ int main(void)
 	  return -1;
   }
   path_sa(from); // inits ip/port from sa
-  p = packet_new();
-  packet_init(p,buf,blen);
+  p = packet_parse(buf,blen);
   printf("Received packet from %s len %d data: %.*s\n", path_json(from), blen, p->json_len, p->json);
   
 
