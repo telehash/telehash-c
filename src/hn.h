@@ -1,6 +1,7 @@
 #ifndef hn_h
 #define hn_h
 
+#include <time.h>
 #include "crypt.h"
 #include "path.h"
 #include "xht.h"
@@ -14,6 +15,7 @@ typedef struct hn_struct
   path_t *paths, last;
   xht_t chans;
   packet_t onopen;
+  time_t sentOpen;
 } *hn_t;
 
 // fetch/create matching hn (binary or hex)

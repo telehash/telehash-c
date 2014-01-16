@@ -2,13 +2,15 @@
 #include <tommath.h>
 #include "util.h"
 #include "crypt.h"
+#include <time.h>
 
 struct crypt_struct
 {
   rsa_key rsa;
-  ecc_key ecc;
-  unsigned char hashname[32];
-  int private, lined, at;
+  ecc_key eccOut;
+  unsigned char hashname[32], keyOut[32], keyIn[32], eccIn[65];
+  int private, lined;
+  time_t atOut, atIn;
   unsigned char lineOut[16], lineIn[16];
 };
 
@@ -114,7 +116,7 @@ unsigned char *crypt_rand(unsigned char *s, int len)
   return s;
 }
 
-packet_t crypt_lineize(crypt_t c, crypt_t self, packet_t p)
+packet_t crypt_lineize(crypt_t self, crypt_t c, packet_t p)
 {
   packet_t line;
   if(!c || !p || !c->lined) return NULL;
@@ -122,14 +124,55 @@ packet_t crypt_lineize(crypt_t c, crypt_t self, packet_t p)
   return line;
 }
 
-packet_t crypt_delineize(crypt_t c, crypt_t self, packet_t p)
+packet_t crypt_delineize(crypt_t self, crypt_t c, packet_t p)
 {
   if(!c || !self || !p || !c->lined) return NULL;
   return NULL;
 }
 
+// makes sure all the crypto line state is set up, and creates line keys if exist
+int crypt_lineinit(crypt_t c)
+{
+  unsigned char secret[32], input[64];
+  unsigned long len;
+  ecc_key eccIn;
+
+  if(!c) return 0;
+
+  // create transient crypto stuff
+  if(!c->atOut)
+  {
+    if((_crypt_err = ecc_make_key(&_crypt_prng, find_prng("yarrow"), 32, &(c->eccOut))) != CRYPT_OK) return 0;
+    crypt_rand(c->lineOut,16);
+    c->atOut = time(0);
+  }
+  
+  // can't make a line w/o their stuff yet
+  if(!c->atIn) return 0;
+  
+  // do the diffie hellman
+  if((_crypt_err = ecc_ansi_x963_import(c->eccIn, 65, &eccIn)) != CRYPT_OK) return 0;
+  len = sizeof(secret);
+  if((_crypt_err = ecc_shared_secret(&(c->eccOut),&eccIn,secret,&len)) != CRYPT_OK) return 0;
+
+  // make line keys!
+  memcpy(input,secret,32);
+  memcpy(input+32,c->lineOut,16);
+  memcpy(input+48,c->lineIn,16);
+  len = 32;
+  if((_crypt_err = hash_memory(find_hash("sha256"), input, 64, c->keyOut, &len)) != CRYPT_OK) return 0;
+  memcpy(input,secret,32);
+  memcpy(input+32,c->lineIn,16);
+  memcpy(input+48,c->lineOut,16);
+  len = 32;
+  if((_crypt_err = hash_memory(find_hash("sha256"), input, 64, c->keyIn, &len)) != CRYPT_OK) return 0;
+
+  c->lined = 1;
+  return 1;
+}
+
 // create a new open packet
-packet_t crypt_openize(crypt_t c, crypt_t self)
+packet_t crypt_openize(crypt_t self, crypt_t c)
 {
   unsigned char key[32], iv[16], hex[33], hn[65], sig[256], esig[256], pub[65], epub[256], b64[512], *enc;
   packet_t open, inner;
@@ -139,19 +182,14 @@ packet_t crypt_openize(crypt_t c, crypt_t self)
   if(!c || !self) return NULL;
   hex[32] = hn[64] = 0;
 
-  // create transient crypto stuff
-  if(!c->at)
-  {
-    if((_crypt_err = ecc_make_key(&_crypt_prng, find_prng("yarrow"), 32, &(c->ecc))) != CRYPT_OK) return NULL;
-    crypt_rand(c->lineOut,16);
-    c->at = (int)time(0);
-  }
+  // ensure line is setup
+  crypt_lineinit(c);
 
   // create the inner/open packet
   inner = packet_new();
   packet_set_str(inner,"line",(char*)util_hex(c->lineOut,16,hex));
   packet_set_str(inner,"to",(char*)util_hex(c->hashname,32,hn));
-  packet_set_int(inner,"at",c->at);
+  packet_set_int(inner,"at",(int)c->atOut);
   len = crypt_der(self, b64, 512);
   packet_body(inner,b64,len);
 
@@ -162,7 +200,7 @@ packet_t crypt_openize(crypt_t c, crypt_t self)
   crypt_rand(iv, 16);
   packet_set_str(open,"iv", (char*)util_hex(iv,16,hex));
   len = sizeof(pub);
-  if((_crypt_err = ecc_ansi_x963_export(&(c->ecc), pub, &len)) != CRYPT_OK) return packet_free(open);
+  if((_crypt_err = ecc_ansi_x963_export(&(c->eccOut), pub, &len)) != CRYPT_OK) return packet_free(open);
   len = sizeof(key);
   if((_crypt_err = hash_memory(find_hash("sha256"), pub, 65, key, &len)) != CRYPT_OK) return packet_free(open);
 
@@ -204,4 +242,32 @@ packet_t crypt_openize(crypt_t c, crypt_t self)
   packet_set_str(open, "sig", (char*)b64);
   
   return open;
+}
+
+crypt_t crypt_deopenize(crypt_t self, packet_t open)
+{
+//  crypt_t c;
+  
+  if(!self || !open) return NULL;
+
+  return NULL;
+}
+
+crypt_t crypt_merge(crypt_t a, crypt_t b)
+{
+  if(a)
+  {
+    if(b)
+    {
+      // just copy in the deopenized variables
+      a->atIn = b->atIn;
+      memcpy(a->lineIn, b->lineIn, 16);
+      memcpy(a->eccIn, b->eccIn, 65);
+      crypt_free(b);      
+    }
+  }else{
+    a = b;
+  }
+  crypt_lineinit(a);
+  return a;
 }

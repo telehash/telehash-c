@@ -41,4 +41,7 @@ void switch_cap(switch_t s, int cap);
 // processes incoming packet, it will free p and in
 void switch_receive(switch_t s, packet_t p, path_t in);
 
+// tries to send an open (if we need to), mostly internal
+void switch_open(switch_t s, hn_t to, path_t direct);
+
 #endif

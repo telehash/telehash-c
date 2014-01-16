@@ -70,7 +70,36 @@ packet_t switch_sending(switch_t s)
 // internally adds to sending queue
 void switch_sendingQ(switch_t s, packet_t p)
 {
-  if(!p || !p->out) return;
+  packet_t dup;
+  if(!p) return;
+
+  // if there's no path, find one or copy to many
+  if(!p->out)
+  {
+    // just being paranoid
+    if(!p->to)
+    {
+      packet_free(p);
+      return;
+    }
+
+    // if the last path is alive, just use that
+    if(path_alive(p->to->last)) p->out = p->to->last;
+    else{
+      int i;
+      // try sending to all paths
+      for(i=0; p->to->paths[i]; i++)
+      {
+        dup = packet_copy(p);
+        dup->out = p->to->paths[i];
+        switch_sendingQ(s, dup);
+      }
+      packet_free(p);
+      return;   
+    }
+  }
+
+  // add to the end of the queue
   if(s->last)
   {
     s->last->next = p;
@@ -79,10 +108,30 @@ void switch_sendingQ(switch_t s, packet_t p)
   s->last = s->out = p;  
 }
 
+// tries to send an open if we haven't
+void switch_open(switch_t s, hn_t to, path_t direct)
+{
+  packet_t open;
+  time_t now;
+  
+  if(!to) return;
+
+  // don't send too frequently
+  now = time(0);
+  if(now - to->sentOpen < 2) return;
+  to->sentOpen = now;
+
+  // actually send the open
+  open = crypt_openize(s->id->c, to->c);
+  if(!open) return;
+  open->to = to;
+  if(direct) open->out = direct;
+  switch_sendingQ(s, open);
+}
+
 void switch_send(switch_t s, packet_t p)
 {
-  packet_t out, dup;
-  int i;
+  packet_t lined;
 
   if(!p) return;
   
@@ -90,36 +139,15 @@ void switch_send(switch_t s, packet_t p)
   if(!p->to) return (void)packet_free(p);
 
   // encrypt the packet to the line, chains together
-  out = crypt_lineize(p->to->c, s->id->c, p);
+  lined = crypt_lineize(p->to->c, s->id->c, p);
+  if(lined) return switch_sendingQ(s, lined);
 
-  // no line, generate open first
-  if(!out)
-  {
-    // queue packet to be sent after opened
-    if(p->to->onopen) packet_free(p->to->onopen);
-    p->to->onopen = p;
-    out = crypt_openize(p->to->c, s->id->c);
-    if(!out) return;
-  }
+  // queue most recent packet to be sent after opened
+  if(p->to->onopen) packet_free(p->to->onopen);
+  p->to->onopen = p;
 
-  // direct path given, only that
-  if(p->out) out->out = p->out;
-
-  // if the last path is alive, use that
-  if(path_alive(p->to->last)) out->out = p->to->last;
-
-  if(out->out) return switch_sendingQ(s, out);
-  
-  // try sending to all paths
-  for(i=0; p->to->paths[i]; i++)
-  {
-    dup = packet_copy(out);
-    dup->out = p->to->paths[i];
-    switch_sendingQ(s, dup);
-  }
-  
-  // leftover out is out!
-  packet_free(out);
+  // no line, so generate open instead
+  switch_open(s, p->to, NULL);
 }
 
 chan_t switch_pop(switch_t s)
@@ -135,10 +163,22 @@ void switch_receive(switch_t s, packet_t p, path_t in)
 {
   hn_t from;
   packet_t line;
+  crypt_t opened;
 
   if(!s || !p || !in) return;
   if(strcmp("open",j0g_str("type",(char*)p->json,p->js)) == 0)
   {
+    opened = crypt_deopenize(s->id->c, p);
+    if(opened)
+    {
+      from = hn_get(s->index, crypt_hashname(opened));
+      from->c = crypt_merge(from->c, opened);
+      switch_open(s, from, NULL); // in case we need to send an open
+      if(from->onopen)
+      {
+        // TODO do path match/save stuff, send onopen packet to sending path and null it
+      }
+    }
   }
   if(strcmp("line",j0g_str("type",(char*)p->json,p->js)) == 0)
   {
@@ -148,7 +188,8 @@ void switch_receive(switch_t s, packet_t p, path_t in)
       line = crypt_delineize(from->c, s->id->c, p);
       if(line)
       {
-        // TODO channel processing        
+        // TODO get matching path from->paths and free or add "in", update from->last too and stats
+        // TODO channel processing
       }
     }
   }

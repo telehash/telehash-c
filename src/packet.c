@@ -28,6 +28,10 @@ packet_t packet_chain(packet_t p)
 {
   packet_t np = packet_new();
   np->chain = p;
+  // copy in meta-pointers for convenience
+  np->to = p->to;
+  np->from = p->from;
+  np->out = p->out;
   return np;
 }
 

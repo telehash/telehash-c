@@ -28,12 +28,18 @@ int crypt_private(crypt_t c, unsigned char *key, int len);
 unsigned char *crypt_rand(unsigned char *s, int len);
 
 // try to create a line packet chained to this one
-packet_t crypt_lineize(crypt_t c, crypt_t self, packet_t p);
+packet_t crypt_lineize(crypt_t self, crypt_t c, packet_t p);
 
-// decrypts or NULL
-packet_t crypt_delineize(crypt_t c, crypt_t self, packet_t p);
+// decrypts or NULL, frees p
+packet_t crypt_delineize(crypt_t self, crypt_t c, packet_t p);
 
 // create a new open packet, NULL if error
-packet_t crypt_openize(crypt_t c, crypt_t self);
+packet_t crypt_openize(crypt_t self, crypt_t c);
+
+// processes an open packet into a crypt or NULL, frees p
+crypt_t crypt_deopenize(crypt_t self, packet_t p);
+
+// merges info from b into a (and frees b)
+crypt_t crypt_merge(crypt_t a, crypt_t b);
 
 #endif
