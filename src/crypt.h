@@ -42,4 +42,7 @@ crypt_t crypt_deopenize(crypt_t self, packet_t p);
 // merges info from b into a (and frees b)
 crypt_t crypt_merge(crypt_t a, crypt_t b);
 
+// returns the hex of the incoming line id (for matching)
+char *crypt_line(crypt_t c);
+
 #endif

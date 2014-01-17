@@ -174,6 +174,7 @@ void switch_receive(switch_t s, packet_t p, path_t in)
       from = hn_get(s->index, crypt_hashname(opened));
       from->c = crypt_merge(from->c, opened);
       switch_open(s, from, NULL); // in case we need to send an open
+      xht_set(s->index, crypt_line(from->c), from);
       if(from->onopen)
       {
         packet_t last = from->onopen;
@@ -187,12 +188,13 @@ void switch_receive(switch_t s, packet_t p, path_t in)
   }
   if(strcmp("line",j0g_str("type",(char*)p->json,p->js)) == 0)
   {
-    from = xht_get(s->index,(const char*)j0g_str("line",(char*)p->json,p->js));
+    from = xht_get(s->index, packet_get_str(p, "line"));
     if(from)
     {
-      line = crypt_delineize(from->c, s->id->c, p);
+      line = crypt_delineize(s->id->c, from->c, p);
       if(line)
       {
+        printf("LINE PACKET %.*s\n",line->json_len,line->json);
         // TODO get matching path from->paths and free or add "in", update from->last too and stats
         // TODO channel processing
       }

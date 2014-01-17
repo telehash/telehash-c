@@ -179,3 +179,9 @@ void packet_set_str(packet_t p, char *key, char *val)
   packet_set(p, key, escaped);
   free(escaped);
 }
+
+char *packet_get_str(packet_t p, char *key)
+{
+  if(!p || !key) return NULL;
+  return j0g_str(key, (char*)p->json, p->js);
+}

@@ -93,8 +93,10 @@ unsigned char *path_json(path_t p)
   
   if(!p) return NULL;
   if(p->json) free(p->json);
-  len = 32+strlen(p->type)+strlen(p->ip);
-  if(p->id) len += strlen(p->id)*2; // double for possible escaping
+  len = 12+strlen(p->type);
+  if(p->ip) len += strlen(p->ip)+8+13;
+  if(p->id) len += strlen(p->id)+8;
+  len = len * 2; // double for any worst-case escaping
   p->json = malloc(len);
   json = (char*)p->json;
   bzero(json,len);

@@ -12,7 +12,7 @@ struct crypt_struct
   unsigned char hashname[32], keyOut[32], keyIn[32], eccIn[65];
   int private, lined;
   unsigned long atOut, atIn;
-  unsigned char lineOut[16], lineIn[16];
+  unsigned char lineOut[16], lineIn[16], lineHex[33];
 };
 
 // simple way to track last known error from libtomcrypt and return it for debugging
@@ -146,8 +146,36 @@ packet_t crypt_lineize(crypt_t self, crypt_t c, packet_t p)
 
 packet_t crypt_delineize(crypt_t self, crypt_t c, packet_t p)
 {
-  if(!c || !self || !p || !c->lined) return NULL;
-  return NULL;
+  packet_t line;
+  unsigned char iv[16], *dec;
+  char *hiv;
+  symmetric_CTR ctr;
+
+  if(!c || !self || !p) return NULL;
+  if(!c->lined) return packet_free(p);
+
+  hiv = packet_get_str(p, "iv");
+  if(strlen(hiv) != 32) return packet_free(p);
+  util_unhex((unsigned char*)hiv,32,iv);
+
+  // create aes cipher now and encrypt
+  if((_crypt_err = ctr_start(find_cipher("aes"), iv, c->keyIn, 32, 0, CTR_COUNTER_BIG_ENDIAN, &ctr)) != CRYPT_OK) return packet_free(p);
+  dec = malloc(p->body_len);
+  if((_crypt_err = ctr_decrypt(p->body,dec,p->body_len,&ctr)) != CRYPT_OK)
+  {
+    free(dec);
+    return packet_free(p);
+  }
+  line = packet_parse(dec, p->body_len);
+  packet_free(p);
+  free(dec);
+  return line;
+}
+
+char *crypt_line(crypt_t c)
+{
+  if(!c || !c->lined) return NULL;
+  return (char*)c->lineHex;
 }
 
 // makes sure all the crypto line state is set up, and creates line keys if exist
@@ -164,6 +192,7 @@ int crypt_lineinit(crypt_t c)
   {
     if((_crypt_err = ecc_make_key(&_crypt_prng, find_prng("yarrow"), 32, &(c->eccOut))) != CRYPT_OK) return 0;
     crypt_rand(c->lineOut,16);
+    util_hex(c->lineOut,16,c->lineHex);
     c->atOut = (unsigned long)time(0);
   }
   
@@ -207,7 +236,7 @@ packet_t crypt_openize(crypt_t self, crypt_t c)
 
   // create the inner/open packet
   inner = packet_new();
-  packet_set_str(inner,"line",(char*)util_hex(c->lineOut,16,hex));
+  packet_set_str(inner,"line",(char*)c->lineHex);
   packet_set_str(inner,"to",(char*)util_hex(c->hashname,32,hn));
   packet_set_int(inner,"at",(int)c->atOut);
   len = crypt_der(self, b64, 512);
