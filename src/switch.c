@@ -139,7 +139,7 @@ void switch_send(switch_t s, packet_t p)
   if(!p->to) return (void)packet_free(p);
 
   // encrypt the packet to the line, chains together
-  lined = crypt_lineize(p->to->c, s->id->c, p);
+  lined = crypt_lineize(s->id->c, p->to->c, p);
   if(lined) return switch_sendingQ(s, lined);
 
   // queue most recent packet to be sent after opened
@@ -176,9 +176,14 @@ void switch_receive(switch_t s, packet_t p, path_t in)
       switch_open(s, from, NULL); // in case we need to send an open
       if(from->onopen)
       {
+        packet_t last = from->onopen;
+        from->onopen = NULL;
         // TODO do path match/save stuff, send onopen packet to sending path and null it
+        last->out = in;
+        switch_send(s, last);
       }
     }
+    return;
   }
   if(strcmp("line",j0g_str("type",(char*)p->json,p->js)) == 0)
   {
@@ -191,6 +196,7 @@ void switch_receive(switch_t s, packet_t p, path_t in)
         // TODO get matching path from->paths and free or add "in", update from->last too and stats
         // TODO channel processing
       }
+      return;
     }
   }
   packet_free(p);

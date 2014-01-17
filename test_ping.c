@@ -90,7 +90,36 @@ int main(void)
   path_sa(from); // inits ip/port from sa
   p = packet_parse(buf,blen);
   printf("Received packet from %s len %d data: %.*s\n", path_json(from), blen, p->json_len, p->json);
-  
+  switch_receive(s,p,from);
+
+  while((p = switch_sending(s)))
+  {
+    if(strcmp(p->out->type,"ipv4")!=0)
+    {
+      packet_free(p);
+      continue;
+    }
+    printf("sending packet %d %.*s %s\n",packet_len(p),p->json_len,p->json,path_json(p->out));
+    if(sendto(sock, packet_raw(p), packet_len(p), 0, (struct sockaddr *)&(p->out->sa), sizeof(p->out->sa))==-1)
+    {
+  	  printf("sendto failed\n");
+  	  return -1;
+    }
+    packet_free(p);
+  }
+
+  from = path_new("ipv4");
+  len = sizeof(from->sa);
+  if ((blen = recvfrom(sock, buf, sizeof(buf), 0, (struct sockaddr *)&from->sa, (socklen_t *)&len)) == -1)
+  {
+	  printf("recvfrom failed\n");
+	  return -1;
+  }
+  path_sa(from); // inits ip/port from sa
+  p = packet_parse(buf,blen);
+  printf("Received packet from %s len %d data: %.*s\n", path_json(from), blen, p->json_len, p->json);
+  switch_receive(s,p,from);
+
 
   return 0;
 }

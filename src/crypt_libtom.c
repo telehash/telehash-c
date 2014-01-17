@@ -120,8 +120,27 @@ unsigned char *crypt_rand(unsigned char *s, int len)
 packet_t crypt_lineize(crypt_t self, crypt_t c, packet_t p)
 {
   packet_t line;
+  unsigned char iv[16], hex[33], *enc;
+  symmetric_CTR ctr;
+
   if(!c || !p || !c->lined) return NULL;
   line = packet_chain(p);
+  crypt_rand(iv,16);
+  packet_set_str(line,"type","line");
+  packet_set_str(line,"iv", (char*)util_hex(iv,16,hex));
+  packet_set_str(line,"line", (char*)util_hex(c->lineIn,16,hex));
+
+  // create aes cipher now and encrypt
+  if((_crypt_err = ctr_start(find_cipher("aes"), iv, c->keyOut, 32, 0, CTR_COUNTER_BIG_ENDIAN, &ctr)) != CRYPT_OK) return packet_free(line);
+  enc = malloc(packet_len(p));
+  if((_crypt_err = ctr_encrypt(packet_raw(p),enc,packet_len(p),&ctr)) != CRYPT_OK)
+  {
+    free(enc);
+    return packet_free(line);
+  }
+  packet_body(line,enc,packet_len(p));
+  free(enc);
+
   return line;
 }
 
@@ -247,9 +266,9 @@ packet_t crypt_openize(crypt_t self, crypt_t c)
 
 crypt_t crypt_deopenize(crypt_t self, packet_t open)
 {
-  unsigned char enc[256], sig[256], pub[65], *eopen, *esig, key[32], iv[16], *hiv, *hline, *rawinner, sigkey[65+16];
+  unsigned char enc[256], sig[256], pub[65], *eopen, *esig, key[32], hash[32], iv[16], *hiv, *hline, *rawinner, sigkey[65+16];
   unsigned long len, len2;
-  int err;
+  int res;
   crypt_t c;
   symmetric_CTR ctr;
   packet_t inner;
@@ -262,7 +281,7 @@ crypt_t crypt_deopenize(crypt_t self, packet_t open)
   len = sizeof(enc);
   if(!eopen || (_crypt_err = base64_decode(eopen, strlen((char*)eopen), enc, &len)) != CRYPT_OK) return (crypt_t)packet_free(open);;
   len2 = sizeof(pub);
-  if((_crypt_err = rsa_decrypt_key(enc, len, pub, &len2, 0, 0, find_hash("sha1"), &err, &(self->rsa))) != CRYPT_OK || err || len2 != 65) return (crypt_t)packet_free(open);
+  if((_crypt_err = rsa_decrypt_key(enc, len, pub, &len2, 0, 0, find_hash("sha1"), &res, &(self->rsa))) != CRYPT_OK || len2 != 65) return (crypt_t)packet_free(open);
 
   // create the aes key/iv to decipher the body
   len = 32;
@@ -294,14 +313,14 @@ crypt_t crypt_deopenize(crypt_t self, packet_t open)
     packet_free(open);
     return NULL;
   }
-  packet_free(inner);
   util_unhex(hline,32,c->lineIn);
+  packet_free(inner);
   memcpy(c->eccIn,pub,65);
 
   // decipher/verify the signature
   esig = (unsigned char*)j0g_str("sig",(char*)open->json,open->js);
   len = sizeof(enc);
-  if(!esig || (err = base64_decode(esig, strlen((char*)esig), enc, &len)) != CRYPT_OK)
+  if(!esig || (_crypt_err = base64_decode(esig, strlen((char*)esig), enc, &len)) != CRYPT_OK)
   {
     crypt_free(c);
     packet_free(open);
@@ -313,9 +332,9 @@ crypt_t crypt_deopenize(crypt_t self, packet_t open)
   if((_crypt_err = hash_memory(find_hash("sha256"),sigkey,65+16,key,&len2)) != CRYPT_OK
     || (_crypt_err = ctr_start(find_cipher("aes"),iv,key,32,0,CTR_COUNTER_BIG_ENDIAN,&ctr)) != CRYPT_OK
     || (_crypt_err = ctr_decrypt(enc,sig,len,&ctr)) != CRYPT_OK
-    || (_crypt_err = hash_memory(find_hash("sha256"),open->body,open->body_len,key,&len2)) != CRYPT_OK
-    || (_crypt_err = rsa_verify_hash_ex(sig, len, key, len2, LTC_PKCS_1_V1_5, find_hash("sha256"), 0, &err, &(c->rsa))) != CRYPT_OK
-    || err) {
+    || (_crypt_err = hash_memory(find_hash("sha256"),open->body,open->body_len,hash,&len2)) != CRYPT_OK
+    || (_crypt_err = rsa_verify_hash_ex(sig, len, hash, len2, LTC_PKCS_1_V1_5, find_hash("sha256"), 0, &res, &(c->rsa))) != CRYPT_OK
+    || res != 1) {
       crypt_free(c);
       packet_free(open);
       return NULL;
