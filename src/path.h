@@ -3,6 +3,7 @@
 
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <time.h>
 
 typedef struct path_struct
 {
@@ -12,6 +13,7 @@ typedef struct path_struct
   char ip[46];
   int port;
   struct	sockaddr_in sa;
+  time_t atIn, atOut;
 } *path_t;
 
 path_t path_new(char *type);

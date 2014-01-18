@@ -1,7 +1,6 @@
 #ifndef hn_h
 #define hn_h
 
-#include <time.h>
 #include "crypt.h"
 #include "path.h"
 #include "xht.h"
@@ -28,12 +27,12 @@ hn_t hn_getfile(xht_t index, char *file);
 // derive a hn from json in a packet
 hn_t hn_getjs(xht_t index, struct packet_struct *p);
 
-// return a matching path, or add it if none
+// return a matching path, or add it if none, updates ->last and path->
 path_t hn_path(hn_t hn, path_t p);
 
 unsigned char hn_distance(hn_t a, hn_t b);
 
 // get or set a channel
-struct chan_struct *hn_chan(hn_t h, unsigned char *id, struct chan_struct *c);
+struct chan_struct *hn_chan(hn_t h, char *id, struct chan_struct *c);
 
 #endif

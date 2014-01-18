@@ -7,29 +7,43 @@ chans_t chans_new()
 {
   chans_t l = malloc(sizeof (struct chans_struct));
   bzero(l,sizeof (struct chans_struct));
-  l->chans = malloc(sizeof (hn_t));
-  l->chans[0] = NULL;
   return l;
 }
 
 void chans_free(chans_t l)
 {
-  free(l->chans);
+  if(l->chans) free(l->chans);
   free(l);
 }
 
 void chans_add(chans_t l, chan_t c)
 {
   int i;
-  for(i=0;l->chans[i];i++) if(l->chans[i] == c) return;
-  l->chans = realloc(l->chans, (i+2) * sizeof(chan_t));
-  l->chans[i] = c;
-  l->chans[i+1] = NULL;
-  l->count = i+1;
+  for(i=0;i<l->count;i++)
+  {
+    if(l->chans[i] == c) return;
+    if(l->chans[i]) continue;
+    // fill in an empty slot
+    l->chans[i] = c;
+    return;
+  }
+  // add a new slot
+  l->chans = realloc(l->chans, (l->count+1) * sizeof(chan_t));
+  l->chans[l->count] = c;
+  l->count++;
 }
 
-chan_t chans_get(chans_t l, int index)
+chan_t chans_pop(chans_t l)
 {
-  if(index >= l->count || index < 0) return NULL;
-  return l->chans[index];
+  int i;
+  chan_t c;
+
+  if(!l) return NULL;
+  for(i=0;i<l->count;i++) if(l->chans[i])
+  {
+    c = l->chans[i];
+    l->chans[i] = NULL;
+    return c;
+  }
+  return NULL;
 }

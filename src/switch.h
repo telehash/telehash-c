@@ -12,7 +12,7 @@ typedef struct switch_struct
   hn_t id;
   bucket_t seeds, *buckets;
   packet_t out, last; // packets waiting to be delivered
-  struct chan_struct *in; // channels waiting to be processed
+  chan_t chans; // channels waiting to be processed
   int cap;
   xht_t index;
 } *switch_t;
@@ -30,7 +30,7 @@ void switch_seed(switch_t s, hn_t hn);
 packet_t switch_sending(switch_t s);
 
 // get a channel that has packets to be processed, NULL if none
-struct chan_struct *switch_pop(switch_t s);
+chan_t switch_pop(switch_t s);
 
 // encrypts a packet and adds it to the sending queue
 void switch_send(switch_t s, packet_t p);

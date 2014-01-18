@@ -93,7 +93,7 @@ hn_t hn_getjs(xht_t index, packet_t p)
 
 path_t hn_path(hn_t hn, path_t p)
 {
-  path_t existing = NULL;
+  path_t ret = NULL;
   int i;
 
   if(!p) return NULL;
@@ -101,20 +101,24 @@ path_t hn_path(hn_t hn, path_t p)
   // find existing matching path
   for(i=0;hn->paths[i];i++)
   {
-    if(path_match(hn->paths[i], p)) existing = hn->paths[i];
+    if(path_match(hn->paths[i], p)) ret = hn->paths[i];
   }
-  if(existing)
+  if(!ret)
   {
+    // add new path, i is the end of the list from above
+    hn->paths = realloc(hn->paths, (i+2) * (sizeof (path_t)));
+    hn->paths[i] = p;
+    hn->paths[i+1] = 0; // null term
+    ret = p;
+  }else{
     path_free(p);
-    return existing;
   }
 
-  // add new path, i is the end of the list from above
-  hn->paths = realloc(hn->paths, (i+2) * (sizeof (path_t)));
-  hn->paths[i] = p;
-  hn->paths[i+1] = 0; // null term
+  // update state tracking
+  hn->last = ret;
+  ret->atIn = time(0);
 
-  return p;
+  return ret;
 }
 
 // load hashname from file
@@ -136,12 +140,12 @@ unsigned char hn_distance(hn_t a, hn_t b)
   return 0;
 }
 
-chan_t hn_chan(hn_t hn, unsigned char *id, chan_t c)
+chan_t hn_chan(hn_t hn, char *id, chan_t c)
 {
   if(!hn || !id) return NULL;
   if(!hn->chans) hn->chans = xht_new(17);
-  if(!c) return xht_get(hn->chans,(const char*)id);
-  xht_set(hn->chans,(const char*)id,c);
+  if(!c) return xht_get(hn->chans, id);
+  xht_set(hn->chans,id,c);
   return c;
 }
 

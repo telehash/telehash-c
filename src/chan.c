@@ -3,6 +3,7 @@
 #include <strings.h>
 #include <stdlib.h>
 #include "util.h"
+#include "switch.h"
 
 chan_t chan_new(switch_t s, hn_t to, char *type, int reliable)
 {
@@ -29,29 +30,49 @@ void chan_free(chan_t c)
 // create a packet ready to be sent for this channel
 packet_t chan_packet(chan_t c)
 {
-  packet_t p = packet_new();
+  packet_t p;
+  if(!c || c->state == ENDED) return NULL;
+  p = packet_new();
   p->to = c->to;
   if(path_alive(c->last)) p->out = c->last;
   if(c->state == STARTING)
   {
-    c->state = OPEN;
     packet_set_str(p,"type",c->type);
   }
   packet_set_str(p,"c",c->hexid);
   return p;
 }
 
+packet_t chan_pop(chan_t c)
+{
+  packet_t p;
+  if(!c || !c->in) return NULL;
+  p = c->in;
+  c->in = p->next;
+  if(!c->in) c->inend = NULL;
+  return p;
+}
+
 // internal, receives/processes incoming packet
 void chan_receive(chan_t c, packet_t p)
 {
-  // check state, drop if ended
-  // queue
-  // look for handler to fire, else add switch->in
-}
+  if(!c || !p) return;
+  if(c->state == ENDED) return (void)packet_free(p);
+  if(c->state == STARTING) c->state = OPEN;
+  if(memcmp(packet_get_str(p,"end"),"true",4) == 0) c->state = ENDED;
+  if(packet_get_str(p,"err")) c->state = ENDED;
 
-// returns any packet to be processed, or NULL
-packet_t chan_pop(chan_t c)
-{
-  // only trigger free after ended and no packets
-  return NULL;
+  // add to the end of the queue
+  if(c->inend)
+  {
+    c->inend->next = p;
+    c->inend = p;
+    return;
+  }
+  c->inend = c->in = p;
+  
+  // add to channels queue, if not
+  if(c->next || c->s->chans == c) return;
+  c->next = c->s->chans;
+  c->s->chans = c;
 }

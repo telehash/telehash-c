@@ -60,7 +60,7 @@ void switch_seed(switch_t s, hn_t hn)
 packet_t switch_sending(switch_t s)
 {
   packet_t p;
-  if(!s->out) return NULL;
+  if(!s || !s->out) return NULL;
   p = s->out;
   s->out = p->next;
   if(!s->out) s->last = NULL;
@@ -98,11 +98,15 @@ void switch_sendingQ(switch_t s, packet_t p)
       return;   
     }
   }
+  
+  // update stats
+  p->out->atOut = time(0);
 
   // add to the end of the queue
   if(s->last)
   {
     s->last->next = p;
+    s->last = p;
     return;
   }
   s->last = s->out = p;  
@@ -153,9 +157,9 @@ void switch_send(switch_t s, packet_t p)
 chan_t switch_pop(switch_t s)
 {
   chan_t c;
-  if(!s->in) return NULL;
-  c = s->in;
-  s->in = c->next;
+  if(!s->chans) return NULL;
+  c = s->chans;
+  s->chans = c->next;
   return c;
 }
 
@@ -175,11 +179,11 @@ void switch_receive(switch_t s, packet_t p, path_t in)
       from->c = crypt_merge(from->c, opened);
       switch_open(s, from, NULL); // in case we need to send an open
       xht_set(s->index, crypt_line(from->c), from);
+      in = hn_path(from, in);
       if(from->onopen)
       {
         packet_t last = from->onopen;
         from->onopen = NULL;
-        // TODO do path match/save stuff, send onopen packet to sending path and null it
         last->out = in;
         switch_send(s, last);
       }
@@ -191,16 +195,20 @@ void switch_receive(switch_t s, packet_t p, path_t in)
     from = xht_get(s->index, packet_get_str(p, "line"));
     if(from)
     {
+      in = hn_path(from, in);
       line = crypt_delineize(s->id->c, from->c, p);
       if(line)
       {
-        printf("LINE PACKET %.*s\n",line->json_len,line->json);
-        // TODO get matching path from->paths and free or add "in", update from->last too and stats
-        // TODO channel processing
+        chan_t c = hn_chan(from, packet_get_str(p, "c"), NULL);
+        if(!c) c = chan_new(s, from, packet_get_str(p, "type"), packet_get_str(p,"seq")?1:0);
+        if(!c) return (void)packet_free(line);
+        chan_receive(c, line);
       }
       return;
     }
   }
+  
+  // nothing processed, clean up
   packet_free(p);
   path_free(in);
 }

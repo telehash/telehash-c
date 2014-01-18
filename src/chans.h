@@ -14,8 +14,8 @@ void chans_free(chans_t l);
 
 void chans_add(chans_t l, chan_t c);
 
-// simple array index function
-chan_t chans_get(chans_t l, int index);
+// return first channel off list and remove it
+chan_t chans_pop(chans_t l);
 
 
 #endif
