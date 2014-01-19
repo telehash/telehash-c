@@ -17,6 +17,7 @@ typedef struct packet_struct
   struct packet_struct *next, *chain;
   struct hn_struct *to, *from;
   path_t out;
+  char *jsoncp; // internal editable copy of the json
 } *packet_t;
 
 // these all allocate/free memory
@@ -33,6 +34,9 @@ packet_t packet_parse(unsigned char *raw, unsigned short len);
 // return raw info from stored json/body
 unsigned char *packet_raw(packet_t p);
 unsigned short packet_len(packet_t p);
+
+// return json pointer safe to use w j0g
+char *packet_j0g(packet_t p);
 
 // set/store these in the current packet
 void packet_json(packet_t p, unsigned char *json, unsigned short len);

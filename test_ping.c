@@ -119,6 +119,16 @@ int main(void)
   p = packet_parse(buf,blen);
   printf("Received packet from %s len %d data: %.*s\n", path_json(from), blen, p->json_len, p->json);
   switch_receive(s,p,from);
+  
+  while((c = switch_pop(s)))
+  {
+    printf("channel active %d %s %s\n",c->state,c->hexid,c->to->hexname);
+    while((p = chan_pop(c)))
+    {
+      printf("channel packet %.*s\n", p->json_len, p->json);      
+      packet_free(p);
+    }
+  }
 
 
   return 0;

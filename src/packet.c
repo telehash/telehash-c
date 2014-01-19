@@ -41,6 +41,7 @@ packet_t packet_chain(packet_t p)
 packet_t packet_free(packet_t p)
 {
   if(p->chain) packet_free(p->chain);
+  if(p->jsoncp) free(p->jsoncp);
   free(p->raw);
   free(p);
   return NULL;
@@ -185,8 +186,19 @@ void packet_set_str(packet_t p, char *key, char *val)
   free(escaped);
 }
 
+// internal to create/use a copy of the json
+char *packet_j0g(packet_t p)
+{
+  if(!p) return NULL;
+  if(p->jsoncp) return p->jsoncp;
+  p->jsoncp = malloc(p->json_len+1);
+  memcpy(p->jsoncp,p->json,p->json_len);
+  p->jsoncp[p->json_len] = 0;
+  return p->jsoncp;
+}
+
 char *packet_get_str(packet_t p, char *key)
 {
   if(!p || !key) return NULL;
-  return j0g_str(key, (char*)p->json, p->js);
+  return j0g_str(key, packet_j0g(p), p->js);
 }

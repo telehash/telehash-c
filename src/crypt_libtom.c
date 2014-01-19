@@ -3,7 +3,6 @@
 #include <time.h>
 #include "util.h"
 #include "crypt.h"
-#include "j0g.h"
 
 struct crypt_struct
 {
@@ -306,7 +305,7 @@ crypt_t crypt_deopenize(crypt_t self, packet_t open)
   if(!self) return (crypt_t)packet_free(open);
 
   // decrypt the open
-  eopen = (unsigned char*)j0g_str("open",(char*)open->json,open->js);
+  eopen = (unsigned char*)packet_get_str(open,"open");
   len = sizeof(enc);
   if(!eopen || (_crypt_err = base64_decode(eopen, strlen((char*)eopen), enc, &len)) != CRYPT_OK) return (crypt_t)packet_free(open);;
   len2 = sizeof(pub);
@@ -315,7 +314,7 @@ crypt_t crypt_deopenize(crypt_t self, packet_t open)
   // create the aes key/iv to decipher the body
   len = 32;
   if((_crypt_err = hash_memory(find_hash("sha256"),pub,65,key,&len)) != CRYPT_OK) return (crypt_t)packet_free(open);
-  hiv = (unsigned char*)j0g_str("iv",(char*)open->json,open->js);
+  hiv = (unsigned char*)packet_get_str(open,"iv");
   if(!hiv || strlen((char*)hiv) != 32) return (crypt_t)packet_free(open);
   util_unhex(hiv,32,iv);
 
@@ -333,8 +332,8 @@ crypt_t crypt_deopenize(crypt_t self, packet_t open)
   // extract/validate inner stuff
   c = crypt_new(inner->body,inner->body_len);
   if(!c) return (crypt_t)packet_free(open);
-  c->atIn = strtol(j0g_str("at",(char*)inner->json,inner->js), NULL, 10);
-  hline = (unsigned char*)j0g_str("line",(char*)inner->json,inner->js);
+  c->atIn = strtol(packet_get_str(inner,"at"), NULL, 10);
+  hline = (unsigned char*)packet_get_str(inner,"line");
   if(c->atIn <= 0 || strlen((char*)hline) != 32 || !c)
   {
     crypt_free(c);
@@ -347,7 +346,7 @@ crypt_t crypt_deopenize(crypt_t self, packet_t open)
   memcpy(c->eccIn,pub,65);
 
   // decipher/verify the signature
-  esig = (unsigned char*)j0g_str("sig",(char*)open->json,open->js);
+  esig = (unsigned char*)packet_get_str(open,"sig");
   len = sizeof(enc);
   if(!esig || (_crypt_err = base64_decode(esig, strlen((char*)esig), enc, &len)) != CRYPT_OK)
   {

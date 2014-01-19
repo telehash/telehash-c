@@ -51,9 +51,9 @@ chan_t chan_in(switch_t s, hn_t from, packet_t p)
   c->to = from;
   c->reliable = packet_get_str(p,"seq")?1:0;
   c->state = STARTING;
-  util_unhex(id,32,c->id);
+  util_unhex((unsigned char*)id,32,c->id);
   util_hex(c->id,16,(unsigned char*)c->hexid);
-  chan_hn(to, c);
+  chan_hn(from, c);
   return c;
 }
 

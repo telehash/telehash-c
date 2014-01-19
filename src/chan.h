@@ -19,7 +19,7 @@ chan_t chan_new(struct switch_struct *s, struct hn_struct *to, char *type, int r
 void chan_free(chan_t c);
 
 // returns existing or creates new and adds to from
-chan_t chan_in(struct switch_struct *s, struct hn_t *from, struct packet_struct *p);
+chan_t chan_in(struct switch_struct *s, struct hn_struct *from, struct packet_struct *p);
 
 // create a packet ready to be sent for this channel
 struct packet_struct *chan_packet(chan_t c);
