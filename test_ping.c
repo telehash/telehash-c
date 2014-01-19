@@ -6,6 +6,7 @@
 
 #include "switch.h"
 #include "util.h"
+#include "seek.h"
 
 int main(void)
 {
@@ -123,9 +124,10 @@ int main(void)
   while((c = switch_pop(s)))
   {
     printf("channel active %d %s %s\n",c->state,c->hexid,c->to->hexname);
+    if(strcmp(c->type,"seek") == 0) ext_seek(c);
     while((p = chan_pop(c)))
     {
-      printf("channel packet %.*s\n", p->json_len, p->json);      
+      printf("unhandled channel packet %.*s\n", p->json_len, p->json);      
       packet_free(p);
     }
   }

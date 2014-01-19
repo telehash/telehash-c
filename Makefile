@@ -2,13 +2,13 @@ DOTC = src/hn.c src/packet.c src/path.c src/switch.c src/bucket.c src/chan.c src
 DOTH = src/hn.h src/packet.h src/path.h src/switch.h src/bucket.h src/chan.h src/util.h src/crypt.h src/xht.h
 JS0N = ../js0n/js0n.c ../js0n/j0g.c -I../js0n
 LTOM = -ltomcrypt -ltommath -DLTM_DESC
-FLAG = -I./src
+FLAG = -I./src -I./ext
 
 all: test
 
 test: test_*.c $(DOTC) $(DOTH)
 	gcc -w -o test_crypt test_crypt.c $(LTOM) $(FLAG)
-	gcc -Wall -g -o test_ping test_ping.c $(DOTC) $(JS0N) $(LTOM) $(FLAG)
+	gcc -Wall -g -o test_ping test_ping.c ext/seek.c $(DOTC) $(JS0N) $(LTOM) $(FLAG)
 	gcc -Wall -g -o test_misc test_misc.c $(DOTC) $(JS0N) $(LTOM) $(FLAG)
 	
 util: idgen.c openize.c $(DOTC) $(DOTH)
