@@ -83,7 +83,9 @@ hn_t hn_getjs(xht_t index, packet_t p)
     js0n(key, len, list, 64);
   	for(i=0;list[i];i+=2)
   	{
-      hn_path(hn, path_parse(key+list[i], list[i+1]));
+      path_t path;
+      path = hn_path(hn, path_parse(key+list[i], list[i+1]));
+      if(path) path->atIn = 0; // don't consider this path alive
   	}
     
   }
@@ -138,14 +140,5 @@ hn_t hn_getfile(xht_t index, char *file)
 unsigned char hn_distance(hn_t a, hn_t b)
 {
   return 0;
-}
-
-chan_t hn_chan(hn_t hn, char *id, chan_t c)
-{
-  if(!hn || !id) return NULL;
-  if(!hn->chans) hn->chans = xht_new(17);
-  if(!c) return xht_get(hn->chans, id);
-  xht_set(hn->chans,id,c);
-  return c;
 }
 

@@ -98,7 +98,7 @@ void switch_sendingQ(switch_t s, packet_t p)
       return;   
     }
   }
-  
+
   // update stats
   p->out->atOut = time(0);
 
@@ -117,7 +117,7 @@ void switch_open(switch_t s, hn_t to, path_t direct)
 {
   packet_t open;
   time_t now;
-  
+
   if(!to) return;
 
   // don't send too frequently
@@ -199,10 +199,18 @@ void switch_receive(switch_t s, packet_t p, path_t in)
       line = crypt_delineize(s->id->c, from->c, p);
       if(line)
       {
-        chan_t c = hn_chan(from, packet_get_str(p, "c"), NULL);
-        if(!c) c = chan_new(s, from, packet_get_str(p, "type"), packet_get_str(p,"seq")?1:0);
-        if(!c) return (void)packet_free(line);
-        chan_receive(c, line);
+        chan_t c = chan_in(s, from, line);
+        if(c) return chan_receive(c, line);
+        // bounce it!
+        if(!packet_get_str(line,"err"))
+        {
+          packet_set_str(line,"err","unknown channel");
+          line->to = from;
+          line->out = in;
+          switch_send(s, line);          
+        }else{
+          packet_free(line);
+        }
       }
       return;
     }

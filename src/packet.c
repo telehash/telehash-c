@@ -19,7 +19,12 @@ packet_t packet_new()
 
 packet_t packet_copy(packet_t p)
 {
-  return packet_parse(packet_raw(p), packet_len(p));
+  packet_t np;
+  np = packet_parse(packet_raw(p), packet_len(p));
+  np->to = p->to;
+  np->from = p->from;
+  np->out = p->out;
+  return np;
 }
 
 packet_t packet_chain(packet_t p)

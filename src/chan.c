@@ -5,9 +5,19 @@
 #include "util.h"
 #include "switch.h"
 
+// link c to hn
+void chan_hn(hn_t hn, chan_t c)
+{
+  if(!hn || !c) return;
+  if(!hn->chans) hn->chans = xht_new(17);
+  xht_set(hn->chans,c->hexid,c);
+}
+
 chan_t chan_new(switch_t s, hn_t to, char *type, int reliable)
 {
   chan_t c;
+  if(!s || !to || !type) return NULL;
+
   c = malloc(sizeof (struct chan_struct));
   bzero(c,sizeof (struct chan_struct));
   c->type = strdup(type);
@@ -17,6 +27,33 @@ chan_t chan_new(switch_t s, hn_t to, char *type, int reliable)
   c->state = STARTING;
   crypt_rand(c->id, 16);
   util_hex(c->id,16,(unsigned char*)c->hexid);
+  chan_hn(to, c);
+  return c;
+}
+
+chan_t chan_in(switch_t s, hn_t from, packet_t p)
+{
+  chan_t c;
+  char *id, *type;
+  if(!from || !p) return NULL;
+
+  id = packet_get_str(p, "c");
+  c = xht_get(from->chans, id);
+  if(c) return c;
+
+  type = packet_get_str(p, "type");
+  if(!id || strlen(id) != 32 || !type) return NULL;
+
+  c = malloc(sizeof (struct chan_struct));
+  bzero(c,sizeof (struct chan_struct));
+  c->type = strdup(type);
+  c->s = s;
+  c->to = from;
+  c->reliable = packet_get_str(p,"seq")?1:0;
+  c->state = STARTING;
+  util_unhex(id,32,c->id);
+  util_hex(c->id,16,(unsigned char*)c->hexid);
+  chan_hn(to, c);
   return c;
 }
 

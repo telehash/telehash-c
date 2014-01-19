@@ -32,7 +32,4 @@ path_t hn_path(hn_t hn, path_t p);
 
 unsigned char hn_distance(hn_t a, hn_t b);
 
-// get or set a channel
-struct chan_struct *hn_chan(hn_t h, char *id, struct chan_struct *c);
-
 #endif
