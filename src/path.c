@@ -33,7 +33,8 @@ path_t path_parse(unsigned char *json, int len)
   unsigned short js[64];
   path_t p;
   
-  if(!json || !len) return NULL;
+  if(!json) return NULL;
+  if(!len) len = strlen((char*)json);
   js0n(json, len, js, 64);
   if(!j0g_val("type",(char*)json,js)) return NULL;
   p = path_new(j0g_str("type",(char*)json,js));

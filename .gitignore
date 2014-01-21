@@ -1,8 +1,9 @@
-test_crypt
-test_ping
-test_misc
-openize
+test/crypt
+test/ping
+test/misc
+util/openize
+util/idgen
+seed/seed
 *.dSYM
-idgen
 *.json
 .DS_Store

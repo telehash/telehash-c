@@ -218,6 +218,5 @@ void switch_receive(switch_t s, packet_t p, path_t in)
   
   // nothing processed, clean up
   packet_free(p);
-  path_free(in);
 }
 

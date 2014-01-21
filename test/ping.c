@@ -6,7 +6,7 @@
 
 #include "switch.h"
 #include "util.h"
-#include "seek.h"
+#include "ext.h"
 
 int main(void)
 {
@@ -14,7 +14,7 @@ int main(void)
   hn_t id;
   switch_t s;
   bucket_t seeds;
-  chan_t c;
+  chan_t c, c2;
   packet_t p;
   path_t from;
   int sock, len, blen;
@@ -111,26 +111,30 @@ int main(void)
 
   from = path_new("ipv4");
   len = sizeof(from->sa);
-  if ((blen = recvfrom(sock, buf, sizeof(buf), 0, (struct sockaddr *)&from->sa, (socklen_t *)&len)) == -1)
+  while((blen = recvfrom(sock, buf, sizeof(buf), 0, (struct sockaddr *)&from->sa, (socklen_t *)&len)) != -1)
   {
-	  printf("recvfrom failed\n");
-	  return -1;
-  }
-  path_sa(from); // inits ip/port from sa
-  p = packet_parse(buf,blen);
-  printf("Received packet from %s len %d data: %.*s\n", path_json(from), blen, p->json_len, p->json);
-  switch_receive(s,p,from);
+    path_sa(from); // inits ip/port from sa
+    p = packet_parse(buf,blen);
+    printf("Received packet from %s len %d data: %.*s\n", path_json(from), blen, p->json_len, p->json);
+    switch_receive(s,p,from);
   
-  while((c = switch_pop(s)))
-  {
-    printf("channel active %d %s %s\n",c->state,c->hexid,c->to->hexname);
-    if(util_cmp(c->type,"seek") == 0) ext_seek(c);
-    while((p = chan_pop(c)))
+    while((c2 = switch_pop(s)))
     {
-      printf("unhandled channel packet %.*s\n", p->json_len, p->json);      
-      packet_free(p);
+      if(c2 == c)
+      {
+        printf("got pong state %d from %s see %s\n",c->state,c->to->hexname,packet_get_str(chan_pop(c),"see"));
+        return 0;
+      }
+      while((p = chan_pop(c)))
+      {
+        printf("unhandled channel packet %.*s\n", p->json_len, p->json);      
+        packet_free(p);
+      }
     }
   }
+  printf("recvfrom failed\n");
+  return -1;
+
 
 
   return 0;

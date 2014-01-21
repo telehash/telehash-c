@@ -1,5 +1,4 @@
-#include <stdio.h>
-#include "seek.h"
+#include "ext.h"
 
 void ext_seek(chan_t c)
 {

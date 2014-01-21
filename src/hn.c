@@ -109,11 +109,9 @@ path_t hn_path(hn_t hn, path_t p)
   {
     // add new path, i is the end of the list from above
     hn->paths = realloc(hn->paths, (i+2) * (sizeof (path_t)));
-    hn->paths[i] = p;
+    hn->paths[i] = path_parse(path_json(p),0); // create a new copy
     hn->paths[i+1] = 0; // null term
-    ret = p;
-  }else{
-    path_free(p);
+    ret = hn->paths[i];
   }
 
   // update state tracking
