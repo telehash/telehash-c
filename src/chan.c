@@ -96,7 +96,7 @@ void chan_receive(chan_t c, packet_t p)
   if(!c || !p) return;
   if(c->state == ENDED) return (void)packet_free(p);
   if(c->state == STARTING) c->state = OPEN;
-  if(memcmp(packet_get_str(p,"end"),"true",4) == 0) c->state = ENDED;
+  if(util_cmp(packet_get_str(p,"end"),"true") == 0) c->state = ENDED;
   if(packet_get_str(p,"err")) c->state = ENDED;
 
   // add to the end of the queue

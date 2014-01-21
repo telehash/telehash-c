@@ -67,7 +67,7 @@ int main(void)
   switch_send(s, p);
   while((p = switch_sending(s)))
   {
-    if(strcmp(p->out->type,"ipv4")!=0)
+    if(util_cmp(p->out->type,"ipv4")!=0)
     {
       packet_free(p);
       continue;
@@ -95,7 +95,7 @@ int main(void)
 
   while((p = switch_sending(s)))
   {
-    if(strcmp(p->out->type,"ipv4")!=0)
+    if(util_cmp(p->out->type,"ipv4")!=0)
     {
       packet_free(p);
       continue;
@@ -124,7 +124,7 @@ int main(void)
   while((c = switch_pop(s)))
   {
     printf("channel active %d %s %s\n",c->state,c->hexid,c->to->hexname);
-    if(strcmp(c->type,"seek") == 0) ext_seek(c);
+    if(util_cmp(c->type,"seek") == 0) ext_seek(c);
     while((p = chan_pop(c)))
     {
       printf("unhandled channel packet %.*s\n", p->json_len, p->json);      

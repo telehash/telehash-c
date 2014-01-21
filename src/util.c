@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <strings.h>
 #include "util.h"
 
 packet_t util_file2packet(char *file)
@@ -67,3 +68,8 @@ unsigned char *util_unhex(unsigned char *in, int len, unsigned char *out)
 	return out;
 }
 
+int util_cmp(char *a, char *b)
+{
+  if(!a || !b) return -1;
+  return strcasecmp(a,b);
+}

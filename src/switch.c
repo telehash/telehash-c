@@ -2,6 +2,7 @@
 #include <string.h>
 #include <strings.h>
 #include <stdlib.h>
+#include "util.h"
 
 // a prime number for the internal hashtable used to track all active hashnames/lines
 #define MAXPRIME 4211
@@ -169,7 +170,7 @@ void switch_receive(switch_t s, packet_t p, path_t in)
   crypt_t opened;
 
   if(!s || !p || !in) return;
-  if(strcmp("open",packet_get_str(p,"type")) == 0)
+  if(util_cmp("open",packet_get_str(p,"type")) == 0)
   {
     opened = crypt_deopenize(s->id->c, p);
     if(opened)
@@ -189,7 +190,7 @@ void switch_receive(switch_t s, packet_t p, path_t in)
     }
     return;
   }
-  if(strcmp("line",packet_get_str(p,"type")) == 0)
+  if(util_cmp("line",packet_get_str(p,"type")) == 0)
   {
     from = xht_get(s->index, packet_get_str(p, "line"));
     if(from)

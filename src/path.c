@@ -9,7 +9,7 @@
 #include <netdb.h>
 #include "js0n.h"
 #include "j0g.h"
-
+#include "util.h"
 
 path_t path_new(char *type)
 {
@@ -69,7 +69,7 @@ char *path_ip(path_t p, char *ip)
   if(!ip) return p->ip;
   if(strlen(ip) > 45) return NULL;
   strcpy(p->ip,ip);
-  if(strcmp("ipv4",p->type)==0) inet_aton(ip, &(p->sa.sin_addr));
+  if(util_cmp("ipv4",p->type)==0) inet_aton(ip, &(p->sa.sin_addr));
   return p->ip;
 }
 
@@ -108,7 +108,7 @@ unsigned char *path_json(path_t p)
   }
   if(p->id)
   {
-    if(strcmp("http",p->type)==0) strcpy(json+strlen(json), ",\"http\":\"");
+    if(util_cmp("http",p->type)==0) strcpy(json+strlen(json), ",\"http\":\"");
     else strcpy(json+strlen(json), ",\"id\":\"");
     len = 0;
     while(p->id[len])
@@ -127,12 +127,12 @@ int path_match(path_t p1, path_t p2)
 {
   if(!p1 || !p2) return 0;
   if(p1 == p2) return 1;
-  if(strcmp(p1->type,p2->type) != 0) return 0;
+  if(util_cmp(p1->type,p2->type) != 0) return 0;
   if(strstr(p1->type,"ipv"))
   {
-    if(strcmp(p1->ip, p2->ip) == 0 && p1->port == p2->port) return 1;
+    if(util_cmp(p1->ip, p2->ip) == 0 && p1->port == p2->port) return 1;
   }else{
-    if(strcmp(p1->id, p2->id) == 0) return 1;
+    if(util_cmp(p1->id, p2->id) == 0) return 1;
   }
   return 0;
 }
