@@ -1,39 +1,18 @@
-#include <tomcrypt.h>
-#include <tommath.h>
-#include <time.h>
-#include "util.h"
-#include "crypt.h"
+#include "crypt_libtom.h"
 
-struct crypt_struct
+struct crypt_libtom_struct
 {
   rsa_key rsa;
   ecc_key eccOut;
-  unsigned char hashname[32], keyOut[32], keyIn[32], eccIn[65];
-  int private, lined;
-  unsigned long atOut, atIn;
-  unsigned char lineOut[16], lineIn[16], lineHex[33];
+  unsigned char eccIn[64];
 };
 
-// simple way to track last known error from libtomcrypt and return it for debugging
-int _crypt_err = 0;
-char *crypt_err()
+int crypt_init_2a()
 {
-  return (char*)error_to_string(_crypt_err);
+  return crypt_libtom_init();
 }
 
-prng_state _crypt_prng;
-int crypt_init()
-{
-  ltc_mp = ltm_desc;
-  register_cipher(&aes_desc);  
-  register_prng(&yarrow_desc);
-  register_hash(&sha256_desc);
-  register_hash(&sha1_desc);
-  if ((_crypt_err = rng_make_prng(128, find_prng("yarrow"), &_crypt_prng, NULL)) != CRYPT_OK) return -1;
-  return 0;
-}
-
-crypt_t crypt_new(unsigned char *key, int len)
+crypt_t crypt_new_2a(unsigned char *key, int len)
 {
   int der_len = 512;
   unsigned long hnlen=32;
@@ -72,24 +51,19 @@ crypt_t crypt_new(unsigned char *key, int len)
   return c;
 }
 
-int crypt_der(crypt_t c, unsigned char *der, int len)
+int crypt_public_2a(crypt_t c, unsigned char *der, int len)
 {
   if(!c || !der) return 0;
   if((_crypt_err = rsa_export(der, (unsigned long*)&len, PK_PUBLIC, &(c->rsa))) != CRYPT_OK) return 0;
   return len;
 }
 
-void crypt_free(crypt_t c)
+void crypt_free_2a(crypt_t c)
 {
   free(c);
 }
 
-unsigned char *crypt_hashname(crypt_t c)
-{
-  return c->hashname;
-}
-
-int crypt_private(crypt_t c, unsigned char *key, int len)
+int crypt_private_2a(crypt_t c, unsigned char *key, int len)
 {
   unsigned long der_len = 4096;
   unsigned char der[der_len];
@@ -110,13 +84,7 @@ int crypt_private(crypt_t c, unsigned char *key, int len)
   return 0;
 }
 
-unsigned char *crypt_rand(unsigned char *s, int len)
-{
-  yarrow_read(s,len,&_crypt_prng);
-  return s;
-}
-
-packet_t crypt_lineize(crypt_t self, crypt_t c, packet_t p)
+packet_t crypt_lineize_2a(crypt_t self, crypt_t c, packet_t p)
 {
   packet_t line;
   unsigned char iv[16], hex[33], *enc;
@@ -143,7 +111,7 @@ packet_t crypt_lineize(crypt_t self, crypt_t c, packet_t p)
   return line;
 }
 
-packet_t crypt_delineize(crypt_t self, crypt_t c, packet_t p)
+packet_t crypt_delineize_2a(crypt_t self, crypt_t c, packet_t p)
 {
   packet_t line;
   unsigned char iv[16], *dec;
@@ -171,14 +139,8 @@ packet_t crypt_delineize(crypt_t self, crypt_t c, packet_t p)
   return line;
 }
 
-char *crypt_line(crypt_t c)
-{
-  if(!c || !c->lined) return NULL;
-  return (char*)c->lineHex;
-}
-
 // makes sure all the crypto line state is set up, and creates line keys if exist
-int crypt_lineinit(crypt_t c)
+int crypt_lineinit_2a(crypt_t c)
 {
   unsigned char secret[32], input[64];
   unsigned long len;
@@ -220,7 +182,7 @@ int crypt_lineinit(crypt_t c)
 }
 
 // create a new open packet
-packet_t crypt_openize(crypt_t self, crypt_t c)
+packet_t crypt_openize_2a(crypt_t self, crypt_t c)
 {
   unsigned char key[32], iv[16], hex[33], hn[65], sig[256], esig[256], pub[65], epub[256], b64[512], *enc;
   packet_t open, inner;
@@ -292,7 +254,7 @@ packet_t crypt_openize(crypt_t self, crypt_t c)
   return open;
 }
 
-crypt_t crypt_deopenize(crypt_t self, packet_t open)
+crypt_t crypt_deopenize_2a(crypt_t self, packet_t open)
 {
   unsigned char enc[256], sig[256], pub[65], *eopen, *esig, key[32], hash[32], iv[16], *hiv, *hline, *rawinner, sigkey[65+16];
   unsigned long len, len2;
@@ -372,21 +334,7 @@ crypt_t crypt_deopenize(crypt_t self, packet_t open)
   return c;
 }
 
-crypt_t crypt_merge(crypt_t a, crypt_t b)
+crypt_t crypt_merge_2a(crypt_t a, crypt_t b)
 {
-  if(a)
-  {
-    if(b)
-    {
-      // just copy in the deopenized variables
-      a->atIn = b->atIn;
-      memcpy(a->lineIn, b->lineIn, 16);
-      memcpy(a->eccIn, b->eccIn, 65);
-      crypt_free(b);      
-    }
-  }else{
-    a = b;
-  }
-  crypt_lineinit(a);
-  return a;
+  memcpy(a->eccIn, b->eccIn, 64);
 }
