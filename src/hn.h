@@ -13,7 +13,7 @@ typedef struct hn_struct
   crypt_t c;
   path_t *paths, last;
   xht_t chans;
-  packet_t onopen;
+  packet_t onopen, parts;
   time_t sentOpen;
 } *hn_t;
 
@@ -21,14 +21,20 @@ typedef struct hn_struct
 hn_t hn_get(xht_t index, unsigned char *hn);
 hn_t hn_gethex(xht_t index, char *hex);
 
-// load hashname from file
-hn_t hn_getfile(xht_t index, char *file);
+// loads from raw parts object
+hn_t hn_getparts(xht_t index, struct packet_struct *p);
 
-// derive a hn from json in a packet
-hn_t hn_getjs(xht_t index, struct packet_struct *p);
+// derive a hn from packet ("from" and body), loads matching CSID
+hn_t hn_frompacket(xht_t index, struct packet_struct *p);
+
+// derive a hn from json format
+hn_t hn_fromjson(xht_t index, struct packet_struct *p);
 
 // return a matching path, or add it if none, updates ->last and path->
 path_t hn_path(hn_t hn, path_t p);
+
+// get the matching CSID (uses index to match against)
+char hn_csid(xht_t index, hn_t hn);
 
 unsigned char hn_distance(hn_t a, hn_t b);
 

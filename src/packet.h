@@ -47,5 +47,8 @@ void packet_set(packet_t p, char *key, char *val); // raw
 void packet_set_str(packet_t p, char *key, char *val); // escapes value
 void packet_set_int(packet_t p, char *key, int val);
 char *packet_get_str(packet_t p, char *key);
+char *packet_get_istr(packet_t p, int i); // when json is array of strings, returns index of i
+packet_t packet_get_packet(packet_t p, char *key); // creates new packet from key:object value
+packet_t packet_get_packets(packet_t p, char *key); // list of packet->next from key:[object,object]
 
 #endif

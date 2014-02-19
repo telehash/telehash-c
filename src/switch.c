@@ -20,11 +20,13 @@ switch_t switch_new(hn_t id)
   return s;
 }
 
-int switch_init(switch_t s, hn_t id)
+int switch_init(switch_t s, packet_t keys)
 {
-  if(!id || !id->c) return 1;
-  if(crypt_private(id->c,NULL,0)) return 1;
-  s->id = id;
+  if(!keys) return 1;
+  // TODO, load all keys into s->index
+//  if(crypt_private(id->c,NULL,0)) return 1;
+//  s->id = id;
+  packet_free(keys);
   return 0;
 }
 

@@ -45,17 +45,17 @@ bucket_t bucket_load(xht_t index, char *file)
 
   p = util_file2packet(file);
   if(!p) return b;
-  if(*p->json != '[')
+  if(*p->json != '{')
   {
     packet_free(p);
     return b;
   }
 
-  // parse each object in the array
-	for(i=0;p->js[i];i+=2)
+  // check each value, since js0n is key,len,value,len,key,len,value,len for objects
+	for(i=0;p->js[i];i+=4)
 	{
     p2 = packet_new();
-    packet_json(p2, p->json+p->js[i], p->js[i+1]-p->js[i]);
+    packet_json(p2, p->json+p->js[i+2], p->js[i+3]-p->js[i+2]);
     hn = hn_getjs(index, p2);
     packet_free(p2);
     if(!hn) continue;

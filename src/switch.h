@@ -20,8 +20,8 @@ typedef struct switch_struct
 switch_t switch_new();
 void switch_free(switch_t s);
 
-// must be called to initialize to an id, return !0 if failed
-int switch_init(switch_t s, hn_t id);
+// must be called to initialize to a hashname from json keys, return !0 if failed, free's keys
+int switch_init(switch_t s, packet_t keys);
 
 // add hashname as a seed, will automatically trigger a query to it
 void switch_seed(switch_t s, hn_t hn);

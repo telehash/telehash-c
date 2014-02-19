@@ -11,8 +11,10 @@
 
 void hn_free(hn_t hn)
 {
+  if(!hn) return;
   if(hn->chans) xht_free(hn->chans);
   if(hn->c) crypt_free(hn->c);
+  if(hn->parts) packet_free(hn->parts);
   free(hn->paths);
   free(hn);
 }
@@ -22,6 +24,7 @@ hn_t hn_get(xht_t index, unsigned char *bin)
   hn_t hn;
   unsigned char hex[65];
   
+  if(!bin) return NULL;
   util_hex(bin,32,hex);
   hn = xht_get(index, (const char*)hex);
   if(hn) return hn;
@@ -40,18 +43,78 @@ hn_t hn_get(xht_t index, unsigned char *bin)
 hn_t hn_gethex(xht_t index, char *hex)
 {
   unsigned char bin[32];
+  if(!hex) return NULL;
   util_unhex((unsigned char*)hex,64,bin);
   return hn_get(index,bin);
 }
 
-// derive a hn from json in a packet
-hn_t hn_getjs(xht_t index, packet_t p)
+int csidcmp(const void *a, const void *b)
+{
+  if(*(char*)a == *(char*)b) return *(char*)(a+1) - *(char*)(b+1);
+  return *(char*)a - *(char*)b;
+}
+
+hn_t hn_getparts(xht_t index, packet_t p)
+{
+  char *part, csids[16], csid[3]; // max parts of 8
+  int i,ids;
+  unsigned char *hall, hnbin[32];
+
+  if(!p) return NULL;
+
+  for(ids=i=0;ids<8 && p->js[i];i+=4)
+  {
+    memcpy(csids+ids,p->json+p->js[i],2);
+    ids++;
+  }
+  
+  if(!ids) return NULL;
+  
+  qsort(csids,ids,2,csidcmp);
+
+  hall = malloc(ids*2*32);
+  for(i=0;i<ids;i++)
+  {
+    memcpy(csid,csids+(i*2),2);
+    csid[2] = 0;
+    part = packet_get_str(p, csid);
+    if(!part) continue; // garbage safety
+    crypt_hash(csid,2,hall+(i*2*32));
+    crypt_hash(part,strlen(part),hall+(((i*2)+1)*32));
+  }
+  crypt_hash(hall,ids*2*32,hnbin);
+  free(hall);
+  hn = hn_get(index, hnbin);
+  if(!hn) return NULL;
+  hn->parts = p;
+  return hn;
+}
+
+hn_t hn_frompacket(xht_t index, packet_t p)
+{
+  return NULL;
+}
+
+// derive a hn from json format
+hn_t hn_fromjson(xht_t index, packet_t p)
 {
   crypt_t c;
   unsigned char *key;
   hn_t hn = NULL;
   int i, len;
   unsigned short list[64];
+  char csid;
+  packet_t parts;
+
+  if(!p) return NULL;
+  
+  // generate the hashname
+  parts = packet_get_packet(p, "parts");
+  if(!parts) return NULL;
+  hn = hn_getparts(index, parts);
+  
+  // get the matching csid
+  csid = hn_csid(index,hn);
 
   // load the crypt from the public key
   key = (unsigned char*)j0g_str("public",(char*)p->json,p->js);
@@ -121,18 +184,18 @@ path_t hn_path(hn_t hn, path_t p)
   return ret;
 }
 
-// load hashname from file
-hn_t hn_getfile(xht_t index, char *file)
+char hn_csid(xht_t index, hn_t hn)
 {
-  hn_t id = NULL;
-  packet_t p;
-
-  p = util_file2packet(file);
-  if(!p) return NULL;
-  id = hn_getjs(index, p);
-  if(id) return id;
-  packet_free(p);
-  return NULL;
+  int i=0;
+  char *csid, best=0, id;
+  if(!hn || !hn->parts) return 0;
+  while((csid = packet_get_istr(hn->parts,i)))
+  {
+    util_unhex(csid,2,&id);
+    if(strlen(csid) == 2 && id > best && xht_get(index,csid)) best = id;
+    i+=2;
+  }
+  return best;
 }
 
 unsigned char hn_distance(hn_t a, hn_t b)

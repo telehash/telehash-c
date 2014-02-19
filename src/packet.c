@@ -202,3 +202,57 @@ char *packet_get_str(packet_t p, char *key)
   if(!p || !key) return NULL;
   return j0g_str(key, packet_j0g(p), p->js);
 }
+
+// returns ["0","1","2"]
+char *packet_get_istr(packet_t p, int i)
+{
+  int j;
+  if(!p) return NULL;
+  for(j=0;p->js[j];j+=2)
+  {
+    if(i*2 != j) continue;
+    return j0g_safe(j, packet_j0g(p), p->js);
+  }
+}
+
+// creates new packet from key:object
+packet_t packet_get_packet(packet_t p, char *key)
+{
+  packet_t pp;
+  int val;
+  if(!p || !key) return NULL;
+
+  val = j0g_val(key,(char*)p->json,p->js);
+  if(!val) return NULL;
+
+  pp = packet_new();
+  packet_json(pp, p->json+p->js[val], p->js[val+1]);
+  return pp;
+}
+
+// list of packet->next from key:[{},{}]
+packet_t packet_get_packets(packet_t p, char *key)
+{
+  int i;
+  packet_t parr, pent, plast, pret = NULL;
+  if(!p || !key) return NULL;
+
+  parr = packet_get_packet(p, key);
+  if(!parr || *parr->json != '[')
+  {
+    packet_free(parr);
+    return NULL;
+  }
+
+  // parse each object in the array, link together
+	for(i=0;parr->js[i];i+=2)
+	{
+    pent = packet_new();
+    packet_json(pent, parr->json+parr->js[i], parr->js[i+1]-parr->js[i]);
+    if(!pret) plast = pret = pent;
+    else plast->next = pent;
+	}
+
+  packet_free(parr);
+  return pret;
+}
