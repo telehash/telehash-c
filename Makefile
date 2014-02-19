@@ -1,6 +1,6 @@
-SOURCES:=$(shell find . -type f)
+SOURCES:=$(shell find src -type f)
 JS0N = ../js0n/js0n.c ../js0n/j0g.c -I../js0n
-LTOM = -ltomcrypt -ltommath -DLTM_DESC
+LTOM = -ltomcrypt -ltommath -DLTM_DESC -DCS_2a
 FLAG = -I./src -I./ext
 
 all: test apps

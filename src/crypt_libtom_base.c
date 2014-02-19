@@ -6,12 +6,19 @@ unsigned char *crypt_rand(unsigned char *s, int len)
   return s;
 }
 
-// these are used by crypt_libtom_*.c
+unsigned char *crypt_hash(unsigned char *input, unsigned long len, unsigned char *output)
+{
+  unsigned long hlen = 32;
+  if((_crypt_libtom_err = hash_memory(find_hash("sha256"), input, len, output, &hlen)) != CRYPT_OK) return 0;
+  return output;
+}
 
-char *crypt_libtom_err()
+char *crypt_err()
 {
   return (char*)error_to_string(_crypt_libtom_err);
 }
+
+// used by crypt_libtom_*.c
 
 int crypt_libtom_init()
 {

@@ -3,7 +3,15 @@
 
 #include "packet.h"
 
-typedef struct crypt_struct *crypt_t;
+typedef struct crypt_struct
+{
+  char csid, csidHex[3];
+  int private, lined, keylen;
+  unsigned long atOut, atIn;
+  unsigned char lineOut[16], lineIn[16], lineHex[33];
+  unsigned char *key, *part;
+  void *cs; // for CS usage
+} *crypt_t;
 
 // these functions are all independent of CS, implemented in crypt.c
 
@@ -14,12 +22,6 @@ int crypt_init();
 crypt_t crypt_new(char csid, unsigned char *key, int len);
 void crypt_free(crypt_t c);
 
-// returns the hex of the incoming line id (for matching)
-char *crypt_line(crypt_t c);
-
-// returns the current csid
-char crypt_csid(crypt_t c);
-
 
 // these exist in the crypt_*_base.c as general crypto routines
 
@@ -27,7 +29,10 @@ char crypt_csid(crypt_t c);
 unsigned char *crypt_rand(unsigned char *s, int len);
 
 // sha256's the input, output must be [32] from caller
-unsigned char *crypt_hash(unsigned char *input, int len, unsigned char *output);
+unsigned char *crypt_hash(unsigned char *input, unsigned long len, unsigned char *output);
+
+// last known error for debugging
+char *crypt_err();
 
 
 // the rest of these just use the CS chosen for the crypt_t, crypt.c calls out to crypt_*_XX.c
@@ -45,7 +50,7 @@ packet_t crypt_lineize(crypt_t self, crypt_t c, packet_t p);
 packet_t crypt_delineize(crypt_t self, crypt_t c, packet_t p);
 
 // create a new open packet, NULL if error
-packet_t crypt_openize(crypt_t self, crypt_t c);
+packet_t crypt_openize(crypt_t self, crypt_t c, packet_t inner);
 
 // processes an open packet into a crypt or NULL, frees p
 crypt_t crypt_deopenize(crypt_t self, packet_t p);
@@ -54,11 +59,15 @@ crypt_t crypt_deopenize(crypt_t self, packet_t p);
 crypt_t crypt_merge(crypt_t a, crypt_t b);
 
 #ifdef CS_2a
+int crypt_init_2a();
+int crypt_new_2a(crypt_t c, unsigned char *key, int len);
+void crypt_free_2a(crypt_t c);
 int crypt_public_2a(crypt_t c, unsigned char *key, int len);
 int crypt_private_2a(crypt_t c, unsigned char *key, int len);
+int crypt_lineinit_2a(crypt_t c);
 packet_t crypt_lineize_2a(crypt_t self, crypt_t c, packet_t p);
 packet_t crypt_delineize_2a(crypt_t self, crypt_t c, packet_t p);
-packet_t crypt_openize_2a(crypt_t self, crypt_t c);
+packet_t crypt_openize_2a(crypt_t self, crypt_t c, packet_t inner);
 crypt_t crypt_deopenize_2a(crypt_t self, packet_t p);
 void crypt_merge_2a(crypt_t a, crypt_t b);
 #endif

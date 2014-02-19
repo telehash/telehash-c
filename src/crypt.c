@@ -1,27 +1,9 @@
-#include "util.h"
+#include <stdlib.h>
+#include <strings.h>
+#include <string.h>
+#include <stdio.h>
 #include "crypt.h"
-
-struct crypt_struct
-{
-  char csid;
-  unsigned char hashname[32];
-  int private, lined;
-  unsigned long atOut, atIn;
-  unsigned char lineOut[16], lineIn[16], lineHex[33];
-  void *cs; // for CS usage
-};
-
-char *crypt_line(crypt_t c)
-{
-  if(!c || !c->lined) return NULL;
-  return (char*)c->lineHex;
-}
-
-char crypt_csid(crypt_t c)
-{
-  if(!c) return 0;
-  return c->csid;
-}
+#include "util.h"
 
 int crypt_init()
 {
@@ -43,22 +25,34 @@ int crypt_init()
 
 crypt_t crypt_new(char csid, unsigned char *key, int len)
 {
-  if(!csid || !key || !len) return 0;
+  crypt_t c;
+  int err = 1;
+
+  if(!csid || !key || !len) return NULL;
+  c = malloc(sizeof (struct crypt_struct));
+  bzero(c, sizeof (struct crypt_struct));
+  c->csid = csid;
+  sprintf(c->csidHex,"%02x",csid);
+
 #ifdef CS_1a
-  if(csid == 0x1a) return crypt_new_1a(key, len);
+  if(csid == 0x1a) err = crypt_new_1a(c, key, len);
 #endif
 #ifdef CS_2a
-  if(csid == 0x2a) return crypt_new_2a(key, len);
+  if(csid == 0x2a) err = crypt_new_2a(c, key, len);
 #endif
 #ifdef CS_3a
-  if(csid == 0x3a) return crypt_new_3a(key, len);
+  if(csid == 0x3a) err = crypt_new_3a(c, key, len);
 #endif
-  return 0;
+  
+  if(!err) return c;
+
+  crypt_free(c);
+  return NULL;
 }
 
 int crypt_public(crypt_t c, unsigned char *key, int len)
 {
-  if(!c || !der || !len) return 0;
+  if(!c || !key || !len) return 0;
 #ifdef CS_1a
   if(c->csid == 0x1a) return crypt_public_1a(c, key, len);
 #endif
@@ -75,14 +69,16 @@ void crypt_free(crypt_t c)
 {
   if(!c) return;
 #ifdef CS_1a
-  if(c->csid == 0x1a) return crypt_free_1a(c);
+  if(c->csid == 0x1a) crypt_free_1a(c);
 #endif
 #ifdef CS_2a
-  if(c->csid == 0x2a) return crypt_free_2a(c);
+  if(c->csid == 0x2a) crypt_free_2a(c);
 #endif
 #ifdef CS_3a
-  if(c->csid == 0x3a) return crypt_free_3a(c);
+  if(c->csid == 0x3a) crypt_free_3a(c);
 #endif
+  if(c->part) free(c->part);
+  if(c->key) free(c->key);
   free(c);
 }
 
@@ -140,6 +136,14 @@ packet_t crypt_delineize(crypt_t self, crypt_t c, packet_t p)
 int crypt_lineinit(crypt_t c)
 {
   if(!c) return 0;
+
+  if(!c->atOut)
+  {
+    crypt_rand(c->lineOut,16);
+    util_hex(c->lineOut,16,c->lineHex);
+    c->atOut = (unsigned long)time(0);
+  }
+
 #ifdef CS_1a
   if(c->csid == 0x1a) return crypt_lineinit_1a(c);
 #endif
@@ -152,21 +156,25 @@ int crypt_lineinit(crypt_t c)
   return 0;
 }
 
-packet_t crypt_openize(crypt_t self, crypt_t c)
+packet_t crypt_openize(crypt_t self, crypt_t c, packet_t inner)
 {
   if(!c || !self || self->csid != c->csid) return NULL;
 
   // ensure line is setup
   if(crypt_lineinit(c)) return NULL;
 
+  packet_set_str(inner,"line",(char*)c->lineHex);
+  packet_set_int(inner,"at",(int)c->atOut);
+  packet_body(inner,c->key,c->keylen);
+
 #ifdef CS_1a
-  if(c->csid == 0x1a) return crypt_openize_1a(self,c);
+  if(c->csid == 0x1a) return crypt_openize_1a(self,c,inner);
 #endif
 #ifdef CS_2a
-  if(c->csid == 0x2a) return crypt_openize_2a(self,c);
+  if(c->csid == 0x2a) return crypt_openize_2a(self,c,inner);
 #endif
 #ifdef CS_3a
-  if(c->csid == 0x3a) return crypt_openize_3a(self,c);
+  if(c->csid == 0x3a) return crypt_openize_3a(self,c,inner);
 #endif
 
   return NULL;
@@ -188,7 +196,7 @@ crypt_t crypt_deopenize(crypt_t self, packet_t open)
   if((ret = crypt_deopenize_3a(self,open))) return ret;
 #endif
 
-  if(!ret) return (crypt_t)packet_free(open);
+  return (crypt_t)packet_free(open);
 }
 
 crypt_t crypt_merge(crypt_t a, crypt_t b)

@@ -55,7 +55,7 @@ hn_t hn_getjs(xht_t index, packet_t p)
 
   // load the crypt from the public key
   key = (unsigned char*)j0g_str("public",(char*)p->json,p->js);
-  c = crypt_new(key, strlen((char*)key));
+  c = crypt_new(0x2a, key, strlen((char*)key));
   if(!c) return NULL;
   
   // if there's a private key, try loading that too, only used in loading id.json and such
