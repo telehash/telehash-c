@@ -180,48 +180,34 @@ packet_t crypt_openize(crypt_t self, crypt_t c, packet_t inner)
   return NULL;
 }
 
-crypt_t crypt_deopenize(crypt_t self, packet_t open)
+packet_t crypt_deopenize(crypt_t self, packet_t open)
 {
-  crypt_t ret = NULL;
-  if(!open) return NULL;
-  if(!self) return (crypt_t)packet_free(open);
+  packet_t ret = NULL;
+  if(!open || !self) return NULL;
 
 #ifdef CS_1a
-  if((ret = crypt_deopenize_1a(self,open))) return ret;
+  if(self->csid == 0x1a && (ret = crypt_deopenize_1a(self,open))) return ret;
 #endif
 #ifdef CS_2a
-  if((ret = crypt_deopenize_2a(self,open))) return ret;
+  if(self->csid == 0x2a && (ret = crypt_deopenize_2a(self,open))) return ret;
 #endif
 #ifdef CS_3a
-  if((ret = crypt_deopenize_3a(self,open))) return ret;
+  if(self->csid == 0x3a && (ret = crypt_deopenize_3a(self,open))) return ret;
 #endif
 
-  return (crypt_t)packet_free(open);
+  return NULL;
 }
 
-crypt_t crypt_merge(crypt_t a, crypt_t b)
+int crypt_open(crypt_t c, packet_t inner)
 {
-  if(a)
-  {
-    if(b)
-    {
-      // just copy in the deopenized variables
-      a->atIn = b->atIn;
-      memcpy(a->lineIn, b->lineIn, 16);
 #ifdef CS_1a
-      if(a->csid == 0x1a) crypt_merge_1a(a,b);
+  if(c->csid == 0x1a) return crypt_open_1a(c,inner);
 #endif
 #ifdef CS_2a
-      if(a->csid == 0x2a) crypt_merge_2a(a,b);
+  if(c->csid == 0x2a) return crypt_open_2a(c,inner);
 #endif
 #ifdef CS_3a
-      if(a->csid == 0x3a) crypt_merge_3a(a,b);
+  if(c->csid == 0x3a) return crypt_open_3a(c,inner);
 #endif
-      crypt_free(b);      
-    }
-  }else{
-    a = b;
-  }
-  crypt_lineinit(a);
-  return a;
+  return 0;
 }

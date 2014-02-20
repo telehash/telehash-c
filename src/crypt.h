@@ -52,11 +52,11 @@ packet_t crypt_delineize(crypt_t self, crypt_t c, packet_t p);
 // create a new open packet, NULL if error
 packet_t crypt_openize(crypt_t self, crypt_t c, packet_t inner);
 
-// processes an open packet into a hn or NULL, frees p
-hn_t crypt_deopenize(crypt_t self, packet_t p);
+// processes an open packet into a inner packet or NULL, frees p if successful
+packet_t crypt_deopenize(crypt_t self, packet_t p);
 
-// merges info from b into a (and frees b)
-crypt_t crypt_merge(crypt_t a, crypt_t b);
+// merges info from b into a (and frees b), frees inner
+int crypt_open(crypt_t c, packet_t inner);
 
 #ifdef CS_2a
 int crypt_init_2a();
@@ -68,8 +68,8 @@ int crypt_lineinit_2a(crypt_t c);
 packet_t crypt_lineize_2a(crypt_t self, crypt_t c, packet_t p);
 packet_t crypt_delineize_2a(crypt_t self, crypt_t c, packet_t p);
 packet_t crypt_openize_2a(crypt_t self, crypt_t c, packet_t inner);
-crypt_t crypt_deopenize_2a(crypt_t self, packet_t p);
-void crypt_merge_2a(crypt_t a, crypt_t b);
+packet_t crypt_deopenize_2a(crypt_t self, packet_t p);
+int crypt_open_2a(crypt_t c, packet_t inner);
 #endif
 
 #endif

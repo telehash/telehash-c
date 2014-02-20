@@ -230,7 +230,7 @@ packet_t crypt_openize_2a(crypt_t self, crypt_t c, packet_t inner)
   return open;
 }
 
-hn_t crypt_deopenize_2a(crypt_t self, packet_t open)
+packet_t crypt_deopenize_2a(crypt_t self, packet_t open)
 {
   unsigned char enc[256], sig[256], pub[65], *eopen, *esig, key[32], hash[32], iv[16], *hiv, *hline, *rawinner, sigkey[65+16];
   unsigned long len, len2;
@@ -312,7 +312,7 @@ hn_t crypt_deopenize_2a(crypt_t self, packet_t open)
   return c;
 }
 
-void crypt_merge_2a(crypt_t a, crypt_t b)
+int crypt_open_2a(crypt_t c, packet_t inner)
 {
   crypt_libtom_t acs = (crypt_libtom_t)a->cs;
   crypt_libtom_t bcs = (crypt_libtom_t)a->cs;
