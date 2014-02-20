@@ -213,6 +213,7 @@ char *packet_get_istr(packet_t p, int i)
     if(i*2 != j) continue;
     return j0g_safe(j, packet_j0g(p), p->js);
   }
+  return NULL;
 }
 
 // creates new packet from key:object

@@ -7,41 +7,62 @@
 // a prime number for the internal hashtable used to track all active hashnames/lines
 #define MAXPRIME 4211
 
-switch_t switch_new(hn_t id)
+switch_t switch_new()
 {
   switch_t s = malloc(sizeof (struct switch_struct));
   bzero(s, sizeof(struct switch_struct));
-  s->id = id;
   s->cap = 256; // default cap size
   // create all the buckets
   s->buckets = malloc(256 * sizeof(bucket_t));
   bzero(s->buckets, 256 * sizeof(bucket_t));
   s->index = xht_new(MAXPRIME);
+  s->parts = packet_new();
   return s;
+}
+
+crypt_t loadkey(char csid, switch_t s, packet_t keys)
+{
+  char hex[4], *pk, *sk;
+  crypt_t c;
+
+  util_hex((unsigned char*)&csid,1,(unsigned char*)hex);
+  pk = packet_get_str(keys,hex);
+  hex[2] = '_';
+  hex[3] = 0;
+  sk = packet_get_str(keys,hex);
+  if(!pk || !sk) return NULL;
+  c = crypt_new(csid, (unsigned char*)pk, strlen(pk));
+  if(!c) return NULL;
+  if(crypt_private(c, (unsigned char*)sk, strlen(sk)))
+  {
+    crypt_free(c);
+    return NULL;
+  }
+  
+  xht_set(s->index,(const char*)c->csidHex,(void *)c);
+  packet_set_str(s->parts,c->csidHex,c->part);
+  return c;
 }
 
 int switch_init(switch_t s, packet_t keys)
 {
   if(!keys) return 1;
-  // TODO, load all keys into s->index
-  /*
-  // if there's a private key, try loading that too, only used in loading id.json and such
-  memcpy(phex,hn->hexid,2);
-  phex[2] = '_';
-  phex[3] = 0;
-  if(j0g_val(phex,(char*)p->json,p->js))
-  {
-    key = (unsigned char*)j0g_str(phex,(char*)p->json,p->js);
-    if(crypt_private(c,key,strlen((char*)key)))
-    {
-      crypt_free(c);
-      return NULL;
-    }
-  }
-  */
-//  if(crypt_private(id->c,NULL,0)) return 1;
-//  s->id = id;
+  
+#ifdef CS_1a
+  loadkey(0x1a,s,keys);
+#endif
+#ifdef CS_2a
+  loadkey(0x2a,s,keys);
+#endif
+#ifdef CS_3a
+  loadkey(0x3a,s,keys);
+#endif
+  
   packet_free(keys);
+
+  if(!s->parts->json) return 1;
+  s->id = hn_getparts(s->index, s->parts);
+  if(!s->id) return 1;
   return 0;
 }
 
@@ -143,7 +164,7 @@ void switch_open(switch_t s, hn_t to, path_t direct)
   to->sentOpen = now;
 
   // actually send the open
-  open = crypt_openize(s->id->c, to->c);
+  open = crypt_openize(s->id->c, to->c, packet_new());
   if(!open) return;
   open->to = to;
   if(direct) open->out = direct;

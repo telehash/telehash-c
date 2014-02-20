@@ -5,11 +5,11 @@
 
 typedef struct crypt_struct
 {
-  char csid, csidHex[3];
+  char csid, csidHex[3], *part;
   int private, lined, keylen;
   unsigned long atOut, atIn;
   unsigned char lineOut[16], lineIn[16], lineHex[33];
-  unsigned char *key, *part;
+  unsigned char *key;
   void *cs; // for CS usage
 } *crypt_t;
 
@@ -52,8 +52,8 @@ packet_t crypt_delineize(crypt_t self, crypt_t c, packet_t p);
 // create a new open packet, NULL if error
 packet_t crypt_openize(crypt_t self, crypt_t c, packet_t inner);
 
-// processes an open packet into a crypt or NULL, frees p
-crypt_t crypt_deopenize(crypt_t self, packet_t p);
+// processes an open packet into a hn or NULL, frees p
+hn_t crypt_deopenize(crypt_t self, packet_t p);
 
 // merges info from b into a (and frees b)
 crypt_t crypt_merge(crypt_t a, crypt_t b);

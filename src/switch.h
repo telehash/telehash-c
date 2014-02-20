@@ -12,6 +12,7 @@ typedef struct switch_struct
   hn_t id;
   bucket_t seeds, *buckets;
   packet_t out, last; // packets waiting to be delivered
+  packet_t parts;
   chan_t chans; // channels waiting to be processed
   int cap;
   xht_t index;

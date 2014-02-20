@@ -58,6 +58,7 @@ hn_t hn_getparts(xht_t index, packet_t p)
   int i,ids;
   unsigned char *hall, hnbin[32];
   char best = 0;
+  hn_t hn;
 
   if(!p) return NULL;
   hex[2] = 0;
@@ -67,7 +68,7 @@ hn_t hn_getparts(xht_t index, packet_t p)
     if(p->js[i+1] != 2) continue; // csid must be 2 char only
     memcpy(hex,p->json+p->js[i],2);
     memcpy(csids+ids,hex,2);
-    util_unhex(hex,2,&csid);
+    util_unhex((unsigned char*)hex,2,(unsigned char*)&csid);
     if(csid > best && xht_get(index,hex)) best = csid; // matches if we have the same csid in index (for our own keys)
     ids++;
   }
@@ -82,8 +83,8 @@ hn_t hn_getparts(xht_t index, packet_t p)
     memcpy(hex,csids+(i*2),2);
     part = packet_get_str(p, hex);
     if(!part) continue; // garbage safety
-    crypt_hash(hcsid,2,hall+(i*2*32));
-    crypt_hash(part,strlen(part),hall+(((i*2)+1)*32));
+    crypt_hash((unsigned char*)hex,2,hall+(i*2*32));
+    crypt_hash((unsigned char*)part,strlen(part),hall+(((i*2)+1)*32));
   }
   crypt_hash(hall,ids*2*32,hnbin);
   free(hall);
@@ -94,7 +95,7 @@ hn_t hn_getparts(xht_t index, packet_t p)
   else packet_free(p);
   
   hn->csid = best;
-  util_hex(&best,1,hn->hexid);
+  util_hex((unsigned char*)&best,1,(unsigned char*)hn->hexid);
 
   return hn;
 }
@@ -121,7 +122,7 @@ hn_t hn_frompacket(xht_t index, packet_t p)
 // derive a hn from json format
 hn_t hn_fromjson(xht_t index, packet_t p)
 {
-  unsigned char *key;
+  char *key;
   hn_t hn = NULL;
   packet_t pp, next;
   path_t path;
@@ -138,7 +139,7 @@ hn_t hn_fromjson(xht_t index, packet_t p)
   {
     key = packet_get_str(pp,hn->hexid);
     if(!key) return NULL;
-    hn->c = crypt_new(hn->csid, key, strlen((char*)key));
+    hn->c = crypt_new(hn->csid, (unsigned char*)key, strlen(key));
     if(!hn->c) return NULL;
   }
   packet_free(pp);

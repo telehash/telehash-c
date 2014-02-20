@@ -46,7 +46,7 @@ int crypt_new_2a(crypt_t c, unsigned char *key, int len)
   c->keylen = der_len;
   c->key = malloc(c->keylen);
   memcpy(c->key,der,der_len);
-  util_hex(fp,32,c->part);
+  util_hex(fp,32,(unsigned char*)c->part);
 
   return 0;
 }
@@ -230,7 +230,7 @@ packet_t crypt_openize_2a(crypt_t self, crypt_t c, packet_t inner)
   return open;
 }
 
-crypt_t crypt_deopenize_2a(crypt_t self, packet_t open)
+hn_t crypt_deopenize_2a(crypt_t self, packet_t open)
 {
   unsigned char enc[256], sig[256], pub[65], *eopen, *esig, key[32], hash[32], iv[16], *hiv, *hline, *rawinner, sigkey[65+16];
   unsigned long len, len2;
