@@ -9,7 +9,7 @@
 typedef struct hn_struct
 {
   unsigned char hashname[32];
-  char hexname[65]; // for convenience
+  char csid, hexid[3], hexname[65]; // for convenience
   crypt_t c;
   path_t *paths, last;
   xht_t chans;
@@ -21,7 +21,7 @@ typedef struct hn_struct
 hn_t hn_get(xht_t index, unsigned char *hn);
 hn_t hn_gethex(xht_t index, char *hex);
 
-// loads from raw parts object
+// loads from raw parts object, sets ->parts and ->csid
 hn_t hn_getparts(xht_t index, struct packet_struct *p);
 
 // derive a hn from packet ("from" and body), loads matching CSID
@@ -32,9 +32,6 @@ hn_t hn_fromjson(xht_t index, struct packet_struct *p);
 
 // return a matching path, or add it if none, updates ->last and path->
 path_t hn_path(hn_t hn, path_t p);
-
-// get the matching CSID (uses index to match against)
-char hn_csid(xht_t index, hn_t hn);
 
 unsigned char hn_distance(hn_t a, hn_t b);
 

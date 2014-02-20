@@ -24,6 +24,21 @@ int switch_init(switch_t s, packet_t keys)
 {
   if(!keys) return 1;
   // TODO, load all keys into s->index
+  /*
+  // if there's a private key, try loading that too, only used in loading id.json and such
+  memcpy(phex,hn->hexid,2);
+  phex[2] = '_';
+  phex[3] = 0;
+  if(j0g_val(phex,(char*)p->json,p->js))
+  {
+    key = (unsigned char*)j0g_str(phex,(char*)p->json,p->js);
+    if(crypt_private(c,key,strlen((char*)key)))
+    {
+      crypt_free(c);
+      return NULL;
+    }
+  }
+  */
 //  if(crypt_private(id->c,NULL,0)) return 1;
 //  s->id = id;
   packet_free(keys);

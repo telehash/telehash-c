@@ -5,8 +5,6 @@
 #include "packet.h"
 #include "crypt.h"
 #include "util.h"
-#include "j0g.h"
-#include "js0n.h"
 #include "chan.h"
 
 void hn_free(hn_t hn)
@@ -56,101 +54,104 @@ int csidcmp(const void *a, const void *b)
 
 hn_t hn_getparts(xht_t index, packet_t p)
 {
-  char *part, csids[16], csid[3]; // max parts of 8
+  char *part, csid, csids[16], hex[3]; // max parts of 8
   int i,ids;
   unsigned char *hall, hnbin[32];
+  char best = 0;
 
   if(!p) return NULL;
+  hex[2] = 0;
 
   for(ids=i=0;ids<8 && p->js[i];i+=4)
   {
-    memcpy(csids+ids,p->json+p->js[i],2);
+    if(p->js[i+1] != 2) continue; // csid must be 2 char only
+    memcpy(hex,p->json+p->js[i],2);
+    memcpy(csids+ids,hex,2);
+    util_unhex(hex,2,&csid);
+    if(csid > best && xht_get(index,hex)) best = csid; // matches if we have the same csid in index (for our own keys)
     ids++;
   }
   
-  if(!ids) return NULL;
+  if(!best) return NULL; // we must match at least one
   
   qsort(csids,ids,2,csidcmp);
 
   hall = malloc(ids*2*32);
   for(i=0;i<ids;i++)
   {
-    memcpy(csid,csids+(i*2),2);
-    csid[2] = 0;
-    part = packet_get_str(p, csid);
+    memcpy(hex,csids+(i*2),2);
+    part = packet_get_str(p, hex);
     if(!part) continue; // garbage safety
-    crypt_hash(csid,2,hall+(i*2*32));
+    crypt_hash(hcsid,2,hall+(i*2*32));
     crypt_hash(part,strlen(part),hall+(((i*2)+1)*32));
   }
   crypt_hash(hall,ids*2*32,hnbin);
   free(hall);
   hn = hn_get(index, hnbin);
   if(!hn) return NULL;
-  hn->parts = p;
+
+  if(!hn->parts) hn->parts = p;
+  else packet_free(p);
+  
+  hn->csid = best;
+  util_hex(&best,1,hn->hexid);
+
   return hn;
 }
 
 hn_t hn_frompacket(xht_t index, packet_t p)
 {
-  return NULL;
+  hn_t hn = NULL;
+  if(!p) return NULL;
+  
+  // get/gen the hashname
+  hn = hn_getparts(index, packet_get_packet(p, "from"));
+  if(!hn) return NULL;
+
+  // load key from packet body
+  if(!hn->c && p->body)
+  {
+    hn->c = crypt_new(hn->csid, p->body, p->body_len);
+    if(!hn->c) return NULL;
+  }
+
+  return hn;
 }
 
 // derive a hn from json format
 hn_t hn_fromjson(xht_t index, packet_t p)
 {
-  crypt_t c;
   unsigned char *key;
   hn_t hn = NULL;
-  int i, len;
-  unsigned short list[64];
-  char csid;
-  packet_t parts;
+  packet_t pp, next;
+  path_t path;
 
   if(!p) return NULL;
   
-  // generate the hashname
-  parts = packet_get_packet(p, "parts");
-  if(!parts) return NULL;
-  hn = hn_getparts(index, parts);
-  
-  // get the matching csid
-  csid = hn_csid(index,hn);
+  // get/gen the hashname
+  hn = hn_getparts(index, packet_get_packet(p, "parts"));
+  if(!hn) return NULL;
 
-  // load the crypt from the public key
-  key = (unsigned char*)j0g_str("public",(char*)p->json,p->js);
-  c = crypt_new(0x2a, key, strlen((char*)key));
-  if(!c) return NULL;
-  
-  // if there's a private key, try loading that too, only used in loading id.json and such
-  if(j0g_val("private",(char*)p->json,p->js))
+  // load the matching public key
+  pp = packet_get_packet(p, "keys");
+  if(!hn->c && pp)
   {
-    key = (unsigned char*)j0g_str("private",(char*)p->json,p->js);
-    if(crypt_private(c,key,strlen((char*)key)))
-    {
-      crypt_free(c);
-      return NULL;
-    }
+    key = packet_get_str(pp,hn->hexid);
+    if(!key) return NULL;
+    hn->c = crypt_new(hn->csid, key, strlen((char*)key));
+    if(!hn->c) return NULL;
   }
-
-  // get/update our hn value
-  hn = hn_get(index, crypt_hashname(c));
-  if(hn->c) crypt_free(hn->c);
-  hn->c = c;
+  packet_free(pp);
   
   // if any paths are stored, associte them
-  i = j0g_val("paths",(char*)p->json,p->js);
-  if(i)
+  pp = packet_get_packets(p, "paths");
+  while(pp)
   {
-    key = p->json+p->js[i];
-    len = p->js[i+1];
-    js0n(key, len, list, 64);
-  	for(i=0;list[i];i+=2)
-  	{
-      path_t path;
-      path = hn_path(hn, path_parse(key+list[i], list[i+1]));
-      if(path) path->atIn = 0; // don't consider this path alive
-  	}
-    
+    path = hn_path(hn, path_parse(pp->json, pp->json_len));
+    if(path) path->atIn = 0; // don't consider this path alive
+    next = pp->next;
+    packet_free(pp);
+    pp = next;
   }
   
   return hn;
@@ -182,20 +183,6 @@ path_t hn_path(hn_t hn, path_t p)
   ret->atIn = time(0);
 
   return ret;
-}
-
-char hn_csid(xht_t index, hn_t hn)
-{
-  int i=0;
-  char *csid, best=0, id;
-  if(!hn || !hn->parts) return 0;
-  while((csid = packet_get_istr(hn->parts,i)))
-  {
-    util_unhex(csid,2,&id);
-    if(strlen(csid) == 2 && id > best && xht_get(index,csid)) best = id;
-    i+=2;
-  }
-  return best;
 }
 
 unsigned char hn_distance(hn_t a, hn_t b)
