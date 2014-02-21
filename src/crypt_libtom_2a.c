@@ -59,6 +59,51 @@ void crypt_free_2a(crypt_t c)
   if(c->cs) free(c->cs);
 }
 
+int crypt_keygen_2a(packet_t p)
+{
+  unsigned long len = 0, len2;
+  unsigned char *buf, *b64;
+  rsa_key rsa;
+
+  if ((_crypt_libtom_err = rsa_make_key(&_crypt_libtom_prng, find_prng("yarrow"), 256, 65537, &rsa)) != CRYPT_OK) return -1;
+
+  // this determines the size needed into len;
+  rsa_export(NULL, &len, PK_PRIVATE, &rsa);
+  buf = malloc(len);
+  len2 = len;
+  b64 = malloc(len2+1);
+
+  // export/base64 private
+  if((_crypt_libtom_err = rsa_export(buf, &len, PK_PRIVATE, &rsa)) != CRYPT_OK)
+  {
+    free(buf);
+    free(b64);
+    return -1;
+  }
+  if((_crypt_libtom_err = base64_encode(buf, len, b64, &len2)) != CRYPT_OK) {
+    free(buf);
+    free(b64);
+    return -1;
+  }
+  b64[len2] = 0;
+  packet_set_str(p,"2a_",(char*)b64);
+
+  if((_crypt_libtom_err = rsa_export(buf, &len, PK_PUBLIC, &rsa)) != CRYPT_OK)
+  {
+    free(buf);
+    free(b64);
+    return -1;
+  }
+  if((_crypt_libtom_err = base64_encode(buf, len, b64, &len2)) != CRYPT_OK) {
+    free(buf);
+    free(b64);
+    return -1;
+  }
+  b64[len2] = 0;
+  packet_set_str(p,"2a",(char*)b64);
+  return 0;
+}
+
 int crypt_private_2a(crypt_t c, unsigned char *key, int len)
 {
   unsigned long der_len = 4096;

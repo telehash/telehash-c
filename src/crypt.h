@@ -39,6 +39,9 @@ char *crypt_err();
 
 // the rest of these just use the CS chosen for the crypt_t, crypt.c calls out to crypt_*_XX.c
 
+// adds "XX":"pubkey", "XX_":"secretkey" to the packet, !0 if error
+int crypt_keygen(char csid, packet_t p);
+
 // load a private id key, returns !0 if error, can pass (c,NULL,0) to check if private is already loaded too
 int crypt_private(crypt_t c, unsigned char *key, int len);
 
@@ -61,6 +64,7 @@ int crypt_line(crypt_t c, packet_t inner);
 int crypt_init_2a();
 int crypt_new_2a(crypt_t c, unsigned char *key, int len);
 void crypt_free_2a(crypt_t c);
+int crypt_keygen_2a(packet_t p);
 int crypt_public_2a(crypt_t c, unsigned char *key, int len);
 int crypt_private_2a(crypt_t c, unsigned char *key, int len);
 packet_t crypt_lineize_2a(crypt_t c, packet_t p);

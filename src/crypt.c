@@ -75,6 +75,23 @@ void crypt_free(crypt_t c)
   free(c);
 }
 
+int crypt_keygen(char csid, packet_t p)
+{
+  if(!p) return 1;
+
+#ifdef CS_1a
+  if(csid == 0x1a) return crypt_keygen_1a(p);
+#endif
+#ifdef CS_2a
+  if(csid == 0x2a) return crypt_keygen_2a(p);
+#endif
+#ifdef CS_3a
+  if(csid == 0x3a) return crypt_keygen_3a(p);
+#endif
+
+  return 1;
+}
+
 int crypt_private(crypt_t c, unsigned char *key, int len)
 {
   int ret;
