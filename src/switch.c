@@ -221,10 +221,12 @@ void switch_receive(switch_t s, packet_t p, path_t in)
     if(!inner) return (void)packet_free(p);
 
     from = hn_frompacket(s->index, inner);
-    if(crypt_open(from->c, inner)) return;
-    switch_open(s, from, NULL); // in case we need to send an open
+    if(crypt_line(from->c, inner) != 0) return; // not new/valid, ignore
+    
+    // line is open!
     xht_set(s->index, (const char*)from->c->lineHex, (void*)from);
     in = hn_path(from, in);
+    switch_open(s, from, in); // in case we need to send an open
     if(from->onopen)
     {
       packet_t last = from->onopen;

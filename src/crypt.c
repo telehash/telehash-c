@@ -37,6 +37,9 @@ crypt_t crypt_new(char csid, unsigned char *key, int len)
   bzero(c, sizeof (struct crypt_struct));
   c->csid = csid;
   sprintf(c->csidHex,"%02x",csid);
+  crypt_rand(c->lineOut,16);
+  util_hex(c->lineOut,16,c->lineHex);
+  c->atOut = (unsigned long)time(0);
 
 #ifdef CS_1a
   if(csid == 0x1a) err = crypt_new_1a(c, key, len);
@@ -137,35 +140,9 @@ packet_t crypt_delineize(crypt_t self, crypt_t c, packet_t p)
   return NULL;
 }
 
-int crypt_lineinit(crypt_t c)
-{
-  if(!c) return 0;
-
-  if(!c->atOut)
-  {
-    crypt_rand(c->lineOut,16);
-    util_hex(c->lineOut,16,c->lineHex);
-    c->atOut = (unsigned long)time(0);
-  }
-
-#ifdef CS_1a
-  if(c->csid == 0x1a) return crypt_lineinit_1a(c);
-#endif
-#ifdef CS_2a
-  if(c->csid == 0x2a) return crypt_lineinit_2a(c);
-#endif
-#ifdef CS_3a
-  if(c->csid == 0x3a) return crypt_lineinit_3a(c);
-#endif
-  return 0;
-}
-
 packet_t crypt_openize(crypt_t self, crypt_t c, packet_t inner)
 {
   if(!c || !self || self->csid != c->csid) return NULL;
-
-  // ensure line is setup
-  if(crypt_lineinit(c)) return NULL;
 
   packet_set_str(inner,"line",(char*)c->lineHex);
   packet_set_int(inner,"at",(int)c->atOut);

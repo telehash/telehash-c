@@ -4,8 +4,7 @@ typedef struct crypt_libtom_struct
 {
   rsa_key rsa;
   ecc_key eccOut;
-  unsigned char keyOut[32], keyIn[32], eccIn[65];
-  int out;
+  unsigned char keyOut[32], keyIn[32];
 } *crypt_libtom_t;
 
 int crypt_init_2a()
@@ -40,6 +39,9 @@ int crypt_new_2a(crypt_t c, unsigned char *key, int len)
   
   // generate fingerprint
   if((_crypt_libtom_err = hash_memory(find_hash("sha256"),der,der_len,fp,&fplen)) != CRYPT_OK) return 1;
+
+  // create line ephemeral key
+  if((_crypt_libtom_err = ecc_make_key(&_crypt_libtom_prng, find_prng("yarrow"), 32, &(cs->eccOut))) != CRYPT_OK) return 1;
 
   // alloc/copy in the public values (free'd by crypt_free)  
   c->part = malloc(65);
@@ -130,42 +132,43 @@ packet_t crypt_delineize_2a(crypt_t self, crypt_t c, packet_t p)
 }
 
 // makes sure all the crypto line state is set up, and creates line keys if exist
-int crypt_lineinit_2a(crypt_t c)
+int crypt_line_2a(crypt_t c, packet_t inner)
 {
-  unsigned char secret[32], input[64];
-  unsigned long len;
+  unsigned char ecc[65], secret[32], input[64];
+  char *hline, *hecc;
+  unsigned long at, len;
+  crypt_libtom_t cs;
   ecc_key eccIn;
-  crypt_libtom_t cs = (crypt_libtom_t)c->cs;
+  
+  if(!c || !inner) return 1;
+  cs = (crypt_libtom_t)c->cs;
+  at = strtol(packet_get_str(inner,"at"), NULL, 10);
+  hline = packet_get_str(inner,"line");
+  hecc = packet_get_str(inner,"ecc"); // it's where we stashed it
+  if(at <= 0 || at <= c->atIn || strlen(hline) != 32 || strlen(hecc) != 128) return 1;
 
-  // create transient crypto stuff
-  if(!cs->out)
-  {
-    if((_crypt_libtom_err = ecc_make_key(&_crypt_libtom_prng, find_prng("yarrow"), 32, &(cs->eccOut))) != CRYPT_OK) return 0;
-    cs->out = 1;
-  }
-  
-  // can't make a line w/o their stuff yet
-  if(!c->atIn) return 0;
-  
   // do the diffie hellman
-  if((_crypt_libtom_err = ecc_ansi_x963_import(cs->eccIn, 65, &eccIn)) != CRYPT_OK) return 0;
+  ecc[0] = 0x04; // make it the "uncompressed" format
+  util_unhex((unsigned char*)hecc,128,ecc+1);
+  if((_crypt_libtom_err = ecc_ansi_x963_import(ecc, 65, &eccIn)) != CRYPT_OK) return 1;
   len = sizeof(secret);
-  if((_crypt_libtom_err = ecc_shared_secret(&(cs->eccOut),&eccIn,secret,&len)) != CRYPT_OK) return 0;
+  if((_crypt_libtom_err = ecc_shared_secret(&(cs->eccOut),&eccIn,secret,&len)) != CRYPT_OK) return 1;
 
   // make line keys!
   memcpy(input,secret,32);
   memcpy(input+32,c->lineOut,16);
   memcpy(input+48,c->lineIn,16);
   len = 32;
-  if((_crypt_libtom_err = hash_memory(find_hash("sha256"), input, 64, cs->keyOut, &len)) != CRYPT_OK) return 0;
+  if((_crypt_libtom_err = hash_memory(find_hash("sha256"), input, 64, cs->keyOut, &len)) != CRYPT_OK) return 1;
   memcpy(input,secret,32);
   memcpy(input+32,c->lineIn,16);
   memcpy(input+48,c->lineOut,16);
   len = 32;
-  if((_crypt_libtom_err = hash_memory(find_hash("sha256"), input, 64, cs->keyIn, &len)) != CRYPT_OK) return 0;
+  if((_crypt_libtom_err = hash_memory(find_hash("sha256"), input, 64, cs->keyIn, &len)) != CRYPT_OK) return 1;
 
+  c->atIn = at;
   c->lined = 1;
-  return 1;
+  return 0;
 }
 
 // create a new open packet
@@ -312,9 +315,3 @@ packet_t crypt_deopenize_2a(crypt_t self, packet_t open)
   return c;
 }
 
-int crypt_open_2a(crypt_t c, packet_t inner)
-{
-  crypt_libtom_t acs = (crypt_libtom_t)a->cs;
-  crypt_libtom_t bcs = (crypt_libtom_t)a->cs;
-  memcpy(acs->eccIn, bcs->eccIn, 64);
-}
