@@ -153,7 +153,7 @@ void switch_open(switch_t s, hn_t to, path_t direct)
   packet_t open;
   time_t now;
 
-  if(!to) return;
+  if(!to || !to->c) return;
 
   // don't send too frequently
   now = time(0);
@@ -161,7 +161,7 @@ void switch_open(switch_t s, hn_t to, path_t direct)
   to->sentOpen = now;
 
   // actually send the open
-  open = crypt_openize(s->id->c, to->c, packet_new());
+  open = crypt_openize((crypt_t)xht_get(s->index,to->c->csidHex), to->c, packet_new());
   if(!open) return;
   open->to = to;
   if(direct) open->out = direct;
@@ -178,7 +178,7 @@ void switch_send(switch_t s, packet_t p)
   if(!p->to) return (void)packet_free(p);
 
   // encrypt the packet to the line, chains together
-  lined = crypt_lineize(s->id->c, p->to->c, p);
+  lined = crypt_lineize(p->to->c, p);
   if(lined) return switch_sendingQ(s, lined);
 
   // queue most recent packet to be sent after opened
@@ -218,7 +218,8 @@ void switch_receive(switch_t s, packet_t p, path_t in)
       inner = crypt_deopenize(c, p);
       if(inner) break;
     }
-    if(!inner) return (void)packet_free(p);
+    packet_free(p);
+    if(!inner) return;
 
     from = hn_frompacket(s->index, inner);
     if(crypt_line(from->c, inner) != 0) return; // not new/valid, ignore
@@ -242,7 +243,7 @@ void switch_receive(switch_t s, packet_t p, path_t in)
     if(from)
     {
       in = hn_path(from, in);
-      line = crypt_delineize(s->id->c, from->c, p);
+      line = crypt_delineize(from->c, p);
       if(line)
       {
         chan_t c = chan_in(s, from, line);

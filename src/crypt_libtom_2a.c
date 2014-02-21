@@ -78,7 +78,7 @@ int crypt_private_2a(crypt_t c, unsigned char *key, int len)
   return 0;
 }
 
-packet_t crypt_lineize_2a(crypt_t self, crypt_t c, packet_t p)
+packet_t crypt_lineize_2a(crypt_t c, packet_t p)
 {
   packet_t line;
   unsigned char iv[16], hex[33], *enc;
@@ -105,7 +105,7 @@ packet_t crypt_lineize_2a(crypt_t self, crypt_t c, packet_t p)
   return line;
 }
 
-packet_t crypt_delineize_2a(crypt_t self, crypt_t c, packet_t p)
+packet_t crypt_delineize_2a(crypt_t c, packet_t p)
 {
   packet_t line;
   unsigned char iv[16], *dec;
@@ -178,8 +178,7 @@ packet_t crypt_openize_2a(crypt_t self, crypt_t c, packet_t inner)
   packet_t open;
   unsigned long len, len2;
   symmetric_CTR ctr;
-  crypt_libtom_t cs = (crypt_libtom_t)c->cs;
-  crypt_libtom_t scs = (crypt_libtom_t)self->cs;
+  crypt_libtom_t cs = (crypt_libtom_t)c->cs, scs = (crypt_libtom_t)self->cs;
   hex[32] = hn[64] = 0;
 
   open = packet_chain(inner);
@@ -235,83 +234,61 @@ packet_t crypt_openize_2a(crypt_t self, crypt_t c, packet_t inner)
 
 packet_t crypt_deopenize_2a(crypt_t self, packet_t open)
 {
-  unsigned char enc[256], sig[256], pub[65], *eopen, *esig, key[32], hash[32], iv[16], *hiv, *hline, *rawinner, sigkey[65+16];
+  unsigned char enc[256], sig[256], ecc[65], hecc[129], *eopen, *esig, key[32], hash[32], iv[16], *hiv, *hline, line[16], *rawinner, sigkey[65+16];
   unsigned long len, len2;
   int res;
-  crypt_t c;
   symmetric_CTR ctr;
-  packet_t inner;
-  crypt_libtom_t cs, scs = (crypt_libtom_t)self->cs;
+  rsa_key rsa;
+  packet_t inner = NULL;
+  crypt_libtom_t cs = (crypt_libtom_t)self->cs;
 
-  if(!open) return NULL;
-  if(!self) return (crypt_t)packet_free(open);
+  // grab the sig
+  esig = (unsigned char*)packet_get_str(open,"sig");
+  len = sizeof(enc);
+  if(!esig || (_crypt_libtom_err = base64_decode(esig, strlen((char*)esig), enc, &len)) != CRYPT_OK) return NULL;
 
   // decrypt the open
   eopen = (unsigned char*)packet_get_str(open,"open");
   len = sizeof(enc);
-  if(!eopen || (_crypt_libtom_err = base64_decode(eopen, strlen((char*)eopen), enc, &len)) != CRYPT_OK) return (crypt_t)packet_free(open);;
-  len2 = sizeof(pub);
-  if((_crypt_libtom_err = rsa_decrypt_key(enc, len, pub, &len2, 0, 0, find_hash("sha1"), &res, &(scs->rsa))) != CRYPT_OK || len2 != 65) return (crypt_t)packet_free(open);
+  if(!eopen || (_crypt_libtom_err = base64_decode(eopen, strlen((char*)eopen), enc, &len)) != CRYPT_OK) return NULL;
+  len2 = sizeof(ecc);
+  if((_crypt_libtom_err = rsa_decrypt_key(enc, len, ecc, &len2, 0, 0, find_hash("sha1"), &res, &(cs->rsa))) != CRYPT_OK || len2 != 65) return NULL;
 
   // create the aes key/iv to decipher the body
   len = 32;
-  if((_crypt_libtom_err = hash_memory(find_hash("sha256"),pub,65,key,&len)) != CRYPT_OK) return (crypt_t)packet_free(open);
+  if((_crypt_libtom_err = hash_memory(find_hash("sha256"),ecc,65,key,&len)) != CRYPT_OK) return NULL;
   hiv = (unsigned char*)packet_get_str(open,"iv");
-  if(!hiv || strlen((char*)hiv) != 32) return (crypt_t)packet_free(open);
+  if(!hiv || strlen((char*)hiv) != 32) return NULL;
   util_unhex(hiv,32,iv);
 
   // create aes cipher now and decrypt the inner
-  if((_crypt_libtom_err = ctr_start(find_cipher("aes"),iv,key,32,0,CTR_COUNTER_BIG_ENDIAN,&ctr)) != CRYPT_OK) return (crypt_t)packet_free(open);
+  if((_crypt_libtom_err = ctr_start(find_cipher("aes"),iv,key,32,0,CTR_COUNTER_BIG_ENDIAN,&ctr)) != CRYPT_OK) return NULL;
   rawinner = malloc(open->body_len);
-  if((_crypt_libtom_err = ctr_decrypt(open->body,rawinner,open->body_len,&ctr)) != CRYPT_OK || (inner = packet_parse(rawinner,open->body_len)) == NULL)
-  {
-    free(rawinner);
-    packet_free(open);
-    return NULL;
-  }
+  if((_crypt_libtom_err = ctr_decrypt(open->body,rawinner,open->body_len,&ctr)) == CRYPT_OK) inner = packet_parse(rawinner,open->body_len);
   free(rawinner);
-
-  // extract/validate inner stuff
-  c = crypt_new(0x2a,inner->body,inner->body_len);
-  if(!c) return (crypt_t)packet_free(open);
-  cs = (crypt_libtom_t)c->cs;
-  c->atIn = strtol(packet_get_str(inner,"at"), NULL, 10);
-  hline = (unsigned char*)packet_get_str(inner,"line");
-  if(c->atIn <= 0 || strlen((char*)hline) != 32 || !c)
-  {
-    crypt_free(c);
-    packet_free(inner);
-    packet_free(open);
-    return NULL;
-  }
-  util_unhex(hline,32,c->lineIn);
-  packet_free(inner);
-  memcpy(cs->eccIn,pub,65);
+  if(!inner) return NULL;
 
   // decipher/verify the signature
-  esig = (unsigned char*)packet_get_str(open,"sig");
-  len = sizeof(enc);
-  if(!esig || (_crypt_libtom_err = base64_decode(esig, strlen((char*)esig), enc, &len)) != CRYPT_OK)
-  {
-    crypt_free(c);
-    packet_free(open);
-    return NULL;
-  }
-  memcpy(sigkey,pub,65);
-  memcpy(sigkey+65,c->lineIn,16);
+  if((_crypt_libtom_err = rsa_import(inner->body, inner->body_len, &rsa)) != CRYPT_OK) return NULL;
+  hline = (unsigned char*)packet_get_str(inner,"line");
+  util_unhex(hline,32,line);
+  memcpy(sigkey,ecc,65);
+  memcpy(sigkey+65,line,16);
   len2 = 32;
   if((_crypt_libtom_err = hash_memory(find_hash("sha256"),sigkey,65+16,key,&len2)) != CRYPT_OK
     || (_crypt_libtom_err = ctr_start(find_cipher("aes"),iv,key,32,0,CTR_COUNTER_BIG_ENDIAN,&ctr)) != CRYPT_OK
     || (_crypt_libtom_err = ctr_decrypt(enc,sig,len,&ctr)) != CRYPT_OK
     || (_crypt_libtom_err = hash_memory(find_hash("sha256"),open->body,open->body_len,hash,&len2)) != CRYPT_OK
-    || (_crypt_libtom_err = rsa_verify_hash_ex(sig, len, hash, len2, LTC_PKCS_1_V1_5, find_hash("sha256"), 0, &res, &(cs->rsa))) != CRYPT_OK
+    || (_crypt_libtom_err = rsa_verify_hash_ex(sig, len, hash, len2, LTC_PKCS_1_V1_5, find_hash("sha256"), 0, &res, &rsa)) != CRYPT_OK
     || res != 1) {
-      crypt_free(c);
-      packet_free(open);
+      packet_free(inner);
       return NULL;
   }
-	packet_free(open);
 
-  return c;
+  // stash the hex line key w/ the inner
+  util_hex(ecc+1,64,hecc);
+  packet_set_str(inner,"ecc",(char*)hecc);
+
+  return inner;
 }
 

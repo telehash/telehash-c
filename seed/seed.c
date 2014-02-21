@@ -11,7 +11,6 @@
 int main(void)
 {
   unsigned char buf[2048];
-  hn_t id;
   switch_t s;
   bucket_t seeds;
   chan_t c;
@@ -23,15 +22,9 @@ int main(void)
   crypt_init();
   s = switch_new();
 
-  id = hn_getfile(s->index, "id.json");
-  if(!id)
+  if(switch_init(s, util_file2packet("id.json")))
   {
-    printf("failed to load id.json: %s\n", crypt_err());
-    return -1;
-  }
-  if(switch_init(s, id))
-  {
-    printf("failed to init switch\n");
+    printf("failed to init switch: %s\n", crypt_err());
     return -1;
   }
   printf("loaded hashname %s\n",s->id->hexname);
@@ -62,7 +55,7 @@ int main(void)
   // create/send a ping packet  
   c = chan_new(s, bucket_get(seeds, 0), "seek", 0);
   p = chan_packet(c);
-  packet_set_str(p,"seek",id->hexname);
+  packet_set_str(p,"seek",s->id->hexname);
   
   switch_send(s, p);
   while((p = switch_sending(s)))

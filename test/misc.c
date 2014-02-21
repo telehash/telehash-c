@@ -30,7 +30,7 @@ int main(void)
   packet_set_str(p,"foo","quote \"me\"");
   printf("copy packet json %.*s\n",p->json_len, p->json);
 
-  id = hn_getfile(h, "id.json");
+  id = hn_frompacket(h, util_file2packet("id.json"));
   if(!id)
   {
     printf("failed to load id.json: %s\n", crypt_err());

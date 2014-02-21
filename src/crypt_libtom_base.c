@@ -22,7 +22,6 @@ char *crypt_err()
 
 int crypt_libtom_init()
 {
-  if(_crypt_libtom_inited) return 0;
   ltc_mp = ltm_desc;
   register_cipher(&aes_desc);  
   register_prng(&yarrow_desc);

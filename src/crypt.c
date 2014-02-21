@@ -9,6 +9,7 @@ int crypt_init()
 {
   int ret = -1;
   int i = 0;
+  memcpy(crypt_supported,0,8);
 #ifdef CS_1a
   ret = crypt_init_1a();
   if(ret) return ret;
@@ -57,21 +58,6 @@ crypt_t crypt_new(char csid, unsigned char *key, int len)
   return NULL;
 }
 
-int crypt_public(crypt_t c, unsigned char *key, int len)
-{
-  if(!c || !key || !len) return 0;
-#ifdef CS_1a
-  if(c->csid == 0x1a) return crypt_public_1a(c, key, len);
-#endif
-#ifdef CS_2a
-  if(c->csid == 0x2a) return crypt_public_2a(c, key, len);
-#endif
-#ifdef CS_3a
-  if(c->csid == 0x3a) return crypt_public_3a(c, key, len);
-#endif
-  return 0;
-}
-
 void crypt_free(crypt_t c)
 {
   if(!c) return;
@@ -109,33 +95,33 @@ int crypt_private(crypt_t c, unsigned char *key, int len)
   return 0;
 }
 
-packet_t crypt_lineize(crypt_t self, crypt_t c, packet_t p)
+packet_t crypt_lineize(crypt_t c, packet_t p)
 {
-  if(!self || !c || !p || !c->lined || self->csid != c->csid) return NULL;
+  if(!c || !p || !c->lined) return NULL;
 #ifdef CS_1a
-  if(c->csid == 0x1a) return crypt_lineize_1a(self,c,p);
+  if(c->csid == 0x1a) return crypt_lineize_1a(c,p);
 #endif
 #ifdef CS_2a
-  if(c->csid == 0x2a) return crypt_lineize_2a(self,c,p);
+  if(c->csid == 0x2a) return crypt_lineize_2a(c,p);
 #endif
 #ifdef CS_3a
-  if(c->csid == 0x3a) return crypt_lineize_3a(self,c,p);
+  if(c->csid == 0x3a) return crypt_lineize_3a(c,p);
 #endif
   return NULL;
 }
 
-packet_t crypt_delineize(crypt_t self, crypt_t c, packet_t p)
+packet_t crypt_delineize(crypt_t c, packet_t p)
 {
-  if(!self || !c || !p || self->csid != c->csid) return NULL;
+  if(!c || !p) return NULL;
   if(!c->lined) return packet_free(p);
 #ifdef CS_1a
-  if(c->csid == 0x1a) return crypt_delineize_1a(self,c,p);
+  if(c->csid == 0x1a) return crypt_delineize_1a(c,p);
 #endif
 #ifdef CS_2a
-  if(c->csid == 0x2a) return crypt_delineize_2a(self,c,p);
+  if(c->csid == 0x2a) return crypt_delineize_2a(c,p);
 #endif
 #ifdef CS_3a
-  if(c->csid == 0x3a) return crypt_delineize_3a(self,c,p);
+  if(c->csid == 0x3a) return crypt_delineize_3a(c,p);
 #endif
   return NULL;
 }
@@ -179,16 +165,16 @@ packet_t crypt_deopenize(crypt_t self, packet_t open)
   return NULL;
 }
 
-int crypt_open(crypt_t c, packet_t inner)
+int crypt_line(crypt_t c, packet_t inner)
 {
 #ifdef CS_1a
-  if(c->csid == 0x1a) return crypt_open_1a(c,inner);
+  if(c->csid == 0x1a) return crypt_line_1a(c,inner);
 #endif
 #ifdef CS_2a
-  if(c->csid == 0x2a) return crypt_open_2a(c,inner);
+  if(c->csid == 0x2a) return crypt_line_2a(c,inner);
 #endif
 #ifdef CS_3a
-  if(c->csid == 0x3a) return crypt_open_3a(c,inner);
+  if(c->csid == 0x3a) return crypt_line_3a(c,inner);
 #endif
   return 0;
 }
