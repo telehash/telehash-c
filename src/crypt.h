@@ -13,6 +13,8 @@ typedef struct crypt_struct
   void *cs; // for CS usage
 } *crypt_t;
 
+char crypt_supported[8] = "\0\0\0\0\0\0\0\0";
+
 // these functions are all independent of CS, implemented in crypt.c
 
 // must be called before any
@@ -55,7 +57,7 @@ packet_t crypt_openize(crypt_t self, crypt_t c, packet_t inner);
 // processes an open packet into a inner packet or NULL, frees p if successful
 packet_t crypt_deopenize(crypt_t self, packet_t p);
 
-// merges info from b into a (and frees b), frees inner
+// merges info from b into a (and frees b), !0 if error/ignored, always frees inner
 int crypt_open(crypt_t c, packet_t inner);
 
 #ifdef CS_2a

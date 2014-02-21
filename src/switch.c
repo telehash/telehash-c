@@ -46,17 +46,14 @@ crypt_t loadkey(char csid, switch_t s, packet_t keys)
 
 int switch_init(switch_t s, packet_t keys)
 {
+  char *csid = crypt_supported;
   if(!keys) return 1;
-  
-#ifdef CS_1a
-  loadkey(0x1a,s,keys);
-#endif
-#ifdef CS_2a
-  loadkey(0x2a,s,keys);
-#endif
-#ifdef CS_3a
-  loadkey(0x3a,s,keys);
-#endif
+
+  while(*csid)
+  {
+    loadkey(*csid,s,keys);
+    csid++;
+  }
   
   packet_free(keys);
 
@@ -205,26 +202,35 @@ void switch_receive(switch_t s, packet_t p, path_t in)
 {
   hn_t from;
   packet_t line;
-  crypt_t opened;
+  packet_t inner;
+  crypt_t c;
+  char hex[3], *csid = crypt_supported;
 
   if(!s || !p || !in) return;
   if(util_cmp("open",packet_get_str(p,"type")) == 0)
   {
-    opened = crypt_deopenize(s->id->c, p);
-    if(opened)
+    while(*csid)
     {
-      from = hn_get(s->index, crypt_hashname(opened));
-      from->c = crypt_merge(from->c, opened);
-      switch_open(s, from, NULL); // in case we need to send an open
-      xht_set(s->index, crypt_line(from->c), from);
-      in = hn_path(from, in);
-      if(from->onopen)
-      {
-        packet_t last = from->onopen;
-        from->onopen = NULL;
-        last->out = in;
-        switch_send(s, last);
-      }
+      util_hex((unsigned char*)csid,1,(unsigned char*)hex);
+      csid++;
+      c = xht_get(s->index,hex);
+      if(!c) continue;
+      inner = crypt_deopenize(c, p);
+      if(inner) break;
+    }
+    if(!inner) return (void)packet_free(p);
+
+    from = hn_frompacket(s->index, inner);
+    if(crypt_open(from->c, inner)) return;
+    switch_open(s, from, NULL); // in case we need to send an open
+    xht_set(s->index, (const char*)from->c->lineHex, (void*)from);
+    in = hn_path(from, in);
+    if(from->onopen)
+    {
+      packet_t last = from->onopen;
+      from->onopen = NULL;
+      last->out = in;
+      switch_send(s, last);
     }
     return;
   }

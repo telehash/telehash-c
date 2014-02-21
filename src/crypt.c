@@ -8,17 +8,21 @@
 int crypt_init()
 {
   int ret = -1;
+  int i = 0;
 #ifdef CS_1a
   ret = crypt_init_1a();
   if(ret) return ret;
+  crypt_supported[i++] = 0x1a;
 #endif
 #ifdef CS_2a
   ret = crypt_init_2a();
   if(ret) return ret;
+  crypt_supported[i++] = 0x2a;
 #endif
 #ifdef CS_3a
   ret = crypt_init_3a();
   if(ret) return ret;
+  crypt_supported[i++] = 0x3a;
 #endif
   return ret;
 }
