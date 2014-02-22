@@ -180,8 +180,11 @@ path_t hn_path(hn_t hn, path_t p)
   }
 
   // update state tracking
-  hn->last = ret;
-  ret->atIn = time(0);
+  if(ret)
+  {
+    hn->last = ret;
+    ret->atIn = time(0);    
+  }
 
   return ret;
 }

@@ -55,7 +55,7 @@ bucket_t bucket_load(xht_t index, char *file)
 	for(i=0;p->js[i];i+=4)
 	{
     p2 = packet_new();
-    packet_json(p2, p->json+p->js[i+2], p->js[i+3]-p->js[i+2]);
+    packet_json(p2, p->json+p->js[i+2], p->js[i+3]);
     hn = hn_fromjson(index, p2);
     packet_free(p2);
     if(!hn) continue;

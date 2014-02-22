@@ -83,9 +83,10 @@ unsigned short packet_len(packet_t p)
   return 2+p->json_len+p->body_len;
 }
 
-void packet_json(packet_t p, unsigned char *json, unsigned short len)
+int packet_json(packet_t p, unsigned char *json, unsigned short len)
 {
   uint16_t nlen;
+  if(js0n(json,len,p->js,JSONDENSITY)) return 1;
   // new space and update pointers
   p->raw = realloc(p->raw,2+len+p->body_len);
   p->json = p->raw+2;
@@ -97,7 +98,7 @@ void packet_json(packet_t p, unsigned char *json, unsigned short len)
   p->json_len = len;
   nlen = htons(len);
   memcpy(p->raw,&nlen,2);
-  js0n(p->json,p->json_len,p->js,JSONDENSITY);
+  return 0;
 }
 
 void packet_body(packet_t p, unsigned char *body, unsigned short len)
@@ -105,7 +106,7 @@ void packet_body(packet_t p, unsigned char *body, unsigned short len)
   p->raw = realloc(p->raw,2+len+p->json_len);
   p->json = p->raw+2;
   p->body = p->raw+(2+p->json_len);
-  memcpy(p->body,body,len);
+  if(body) memcpy(p->body,body,len); // allows packet_body(p,NULL,100) to allocate space
   p->body_len = len;
 }
 
@@ -249,9 +250,10 @@ packet_t packet_get_packets(packet_t p, char *key)
 	for(i=0;parr->js[i];i+=2)
 	{
     pent = packet_new();
-    packet_json(pent, parr->json+parr->js[i], parr->js[i+1]-parr->js[i]);
-    if(!pret) plast = pret = pent;
+    packet_json(pent, parr->json+parr->js[i], parr->js[i+1]);
+    if(!pret) pret = pent;
     else plast->next = pent;
+    plast = pent;
 	}
 
   packet_free(parr);

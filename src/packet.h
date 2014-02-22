@@ -38,8 +38,8 @@ unsigned short packet_len(packet_t p);
 // return json pointer safe to use w j0g
 char *packet_j0g(packet_t p);
 
-// set/store these in the current packet
-void packet_json(packet_t p, unsigned char *json, unsigned short len);
+// set/store these in the current packet, !0 if error parsing json
+int packet_json(packet_t p, unsigned char *json, unsigned short len);
 void packet_body(packet_t p, unsigned char *body, unsigned short len);
 
 // convenient json setters/getters

@@ -1,7 +1,32 @@
-[
 {
-"ip":"127.0.0.1","port":42424,
-    "paths":[{"type":"ipv4","ip": "127.0.0.1","port": 42424},{"type":"http","http":"http://127.0.0.1"}],
-    "public": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxbxW60yf5pjlRIWxC4JioB0PQKBEttcLc8rALz7CKEgZKPvfG4ERQ1gpN54dx3DYC1jIsnmL6KKgdyq5hXtwpQqW5Y/UWWBAHaSEOgAaz1hAZaxCmPQi1mM7DwxTTW1iM8d6wcEWIR1Z28jlzyrACSmGKg+xbyvmU4NRr9lMhrueNltp+tiWwNyLG/4kzfwOhx1VP+mnrSxa7VziFLACMJxsC8sLPMkiLXlQHfTl+UICKf7vTeQQ0nRdgbnkdXCUPm3U6/ewDv3SdVn8BR1z2+n0qHbvHm4CiG78TBFStS/E+WE2x5U5yXJ8SUIcQoZa9tete9NCoF55LJzcyGBhuwIDAQAB"
+  "62a57dc759d40dc9ecc136cdf12b781909c7a6398fc500a49c2b517151e2ffcb": {
+    "paths": [
+      {
+        "type": "ipv4",
+        "ip": "127.0.0.1",
+        "port": 42424
+      },
+      {
+        "type": "ipv6",
+        "ip": "fe80::6a5b:35ff:fe92:8930",
+        "port": 42424
+      },
+      {
+        "type": "http",
+        "http": "http://10.0.0.5:42424"
+      }
+    ],
+    "parts": {
+      "3a": "375340917a8a26d192d1fcd492d3bda9c3c884269ce753fd4bbae8bb2895fe9d",
+      "2a": "cc20da2544674a2140d4066571540afe1ede63d0d438ae43e54c60c5a55f5acf",
+      "1a": "93217feba01a965d8e85cb46847f31d836849d18"
+    },
+    "keys": {
+      "3a": "X+oogCTKk4vAc58zzmQ7rOb5jYClfUrwcKX9+IXceVg=",
+      "2a": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwrHelSEB1uZPZA9QB3LlyLNZoWxzcBGRzdm15MN3Nos9NxqbpHIaDQgljXFzovLYF+B+eEvwMMc/G2qcKRifkvuTGEJQ7MpBu+5fxnrAEV1hryXEUVl7ML5ZtM/JQ4T3QAAOckrSNtEiFOMySkE4GwOh+2oMkSbSrsTUDHOE/YsSlOJzgOczQVuDfcDj5IuWUcTF/aHRRnJd+NBzDzvqBjLutOzRC7Fm9JguwVqE7ylN+tZMotvCOyizcwqDaiWgfYWZQ2zKZURzkigKModGZd0wgmvyghNXv2UHWWXGg4lz/z5F2m2Ba1yivQLRyAy/ODur1MckPltVmglVJ2WCswIDAQAB",
+      "1a": "wcIfwEVkWuwzZneJem3xBJQvt88oW9wT14/2JQodB2qfZTtMIMF/mw=="
+    },
+    "bridge": true
+  }
 }
-]
+

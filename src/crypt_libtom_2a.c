@@ -61,17 +61,19 @@ void crypt_free_2a(crypt_t c)
 
 int crypt_keygen_2a(packet_t p)
 {
-  unsigned long len = 0, len2;
+  unsigned long len, len2;
   unsigned char *buf, *b64;
   rsa_key rsa;
 
   if ((_crypt_libtom_err = rsa_make_key(&_crypt_libtom_prng, find_prng("yarrow"), 256, 65537, &rsa)) != CRYPT_OK) return -1;
 
   // this determines the size needed into len;
-  rsa_export(NULL, &len, PK_PRIVATE, &rsa);
+  len = 1;
   buf = malloc(len);
-  len2 = len;
-  b64 = malloc(len2+1);
+  rsa_export(buf, &len, PK_PRIVATE, &rsa);
+  buf = realloc(buf,len);
+  len2 = len*1.4;
+  b64 = malloc(len2);
 
   // export/base64 private
   if((_crypt_libtom_err = rsa_export(buf, &len, PK_PRIVATE, &rsa)) != CRYPT_OK)
@@ -219,61 +221,54 @@ int crypt_line_2a(crypt_t c, packet_t inner)
 // create a new open packet
 packet_t crypt_openize_2a(crypt_t self, crypt_t c, packet_t inner)
 {
-  unsigned char key[32], iv[16], hex[33], hn[65], sig[256], esig[256], pub[65], epub[256], b64[512], *enc;
+  unsigned char key[32], iv[16], sig[256], buf[260], upub[65], *pub;
   packet_t open;
-  unsigned long len, len2;
-  symmetric_CTR ctr;
+  unsigned long len, inner_len;
+  gcm_state gcm;
   crypt_libtom_t cs = (crypt_libtom_t)c->cs, scs = (crypt_libtom_t)self->cs;
-  hex[32] = hn[64] = 0;
 
   open = packet_chain(inner);
   packet_set_str(open,"type","open");
+  inner_len = packet_len(inner);
+  packet_body(open,NULL,256+260+inner_len+16);
 
   // create the aes iv and key from ecc
   crypt_rand(iv, 16);
-  packet_set_str(open,"iv", (char*)util_hex(iv,16,hex));
-  len = sizeof(pub);
-  if((_crypt_libtom_err = ecc_ansi_x963_export(&(cs->eccOut), pub, &len)) != CRYPT_OK) return packet_free(open);
+  len = sizeof(upub);
+  if((_crypt_libtom_err = ecc_ansi_x963_export(&(cs->eccOut), upub, &len)) != CRYPT_OK) return packet_free(open);
+  pub = upub+1; // take off the 0x04 prefix
   len = sizeof(key);
-  if((_crypt_libtom_err = hash_memory(find_hash("sha256"), pub, 65, key, &len)) != CRYPT_OK) return packet_free(open);
+  if((_crypt_libtom_err = hash_memory(find_hash("sha256"), pub, 64, key, &len)) != CRYPT_OK) return packet_free(open);
 
   // create aes cipher now and encrypt the inner
-  if((_crypt_libtom_err = ctr_start(find_cipher("aes"), iv, key, 32, 0, CTR_COUNTER_BIG_ENDIAN, &ctr)) != CRYPT_OK) return packet_free(open);
-  enc = malloc(packet_len(inner));
-  if((_crypt_libtom_err = ctr_encrypt(packet_raw(inner),enc,packet_len(inner),&ctr)) != CRYPT_OK)
-  {
-    free(enc);
-    return packet_free(open);
-  }
-  packet_body(open,enc,packet_len(inner));
-  free(enc);
-
+  len = 16;
+//  if((_crypt_libtom_err = gcm_memory(find_cipher("aes"), key, 32, iv, 16, NULL, 0, packet_raw(inner), inner_len, open->body+256+260, open->body+256+260+inner_len, &len, GCM_ENCRYPT)) != CRYPT_OK) return packet_free(open);
+  if((_crypt_libtom_err = gcm_init(&gcm, find_cipher("aes"), key, 32)) != CRYPT_OK) return packet_free(open);
+  if((_crypt_libtom_err = gcm_add_iv(&gcm, iv, 16)) != CRYPT_OK) return packet_free(open);
+  gcm_add_aad(&gcm,NULL,0);
+  if((_crypt_libtom_err = gcm_process(&gcm,packet_raw(inner),inner_len,open->body+256+260,GCM_ENCRYPT)) != CRYPT_OK) return packet_free(open);
+  if((_crypt_libtom_err = gcm_done(&gcm, open->body+256+260+inner_len, &len)) != CRYPT_OK) return packet_free(open);
+  
   // encrypt the ecc key and attach it
-  len = sizeof(epub);
-  if((_crypt_libtom_err = rsa_encrypt_key(pub, 65, epub, &len, 0, 0, &_crypt_libtom_prng, find_prng("yarrow"), find_hash("sha1"), &(cs->rsa))) != CRYPT_OK) return packet_free(open);
-  len2 = sizeof(b64);
-  if((_crypt_libtom_err = base64_encode(epub, len, b64, &len2)) != CRYPT_OK) return packet_free(open);
-  b64[len2] = 0;
-  packet_set_str(open, "open", (char*)b64);
+  len = sizeof(buf);
+  if((_crypt_libtom_err = rsa_encrypt_key(pub, 64, open->body, &len, 0, 0, &_crypt_libtom_prng, find_prng("yarrow"), find_hash("sha1"), &(cs->rsa))) != CRYPT_OK) return packet_free(open);
 
   // sign the inner packet
   len = 32;
-  if((_crypt_libtom_err = hash_memory(find_hash("sha256"),open->body,open->body_len,key,&len)) != CRYPT_OK) return packet_free(open);
+  if((_crypt_libtom_err = hash_memory(find_hash("sha256"),open->body+256+260,inner_len+16,key,&len)) != CRYPT_OK) return packet_free(open);
   len = sizeof(sig);
   if((_crypt_libtom_err = rsa_sign_hash_ex(key, 32, sig, &len, LTC_PKCS_1_V1_5, &_crypt_libtom_prng, find_prng("yarrow"), find_hash("sha256"), 12, &(scs->rsa))) != CRYPT_OK) return packet_free(open);
 
 	// encrypt the signature, create the new aes key+cipher first
-  memcpy(b64,pub,65);
-  memcpy(b64+65,c->lineOut,16);
-  len2 = 32;
-  if((_crypt_libtom_err = hash_memory(find_hash("sha256"), b64, 65+16, key, &len2)) != CRYPT_OK) return packet_free(open);
-  if((_crypt_libtom_err = ctr_start(find_cipher("aes"), iv, key, 32, 0, CTR_COUNTER_BIG_ENDIAN, &ctr)) != CRYPT_OK) return packet_free(open);
-  if((_crypt_libtom_err = ctr_encrypt(sig, esig, len, &ctr)) != CRYPT_OK) return packet_free(open);
-  len2 = sizeof(b64);
-  if((_crypt_libtom_err = base64_encode(esig, len, b64, &len2)) != CRYPT_OK) return packet_free(open);
-  b64[len2] = 0;
-  packet_set_str(open, "sig", (char*)b64);
-  
+  memcpy(buf,pub,64);
+  memcpy(buf+64,c->lineOut,16);
+  len = 4;
+  if((_crypt_libtom_err = gcm_init(&gcm, find_cipher("aes"), key, 32)) != CRYPT_OK) return packet_free(open);
+  if((_crypt_libtom_err = gcm_add_iv(&gcm, iv, 16)) != CRYPT_OK) return packet_free(open);
+  gcm_add_aad(&gcm,NULL,0);
+  if((_crypt_libtom_err = gcm_process(&gcm,sig,256,open->body+256,GCM_ENCRYPT)) != CRYPT_OK) return packet_free(open);
+  if((_crypt_libtom_err = gcm_done(&gcm, open->body+256+256, &len)) != CRYPT_OK) return packet_free(open);
+
   return open;
 }
 

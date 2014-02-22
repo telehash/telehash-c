@@ -7,7 +7,7 @@ all: test apps
 
 apps: $(SOURCES)
 	gcc -Wall -g -o seed/seed seed/*.c src/*.c ext/*.c $(JS0N) $(LTOM) $(FLAG)	
-	gcc -Wall -o util/idgen util/idgen.c $(LTOM)
+	gcc -Wall -g -o util/idgen util/idgen.c src/crypt*.c src/packet.c src/util.c $(JS0N) $(LTOM) $(FLAG)
 	gcc -Wall -g -o util/openize util/openize.c $(LTOM) $(JS0N)
 
 test: $(SOURCES)

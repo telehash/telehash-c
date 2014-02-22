@@ -9,7 +9,8 @@ int crypt_init()
 {
   int ret = -1;
   int i = 0;
-  memcpy(crypt_supported,0,8);
+  crypt_supported = malloc(8);
+  bzero(crypt_supported,8);
 #ifdef CS_1a
   ret = crypt_init_1a();
   if(ret) return ret;
