@@ -110,15 +110,15 @@ void packet_body(packet_t p, unsigned char *body, unsigned short len)
   p->body_len = len;
 }
 
-void packet_set(packet_t p, char *key, char *val)
+void packet_set(packet_t p, char *key, char *val, int vlen)
 {
   unsigned char *json, *at, *eval;
-  int existing, vlen, klen, len, evlen;
+  int existing, klen, len, evlen;
 
   if(!p || !key || !val) return;
   if(!p->json_len) packet_json(p, (unsigned char*)"{}", 2);
   klen = strlen(key);
-  vlen = strlen(val);
+  if(!vlen) vlen = strlen(val); // convenience
 
   // make space and copy
   json = malloc(klen+vlen+p->json_len+4);
@@ -165,7 +165,7 @@ void packet_set_int(packet_t p, char *key, int val)
   char num[32];
   if(!p || !key) return;
   sprintf(num,"%d",val);
-  packet_set(p, key, num);
+  packet_set(p, key, num, 0);
 }
 
 void packet_set_str(packet_t p, char *key, char *val)
@@ -182,8 +182,7 @@ void packet_set_str(packet_t p, char *key, char *val)
     escaped[len++]=val[i];
   }
   escaped[len++] = '"';
-  escaped[len] = 0;
-  packet_set(p, key, escaped);
+  packet_set(p, key, escaped, len);
   free(escaped);
 }
 

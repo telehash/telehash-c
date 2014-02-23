@@ -233,7 +233,7 @@ packet_t crypt_openize_2a(crypt_t self, crypt_t c, packet_t inner)
   packet_body(open,NULL,256+260+inner_len+16);
 
   // create the aes iv and key from ecc
-  crypt_rand(iv, 16);
+  util_unhex((unsigned char*)"00000000000000000000000000000001",32,iv);
   len = sizeof(upub);
   if((_crypt_libtom_err = ecc_ansi_x963_export(&(cs->eccOut), upub, &len)) != CRYPT_OK) return packet_free(open);
   pub = upub+1; // take off the 0x04 prefix
@@ -248,7 +248,7 @@ packet_t crypt_openize_2a(crypt_t self, crypt_t c, packet_t inner)
   gcm_add_aad(&gcm,NULL,0);
   if((_crypt_libtom_err = gcm_process(&gcm,packet_raw(inner),inner_len,open->body+256+260,GCM_ENCRYPT)) != CRYPT_OK) return packet_free(open);
   if((_crypt_libtom_err = gcm_done(&gcm, open->body+256+260+inner_len, &len)) != CRYPT_OK) return packet_free(open);
-  
+
   // encrypt the ecc key and attach it
   len = sizeof(buf);
   if((_crypt_libtom_err = rsa_encrypt_key(pub, 64, open->body, &len, 0, 0, &_crypt_libtom_prng, find_prng("yarrow"), find_hash("sha1"), &(cs->rsa))) != CRYPT_OK) return packet_free(open);
@@ -259,9 +259,15 @@ packet_t crypt_openize_2a(crypt_t self, crypt_t c, packet_t inner)
   len = sizeof(sig);
   if((_crypt_libtom_err = rsa_sign_hash_ex(key, 32, sig, &len, LTC_PKCS_1_V1_5, &_crypt_libtom_prng, find_prng("yarrow"), find_hash("sha256"), 12, &(scs->rsa))) != CRYPT_OK) return packet_free(open);
 
+  char shex[2024];
+  printf("KHEX %s\n",util_hex(key,32,shex));
+  printf("SHEX %d %s\n",len,util_hex(sig,len,shex));
+
 	// encrypt the signature, create the new aes key+cipher first
   memcpy(buf,pub,64);
   memcpy(buf+64,c->lineOut,16);
+  len = 32;
+  if((_crypt_libtom_err = hash_memory(find_hash("sha256"),buf,64+16,key,&len)) != CRYPT_OK) return packet_free(open);
   len = 4;
   if((_crypt_libtom_err = gcm_init(&gcm, find_cipher("aes"), key, 32)) != CRYPT_OK) return packet_free(open);
   if((_crypt_libtom_err = gcm_add_iv(&gcm, iv, 16)) != CRYPT_OK) return packet_free(open);
@@ -269,6 +275,9 @@ packet_t crypt_openize_2a(crypt_t self, crypt_t c, packet_t inner)
   if((_crypt_libtom_err = gcm_process(&gcm,sig,256,open->body+256,GCM_ENCRYPT)) != CRYPT_OK) return packet_free(open);
   if((_crypt_libtom_err = gcm_done(&gcm, open->body+256+256, &len)) != CRYPT_OK) return packet_free(open);
 
+  char khex[128], hex[2048];
+  printf("KEY %s %s\n",util_hex(key,32,khex),util_hex(open->body+256,260,hex));
+  
   return open;
 }
 

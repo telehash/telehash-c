@@ -43,7 +43,7 @@ int packet_json(packet_t p, unsigned char *json, unsigned short len);
 void packet_body(packet_t p, unsigned char *body, unsigned short len);
 
 // convenient json setters/getters
-void packet_set(packet_t p, char *key, char *val); // raw
+void packet_set(packet_t p, char *key, char *val, int vlen); // raw
 void packet_set_str(packet_t p, char *key, char *val); // escapes value
 void packet_set_int(packet_t p, char *key, int val);
 char *packet_get_str(packet_t p, char *key);

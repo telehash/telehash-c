@@ -150,7 +150,7 @@ void switch_sendingQ(switch_t s, packet_t p)
 // tries to send an open if we haven't
 void switch_open(switch_t s, hn_t to, path_t direct)
 {
-  packet_t open;
+  packet_t open, inner;
   time_t now;
 
   if(!to || !to->c) return;
@@ -161,7 +161,10 @@ void switch_open(switch_t s, hn_t to, path_t direct)
   to->sentOpen = now;
 
   // actually send the open
-  open = crypt_openize((crypt_t)xht_get(s->index,to->c->csidHex), to->c, packet_new());
+  inner = packet_new();
+  packet_set_str(inner,"to",to->hexname);
+  packet_set(inner,"from",(char*)s->parts->json,s->parts->json_len);
+  open = crypt_openize((crypt_t)xht_get(s->index,to->c->csidHex), to->c, inner);
   if(!open) return;
   open->to = to;
   if(direct) open->out = direct;
