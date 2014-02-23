@@ -82,6 +82,7 @@ hn_t hn_getparts(xht_t index, packet_t p)
   {
     memcpy(hex,csids+(i*2),2);
     part = packet_get_str(p, hex);
+    printf("HN %.*s %s\n",2,hex,part);
     if(!part) continue; // garbage safety
     crypt_hash((unsigned char*)hex,2,hall+(i*2*32));
     crypt_hash((unsigned char*)part,strlen(part),hall+(((i*2)+1)*32));

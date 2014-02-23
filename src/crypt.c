@@ -150,7 +150,7 @@ packet_t crypt_openize(crypt_t self, crypt_t c, packet_t inner)
 
   packet_set_str(inner,"line",(char*)c->lineHex);
   packet_set_int(inner,"at",(int)c->atOut);
-  packet_body(inner,c->key,c->keylen);
+  packet_body(inner,self->key,self->keylen);
 
 #ifdef CS_1a
   if(c->csid == 0x1a) return crypt_openize_1a(self,c,inner);

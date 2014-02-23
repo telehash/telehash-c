@@ -259,10 +259,6 @@ packet_t crypt_openize_2a(crypt_t self, crypt_t c, packet_t inner)
   len = sizeof(sig);
   if((_crypt_libtom_err = rsa_sign_hash_ex(key, 32, sig, &len, LTC_PKCS_1_V1_5, &_crypt_libtom_prng, find_prng("yarrow"), find_hash("sha256"), 12, &(scs->rsa))) != CRYPT_OK) return packet_free(open);
 
-  char shex[2024];
-  printf("KHEX %s\n",util_hex(key,32,shex));
-  printf("SHEX %d %s\n",len,util_hex(sig,len,shex));
-
 	// encrypt the signature, create the new aes key+cipher first
   memcpy(buf,pub,64);
   memcpy(buf+64,c->lineOut,16);
@@ -275,9 +271,6 @@ packet_t crypt_openize_2a(crypt_t self, crypt_t c, packet_t inner)
   if((_crypt_libtom_err = gcm_process(&gcm,sig,256,open->body+256,GCM_ENCRYPT)) != CRYPT_OK) return packet_free(open);
   if((_crypt_libtom_err = gcm_done(&gcm, open->body+256+256, &len)) != CRYPT_OK) return packet_free(open);
 
-  char khex[128], hex[2048];
-  printf("KEY %s %s\n",util_hex(key,32,khex),util_hex(open->body+256,260,hex));
-  
   return open;
 }
 
