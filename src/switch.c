@@ -22,13 +22,12 @@ switch_t switch_new()
 
 crypt_t loadkey(char csid, switch_t s, packet_t keys)
 {
-  char hex[4], *pk, *sk;
+  char hex[12], *pk, *sk;
   crypt_t c;
 
   util_hex((unsigned char*)&csid,1,(unsigned char*)hex);
   pk = packet_get_str(keys,hex);
-  hex[2] = '_';
-  hex[3] = 0;
+  memcpy(hex+2,"_secret",7);
   sk = packet_get_str(keys,hex);
   if(!pk || !sk) return NULL;
   c = crypt_new(csid, (unsigned char*)pk, strlen(pk));

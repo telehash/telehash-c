@@ -88,7 +88,7 @@ int crypt_keygen_2a(packet_t p)
     return -1;
   }
   b64[len2] = 0;
-  packet_set_str(p,"2a_",(char*)b64);
+  packet_set_str(p,"2a_secret",(char*)b64);
 
   if((_crypt_libtom_err = rsa_export(buf, &len, PK_PUBLIC, &rsa)) != CRYPT_OK)
   {

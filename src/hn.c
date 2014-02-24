@@ -55,8 +55,8 @@ int csidcmp(const void *a, const void *b)
 hn_t hn_getparts(xht_t index, packet_t p)
 {
   char *part, csid, csids[16], hex[3]; // max parts of 8
-  int i,ids;
-  unsigned char *hall, hnbin[32];
+  int i,ids,ri,len;
+  unsigned char *rollup, hnbin[32];
   char best = 0;
   hn_t hn;
 
@@ -67,28 +67,38 @@ hn_t hn_getparts(xht_t index, packet_t p)
   {
     if(p->js[i+1] != 2) continue; // csid must be 2 char only
     memcpy(hex,p->json+p->js[i],2);
-    memcpy(csids+ids,hex,2);
+    memcpy(csids+(ids*2),hex,2);
     util_unhex((unsigned char*)hex,2,(unsigned char*)&csid);
     if(csid > best && xht_get(index,hex)) best = csid; // matches if we have the same csid in index (for our own keys)
     ids++;
   }
   
   if(!best) return NULL; // we must match at least one
-  
   qsort(csids,ids,2,csidcmp);
 
-  hall = malloc(ids*2*32);
+  rollup = NULL;
+  ri = 0;
   for(i=0;i<ids;i++)
   {
+    len = 2;
+    rollup = realloc(rollup,ri+len);
+    memcpy(rollup+ri,csids+(i*2),len);
+    crypt_hash(rollup,ri+len,hnbin);
+    ri = 32;
+    rollup = realloc(rollup,ri);
+    memcpy(rollup,hnbin,ri);
+
     memcpy(hex,csids+(i*2),2);
     part = packet_get_str(p, hex);
-    printf("HN %.*s %s\n",2,hex,part);
     if(!part) continue; // garbage safety
-    crypt_hash((unsigned char*)hex,2,hall+(i*2*32));
-    crypt_hash((unsigned char*)part,strlen(part),hall+(((i*2)+1)*32));
+    len = strlen(part);
+    rollup = realloc(rollup,ri+len);
+    memcpy(rollup+ri,part,len);
+    crypt_hash(rollup,ri+len,hnbin);
+    memcpy(rollup,hnbin,32);
   }
-  crypt_hash(hall,ids*2*32,hnbin);
-  free(hall);
+  memcpy(hnbin,rollup,32);
+  free(rollup);
   hn = hn_get(index, hnbin);
   if(!hn) return NULL;
 
