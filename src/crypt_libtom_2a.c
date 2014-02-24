@@ -128,8 +128,8 @@ int crypt_private_2a(crypt_t c, unsigned char *key, int len)
 packet_t crypt_lineize_2a(crypt_t c, packet_t p)
 {
   packet_t line;
-  symmetric_CTR ctr;
   unsigned long len;
+  unsigned char hex[33];
   crypt_libtom_t cs = (crypt_libtom_t)c->cs;
 
   line = packet_chain(p);
@@ -150,26 +150,17 @@ packet_t crypt_lineize_2a(crypt_t c, packet_t p)
 packet_t crypt_delineize_2a(crypt_t c, packet_t p)
 {
   packet_t line;
-  unsigned char iv[16], *dec;
-  char *hiv;
-  symmetric_CTR ctr;
+  unsigned long len;
   crypt_libtom_t cs = (crypt_libtom_t)c->cs;
 
-  hiv = packet_get_str(p, "iv");
-  if(strlen(hiv) != 32) return packet_free(p);
-  util_unhex((unsigned char*)hiv,32,iv);
+  if((_crypt_libtom_err = gcm_add_iv(&(cs->gcmIn), p->body, 16)) != CRYPT_OK) return packet_free(p);
+  gcm_add_aad(&(cs->gcmIn),NULL,0);
+  if((_crypt_libtom_err = gcm_process(&(cs->gcmIn),p->body+16,p->body_len-(16+16),p->body+16,GCM_DECRYPT)) != CRYPT_OK) return packet_free(p);
+  len = 16;
+  if((_crypt_libtom_err = gcm_done(&(cs->gcmIn),p->body+(p->body_len-16), &len)) != CRYPT_OK) return packet_free(p);
 
-  // create aes cipher now and encrypt
-  if((_crypt_libtom_err = ctr_start(find_cipher("aes"), iv, cs->keyIn, 32, 0, CTR_COUNTER_BIG_ENDIAN, &ctr)) != CRYPT_OK) return packet_free(p);
-  dec = malloc(p->body_len);
-  if((_crypt_libtom_err = ctr_decrypt(p->body,dec,p->body_len,&ctr)) != CRYPT_OK)
-  {
-    free(dec);
-    return packet_free(p);
-  }
-  line = packet_parse(dec, p->body_len);
+  line = packet_parse(p->body+16, p->body_len-(16+16));
   packet_free(p);
-  free(dec);
   return line;
 }
 
@@ -187,6 +178,7 @@ int crypt_line_2a(crypt_t c, packet_t inner)
   at = strtol(packet_get_str(inner,"at"), NULL, 10);
   hline = packet_get_str(inner,"line");
   hecc = packet_get_str(inner,"ecc"); // it's where we stashed it
+  if(!hline || !hecc) return 1;
   if(at <= 0 || at <= c->atIn || strlen(hline) != 32 || strlen(hecc) != 128) return 1;
 
   // do the diffie hellman

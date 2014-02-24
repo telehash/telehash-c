@@ -98,6 +98,8 @@ int packet_json(packet_t p, unsigned char *json, unsigned short len)
   p->json_len = len;
   nlen = htons(len);
   memcpy(p->raw,&nlen,2);
+  free(p->jsoncp);
+  p->jsoncp = NULL;
   return 0;
 }
 
