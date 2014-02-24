@@ -185,14 +185,32 @@ packet_t crypt_deopenize(crypt_t self, packet_t open)
 
 int crypt_line(crypt_t c, packet_t inner)
 {
+  int ret = 1;
+  unsigned long at;
+  char *hline;
+
+  if(!inner) return ret;
+  if(!c) return packet_free(inner)||1;
+
+  at = strtol(packet_get_str(inner,"at"), NULL, 10);
+  hline = packet_get_str(inner,"line");
+  if(!hline || at <= 0 || at <= c->atIn || strlen(hline) != 32) return packet_free(inner)||1;
+  util_unhex((unsigned char*)hline,32,c->lineIn);
+
 #ifdef CS_1a
-  if(c->csid == 0x1a) return crypt_line_1a(c,inner);
+  if(c->csid == 0x1a) ret = crypt_line_1a(c,inner);
 #endif
 #ifdef CS_2a
-  if(c->csid == 0x2a) return crypt_line_2a(c,inner);
+  if(c->csid == 0x2a) ret = crypt_line_2a(c,inner);
 #endif
 #ifdef CS_3a
-  if(c->csid == 0x3a) return crypt_line_3a(c,inner);
+  if(c->csid == 0x3a) ret = crypt_line_3a(c,inner);
 #endif
+  if(ret) return ret;
+
+  // set up c line stuff
+  c->atIn = at;
+  c->lined = 1;
+  packet_free(inner);
   return 0;
 }

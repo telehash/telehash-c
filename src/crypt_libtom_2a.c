@@ -168,18 +168,14 @@ packet_t crypt_delineize_2a(crypt_t c, packet_t p)
 int crypt_line_2a(crypt_t c, packet_t inner)
 {
   unsigned char ecc[65], secret[32], input[64];
-  char *hline, *hecc;
-  unsigned long at, len;
+  char *hecc;
+  unsigned long len;
   crypt_libtom_t cs;
   ecc_key eccIn;
   
-  if(!c || !inner) return 1;
   cs = (crypt_libtom_t)c->cs;
-  at = strtol(packet_get_str(inner,"at"), NULL, 10);
-  hline = packet_get_str(inner,"line");
   hecc = packet_get_str(inner,"ecc"); // it's where we stashed it
-  if(!hline || !hecc) return 1;
-  if(at <= 0 || at <= c->atIn || strlen(hline) != 32 || strlen(hecc) != 128) return 1;
+  if(!hecc || strlen(hecc) != 128) return 1;
 
   // do the diffie hellman
   ecc[0] = 0x04; // make it the "uncompressed" format
@@ -202,8 +198,6 @@ int crypt_line_2a(crypt_t c, packet_t inner)
   if((_crypt_libtom_err = hash_memory(find_hash("sha256"), input, 64, secret, &len)) != CRYPT_OK) return 1;
   if((_crypt_libtom_err = gcm_init(&(cs->gcmIn), find_cipher("aes"), secret, 32)) != CRYPT_OK) return 1;
 
-  c->atIn = at;
-  c->lined = 1;
   return 0;
 }
 
