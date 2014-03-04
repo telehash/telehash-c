@@ -5,11 +5,11 @@
 
 typedef struct crypt_struct
 {
-  char csid, csidHex[3], *part;
+  char csidHex[3], *part;
   int private, lined, keylen;
   unsigned long atOut, atIn;
   unsigned char lineOut[16], lineIn[16], lineHex[33];
-  unsigned char *key;
+  unsigned char *key, csid;
   void *cs; // for CS usage
 } *crypt_t;
 

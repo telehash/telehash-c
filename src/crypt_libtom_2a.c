@@ -129,20 +129,18 @@ packet_t crypt_lineize_2a(crypt_t c, packet_t p)
 {
   packet_t line;
   unsigned long len;
-  unsigned char hex[33];
   crypt_libtom_t cs = (crypt_libtom_t)c->cs;
 
   line = packet_chain(p);
-  packet_set_str(line,"type","line");
-  packet_set_str(line,"line", (char*)util_hex(c->lineIn,16,hex));
-  packet_body(line,NULL,packet_len(p)+16+16);
-  crypt_rand(line->body,16);
+  packet_body(line,NULL,packet_len(p)+16+16+16);
+  memcpy(line->body,c->lineIn,16);
+  crypt_rand(line->body+16,16);
 
-  if((_crypt_libtom_err = gcm_add_iv(&(cs->gcmOut), line->body, 16)) != CRYPT_OK) return packet_free(line);
+  if((_crypt_libtom_err = gcm_add_iv(&(cs->gcmOut), line->body+16, 16)) != CRYPT_OK) return packet_free(line);
   gcm_add_aad(&(cs->gcmOut),NULL,0);
-  if((_crypt_libtom_err = gcm_process(&(cs->gcmOut),packet_raw(p),packet_len(p),line->body+16,GCM_ENCRYPT)) != CRYPT_OK) return packet_free(line);
+  if((_crypt_libtom_err = gcm_process(&(cs->gcmOut),packet_raw(p),packet_len(p),line->body+16+16,GCM_ENCRYPT)) != CRYPT_OK) return packet_free(line);
   len = 16;
-  if((_crypt_libtom_err = gcm_done(&(cs->gcmOut),line->body+16+packet_len(p), &len)) != CRYPT_OK) return packet_free(line);
+  if((_crypt_libtom_err = gcm_done(&(cs->gcmOut),line->body+16+16+packet_len(p), &len)) != CRYPT_OK) return packet_free(line);
 
   return line;
 }
@@ -153,13 +151,13 @@ packet_t crypt_delineize_2a(crypt_t c, packet_t p)
   unsigned long len;
   crypt_libtom_t cs = (crypt_libtom_t)c->cs;
 
-  if((_crypt_libtom_err = gcm_add_iv(&(cs->gcmIn), p->body, 16)) != CRYPT_OK) return packet_free(p);
+  if((_crypt_libtom_err = gcm_add_iv(&(cs->gcmIn), p->body+16, 16)) != CRYPT_OK) return packet_free(p);
   gcm_add_aad(&(cs->gcmIn),NULL,0);
-  if((_crypt_libtom_err = gcm_process(&(cs->gcmIn),p->body+16,p->body_len-(16+16),p->body+16,GCM_DECRYPT)) != CRYPT_OK) return packet_free(p);
+  if((_crypt_libtom_err = gcm_process(&(cs->gcmIn),p->body+16+16,p->body_len-(16+16+16),p->body+16+16,GCM_DECRYPT)) != CRYPT_OK) return packet_free(p);
   len = 16;
   if((_crypt_libtom_err = gcm_done(&(cs->gcmIn),p->body+(p->body_len-16), &len)) != CRYPT_OK) return packet_free(p);
 
-  line = packet_parse(p->body+16, p->body_len-(16+16));
+  line = packet_parse(p->body+16+16, p->body_len-(16+16+16));
   packet_free(p);
   return line;
 }
@@ -211,7 +209,7 @@ packet_t crypt_openize_2a(crypt_t self, crypt_t c, packet_t inner)
   crypt_libtom_t cs = (crypt_libtom_t)c->cs, scs = (crypt_libtom_t)self->cs;
 
   open = packet_chain(inner);
-  packet_set_str(open,"type","open");
+  packet_json(open,&(self->csid),1);
   inner_len = packet_len(inner);
   packet_body(open,NULL,256+260+inner_len+16);
 

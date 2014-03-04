@@ -206,22 +206,16 @@ void switch_receive(switch_t s, packet_t p, path_t in)
   packet_t line;
   packet_t inner;
   crypt_t c;
-  char hex[3], *csid = crypt_supported;
+  char hex[3];
 
   if(!s || !p || !in) return;
-  if(util_cmp("open",packet_get_str(p,"type")) == 0)
+  if(p->json_len == 1)
   {
-    while(*csid)
-    {
-      util_hex((unsigned char*)csid,1,(unsigned char*)hex);
-      csid++;
-      c = xht_get(s->index,hex);
-      if(!c) continue;
-      inner = crypt_deopenize(c, p);
-      if(inner) break;
-    }
-    packet_free(p);
-    if(!inner) return;
+    util_hex(p->json,1,(unsigned char*)hex);
+    c = xht_get(s->index,hex);
+    if(!c) return (void)packet_free(p);
+    inner = crypt_deopenize(c, p);
+    if(!inner) return (void)packet_free(p);
 
     from = hn_frompacket(s->index, inner);
     if(crypt_line(from->c, inner) != 0) return; // not new/valid, ignore
@@ -239,7 +233,7 @@ void switch_receive(switch_t s, packet_t p, path_t in)
     }
     return;
   }
-  if(util_cmp("line",packet_get_str(p,"type")) == 0)
+  if(p->json_len == 0)
   {
     from = xht_get(s->index, packet_get_str(p, "line"));
     if(from)

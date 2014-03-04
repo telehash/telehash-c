@@ -68,7 +68,7 @@ packet_t packet_parse(unsigned char *raw, unsigned short len)
   p->body = p->raw+(2+p->json_len);
   
   // parse json (if any) and validate
-  if(jlen && js0n(p->json,p->json_len,p->js,JSONDENSITY)) return packet_free(p);
+  if(jlen >= 2 && js0n(p->json,p->json_len,p->js,JSONDENSITY)) return packet_free(p);
   
   return p;
 }
@@ -86,7 +86,7 @@ unsigned short packet_len(packet_t p)
 int packet_json(packet_t p, unsigned char *json, unsigned short len)
 {
   uint16_t nlen;
-  if(js0n(json,len,p->js,JSONDENSITY)) return 1;
+  if(len >= 2 && js0n(json,len,p->js,JSONDENSITY)) return 1;
   // new space and update pointers
   p->raw = realloc(p->raw,2+len+p->body_len);
   p->json = p->raw+2;
@@ -118,7 +118,7 @@ void packet_set(packet_t p, char *key, char *val, int vlen)
   int existing, klen, len, evlen;
 
   if(!p || !key || !val) return;
-  if(!p->json_len) packet_json(p, (unsigned char*)"{}", 2);
+  if(p->json_len < 2) packet_json(p, (unsigned char*)"{}", 2);
   klen = strlen(key);
   if(!vlen) vlen = strlen(val); // convenience
 
