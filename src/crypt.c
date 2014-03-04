@@ -188,6 +188,7 @@ int crypt_line(crypt_t c, packet_t inner)
   int ret = 1;
   unsigned long at;
   char *hline;
+  unsigned char lineid[16];
 
   if(!inner) return ret;
   if(!c) return packet_free(inner)||1;
@@ -195,7 +196,9 @@ int crypt_line(crypt_t c, packet_t inner)
   at = strtol(packet_get_str(inner,"at"), NULL, 10);
   hline = packet_get_str(inner,"line");
   if(!hline || at <= 0 || at <= c->atIn || strlen(hline) != 32) return packet_free(inner)||1;
-  util_unhex((unsigned char*)hline,32,c->lineIn);
+  util_unhex((unsigned char*)hline,32,lineid);
+  c->lined = (memcmp(lineid,c->lineIn,16) == 0)?2:1; // flag for line reset state
+  memcpy(c->lineIn,lineid,16); // needed for crypt_line_*
 
 #ifdef CS_1a
   if(c->csid == 0x1a) ret = crypt_line_1a(c,inner);
@@ -208,9 +211,7 @@ int crypt_line(crypt_t c, packet_t inner)
 #endif
   if(ret) return ret;
 
-  // set up c line stuff
   c->atIn = at;
-  c->lined = 1;
   packet_free(inner);
   return 0;
 }

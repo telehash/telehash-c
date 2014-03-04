@@ -221,6 +221,7 @@ void switch_receive(switch_t s, packet_t p, path_t in)
     if(crypt_line(from->c, inner) != 0) return; // not new/valid, ignore
     
     // line is open!
+    if(from->c->lined == 1) chan_reset(s, from);
     xht_set(s->index, (const char*)from->c->lineHex, (void*)from);
     in = hn_path(from, in);
     switch_open(s, from, in); // in case we need to send an open

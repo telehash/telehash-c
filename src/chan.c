@@ -10,7 +10,14 @@ void chan_hn(hn_t hn, chan_t c)
 {
   if(!hn || !c) return;
   if(!hn->chans) hn->chans = xht_new(17);
-  xht_set(hn->chans,c->hexid,c);
+  xht_set(hn->chans,(char*)c->hexid,c);
+}
+
+void chan_reset(switch_t s, hn_t to)
+{
+  // TODO, fail any existing hn->chans
+  if(!to->chanOut) to->chanOut = (strncmp(s->id->hexname,to->hexname,64) > 0) ? 1 : 2;
+  to->chanIn = 0;
 }
 
 chan_t chan_new(switch_t s, hn_t to, char *type, int reliable)
@@ -18,6 +25,7 @@ chan_t chan_new(switch_t s, hn_t to, char *type, int reliable)
   chan_t c;
   if(!s || !to || !type) return NULL;
 
+  if(!to->chanOut) chan_reset(s, to);
   c = malloc(sizeof (struct chan_struct));
   bzero(c,sizeof (struct chan_struct));
   c->type = strdup(type);
@@ -25,8 +33,9 @@ chan_t chan_new(switch_t s, hn_t to, char *type, int reliable)
   c->to = to;
   c->reliable = reliable;
   c->state = STARTING;
-  crypt_rand(c->id, 16);
-  util_hex(c->id,16,(unsigned char*)c->hexid);
+  c->id = to->chanOut;
+  to->chanOut += 2;
+  util_hex((unsigned char*)&(c->id),4,(unsigned char*)c->hexid);
   chan_hn(to, c);
   return c;
 }
@@ -34,15 +43,18 @@ chan_t chan_new(switch_t s, hn_t to, char *type, int reliable)
 chan_t chan_in(switch_t s, hn_t from, packet_t p)
 {
   chan_t c;
-  char *id, *type;
+  uint32_t id;
+  char hexid[9], *type;
   if(!from || !p) return NULL;
 
-  id = packet_get_str(p, "c");
-  c = xht_get(from->chans, id);
+  id = strtol(packet_get_str(p,"c"), NULL, 10);
+  util_hex((unsigned char*)&id,4,(unsigned char*)hexid);
+  c = xht_get(from->chans, hexid);
   if(c) return c;
 
   type = packet_get_str(p, "type");
-  if(!id || strlen(id) != 32 || !type) return NULL;
+  if(!type || id <= from->chanIn || id % 2 == from->chanOut % 2) return NULL;
+  from->chanIn = id - 2; // allow one out of order sequence
 
   c = malloc(sizeof (struct chan_struct));
   bzero(c,sizeof (struct chan_struct));
@@ -51,8 +63,8 @@ chan_t chan_in(switch_t s, hn_t from, packet_t p)
   c->to = from;
   c->reliable = packet_get_str(p,"seq")?1:0;
   c->state = STARTING;
-  util_unhex((unsigned char*)id,32,c->id);
-  util_hex(c->id,16,(unsigned char*)c->hexid);
+  c->id = id;
+  util_hex((unsigned char*)&(c->id),4,(unsigned char*)c->hexid);
   chan_hn(from, c);
   return c;
 }
@@ -76,7 +88,7 @@ packet_t chan_packet(chan_t c)
   {
     packet_set_str(p,"type",c->type);
   }
-  packet_set_str(p,"c",c->hexid);
+  packet_set_int(p,"c",c->id);
   return p;
 }
 

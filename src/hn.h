@@ -10,6 +10,7 @@ typedef struct hn_struct
 {
   unsigned char hashname[32];
   char csid, hexid[3], hexname[65]; // for convenience
+  uint32_t chanOut, chanIn;
   crypt_t c;
   path_t *paths, last;
   xht_t chans;
