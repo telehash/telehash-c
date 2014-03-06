@@ -1,6 +1,5 @@
 #include "path.h"
 #include <string.h>
-#include <strings.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/types.h>
@@ -15,7 +14,7 @@ path_t path_new(char *type)
 {
   if(!strstr("ipv4 ipv6 relay bridge http", type)) return NULL;
   path_t p = malloc(sizeof (struct path_struct));
-  bzero(p,sizeof (struct path_struct));
+  memset(p,0,sizeof (struct path_struct));
   memcpy(p->type,type,strlen(type)+1);
   p->sa.sin_family = AF_INET;
   return p;
@@ -100,7 +99,7 @@ unsigned char *path_json(path_t p)
   len = len * 2; // double for any worst-case escaping
   p->json = malloc(len);
   json = (char*)p->json;
-  bzero(json,len);
+  memset(json,0,len);
   sprintf(json, "{\"type\":\"%s\"",p->type);
   if(strstr("ipv4 ipv6", p->type))
   {

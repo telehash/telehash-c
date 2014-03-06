@@ -22,7 +22,7 @@ int crypt_new_2a(crypt_t c, unsigned char *key, int len)
   if(!key || !len || len > der_len) return 1;
   
   c->cs = malloc(sizeof(struct crypt_libtom_struct));
-  bzero(c->cs, sizeof (struct crypt_libtom_struct));
+  memset(c->cs, 0, sizeof (struct crypt_libtom_struct));
   cs = (crypt_libtom_t)c->cs;
 
   // try to base64 decode in case that's the incoming format
@@ -121,7 +121,7 @@ int crypt_private_2a(crypt_t c, unsigned char *key, int len)
   }
   
   if((_crypt_libtom_err = rsa_import(der, der_len, &(cs->rsa))) != CRYPT_OK) return 1;
-  c->private = 1;
+  c->isprivate = 1;
   return 0;
 }
 

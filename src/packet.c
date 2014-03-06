@@ -1,6 +1,5 @@
 #include "packet.h"
 #include <string.h>
-#include <strings.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <arpa/inet.h>
@@ -11,9 +10,9 @@
 packet_t packet_new()
 {
   packet_t p = malloc(sizeof (struct packet_struct));
-  bzero(p,sizeof (struct packet_struct));
+  memset(p,0,sizeof (struct packet_struct));
   p->raw = malloc(2);
-  bzero(p->raw,2);
+  memset(p->raw,0,2);
   return p;
 }
 

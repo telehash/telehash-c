@@ -1,6 +1,5 @@
 #include "switch.h"
 #include <string.h>
-#include <strings.h>
 #include <stdlib.h>
 #include "util.h"
 
@@ -10,11 +9,11 @@
 switch_t switch_new()
 {
   switch_t s = malloc(sizeof (struct switch_struct));
-  bzero(s, sizeof(struct switch_struct));
+  memset(s, 0, sizeof(struct switch_struct));
   s->cap = 256; // default cap size
   // create all the buckets
   s->buckets = malloc(256 * sizeof(bucket_t));
-  bzero(s->buckets, 256 * sizeof(bucket_t));
+  memset(s->buckets, 0, 256 * sizeof(bucket_t));
   s->index = xht_new(MAXPRIME);
   s->parts = packet_new();
   return s;

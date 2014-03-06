@@ -1,6 +1,5 @@
 #include "chan.h"
 #include <string.h>
-#include <strings.h>
 #include <stdlib.h>
 #include "util.h"
 #include "switch.h"
@@ -27,7 +26,7 @@ chan_t chan_new(switch_t s, hn_t to, char *type, int reliable)
 
   if(!to->chanOut) chan_reset(s, to);
   c = malloc(sizeof (struct chan_struct));
-  bzero(c,sizeof (struct chan_struct));
+  memset(c,0,sizeof (struct chan_struct));
   c->type = strdup(type);
   c->s = s;
   c->to = to;
@@ -43,7 +42,7 @@ chan_t chan_new(switch_t s, hn_t to, char *type, int reliable)
 chan_t chan_in(switch_t s, hn_t from, packet_t p)
 {
   chan_t c;
-  uint32_t id;
+  unsigned long id;
   char hexid[9], *type;
   if(!from || !p) return NULL;
 
@@ -57,7 +56,7 @@ chan_t chan_in(switch_t s, hn_t from, packet_t p)
   from->chanIn = id - 2; // allow one out of order sequence
 
   c = malloc(sizeof (struct chan_struct));
-  bzero(c,sizeof (struct chan_struct));
+  memset(c,0,sizeof (struct chan_struct));
   c->type = strdup(type);
   c->s = s;
   c->to = from;

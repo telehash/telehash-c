@@ -1,6 +1,5 @@
 #include "bucket.h"
 #include <string.h>
-#include <strings.h>
 #include <stdlib.h>
 #include "packet.h"
 #include "util.h"
@@ -8,7 +7,7 @@
 bucket_t bucket_new()
 {
   bucket_t b = malloc(sizeof (struct bucket_struct));
-  bzero(b,sizeof (struct bucket_struct));
+  memset(b,0,sizeof (struct bucket_struct));
   b->hns = malloc(sizeof (hn_t));
   b->hns[0] = NULL;
   return b;

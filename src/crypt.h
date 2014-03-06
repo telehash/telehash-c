@@ -6,7 +6,7 @@
 typedef struct crypt_struct
 {
   char csidHex[3], *part;
-  int private, lined, keylen;
+  int isprivate, lined, keylen;
   unsigned long atOut, atIn;
   unsigned char lineOut[16], lineIn[16], lineHex[33];
   unsigned char *key, csid;

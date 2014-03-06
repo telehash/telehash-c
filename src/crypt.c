@@ -1,5 +1,4 @@
 #include <stdlib.h>
-#include <strings.h>
 #include <string.h>
 #include <stdio.h>
 #include "crypt.h"
@@ -10,7 +9,7 @@ int crypt_init()
   int ret = -1;
   int i = 0;
   crypt_supported = malloc(8);
-  bzero(crypt_supported,8);
+  memset(crypt_supported,0,8);
 #ifdef CS_1a
   ret = crypt_init_1a();
   if(ret) return ret;
@@ -36,7 +35,7 @@ crypt_t crypt_new(char csid, unsigned char *key, int len)
 
   if(!csid || !key || !len) return NULL;
   c = malloc(sizeof (struct crypt_struct));
-  bzero(c, sizeof (struct crypt_struct));
+  memset(c, 0, sizeof (struct crypt_struct));
   c->csid = csid;
   sprintf(c->csidHex,"%02x",csid);
   crypt_rand(c->lineOut,16);
@@ -97,7 +96,7 @@ int crypt_private(crypt_t c, unsigned char *key, int len)
 {
   int ret;
   if(!c) return 1;
-  if(c->private) return 0; // already loaded
+  if(c->isprivate) return 0; // already loaded
 
 #ifdef CS_1a
   if(c->csid == 0x1a && (ret = crypt_private_1a(c,key,len))) return ret;
@@ -109,7 +108,7 @@ int crypt_private(crypt_t c, unsigned char *key, int len)
   if(c->csid == 0x3a && (ret = crypt_private_3a(c,key,len))) return ret;
 #endif
   
-  c->private = 1;
+  c->isprivate = 1;
   return 0;
 }
 

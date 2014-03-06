@@ -1,6 +1,5 @@
 #include "hn.h"
 #include <string.h>
-#include <strings.h>
 #include <stdlib.h>
 #include "packet.h"
 #include "crypt.h"
@@ -29,7 +28,7 @@ hn_t hn_get(xht_t index, unsigned char *bin)
 
   // init new hashname container
   hn = malloc(sizeof (struct hn_struct));
-  bzero(hn,sizeof (struct hn_struct));
+  memset(hn,0,sizeof (struct hn_struct));
   memcpy(hn->hashname, bin, 32);
   memcpy(hn->hexname, hex, 65);
   xht_set(index, (const char*)hn->hexname, (void*)hn);
