@@ -193,7 +193,7 @@ path_t hn_path(hn_t hn, path_t p)
   if(ret)
   {
     hn->last = ret;
-    ret->atIn = time(0);    
+    ret->atIn = platform_seconds();    
   }
 
   return ret;

@@ -1,6 +1,7 @@
 #ifndef util_h
 #define util_h
 
+#include "platform.h"
 #include "packet.h"
 
 packet_t util_file2packet(char *file);

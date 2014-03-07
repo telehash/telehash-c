@@ -15,7 +15,7 @@ typedef struct hn_struct
   path_t *paths, last;
   xht_t chans;
   packet_t onopen, parts;
-  time_t sentOpen;
+  unsigned long sentOpen;
 } *hn_t;
 
 // fetch/create matching hn (binary or hex)

@@ -139,9 +139,9 @@ int path_match(path_t p1, path_t p2)
 
 int path_alive(path_t p)
 {
-  time_t now;
+  unsigned long now;
   if(!p) return 0;
-  now = time(0);
+  now = platform_seconds();
   if((now - p->atIn) < 60) return 1;
   return 0;
 }

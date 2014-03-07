@@ -133,7 +133,7 @@ void switch_sendingQ(switch_t s, packet_t p)
   }
 
   // update stats
-  p->out->atOut = time(0);
+  p->out->atOut = platform_seconds();
 
   // add to the end of the queue
   if(s->last)
@@ -149,12 +149,12 @@ void switch_sendingQ(switch_t s, packet_t p)
 void switch_open(switch_t s, hn_t to, path_t direct)
 {
   packet_t open, inner;
-  time_t now;
+  unsigned long now;
 
   if(!to || !to->c) return;
 
   // don't send too frequently
-  now = time(0);
+  now = platform_seconds();
   if(now - to->sentOpen < 2) return;
   to->sentOpen = now;
 

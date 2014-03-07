@@ -40,7 +40,7 @@ crypt_t crypt_new(char csid, unsigned char *key, int len)
   sprintf(c->csidHex,"%02x",csid);
   crypt_rand(c->lineOut,16);
   util_hex(c->lineOut,16,c->lineHex);
-  c->atOut = (unsigned long)time(0);
+  c->atOut = platform_seconds();
 
 #ifdef CS_1a
   if(csid == 0x1a) err = crypt_new_1a(c, key, len);
