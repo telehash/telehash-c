@@ -1,6 +1,6 @@
-SOURCES:=$(shell find src -type f)
+SOURCES:=$(shell find lib -type f)
 JS0N = ../js0n/js0n.c ../js0n/j0g.c -I../js0n
-LTOM = -ltomcrypt -ltommath -DLTM_DESC -DCS_2a
+LTOM = unix/crypt_libtom*.c -ltomcrypt -ltommath -DLTM_DESC -DCS_2a
 FLAG = -I./lib -I./ext
 
 all: test apps
@@ -8,7 +8,6 @@ all: test apps
 apps: $(SOURCES)
 	gcc -Wall -g -o seed/seed seed/*.c lib/*.c ext/*.c $(JS0N) $(LTOM) $(FLAG)	
 	gcc -Wall -g -o util/idgen util/idgen.c lib/crypt*.c lib/packet.c lib/util.c $(JS0N) $(LTOM) $(FLAG)
-	gcc -Wall -g -o util/openize util/openize.c $(LTOM) $(JS0N)
 	gcc -Wall -g -o test/ping test/ping.c lib/*.c ext/*.c $(JS0N) $(LTOM) $(FLAG)
 
 test: $(SOURCES)
@@ -16,5 +15,5 @@ test: $(SOURCES)
 #	gcc -Wall -g -o test/misc test/misc.c lib/*.c $(JS0N) $(LTOM) $(FLAG)
 
 clean:
-	rm -f test/crypt test/ping test/misc util/idgen util/openize seed/seed
+	rm -f test/crypt test/ping test/misc util/idgen seed/seed
 	
