@@ -1,6 +1,5 @@
 #include "xht.h"
 #include <string.h>
-#include <strings.h>
 #include <stdlib.h>
 
 typedef struct xhn_struct

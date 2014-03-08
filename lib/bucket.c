@@ -35,33 +35,4 @@ hn_t bucket_get(bucket_t b, int index)
   return b->hns[index];
 }
 
-bucket_t bucket_load(xht_t index, char *file)
-{
-  packet_t p, p2;
-  hn_t hn;
-  bucket_t b = NULL;
-  int i;
 
-  p = util_file2packet(file);
-  if(!p) return b;
-  if(*p->json != '{')
-  {
-    packet_free(p);
-    return b;
-  }
-
-  // check each value, since js0n is key,len,value,len,key,len,value,len for objects
-	for(i=0;p->js[i];i+=4)
-	{
-    p2 = packet_new();
-    packet_json(p2, p->json+p->js[i+2], p->js[i+3]);
-    hn = hn_fromjson(index, p2);
-    packet_free(p2);
-    if(!hn) continue;
-    if(!b) b = bucket_new();
-    bucket_add(b, hn);
-	}
-
-  packet_free(p);
-  return b;
-}

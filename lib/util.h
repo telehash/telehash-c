@@ -4,7 +4,6 @@
 #include "platform.h"
 #include "packet.h"
 
-packet_t util_file2packet(char *file);
 // make sure out is 2*len + 1
 unsigned char *util_hex(unsigned char *in, int len, unsigned char *out);
 // out must be len/2

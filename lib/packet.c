@@ -2,10 +2,10 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <arpa/inet.h>
 #include "js0n.h"
 #include "j0g.h"
 #include "hn.h"
+#include "platform.h"
 
 packet_t packet_new()
 {
@@ -54,7 +54,7 @@ packet_t packet_parse(unsigned char *raw, unsigned short len)
   // make sure is at least size valid
   if(!raw || len < 2) return NULL;
   memcpy(&nlen,raw,2);
-  jlen = ntohs(nlen);
+  jlen = platform_short(nlen);
   if(jlen > len-2) return NULL;
 
   // copy in and update pointers
@@ -95,7 +95,7 @@ int packet_json(packet_t p, unsigned char *json, unsigned short len)
   // copy in new json
   memcpy(p->json,json,len);
   p->json_len = len;
-  nlen = htons(len);
+  nlen = platform_short(len);
   memcpy(p->raw,&nlen,2);
   free(p->jsoncp);
   p->jsoncp = NULL;

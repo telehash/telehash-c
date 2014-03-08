@@ -5,6 +5,7 @@ extern "C" {
 #include "./sha256.h"
 #include "./sha1.h"
 #include "./hmac.h"
+#include "js0n.h"
 #include "switch.h"
 }
 
