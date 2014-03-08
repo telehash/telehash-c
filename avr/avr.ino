@@ -44,7 +44,7 @@ void vli_print(uint8_t *p_vli, unsigned int p_size)
 void setup() {
 }
 
-int etest(int loops)
+int ecc_test(int loops)
 {
     int i;
     
@@ -113,33 +113,56 @@ int etest(int loops)
     return 0;
 }
 
-int atest()
+int aes_test()
 {
   aes_context ctx;
-  char key[16];
+  unsigned char key[16], data[6],iv[16],block[16];
+  size_t off = 0;
+  memcpy(key,"1234567812345678",16);
+  memset(iv,0,16);
+  memcpy(data,"foobar",6);
   aes_setkey_enc(&ctx,(unsigned char*)key,16);
+  aes_crypt_ctr(&ctx,6,&off,iv,block,data,data);
+  sp("aes ");
+  vli_print(data,6);
+  speol();
 }
 
-int s2test()
+int sha256_test()
 {
-  sha256_ctx_t ctx;
-  sha256_hash_t h;
-  sha256_init(&ctx);
+  unsigned char hash[SHA256_HASH_BYTES];
+  sha256((uint8_t (*)[32])hash,"foo",3);
+  sp("sha256 ");
+  vli_print(hash,SHA256_HASH_BYTES);
+  speol();
 }
 
-int s1test()
+int sha1_test()
 {
-  hmac_sha1_ctx_t ctx;
-  hmac_sha1_init(&ctx,"foo",3);
+  unsigned char hash[SHA1_HASH_BYTES];
+  sha1(hash,"foo",3);
+  sp("sha1 ");
+  vli_print(hash,SHA1_HASH_BYTES);
+  speol();
+}
+
+int hmac_test()
+{
+  unsigned char hmac[HMAC_SHA1_BYTES];
+  hmac_sha1(hmac,"foo",3,"bar",3);
+  sp("hmac ");
+  vli_print(hmac,HMAC_SHA1_BYTES);
+  speol();
 }
 
 void loop() {
   long start = millis();
-  atest();
-  s1test();
-  s2test();
+  aes_test();
+  sha1_test();
+  hmac_test();
+  sha256_test();
   sp(millis() - start);
-  etest(5);
+  ecc_test(5);
   speol();
 }
 
