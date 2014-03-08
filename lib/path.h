@@ -1,8 +1,6 @@
 #ifndef path_h
 #define path_h
 
-#include <sys/socket.h>
-#include <arpa/inet.h>
 
 typedef struct path_struct
 {
@@ -11,7 +9,6 @@ typedef struct path_struct
   char *id;
   char ip[46];
   int port;
-  struct	sockaddr_in sa;
   unsigned long atIn, atOut;
 } *path_t;
 

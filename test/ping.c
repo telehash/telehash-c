@@ -7,6 +7,7 @@
 #include "switch.h"
 #include "util.h"
 #include "ext.h"
+#include "util_unix.h"
 
 int main(void)
 {
@@ -17,7 +18,7 @@ int main(void)
   packet_t p;
   path_t from;
   int sock, len, blen;
-  struct	sockaddr_in sad;
+  struct	sockaddr_in sad, sa;
 
   crypt_init();
   s = switch_new();
@@ -44,7 +45,8 @@ int main(void)
 	  return -1;
   }
   memset((char *)&sad,0,sizeof(sad));
-  sad.sin_family = AF_INET;
+  memset((char *)&sa,0,sizeof(sa));
+  sa.sin_family = sad.sin_family = AF_INET;
   sad.sin_port = htons(0);
   sad.sin_addr.s_addr = htonl(INADDR_ANY);
   if (bind (sock, (struct sockaddr *)&sad, sizeof(sad)) < 0)
@@ -67,7 +69,8 @@ int main(void)
       continue;
     }
     printf("sending packet %d %.*s %s\n",packet_len(p),p->json_len,p->json,path_json(p->out));
-    if(sendto(sock, packet_raw(p), packet_len(p), 0, (struct sockaddr *)&(p->out->sa), sizeof(p->out->sa))==-1)
+    path2sa(p->out, &sa);
+    if(sendto(sock, packet_raw(p), packet_len(p), 0, (struct sockaddr *)&sa, sizeof(sa))==-1)
     {
   	  printf("sendto failed\n");
   	  return -1;
@@ -76,13 +79,13 @@ int main(void)
   }
   
   from = path_new("ipv4");
-  len = sizeof(from->sa);
-  if ((blen = recvfrom(sock, buf, sizeof(buf), 0, (struct sockaddr *)&from->sa, (socklen_t *)&len)) == -1)
+  len = sizeof(sa);
+  if ((blen = recvfrom(sock, buf, sizeof(buf), 0, (struct sockaddr *)&sa, (socklen_t *)&len)) == -1)
   {
 	  printf("recvfrom failed\n");
 	  return -1;
   }
-  path_sa(from); // inits ip/port from sa
+  sa2path(&sa, from); // inits ip/port from sa
   p = packet_parse(buf,blen);
   printf("Received packet from %s len %d data: %.*s\n", path_json(from), blen, p->json_len, p->json);
   switch_receive(s,p,from);
@@ -95,7 +98,8 @@ int main(void)
       continue;
     }
     printf("sending packet %d %.*s %s\n",packet_len(p),p->json_len,p->json,path_json(p->out));
-    if(sendto(sock, packet_raw(p), packet_len(p), 0, (struct sockaddr *)&(p->out->sa), sizeof(p->out->sa))==-1)
+    path2sa(p->out, &sa);
+    if(sendto(sock, packet_raw(p), packet_len(p), 0, (struct sockaddr *)&sa, sizeof(sa))==-1)
     {
   	  printf("sendto failed\n");
   	  return -1;
@@ -104,10 +108,10 @@ int main(void)
   }
 
   from = path_new("ipv4");
-  len = sizeof(from->sa);
-  while((blen = recvfrom(sock, buf, sizeof(buf), 0, (struct sockaddr *)&from->sa, (socklen_t *)&len)) != -1)
+  len = sizeof(sa);
+  while((blen = recvfrom(sock, buf, sizeof(buf), 0, (struct sockaddr *)&sa, (socklen_t *)&len)) != -1)
   {
-    path_sa(from); // inits ip/port from sa
+    sa2path(&sa, from); // inits ip/port from sa
     p = packet_parse(buf,blen);
     printf("Received packet from %s len %d data: %.*s\n", path_json(from), blen, p->json_len, p->json);
     switch_receive(s,p,from);

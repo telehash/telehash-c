@@ -1,18 +1,15 @@
-#include <SPI.h>
-#include <Wire.h>
-#include <Scout.h>
-#include <GS.h>
-#include <bitlash.h>
-#include <lwm.h>
-#include <js0n.h>
 
 extern "C" {
-#include "ecc.h"
+#include "./ecc.h"
 #include "./aes.h"
 #include "./sha256.h"
 #include "./sha1.h"
 #include "./hmac.h"
+#include "switch.h"
 }
+
+#define sp Serial.print
+#define speol Serial.println
 
 /* scratch
 typedef struct sockaddr_in {};
@@ -44,7 +41,6 @@ void vli_print(uint8_t *p_vli, unsigned int p_size)
 
 
 void setup() {
-  Scout.setup();
 }
 
 int etest(int loops)
@@ -137,7 +133,6 @@ int s1test()
 }
 
 void loop() {
-  Scout.loop();
   long start = millis();
   atest();
   s1test();
