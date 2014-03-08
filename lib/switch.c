@@ -26,7 +26,7 @@ crypt_t loadkey(char csid, switch_t s, packet_t keys)
 
   util_hex((unsigned char*)&csid,1,(unsigned char*)hex);
   pk = packet_get_str(keys,hex);
-  memcpy(hex+2,"_secret",7);
+  strcpy(hex+2,"_secret");
   sk = packet_get_str(keys,hex);
   if(!pk || !sk) return NULL;
   c = crypt_new(csid, (unsigned char*)pk, strlen(pk));
