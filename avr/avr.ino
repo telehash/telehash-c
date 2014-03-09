@@ -6,6 +6,7 @@ extern "C" {
 #include "./sha1.h"
 #include "./hmac.h"
 #include "js0n.h"
+#define CS_1a
 #include "switch.h"
 }
 
@@ -42,6 +43,7 @@ void vli_print(uint8_t *p_vli, unsigned int p_size)
 
 
 void setup() {
+  crypt_init();
 }
 
 int ecc_test(int loops)
@@ -155,8 +157,17 @@ int hmac_test()
   speol();
 }
 
+int keygen()
+{
+  packet_t keys = packet_new();
+  crypt_keygen(0x1a,keys);
+  Serial.write(keys->json,keys->json_len);
+  speol();
+}
+
 void loop() {
   long start = millis();
+  keygen();
   aes_test();
   sha1_test();
   hmac_test();

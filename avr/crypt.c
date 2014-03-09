@@ -19,6 +19,6 @@ unsigned char *crypt_hash(unsigned char *input, unsigned long len, unsigned char
 
 char *crypt_err()
 {
-  return NULL;
+  return 0;
 }
 
