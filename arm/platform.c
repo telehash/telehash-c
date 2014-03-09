@@ -2,6 +2,12 @@
 #include <stdlib.h>
 #include <time.h>
 
+unsigned short platform_short(unsigned short x)
+{
+   return ( ((x)<<8) | (((x)>>8)&0xFF) );
+}
+
+
 unsigned long millis(void)
 {
     struct timespec ts;
