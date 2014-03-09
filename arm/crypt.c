@@ -6,13 +6,12 @@
 #include "util.h"
 #include "platform.h"
 
-
 unsigned char *crypt_rand(unsigned char *s, int len)
 {
-FILE *fp;
-fp = fopen("/dev/urandom", "r");
-fread(&s, 1, len, fp);
-fclose(fp);
+  FILE *fp;
+  fp = fopen("/dev/urandom", "r");
+  fread(&s, 1, len, fp);
+  fclose(fp);
   return s;
 }
 
@@ -27,19 +26,17 @@ char *crypt_err()
   return 0;
 }
 
-
-
 int crypt_init()
 {
   int ret = -1;
   int i = 0;
   crypt_supported = malloc(8);
   memset(crypt_supported,0,8);
-//#ifdef CS_1a
+#ifdef CS_1a
   ret = crypt_init_1a();
   if(ret) return ret;
   crypt_supported[i++] = 0x1a;
-//#endif
+#endif
 #ifdef CS_2a
   ret = crypt_init_2a();
   if(ret) return ret;
@@ -102,14 +99,12 @@ void crypt_free(crypt_t c)
 
 int crypt_keygen(char csid, packet_t p)
 {
-  printf("inside crypt_keygen\n");
   if(!p) return 1;
 
-//#ifdef CS_1a
-  printf("inside CS_1a\n");
+#ifndef CS_1a
   if(csid == 0x1a) return crypt_keygen_1a(p);
-//#endif
-/* #ifdef CS_2a
+#endif
+#ifdef CS_2a
  printf("inside CS_2a\n");
 
   if(csid == 0x2a) return crypt_keygen_2a(p);
@@ -118,8 +113,7 @@ int crypt_keygen(char csid, packet_t p)
  printf("inside CS_3a\n");
 
   if(csid == 0x3a) return crypt_keygen_3a(p);
-#endif */
-printf("leaving crypt_keygen\n");
+#endif 
 
   return 1;
 }
