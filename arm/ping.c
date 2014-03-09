@@ -7,6 +7,9 @@
 #include "switch.h"
 #include "util.h"
 #include "ext.h"
+#include "path.h"
+#include "util_unix.h"
+
 
 int main(void)
 {
