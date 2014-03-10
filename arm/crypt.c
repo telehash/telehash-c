@@ -31,9 +31,11 @@ int crypt_init()
 
   int ret = -1;
   int i = 0;
+  printf("*** inside crypt_init() ***\n");
   crypt_supported = malloc(8);
   memset(crypt_supported,0,8);
 #ifdef CS_1a
+  printf("*** inside CS_1a ***\n");
   ret = crypt_init_1a();
   if(ret) return ret;
   crypt_supported[i++] = 0x1a;
