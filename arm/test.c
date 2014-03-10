@@ -3,8 +3,6 @@
 #include <stdint.h>
 #include "platform.h"
 
-#define CS_1a 1
-
 #include "crypt.h"
 #include "crypt_1a.h"
 #include "ecc.h"

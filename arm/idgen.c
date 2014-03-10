@@ -6,6 +6,8 @@
 #include "crypt.h"
 #include "packet.h"
 
+#include "platform.h"
+
 int main(int argc, char *argv[])
 {
   packet_t keys;
@@ -18,7 +20,13 @@ int main(int argc, char *argv[])
   }
   crypt_init();
   keys = packet_new();
+#ifdef CS_1a
   crypt_keygen(0x1a,keys);
+#elif CS_2a
+  crypt_keygen(0x2a,keys);
+#elif CS_3a
+  crypt_keygen(0x3a,keys);
+#endif
   if(argc==1)
     fdout = fopen("id.json","wb");
   else

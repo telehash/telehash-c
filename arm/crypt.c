@@ -28,6 +28,7 @@ char *crypt_err()
 
 int crypt_init()
 {
+
   int ret = -1;
   int i = 0;
   crypt_supported = malloc(8);
@@ -47,6 +48,7 @@ int crypt_init()
   if(ret) return ret;
   crypt_supported[i++] = 0x3a;
 #endif
+	printf("*** crypt_init() %d\n ***");
   return ret;
 }
 

@@ -1,9 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-
 #include <time.h>
-
 #include "platform.h"
 
 #include "ecc.h"
@@ -12,7 +10,6 @@
 #include "sha1.h"
 #include "hmac.h"
 #include "js0n.h"
-#include "switch.h"
 
 /* scratch
 typedef struct sockaddr_in {};
