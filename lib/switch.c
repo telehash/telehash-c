@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "util.h"
+#include <stdio.h>
 
 // a prime number for the internal hashtable used to track all active hashnames/lines
 #define MAXPRIME 4211
@@ -24,8 +25,10 @@ crypt_t loadkey(char csid, switch_t s, packet_t keys)
   char hex[12], *pk, *sk;
   crypt_t c;
 
+  printf("*** inside loadkey() ***\n");
   util_hex((unsigned char*)&csid,1,(unsigned char*)hex);
   pk = packet_get_str(keys,hex);
+  printf("*** public key %s ***\n",pk);
   strcpy(hex+2,"_secret");
   sk = packet_get_str(keys,hex);
   if(!pk || !sk) return NULL;
@@ -39,25 +42,33 @@ crypt_t loadkey(char csid, switch_t s, packet_t keys)
   
   xht_set(s->index,(const char*)c->csidHex,(void *)c);
   packet_set_str(s->parts,c->csidHex,c->part);
+  printf("*** before return c ***\n");
   return c;
 }
 
 int switch_init(switch_t s, packet_t keys)
 {
+
+  printf("*** inside switch_init() ***\n");
   char *csid = crypt_supported;
   if(!keys) return 1;
-
+  
+  printf("*** inside switch_init() before the while ***\n");
   while(*csid)
   {
+    printf("*** inside the while ***\n");
     loadkey(*csid,s,keys);
     csid++;
   }
   
   packet_free(keys);
-
+  printf("*** after the while ***\n");
   if(!s->parts->json) return 1;
+  printf("*** after s->parts->json ***\n");
   s->id = hn_getparts(s->index, s->parts);
+  printf("*** after s->id ***");
   if(!s->id) return 1;
+  printf("*** before the return 0 ***\n");
   return 0;
 }
 

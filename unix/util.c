@@ -36,6 +36,7 @@ packet_t util_file2packet(char *file)
   
   p = packet_new();
   packet_json(p, buf, len);
+  printf("*** about to return from util_file2packet()\n");
   return p;
 }
 
