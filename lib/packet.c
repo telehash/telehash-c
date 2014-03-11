@@ -2,10 +2,10 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
 #include "js0n.h"
 #include "j0g.h"
 #include "hn.h"
-#include "platform.h"
 
 packet_t packet_new()
 {
@@ -200,7 +200,9 @@ char *packet_j0g(packet_t p)
 
 char *packet_get_str(packet_t p, char *key)
 {
+  printf("*** inside packet_get_str ***\n");
   if(!p || !key) return NULL;
+  printf("*** before j0g ***\n");
   return j0g_str(key, packet_j0g(p), p->js);
 }
 
