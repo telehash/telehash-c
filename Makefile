@@ -1,20 +1,22 @@
-SOURCES:=$(shell find lib -type f)
-JS0N = ../js0n/js0n.c ../js0n/j0g.c -I../js0n
-LTOM = unix/crypt_libtom*.c -ltomcrypt -ltommath -DLTM_DESC -DCS_2a
-FLAG = -I./lib -I./ext -I./unix
-UNIX = -I./unix unix/platform.c unix/util.c
+CC=gcc
+ARCH=arm
+CFLAGS+=-DCS_1a
+INCLUDE+=-I$(ARCH) -Iunix -Ilib -Iext -I../js0n
+LIBS+=-lrt
+all: test idgen ping seed
 
-all: test apps
+test:
+	$(CC) $(CFLAGS) -o bin/test util/test.c ../js0n/js0n.c ../js0n/j0g.c lib/packet.c lib/util.c $(ARCH)/*.c $(INCLUDE) $(LIBS)
 
-apps: $(SOURCES)
-	gcc -Wall -g -o seed/seed seed/*.c lib/*.c ext/*.c $(UNIX) $(JS0N) $(LTOM) $(FLAG)	
-	gcc -Wall -g -o util/idgen util/idgen.c lib/crypt*.c lib/packet.c lib/util.c unix/platform.c $(JS0N) $(LTOM) $(FLAG)
-	gcc -Wall -g -o test/ping test/ping.c lib/*.c ext/*.c $(UNIX) $(JS0N) $(LTOM) $(FLAG)
+idgen:
+	$(CC) $(CFLAGS) -o bin/idgen util/idgen.c ../js0n/js0n.c ../js0n/j0g.c lib/packet.c lib/util.c $(ARCH)/*.c $(INCLUDE) $(LIBS)
 
-test: $(SOURCES)
-#	gcc -w -o test/crypt test/crypt.c $(LTOM) $(FLAG)
-#	gcc -Wall -g -o test/misc test/misc.c lib/*.c $(JS0N) $(LTOM) $(FLAG)
+ping:
+	$(CC) $(CFLAGS) -o bin/ping util/ping.c ../js0n/js0n.c ../js0n/j0g.c lib/packet.c lib/util.c $(ARCH)/*.c unix/util.c lib/switch.c lib/bucket.c lib/chan.c lib/path.c lib/hn.c lib/xht.c $(INCLUDE) $(LIBS)
 
+seed:
+	$(CC) $(CFLAGS) -o bin/seed util/seed.c ../js0n/js0n.c ../js0n/j0g.c lib/packet.c lib/util.c $(ARCH)/*.c unix/util.c lib/switch.c lib/bucket.c lib/chan.c lib/path.c lib/hn.c lib/xht.c ext/seek.c ext/path.c $(INCLUDE) $(LIBS)
+ 
 clean:
-	rm -f test/crypt test/ping test/misc util/idgen seed/seed
-	
+	rm -f bin/*
+	rm -f id.json

@@ -3,21 +3,8 @@ telehash tools library in c
 
 This is a growing set of tools for working with telehash in c.
 
-It depends on ../[js0n](https://github.com/quartzjer/js0n)/* and [tomscrypt](http://github.com/libtom/libtomcrypt).
-
-Testing tips:
-
-```
-git clone https://github.com/quartzjer/telehash-c.git
+relies on js0n.
 git clone https://github.com/quartzjer/js0n.git
-git clone https://github.com/libtom/libtommath.git
-git clone https://github.com/libtom/libtomcrypt.git
-cd libtommath && sudo make install
-cd libtomcrypt && CFLAGS="-DLTM_DESC -DUSE_LTM" EXTRALIBS=-ltommath sudo make install
-cd telehash-c && make
-```
-
-There will be warnings, but it should all produce a ./test and ./idgen command (for now).
 
 ### Code Components
 

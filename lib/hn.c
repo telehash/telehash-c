@@ -113,6 +113,9 @@ hn_t hn_getparts(xht_t index, packet_t p)
 hn_t hn_frompacket(xht_t index, packet_t p)
 {
   hn_t hn = NULL;
+#ifdef DEBUG
+  printf("*** inside hn_frompacket() ***\n");
+#endif
   if(!p) return NULL;
   
   // get/gen the hashname
@@ -125,7 +128,9 @@ hn_t hn_frompacket(xht_t index, packet_t p)
     hn->c = crypt_new(hn->csid, p->body, p->body_len);
     if(!hn->c) return NULL;
   }
-
+#ifdef DEBUG
+  printf("*** leaving hn_frompacket() ***\n");
+#endif
   return hn;
 }
 
