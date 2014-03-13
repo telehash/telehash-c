@@ -28,6 +28,7 @@ int RNG(uint8_t *p_dest, unsigned p_size)
 int crypt_init_1a()
 {
   ecc_set_rng(&RNG);
+  return 0;
 }
 
 int crypt_new_1a(crypt_t c, unsigned char *key, int len)

@@ -1,10 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <sys/time.h>
 #include "platform.h"
 
 #include "crypt.h"
-#include "crypt_1a.h"
 #include "ecc.h"
 #include "aes.h"
 #include "sha256.h"
@@ -13,12 +13,13 @@
 #include "js0n.h"
 #include "switch.h"
 
-/* scratch
-typedef struct sockaddr_in {};
-#define time_t long
-#define time(x) millis()
 
-*/
+double timer()
+{
+  struct timeval  tv;
+  gettimeofday(&tv, NULL);
+  return (tv.tv_sec) * 1000 + (tv.tv_usec) / 1000 ; 
+}
 
 void vli_print(uint8_t *p_vli, unsigned int p_size)
 {
@@ -48,39 +49,37 @@ int ecc_test(int loops)
     
     uint8_t l_secret1[ECC_BYTES];
     uint8_t l_secret2[ECC_BYTES];
-
-    ecc_set_rng(&RNG);
     
     printf("Testing random private key pairs\n");
 
     for(i=0; i<loops; ++i)
     {
-        long a = millis();
+        double a = timer();
         ecc_make_key(l_public1, l_private1);
-        printf("%lu",millis()-a);
+        printf("%f",timer()-a);
         printf(" gen\n");
-        a = millis();
+        a = timer();
         ecc_make_key(l_public2, l_private2);
-        printf("%lu",millis()-a);
+        printf("%f",timer()-a);
         printf(" gen\n");
 
 
-        a = millis();
+        a = timer();
         if(!ecdh_shared_secret(l_public2, l_private1, l_secret1))
         {
             printf("shared_secret() failed (1)\n");
             return 1;
         }
-        printf("%lu",millis()-a);
+        printf("%f",timer()-a);
         printf(" dh\n");
 
-        a = millis();
+        a = timer();
         if(!ecdh_shared_secret(l_public1, l_private2, l_secret2))
         {
             printf("shared_secret() failed (2)\n");
             return 1;
         }
-        printf("%lu",millis()-a);
+        printf("%f",timer()-a);
         printf(" dh\n");
         
         if(memcmp(l_secret1, l_secret2, sizeof(l_secret1)) != 0)
@@ -105,7 +104,7 @@ int ecc_test(int loops)
     return 0;
 }
 
-int aes_test()
+void aes_test()
 {
   aes_context ctx;
   unsigned char key[16], data[6],iv[16],block[16];
@@ -120,7 +119,7 @@ int aes_test()
   printf("\n");
 }
 
-int sha256_test()
+void sha256_test()
 {
   unsigned char hash[SHA256_HASH_BYTES];
   sha256((uint8_t (*)[32])hash,"foo",3);
@@ -129,7 +128,7 @@ int sha256_test()
   printf("\n");
 }
 
-int sha1_test()
+void sha1_test()
 {
   unsigned char hash[SHA1_HASH_BYTES];
   sha1(hash,"foo",3);
@@ -138,7 +137,7 @@ int sha1_test()
   printf("\n");
 }
 
-int hmac_test()
+void hmac_test()
 {
   unsigned char hmac[HMAC_SHA1_BYTES];
   hmac_sha1(hmac,"foo",3,"bar",3);
@@ -147,7 +146,7 @@ int hmac_test()
   printf("\n");
 }
 
-int keygen()
+void keygen()
 {
   printf("keygen ");
 
@@ -158,13 +157,13 @@ int keygen()
 }
 
 int main() {
-  long start = millis();
+  long start = timer();
   keygen();
   aes_test();
   sha1_test();
   hmac_test();
   sha256_test();
-  printf("Time taken to complete keygen(), aes_test(), sha1_test(), hmac_test() & sha256_test()=%lu\n", millis() - start);
+  printf("Time taken to complete keygen(), aes_test(), sha1_test(), hmac_test() & sha256_test()=%f\n", timer() - start);
   ecc_test(5);
   DEBUG_PRINTF(("test\n"));
   printf("\n");

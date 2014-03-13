@@ -1,11 +1,11 @@
 CC=gcc
 CFLAGS+=-DCS_1a
 INCLUDE+=-Ix86 -Iunix -Ilib -Iext -I../js0n
-LIBS+=-lrt
+LIBS+=
 all: test idgen ping seed
 
 test:
-	$(CC) $(CFLAGS) -o bin/test.x86 util/test.c ../js0n/js0n.c ../js0n/j0g.c lib/packet.c lib/util.c x86/*.c $(INCLUDE) $(LIBS)
+	$(CC) $(CFLAGS) -o bin/test util/test.c ../js0n/js0n.c ../js0n/j0g.c lib/packet.c lib/util.c x86/*.c $(INCLUDE) $(LIBS)
 
 idgen:
 	$(CC) $(CFLAGS) -o bin/idgen util/idgen.c ../js0n/js0n.c ../js0n/j0g.c lib/packet.c lib/util.c x86/*.c $(INCLUDE) $(LIBS)
