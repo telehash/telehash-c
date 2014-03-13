@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS+=-DCS_1a
+CFLAGS+=-DCS_1a -g -Wall
 INCLUDE+=-Ix86 -Iunix -Ilib -Iext -I../js0n
 LIBS+=
 all: test idgen ping seed
@@ -11,10 +11,10 @@ idgen:
 	$(CC) $(CFLAGS) -o bin/idgen util/idgen.c ../js0n/js0n.c ../js0n/j0g.c lib/packet.c lib/crypt.c lib/util.c x86/*.c $(INCLUDE) $(LIBS)
 
 ping:
-	$(CC) $(CFLAGS) -o bin/ping util/ping.c ../js0n/js0n.c ../js0n/j0g.c lib/packet.c lib/util.c x86/*.c unix/util.c lib/switch.c lib/bucket.c lib/chan.c lib/path.c lib/hn.c lib/xht.c $(INCLUDE) $(LIBS)
+	$(CC) $(CFLAGS) -o bin/ping util/ping.c ../js0n/js0n.c ../js0n/j0g.c lib/*.c x86/*.c unix/util.c $(INCLUDE) $(LIBS)
 
 seed:
-	$(CC) $(CFLAGS) -o bin/seed util/seed.c ../js0n/js0n.c ../js0n/j0g.c lib/packet.c lib/util.c x86/*.c unix/util.c lib/switch.c lib/bucket.c lib/chan.c lib/path.c lib/hn.c lib/xht.c ext/seek.c ext/path.c $(INCLUDE) $(LIBS)
+	$(CC) $(CFLAGS) -o bin/seed util/seed.c ../js0n/js0n.c ../js0n/j0g.c lib/*.c x86/*.c unix/util.c ext/seek.c ext/path.c $(INCLUDE) $(LIBS)
  
 clean:
 	rm -f bin/*
