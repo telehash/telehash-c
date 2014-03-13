@@ -91,8 +91,6 @@ int crypt_keygen_1a(packet_t p)
 
 int crypt_private_1a(crypt_t c, unsigned char *key, int len)
 {
-  unsigned long der_len = 4096;
-  unsigned char der[der_len];
   crypt_1a_t cs = (crypt_1a_t)c->cs;
   
   if(!key || len <= 0) return 1;
@@ -125,7 +123,7 @@ packet_t crypt_lineize_1a(crypt_t c, packet_t p)
   memcpy(iv+12,&(cs->seq),4);
   cs->seq++;
 
-  aes_setkey_enc(&ctx,cs->keyOut,16);
+  aes_setkey_enc(&ctx,cs->keyOut,128);
   aes_crypt_ctr(&ctx,packet_len(p),&off,iv,block,packet_raw(p),line->body+16+4+4);
 
   hmac_sha1(hmac,cs->keyOut,16,line->body+16+4,4+packet_len(p));
@@ -145,7 +143,7 @@ packet_t crypt_delineize_1a(crypt_t c, packet_t p)
   memset(iv,0,16);
   memcpy(iv+12,p->body+16+4,4);
 
-  aes_setkey_dec(&ctx,cs->keyIn,16);
+  aes_setkey_dec(&ctx,cs->keyIn,128);
   aes_crypt_ctr(&ctx,p->body_len-(16+4+4),&off,iv,block,p->body+16+4+4,p->body+16+4+4);
 
   hmac_sha1(hmac,cs->keyIn,16,p->body+16+4,p->body_len-(16+4));
@@ -208,9 +206,10 @@ packet_t crypt_openize_1a(crypt_t self, crypt_t c, packet_t inner)
   if(!ecdh_shared_secret(cs->id_public, cs->line_private, secret)) return packet_free(open);
   memset(iv,0,16);
   iv[15] = 1;
-
+  char buf[1024];
+  DEBUG_PRINTF("SECRET %s\n",util_hex(secret,16,buf));
   // encrypt the inner
-  aes_setkey_enc(&ctx,secret,16);
+  aes_setkey_enc(&ctx,secret,128);
   aes_crypt_ctr(&ctx,inner_len,&off,iv,block,packet_raw(inner),open->body+20+40);
 
   // generate secret for hmac
@@ -238,7 +237,7 @@ packet_t crypt_deopenize_1a(crypt_t self, packet_t open)
   iv[15] = 1;
 
   // decrypt the inner
-  aes_setkey_dec(&ctx,secret,16);
+  aes_setkey_dec(&ctx,secret,128);
   aes_crypt_ctr(&ctx,inner->body_len,&off,iv,block,open->body+20+40,inner->body);
 
   // load inner packet

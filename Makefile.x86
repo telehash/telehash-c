@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS+=-DCS_1a -g -Wall
+CFLAGS+=-DCS_1a -g -Wall -DDEBUG
 INCLUDE+=-Ix86 -Iunix -Ilib -Iext -I../js0n
 LIBS+=
 all: test idgen ping seed
