@@ -2,7 +2,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include "util.h"
-#include <stdio.h>
 
 // a prime number for the internal hashtable used to track all active hashnames/lines
 #define MAXPRIME 4211
@@ -26,14 +25,10 @@ crypt_t loadkey(char csid, switch_t s, packet_t keys)
   crypt_t c;
   util_hex((unsigned char*)&csid,1,(unsigned char*)hex);
   pk = packet_get_str(keys,hex);
-#ifdef DEBUG
-  printf("*** public key %s ***\n",pk);
-#endif
+  DEBUG_PRINTF("*** public key %s ***\n",pk);
   strcpy(hex+2,"_secret");
   sk = packet_get_str(keys,hex);
-#ifdef DEBUG
-  printf("*** secret key %s ***\n",sk);
-#endif
+  DEBUG_PRINTF("*** secret key %s ***\n",sk);
   if(!pk || !sk) return NULL;
   c = crypt_new(csid, (unsigned char*)pk, strlen(pk));
   if(!c) return NULL;
@@ -50,14 +45,14 @@ crypt_t loadkey(char csid, switch_t s, packet_t keys)
 int switch_init(switch_t s, packet_t keys)
 {
 
-//  char *csid = crypt_supported;
+  char *csid = crypt_supported;
   if(!keys) return 1;
   
-//  while(*csid)
-//  {
-    loadkey(0x1a,s,keys);
-//    csid++;
-//  }
+  while(*csid)
+  {
+    loadkey(*csid,s,keys);
+    csid++;
+  }
   
   packet_free(keys);
   if(!s->parts->json) return 1;

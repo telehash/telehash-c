@@ -1,21 +1,5 @@
-CC=gcc
-ARCH=arm
-CFLAGS+=-DCS_1a
-INCLUDE+=-I$(ARCH) -Iunix -Ilib -Iext -I../js0n
-LIBS+=-lrt
-all: test idgen ping seed
-
-test:
-	$(CC) $(CFLAGS) -o bin/test util/test.c ../js0n/js0n.c ../js0n/j0g.c lib/packet.c lib/util.c $(ARCH)/*.c $(INCLUDE) $(LIBS)
-
-idgen:
-	$(CC) $(CFLAGS) -o bin/idgen util/idgen.c ../js0n/js0n.c ../js0n/j0g.c lib/packet.c lib/util.c $(ARCH)/*.c $(INCLUDE) $(LIBS)
-
-ping:
-	$(CC) $(CFLAGS) -o bin/ping util/ping.c ../js0n/js0n.c ../js0n/j0g.c lib/packet.c lib/util.c $(ARCH)/*.c unix/util.c lib/switch.c lib/bucket.c lib/chan.c lib/path.c lib/hn.c lib/xht.c $(INCLUDE) $(LIBS)
-
-seed:
-	$(CC) $(CFLAGS) -o bin/seed util/seed.c ../js0n/js0n.c ../js0n/j0g.c lib/packet.c lib/util.c $(ARCH)/*.c unix/util.c lib/switch.c lib/bucket.c lib/chan.c lib/path.c lib/hn.c lib/xht.c ext/seek.c ext/path.c $(INCLUDE) $(LIBS)
+all:
+	@echo "use make -f Makefile.X where X is the platform you are building for"
  
 clean:
 	rm -f bin/*

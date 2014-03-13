@@ -5,5 +5,12 @@
 unsigned long platform_seconds();
 
 unsigned short platform_short(unsigned short x);
+
+#ifdef DEBUG
+#define DEBUG_PRINTF platform_debug
+#else
+#define DEBUG_PRINTF(...)
+#endif
+
   
 #endif

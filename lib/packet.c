@@ -6,6 +6,7 @@
 #include "js0n.h"
 #include "j0g.h"
 #include "hn.h"
+#include "platform.h"
 
 packet_t packet_new()
 {

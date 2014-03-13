@@ -31,8 +31,6 @@ int main(int argc, char *argv[])
   crypt_keygen(0x3a,keys);
 #endif
 
-  DEBUG_PRINTF(("*** keys=%s ***\n",keys->json));
-  DEBUG_PRINTF(("*** length=%d ***\n",keys->json_len));
   if(argc==1) {
     fdout = fopen("id.json","wb");
     printf("Writing keys to id.json\n");
