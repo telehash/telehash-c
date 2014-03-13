@@ -1,9 +1,1 @@
-test/crypt
-test/ping
-test/misc
-util/openize
-util/idgen
-seed/seed
-*.dSYM
-*.json
-.DS_Store
+id.json

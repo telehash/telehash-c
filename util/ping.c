@@ -8,6 +8,7 @@
 #include "util.h"
 #include "ext.h"
 #include "util_unix.h"
+#include "crypt.h"
 
 int main(void)
 {

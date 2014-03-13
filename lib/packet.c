@@ -2,10 +2,10 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
 #include "js0n.h"
 #include "j0g.h"
 #include "hn.h"
-#include "platform.h"
 
 packet_t packet_new()
 {
