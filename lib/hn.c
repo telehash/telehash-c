@@ -6,6 +6,11 @@
 #include "util.h"
 #include "chan.h"
 
+
+#ifdef DEBUG
+  #include <stdio.h>
+#endif
+
 void hn_free(hn_t hn)
 {
   if(!hn) return;
