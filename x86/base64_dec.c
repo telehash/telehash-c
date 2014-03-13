@@ -59,7 +59,7 @@ int ascii2bit6(char a){
 #else
 
 static
-uint8_t ascii2bit6(char a){
+int ascii2bit6(char a){
 	int r;
 	switch(a>>4){
 		case 0x5:
