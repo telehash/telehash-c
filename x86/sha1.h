@@ -1,118 +1,160 @@
-/* sha1.h */
-/*
-    This file is part of the ARM-Crypto-Lib.
-    Copyright (C) 2008  Daniel Otte (daniel.otte@rub.de)
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
 /**
- * \file	sha1.h
- * \author	Daniel Otte
- * \email   daniel.otte@rub.de
- * \date	2006-10-08
- * \license GPLv3 or later
- * \brief   SHA-1 declaration.
- * \ingroup SHA-1
- * 
+ * \file sha1.h
+ *
+ * \brief SHA-1 cryptographic hash function
+ *
+ *  Copyright (C) 2006-2013, Brainspark B.V.
+ *
+ *  This file is part of PolarSSL (http://www.polarssl.org)
+ *  Lead Maintainer: Paul Bakker <polarssl_maintainer at polarssl.org>
+ *
+ *  All rights reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
- 
-#ifndef SHA1_H_
-#define SHA1_H_
+#ifndef POLARSSL_SHA1_H
+#define POLARSSL_SHA1_H
 
-#include <stdint.h>
-/** \def SHA1_HASH_BITS
- * definees the size of a SHA-1 hash in bits 
+#include <string.h>
+
+#if defined(_MSC_VER) && !defined(EFIX64) && !defined(EFI32)
+#include <basetsd.h>
+typedef UINT32 uint32_t;
+#else
+#include <inttypes.h>
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/**
+ * \brief          SHA-1 context structure
  */
+typedef struct
+{
+    uint32_t total[2];          /*!< number of bytes processed  */
+    uint32_t state[5];          /*!< intermediate digest state  */
+    unsigned char buffer[64];   /*!< data block being processed */
 
-/** \def SHA1_HASH_BYTES
- * definees the size of a SHA-1 hash in bytes 
+    unsigned char ipad[64];     /*!< HMAC: inner padding        */
+    unsigned char opad[64];     /*!< HMAC: outer padding        */
+}
+sha1_context;
+
+/**
+ * \brief          SHA-1 context setup
+ *
+ * \param ctx      context to be initialized
  */
+void sha1_starts( sha1_context *ctx );
 
-/** \def SHA1_BLOCK_BITS
- * definees the size of a SHA-1 input block in bits 
+/**
+ * \brief          SHA-1 process buffer
+ *
+ * \param ctx      SHA-1 context
+ * \param input    buffer holding the  data
+ * \param ilen     length of the input data
  */
+void sha1_update( sha1_context *ctx, const unsigned char *input, size_t ilen );
 
-/** \def SHA1_BLOCK_BYTES
- * definees the size of a SHA-1 input block in bytes 
+/**
+ * \brief          SHA-1 final digest
+ *
+ * \param ctx      SHA-1 context
+ * \param output   SHA-1 checksum result
  */
-#define SHA1_HASH_BITS  160
-#define SHA1_HASH_BYTES (SHA1_HASH_BITS/8)
-#define SHA1_BLOCK_BITS 512
-#define SHA1_BLOCK_BYTES (SHA1_BLOCK_BITS/8)
+void sha1_finish( sha1_context *ctx, unsigned char output[20] );
 
-/** \typedef sha1_ctx_t
- * \brief SHA-1 context type
- * 
- * A vatiable of this type may hold the state of a SHA-1 hashing process
+/* Internal use */
+void sha1_process( sha1_context *ctx, const unsigned char data[64] );
+
+/**
+ * \brief          Output = SHA-1( input buffer )
+ *
+ * \param input    buffer holding the  data
+ * \param ilen     length of the input data
+ * \param output   SHA-1 checksum result
  */
-typedef struct {
-	uint32_t h[5];
-	uint64_t length;
-} sha1_ctx_t;
+void sha1( const unsigned char *input, size_t ilen, unsigned char output[20] );
 
-/** \typedef sha1_hash_t
- * \brief hash value type
- * A variable of this type may hold a SHA-1 hash value 
+/**
+ * \brief          Output = SHA-1( file contents )
+ *
+ * \param path     input file name
+ * \param output   SHA-1 checksum result
+ *
+ * \return         0 if successful, or POLARSSL_ERR_SHA1_FILE_IO_ERROR
  */
-/*
-typedef uint8_t sha1_hash_t[SHA1_HASH_BITS/8];
-*/
-/** \fn sha1_init(sha1_ctx_t *state)
- * \brief initializes a SHA-1 context
- * This function sets a ::sha1_ctx_t variable to the initialization vector
- * for SHA-1 hashing.
- * \param state pointer to the SHA-1 context variable
+int sha1_file( const char *path, unsigned char output[20] );
+
+/**
+ * \brief          SHA-1 HMAC context setup
+ *
+ * \param ctx      HMAC context to be initialized
+ * \param key      HMAC secret key
+ * \param keylen   length of the HMAC key
  */
-void sha1_init(sha1_ctx_t *state);
+void sha1_hmac_starts( sha1_context *ctx, const unsigned char *key, size_t keylen );
 
-/** \fn sha1_nextBlock(sha1_ctx_t *state, const void* block)
- *  \brief process one input block
- * This function processes one input block and updates the hash context 
- * accordingly
- * \param state pointer to the state variable to update
- * \param block pointer to the message block to process
+/**
+ * \brief          SHA-1 HMAC process buffer
+ *
+ * \param ctx      HMAC context
+ * \param input    buffer holding the  data
+ * \param ilen     length of the input data
  */
-void sha1_nextBlock (sha1_ctx_t *state, const void* block);
+void sha1_hmac_update( sha1_context *ctx, const unsigned char *input, size_t ilen );
 
-/** \fn sha1_lastBlock(sha1_ctx_t *state, const void* block, uint16_t length_b)
- * \brief processes the given block and finalizes the context
- * This function processes the last block in a SHA-1 hashing process.
- * The block should have a maximum length of a single input block.
- * \param state pointer to the state variable to update and finalize
- * \param block pointer to themessage block to process
- * \param length_b length of the message block in bits  
+/**
+ * \brief          SHA-1 HMAC final digest
+ *
+ * \param ctx      HMAC context
+ * \param output   SHA-1 HMAC checksum result
  */
-void sha1_lastBlock (sha1_ctx_t *state, const void* block, uint16_t length_b);
+void sha1_hmac_finish( sha1_context *ctx, unsigned char output[20] );
 
-/** \fn sha1_ctx2hash(sha1_hash_t *dest, sha1_ctx_t *state)
- * \brief convert a state variable into an actual hash value
- * Writes the hash value corresponding to the state to the memory pointed by dest.
- * \param dest pointer to the hash value destination
- * \param state pointer to the hash context
- */ 
-void sha1_ctx2hash (void *dest, sha1_ctx_t *state);
+/**
+ * \brief          SHA-1 HMAC context reset
+ *
+ * \param ctx      HMAC context to be reset
+ */
+void sha1_hmac_reset( sha1_context *ctx );
 
-/** \fn sha1(sha1_hash_t *dest, const void* msg, uint32_t length_b)
- * \brief hashing a message which in located entirely in RAM
- * This function automatically hashes a message which is entirely in RAM with
- * the SHA-1 hashing algorithm.
- * \param dest pointer to the hash value destination
- * \param msg  pointer to the message which should be hashed
- * \param length_b length of the message in bits
- */ 
-void sha1(void *dest, const void* msg, uint32_t length_b);
+/**
+ * \brief          Output = HMAC-SHA-1( hmac key, input buffer )
+ *
+ * \param key      HMAC secret key
+ * \param keylen   length of the HMAC key
+ * \param input    buffer holding the  data
+ * \param ilen     length of the input data
+ * \param output   HMAC-SHA-1 result
+ */
+void sha1_hmac( const unsigned char *key, size_t keylen,
+                const unsigned char *input, size_t ilen,
+                unsigned char output[20] );
 
+/**
+ * \brief          Checkup routine
+ *
+ * \return         0 if successful, or 1 if the test failed
+ */
+int sha1_self_test( int verbose );
 
+#ifdef __cplusplus
+}
+#endif
 
-#endif /*SHA1_H_*/
+#endif /* sha1.h */
