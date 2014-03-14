@@ -9,7 +9,6 @@
 #include "aes.h"
 #include "sha256.h"
 #include "sha1.h"
-#include "hmac.h"
 #include "js0n.h"
 #include "switch.h"
 
@@ -130,19 +129,19 @@ void sha256_test()
 
 void sha1_test()
 {
-  unsigned char hash[SHA1_HASH_BYTES];
-  sha1(hash,"foo",3);
+  unsigned char hash[20];
+  sha1("foo",3,hash);
   printf("sha1 ");
-  vli_print(hash,SHA1_HASH_BYTES);
+  vli_print(hash,20);
   printf("\n");
 }
 
 void hmac_test()
 {
-  unsigned char hmac[HMAC_SHA1_BYTES];
-  hmac_sha1(hmac,"foo",3,"bar",3);
+  unsigned char hmac[20];
+  sha1_hmac("foo",3,"bar",3,hmac);
   printf("hmac ");
-  vli_print(hmac,HMAC_SHA1_BYTES);
+  vli_print(hmac,20);
   printf("\n");
 }
 
