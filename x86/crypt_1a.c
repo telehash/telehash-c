@@ -2,7 +2,6 @@
 #include "switch.h"
 #include "ecc.h"
 #include "aes.h"
-#include "sha256.h"
 #include "sha1.h"
 #include "base64_enc.h"
 #include "base64_dec.h"

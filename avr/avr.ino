@@ -14,9 +14,15 @@ extern "C" {
 #define speol Serial.println
 
 /* scratch
-typedef struct sockaddr_in {};
-#define time_t long
-#define time(x) millis()
+aes AC 05 4E B1 17 79 
+sha1 6E CF F8 78 5A 7A 1D 2B 88 B1 C1 23 03 E9 E2 19 0A A6 4F 89 
+hmac 3C 83 F4 E4 3A 37 CE 3E 24 32 39 B7 CF 37 52 96 99 3D 11 0C 
+sha256 FF FF E3 8F FF FF EA 28 00 00 12 FB 00 00 63 AA FF FF D2 3A 00 00 5B 8E FF FF 9A D6 00 00 43 B7 
+Testing random private key pairs
+473 gen
+475 gen
+472 dh
+476 dh
 
 */
 
@@ -32,17 +38,13 @@ int RNG(uint8_t *p_dest, unsigned p_size)
 
 void vli_print(uint8_t *p_vli, unsigned int p_size)
 {
-    while(p_size)
-    {
-      char hex[8];
-      sprintf(hex,"%02X ", (unsigned)p_vli[p_size - 1]);
-      sp(hex);
-      --p_size;
-    }
+  unsigned char buf[256];
+  sp((char*)util_hex(p_vli,p_size,buf));
 }
 
 
 void setup() {
+  Serial.begin(115200);
   crypt_init();
 }
 
@@ -133,7 +135,7 @@ int aes_test()
 int sha256_test()
 {
   unsigned char hash[SHA256_HASH_BYTES];
-  sha256((uint8_t (*)[32])hash,"foo",3);
+  sha256((uint8_t (*)[32])hash,"foo",3*8);
   sp("sha256 ");
   vli_print(hash,SHA256_HASH_BYTES);
   speol();
@@ -142,7 +144,7 @@ int sha256_test()
 int sha1_test()
 {
   unsigned char hash[SHA1_HASH_BYTES];
-  sha1(hash,"foo",3);
+  sha1(hash,"foo",3*8);
   sp("sha1 ");
   vli_print(hash,SHA1_HASH_BYTES);
   speol();
@@ -151,7 +153,7 @@ int sha1_test()
 int hmac_test()
 {
   unsigned char hmac[HMAC_SHA1_BYTES];
-  hmac_sha1(hmac,"foo",3,"bar",3);
+  hmac_sha1(hmac,"foo",3,"bar",3*8);
   sp("hmac ");
   vli_print(hmac,HMAC_SHA1_BYTES);
   speol();
@@ -167,6 +169,7 @@ int keygen()
 
 void loop() {
   long start = millis();
+  Serial.write("hi\n");
   keygen();
   aes_test();
   sha1_test();
