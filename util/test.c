@@ -23,7 +23,7 @@ double timer()
 void vli_print(uint8_t *p_vli, unsigned int p_size)
 {
   char buf[256];
-  printf(util_hex(p_vli,p_size,buf));
+  printf("%s",util_hex(p_vli,p_size,(unsigned char*)buf));
 }
 
 
@@ -115,8 +115,8 @@ void aes_test()
 
 void sha256_test()
 {
-  unsigned char hash[32],hex[65];
-  sha256("foo",3,hash,0);
+  unsigned char hash[32];
+  sha256((unsigned char*)"foo",3,hash,0);
   printf("sha256 ");
   vli_print(hash,32);
   printf("\n");
@@ -125,7 +125,7 @@ void sha256_test()
 void sha1_test()
 {
   unsigned char hash[20];
-  sha1("foo",3,hash);
+  sha1((unsigned char*)"foo",3,hash);
   printf("sha1 ");
   vli_print(hash,20);
   printf("\n");
@@ -134,7 +134,7 @@ void sha1_test()
 void hmac_test()
 {
   unsigned char hmac[20];
-  sha1_hmac("foo",3,"bar",3,hmac);
+  sha1_hmac((unsigned char*)"foo",3,(unsigned char*)"bar",3,hmac);
   printf("hmac ");
   vli_print(hmac,20);
   printf("\n");

@@ -213,10 +213,6 @@ packet_t crypt_openize_1a(crypt_t self, crypt_t c, packet_t inner)
   if(!ecdh_shared_secret(cs->id_public, scs->id_private, secret)) return packet_free(open);
   sha1_hmac(secret,ECC_BYTES,open->body+20,40+inner_len,open->body);
 
-  char buf[1024];
-  DEBUG_PRINTF("A %s\n",util_hex(secret,16,buf));
-  DEBUG_PRINTF("B %s\n",util_hex(open->body,20,buf));
-
   return open;
 }
 
