@@ -61,7 +61,7 @@ int main(void)
   p = chan_packet(c);
   packet_set_str(p,"seek",s->id->hexname);
   
-  switch_send(s, p);
+  chan_send(c, p);
   while((p = switch_sending(s)))
   {
     if(util_cmp(p->out->type,"ipv4")!=0)

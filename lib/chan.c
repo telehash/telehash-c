@@ -90,6 +90,11 @@ packet_t chan_packet(chan_t c)
   return p;
 }
 
+void chan_send(chan_t c, packet_t p)
+{
+  if(!c->reliable) return switch_send(c->s, p);
+}
+
 packet_t chan_pop(chan_t c)
 {
   packet_t p;
