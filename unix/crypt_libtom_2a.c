@@ -151,6 +151,7 @@ packet_t crypt_delineize_2a(crypt_t c, packet_t p)
   unsigned long len;
   crypt_libtom_t cs = (crypt_libtom_t)c->cs;
 
+  if((_crypt_libtom_err = gcm_reset(&(cs->gcmIn))) != CRYPT_OK) return packet_free(p);
   if((_crypt_libtom_err = gcm_add_iv(&(cs->gcmIn), p->body+16, 16)) != CRYPT_OK) return packet_free(p);
   gcm_add_aad(&(cs->gcmIn),NULL,0);
   if((_crypt_libtom_err = gcm_process(&(cs->gcmIn),p->body+16+16,p->body_len-(16+16+16),p->body+16+16,GCM_DECRYPT)) != CRYPT_OK) return packet_free(p);

@@ -14,9 +14,8 @@ void chan_hn(hn_t hn, chan_t c)
 
 void chan_reset(switch_t s, hn_t to)
 {
-  // TODO, fail any existing hn->chans
+  // TODO, fail any existing hn->chans from the sender
   if(!to->chanOut) to->chanOut = (strncmp(s->id->hexname,to->hexname,64) > 0) ? 1 : 2;
-  to->chanIn = 0;
 }
 
 chan_t chan_new(switch_t s, hn_t to, char *type, int reliable)
@@ -52,8 +51,8 @@ chan_t chan_in(switch_t s, hn_t from, packet_t p)
   if(c) return c;
 
   type = packet_get_str(p, "type");
-  if(!type || id <= from->chanIn || id % 2 == from->chanOut % 2) return NULL;
-  from->chanIn = id - 2; // allow one out of order sequence
+  DEBUG_PRINTF("channel new %d %s\n",id,type);
+  if(!type || id % 2 == from->chanOut % 2) return NULL;
 
   c = malloc(sizeof (struct chan_struct));
   memset(c,0,sizeof (struct chan_struct));
@@ -105,6 +104,7 @@ packet_t chan_pop(chan_t c)
 void chan_receive(chan_t c, packet_t p)
 {
   if(!c || !p) return;
+  DEBUG_PRINTF("channel in %d %.*s\n",c->id,p->json_len,p->json);
   if(c->state == ENDED) return (void)packet_free(p);
   if(c->state == STARTING) c->state = OPEN;
   if(util_cmp(packet_get_str(p,"end"),"true") == 0) c->state = ENDED;

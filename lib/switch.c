@@ -206,6 +206,7 @@ void switch_receive(switch_t s, packet_t p, path_t in)
   packet_t inner;
   crypt_t c;
   char hex[3];
+  char lineHex[33];
 
   if(!s || !p || !in) return;
   if(p->json_len == 1)
@@ -235,7 +236,8 @@ void switch_receive(switch_t s, packet_t p, path_t in)
   }
   if(p->json_len == 0)
   {
-    from = xht_get(s->index, packet_get_str(p, "line"));
+    util_hex(p->body, 16, (unsigned char*)lineHex);
+    from = xht_get(s->index, lineHex);
     if(from)
     {
       in = hn_path(from, in);

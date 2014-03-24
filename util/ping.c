@@ -69,7 +69,7 @@ int main(void)
       packet_free(p);
       continue;
     }
-    printf("sending packet %d %.*s %s\n",packet_len(p),p->json_len,p->json,path_json(p->out));
+    printf("sending %s packet %d %s\n",p->json_len?"open":"line",packet_len(p),path_json(p->out));
     path2sa(p->out, &sa);
     if(sendto(sock, packet_raw(p), packet_len(p), 0, (struct sockaddr *)&sa, sizeof(sa))==-1)
     {
@@ -88,7 +88,7 @@ int main(void)
   }
   sa2path(&sa, from); // inits ip/port from sa
   p = packet_parse(buf,blen);
-  printf("Received packet from %s len %d data: %.*s\n", path_json(from), blen, p->json_len, p->json);
+  printf("received %s packet %d %s\n", p->json_len?"open":"line", blen, path_json(from));
   switch_receive(s,p,from);
 
   while((p = switch_sending(s)))
@@ -98,7 +98,7 @@ int main(void)
       packet_free(p);
       continue;
     }
-    printf("sending packet %d %.*s %s\n",packet_len(p),p->json_len,p->json,path_json(p->out));
+    printf("Sending %s packet %d %s\n",p->json_len?"open":"line",packet_len(p),path_json(p->out));
     path2sa(p->out, &sa);
     if(sendto(sock, packet_raw(p), packet_len(p), 0, (struct sockaddr *)&sa, sizeof(sa))==-1)
     {
@@ -114,7 +114,7 @@ int main(void)
   {
     sa2path(&sa, from); // inits ip/port from sa
     p = packet_parse(buf,blen);
-    printf("Received packet from %s len %d data: %.*s\n", path_json(from), blen, p->json_len, p->json);
+    printf("Received %s packet %d %s\n", p->json_len?"open":"line", blen, path_json(from));
     switch_receive(s,p,from);
   
     while((c2 = switch_pop(s)))

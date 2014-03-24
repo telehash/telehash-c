@@ -18,7 +18,7 @@ void platform_debug(char * format, ...)
     char buffer[256];
     va_list args;
     va_start (args, format);
-    vsprintf (buffer, format, args);
+    vsnprintf (buffer, 256, format, args);
     printf("%s", buffer);
     va_end (args);
 }
