@@ -25,6 +25,7 @@ int RNG(uint8_t *p_dest, unsigned p_size)
 
 int crypt_init_1a()
 {
+  srandomdev();
   ecc_set_rng(&RNG);
   return 0;
 }
@@ -141,11 +142,11 @@ packet_t crypt_delineize_1a(crypt_t c, packet_t p)
   memset(iv,0,16);
   memcpy(iv+12,p->body+16+4,4);
 
-  aes_setkey_dec(&ctx,cs->keyIn,128);
-  aes_crypt_ctr(&ctx,p->body_len-(16+4+4),&off,iv,block,p->body+16+4+4,p->body+16+4+4);
-
   sha1_hmac(cs->keyIn,16,p->body+16+4,p->body_len-(16+4),hmac);
   if(memcmp(hmac,p->body+16,4) != 0) return packet_free(p);
+
+  aes_setkey_enc(&ctx,cs->keyIn,128);
+  aes_crypt_ctr(&ctx,p->body_len-(16+4+4),&off,iv,block,p->body+16+4+4,p->body+16+4+4);
 
   line = packet_parse(p->body+16+4+4, p->body_len-(16+4+4));
   packet_free(p);
@@ -155,7 +156,7 @@ packet_t crypt_delineize_1a(crypt_t c, packet_t p)
 // makes sure all the crypto line state is set up, and creates line keys if exist
 int crypt_line_1a(crypt_t c, packet_t inner)
 {
-  unsigned char line_public[ECC_BYTES*2], secret[ECC_BYTES], input[16+16+16], hash[20];
+  unsigned char line_public[ECC_BYTES*2], secret[ECC_BYTES], input[ECC_BYTES+16+16], hash[20];
   char *hecc;
   crypt_1a_t cs;
   
@@ -168,15 +169,15 @@ int crypt_line_1a(crypt_t c, packet_t inner)
   if(!ecdh_shared_secret(line_public, cs->line_private, secret)) return 1;
 
   // make line keys!
-  memcpy(input,secret,16);
-  memcpy(input+16,c->lineOut,16);
-  memcpy(input+32,c->lineIn,16);
-//  sha1(hash,input,16+16+16);
+  memcpy(input,secret,ECC_BYTES);
+  memcpy(input+ECC_BYTES,c->lineOut,16);
+  memcpy(input+ECC_BYTES+16,c->lineIn,16);
+  sha1(input,ECC_BYTES+16+16,hash);
   memcpy(cs->keyOut,hash,16);
 
-  memcpy(input+16,c->lineIn,16);
-  memcpy(input+32,c->lineOut,16);
-//  sha1(hash,input,16+16+16);
+  memcpy(input+ECC_BYTES,c->lineIn,16);
+  memcpy(input+ECC_BYTES+16,c->lineOut,16);
+  sha1(input,ECC_BYTES+16+16,hash);
   memcpy(cs->keyIn,hash,16);
 
   return 0;
@@ -234,7 +235,7 @@ packet_t crypt_deopenize_1a(crypt_t self, packet_t open)
   iv[15] = 1;
 
   // decrypt the inner
-  aes_setkey_dec(&ctx,secret,128);
+  aes_setkey_enc(&ctx,secret,128); // tricky, must use _enc to decrypt here
   aes_crypt_ctr(&ctx,inner->body_len,&off,iv,block,open->body+20+40,inner->body);
 
   // load inner packet
@@ -247,7 +248,7 @@ packet_t crypt_deopenize_1a(crypt_t self, packet_t open)
   if(!ecdh_shared_secret(inner->body, cs->id_private, secret)) return packet_free(inner);
 
   // verify
-  sha1_hmac(secret,16,open->body+20,open->body_len-20,hmac);
+  sha1_hmac(secret,ECC_BYTES,open->body+20,open->body_len-20,hmac);
   if(memcmp(hmac,open->body,20) != 0) return packet_free(inner);
 
   // stash the hex line key w/ the inner

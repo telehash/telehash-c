@@ -5,15 +5,6 @@
         "type": "ipv4",
         "ip": "127.0.0.1",
         "port": 42424
-      },
-      {
-        "type": "ipv6",
-        "ip": "fe80::6a5b:35ff:fe92:8930",
-        "port": 42424
-      },
-      {
-        "type": "http",
-        "http": "http://10.0.0.5:42424"
       }
     ],
     "parts": {
@@ -25,7 +16,6 @@
       "3a": "MC5dfSfrAVCSugX75JbgVWtvCbxPqwLDUkc9TcS/qxE=",
       "2a": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqr12tXnpn707llkZfEcspB/D6KTcZM765+SnI5Z8JWkjc0Mrz9qZBB2YFLr2NmgCx0oLfSetmuHBNTT54sIAxQ/vxyykcMNGsSFg4WKhbsQXSrX4qChbhpIqMJkKa4mYZIb6qONA76G5/431u4+1sBRvfY0ewHChqGh0oThcaa50nT68f8ohIs1iUFm+SL8L9UL/oKN3Yg6drBYwpJi2Ex5Idyu4YQJwZ9sAQU49Pfs+LqhkHOascTmaa3+kTyTnp2iJ9wEuPg+AR3PJwxXnwYoWbH+Wr8gY6iLe0FQe8jXk6eLw9mqOhUcah8338MC83zSQcZriGVMq8qaQz0L9nwIDAQAB",
       "1a": "z6yCAC7r5XIr6C4xdxeX7RlSmGu9Xe73L1gv8qecm4/UEZAKR5iCxA=="
-    },
-    "bridge": true
+    }
   }
 }
