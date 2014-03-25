@@ -40,11 +40,14 @@ packet_t chan_pop(chan_t c);
 // internal, receives/processes incoming packet
 void chan_receive(chan_t c, packet_t p);
 
-// new packet with seq, ack, miss
-void chan_seq_add(chan_t c, packet_t p);
+// just add ack/miss
+packet_t chan_seq_ack(chan_t c, packet_t p);
 
-// buffers packets until they're in order
-void chan_seq_receive(chan_t c, packet_t p);
+// new sequenced packet, NULL for backpressure
+packet_t chan_seq_packet(chan_t c);
+
+// buffers packets until they're in order, 1 if some are ready to pop
+int chan_seq_receive(chan_t c, packet_t p);
 
 // returns ordered packets for this channel, updates ack
 packet_t chan_seq_pop(chan_t c);
@@ -52,8 +55,8 @@ packet_t chan_seq_pop(chan_t c);
 void chan_seq_init(chan_t c);
 void chan_seq_free(chan_t c);
 
-// creates a new packet, if there's buffer capacity
-packet_t chan_miss_packet(chan_t c);
+// tracks packet for outgoing, eventually free's it, 0 ok or 1 for full/backpressure
+int chan_miss_track(chan_t c, int id, packet_t p);
 
 // buffers packets to be able to re-send
 void chan_miss_send(chan_t c, packet_t p);

@@ -4,51 +4,70 @@
 
 typedef struct miss_struct
 {
-  packet_t *outp;
-  uint32_t *outs;
-  int out;
+  uint32_t nextack;
+  packet_t *out;
 } *miss_t;
 
 void chan_miss_init(chan_t c)
 {
   miss_t m = (miss_t)malloc(sizeof (struct miss_struct));
   memset(m,0,sizeof (struct miss_struct));
-  m->outp = (packet_t*)malloc(sizeof (packet_t) * c->reliable);
-  m->outs = (uint32_t*)malloc(sizeof (uint32_t) * c->reliable);
+  m->out = (packet_t*)malloc(sizeof (packet_t) * c->reliable);
+  memset(m->out,0,sizeof (packet_t) * c->reliable);
   c->miss = (void*)m;
 }
 
 void chan_miss_free(chan_t c)
 {
+  int i;
   miss_t m = (miss_t)c->miss;
-  // TODO free every out packet
-  free(m->outp);
-  free(m->outs);
+  for(i=0;i<c->reliable;i++) packet_free(m->out[i]);
+  free(m->out);
   free(m);
 }
 
-// null when full
-packet_t chan_miss_packet(chan_t c)
+// 1 when full, backpressure
+int chan_miss_track(chan_t c, int id, packet_t p)
 {
   miss_t m = (miss_t)c->miss;
-  if(m->out == c->reliable) return NULL;
-  return packet_new();
-}
-
-// buffers packets to be able to re-send
-void chan_miss_send(chan_t c, packet_t p)
-{
-  miss_t m = (miss_t)c->miss;
-  // should never happen but just to be safe
-  if(m->out == c->reliable) return;
-  // make a copy into out
+  if(id - m->nextack > c->reliable - 1)
+  {
+    packet_free(p);
+    return 1;
+  }
+  m->out[id - m->nextack] = p;
+  return 0;
 }
 
 // looks at incoming miss/ack and resends or frees
 void chan_miss_check(chan_t c, packet_t p)
 {
-//  miss_t m = (miss_t)c->miss;
-  // loop through out
-  // free any older than ack
-  // resend any in miss
+  uint32_t ack;
+  int offset, i;
+  char *id;
+  packet_t miss = packet_get_packet(p,"miss");
+  miss_t m = (miss_t)c->miss;
+
+  ack = (uint32_t)strtol(packet_get_str(p,"ack"), NULL, 10);
+  // bad data
+  offset = ack - m->nextack;
+  if(offset < 0 || offset >= c->reliable) return;
+
+  // free and shift up to the ack
+  while(m->nextack < ack)
+  {
+    packet_free(m->out[0]);
+    memmove(m->out,m->out+1,(sizeof (packet_t)) * (c->reliable - 1));
+    m->out[c->reliable-1] = 0;
+    m->nextack++;
+  }
+
+  // track any miss packets if we have them and resend
+  if(!miss) return;
+  for(i=0;(id = packet_get_istr(miss,i));i++)
+  {
+    ack = (uint32_t)strtol(id,NULL,10);
+    offset = ack - m->nextack;
+    if(offset >= 0 && offset < c->reliable && m->out[offset]) switch_send(c->s,m->out[offset]);
+  }
 }
