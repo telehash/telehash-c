@@ -18,6 +18,7 @@ typedef struct chan_struct
   void *seq, *miss; // used by chan_seq/chan_miss
 } *chan_t;
 
+// reliable is the max # of packets to buffer before backpressure, 0 for unreliable
 chan_t chan_new(struct switch_struct *s, struct hn_struct *to, char *type, int reliable);
 void chan_free(chan_t c);
 
@@ -39,7 +40,7 @@ packet_t chan_pop(chan_t c);
 // internal, receives/processes incoming packet
 void chan_receive(chan_t c, packet_t p);
 
-// adds seq, ack, miss
+// new packet with seq, ack, miss
 void chan_seq_add(chan_t c, packet_t p);
 
 // buffers packets until they're in order
@@ -50,6 +51,9 @@ packet_t chan_seq_pop(chan_t c);
 
 void chan_seq_init(chan_t c);
 void chan_seq_free(chan_t c);
+
+// creates a new packet, if there's buffer capacity
+packet_t chan_miss_packet(chan_t c);
 
 // buffers packets to be able to re-send
 void chan_miss_send(chan_t c, packet_t p);
