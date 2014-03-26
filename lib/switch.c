@@ -11,6 +11,7 @@ switch_t switch_new()
   switch_t s = malloc(sizeof (struct switch_struct));
   memset(s, 0, sizeof(struct switch_struct));
   s->cap = 256; // default cap size
+  s->window = 32; // default reliable window size
   // create all the buckets
   s->buckets = malloc(256 * sizeof(bucket_t));
   memset(s->buckets, 0, 256 * sizeof(bucket_t));
@@ -69,9 +70,10 @@ void switch_free(switch_t s)
   free(s);
 }
 
-void switch_cap(switch_t s, int cap)
+void switch_capwin(switch_t s, int cap, int window)
 {
   s->cap = cap;
+  s->window = window;
 }
 
 // add this hashname to our bucket list
@@ -202,7 +204,6 @@ chan_t switch_pop(switch_t s)
 void switch_receive(switch_t s, packet_t p, path_t in)
 {
   hn_t from;
-  packet_t line;
   packet_t inner;
   crypt_t c;
   char hex[3];
@@ -241,20 +242,25 @@ void switch_receive(switch_t s, packet_t p, path_t in)
     if(from)
     {
       in = hn_path(from, in);
-      line = crypt_delineize(from->c, p);
-      if(line)
+      p = crypt_delineize(from->c, p);
+      if(p)
       {
-        chan_t c = chan_in(s, from, line);
-        if(c) return chan_receive(c, line);
-        // bounce it!
-        if(!packet_get_str(line,"err"))
+        chan_t c = chan_in(s, from, p);
+        if(c)
         {
-          packet_set_str(line,"err","unknown channel");
-          line->to = from;
-          line->out = in;
-          switch_send(s, line);          
+          // if new channel w/ seq, configure as reliable
+          if(c->state == STARTING && packet_get_str(p,"seq")) chan_reliable(c, s->window);
+          return chan_receive(c, p);
+        }
+        // bounce it!
+        if(!packet_get_str(p,"err"))
+        {
+          packet_set_str(p,"err","unknown channel");
+          p->to = from;
+          p->out = in;
+          switch_send(s, p);          
         }else{
-          packet_free(line);
+          packet_free(p);
         }
       }
       return;

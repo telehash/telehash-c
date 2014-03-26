@@ -18,21 +18,34 @@ void chan_reset(switch_t s, hn_t to)
   if(!to->chanOut) to->chanOut = (strncmp(s->id->hexname,to->hexname,64) > 0) ? 1 : 2;
 }
 
-chan_t chan_new(switch_t s, hn_t to, char *type, int reliable)
+chan_t chan_reliable(chan_t c, int window)
+{
+  if(!c || !window || c->state != STARTING) return c;
+  c->reliable = window;
+  return c;
+}
+
+chan_t chan_new(switch_t s, hn_t to, char *type, uint32_t id)
 {
   chan_t c;
   if(!s || !to || !type) return NULL;
 
+  // use new id if none given
   if(!to->chanOut) chan_reset(s, to);
+  if(!id)
+  {
+    id = to->chanOut;
+    to->chanOut += 2;
+  }
+
+  DEBUG_PRINTF("channel new %d %s\n",id,type);
   c = malloc(sizeof (struct chan_struct));
   memset(c,0,sizeof (struct chan_struct));
   c->type = strdup(type);
   c->s = s;
   c->to = to;
-  c->reliable = reliable;
   c->state = STARTING;
-  c->id = to->chanOut;
-  to->chanOut += 2;
+  c->id = id;
   util_hex((unsigned char*)&(c->id),4,(unsigned char*)c->hexid);
   chan_hn(to, c);
   return c;
@@ -51,20 +64,9 @@ chan_t chan_in(switch_t s, hn_t from, packet_t p)
   if(c) return c;
 
   type = packet_get_str(p, "type");
-  DEBUG_PRINTF("channel new %d %s\n",id,type);
   if(!type || id % 2 == from->chanOut % 2) return NULL;
 
-  c = malloc(sizeof (struct chan_struct));
-  memset(c,0,sizeof (struct chan_struct));
-  c->type = strdup(type);
-  c->s = s;
-  c->to = from;
-  c->reliable = packet_get_str(p,"seq")?1:0;
-  c->state = STARTING;
-  c->id = id;
-  util_hex((unsigned char*)&(c->id),4,(unsigned char*)c->hexid);
-  chan_hn(from, c);
-  return c;
+  return chan_new(s, from, type, id);
 }
 
 void chan_free(chan_t c)

@@ -18,9 +18,12 @@ typedef struct chan_struct
   void *seq, *miss; // used by chan_seq/chan_miss
 } *chan_t;
 
-// reliable is the max # of packets to buffer before backpressure, 0 for unreliable
-chan_t chan_new(struct switch_struct *s, struct hn_struct *to, char *type, int reliable);
+// new channel, pass id=0 to create an outgoing one
+chan_t chan_new(struct switch_struct *s, struct hn_struct *to, char *type, uint32_t id);
 void chan_free(chan_t c);
+
+// configures channel as a reliable one, must be in STARTING state, is max # of packets to buffer before backpressure
+chan_t chan_reliable(chan_t c, int window);
 
 // resets channel state for a hashname
 void chan_reset(struct switch_struct *s, struct hn_struct *to);

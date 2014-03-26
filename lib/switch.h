@@ -18,7 +18,7 @@ typedef struct switch_struct
   packet_t out, last; // packets waiting to be delivered
   packet_t parts;
   chan_t chans; // channels waiting to be processed
-  int cap;
+  int cap, window;
   xht_t index;
 } *switch_t;
 
