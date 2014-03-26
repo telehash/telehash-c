@@ -21,15 +21,15 @@ int main(int argc, char *argv[])
   crypt_init();
   keys = packet_new();
 #ifdef CS_1a
-  DEBUG_PRINTF(("*** Generating CS_1a keys ***\n"));
+  DEBUG_PRINTF(("*** Generating CS_1a keys ***"));
   crypt_keygen(0x1a,keys);
 #endif
 #ifdef CS_2a
- DEBUG_PRINTF(("*** Generating CS_2a keys ***\n"));
+ DEBUG_PRINTF(("*** Generating CS_2a keys ***"));
   crypt_keygen(0x2a,keys);
 #endif
 #ifdef CS_3a
- DEBUG_PRINTF(("*** Generating CS_3a keys ***\n"));
+ DEBUG_PRINTF(("*** Generating CS_3a keys ***"));
   crypt_keygen(0x3a,keys);
 #endif
 

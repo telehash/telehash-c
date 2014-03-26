@@ -159,7 +159,7 @@ int main() {
   sha256_test();
   printf("Time taken to complete keygen(), aes_test(), sha1_test(), hmac_test() & sha256_test()=%f\n", timer() - start);
   ecc_test(5);
-  DEBUG_PRINTF(("test\n"));
+  DEBUG_PRINTF(("test"));
   printf("\n");
 }
 

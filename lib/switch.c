@@ -26,10 +26,10 @@ crypt_t loadkey(char csid, switch_t s, packet_t keys)
   crypt_t c;
   util_hex((unsigned char*)&csid,1,(unsigned char*)hex);
   pk = packet_get_str(keys,hex);
-  DEBUG_PRINTF("*** public key %s ***\n",pk);
+  DEBUG_PRINTF("*** public key %s ***",pk);
   strcpy(hex+2,"_secret");
   sk = packet_get_str(keys,hex);
-  DEBUG_PRINTF("*** secret key %s ***\n",sk);
+  DEBUG_PRINTF("*** secret key %s ***",sk);
   if(!pk || !sk) return NULL;
   c = crypt_new(csid, (unsigned char*)pk, strlen(pk));
   if(!c) return NULL;

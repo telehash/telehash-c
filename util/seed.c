@@ -9,6 +9,29 @@
 #include "ext.h"
 #include "util_unix.h"
 
+void sendall(switch_t s, int sock, struct	sockaddr_in sa)
+{
+  packet_t p;
+
+  while((p = switch_sending(s)))
+  {
+    if(util_cmp(p->out->type,"ipv4")!=0)
+    {
+      packet_free(p);
+      continue;
+    }
+    printf("sending packet %d %.*s %s\n",packet_len(p),p->json_len,p->json,path_json(p->out));
+    path2sa(p->out, &sa);
+    if(sendto(sock, packet_raw(p), packet_len(p), 0, (struct sockaddr *)&sa, sizeof(sa))==-1)
+    {
+  	  printf("sendto failed\n");
+  	  return;
+    }
+    packet_free(p);
+  }
+  
+}
+
 int main(void)
 {
   unsigned char buf[2048];
@@ -55,27 +78,11 @@ int main(void)
   }
 
   // create/send a ping packet  
-  c = chan_new(s, bucket_get(seeds, 0), "seek", 0);
+  c = chan_new(s, bucket_get(seeds, 0), "link", 0);
   p = chan_packet(c);
-  packet_set_str(p,"seek",s->id->hexname);
   
   switch_send(s, p);
-  while((p = switch_sending(s)))
-  {
-    if(util_cmp(p->out->type,"ipv4")!=0)
-    {
-      packet_free(p);
-      continue;
-    }
-    printf("sending packet %d %.*s %s\n",packet_len(p),p->json_len,p->json,path_json(p->out));
-    path2sa(p->out, &sa);
-    if(sendto(sock, packet_raw(p), packet_len(p), 0, (struct sockaddr *)&sa, sizeof(sa))==-1)
-    {
-  	  printf("sendto failed\n");
-  	  return -1;
-    }
-    packet_free(p);
-  }
+  sendall(s,sock,sa);
   
   from = path_new("ipv4");
   len = sizeof(sa);
@@ -89,22 +96,7 @@ int main(void)
   printf("Received packet from %s len %d data: %.*s\n", path_json(from), blen, p->json_len, p->json);
   switch_receive(s,p,from);
 
-  while((p = switch_sending(s)))
-  {
-    if(util_cmp(p->out->type,"ipv4")!=0)
-    {
-      packet_free(p);
-      continue;
-    }
-    printf("sending packet %d %.*s %s\n",packet_len(p),p->json_len,p->json,path_json(p->out));
-    path2sa(p->out, &sa);
-    if(sendto(sock, packet_raw(p), packet_len(p), 0, (struct sockaddr *)&sa, sizeof(sa))==-1)
-    {
-  	  printf("sendto failed\n");
-  	  return -1;
-    }
-    packet_free(p);
-  }
+  sendall(s,sock,sa);
 
   from = path_new("ipv4");
   len = sizeof(sa);
@@ -118,6 +110,9 @@ int main(void)
     while((c = switch_pop(s)))
     {
       printf("channel active %d %s %s\n",c->state,c->hexid,c->to->hexname);
+      if(util_cmp(c->type,"connect") == 0) ext_connect(c);
+      if(util_cmp(c->type,"thtp") == 0) ext_thtp(c);
+      if(util_cmp(c->type,"link") == 0) ext_link(c);
       if(util_cmp(c->type,"seek") == 0) ext_seek(c);
       if(util_cmp(c->type,"path") == 0) ext_path(c);
       while((p = chan_pop(c)))
@@ -126,11 +121,8 @@ int main(void)
         packet_free(p);
       }
     }
+    sendall(s,sock,sa);
   }
-  printf("recvfrom failed\n");
-  return -1;
-
-
 
   return 0;
 }

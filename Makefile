@@ -21,7 +21,7 @@ ping:
 	$(CC) $(CFLAGS) -o bin/ping util/ping.c lib/*.c unix/util.c $(ARCH)
 
 seed:
-	$(CC) $(CFLAGS) -o bin/seed util/seed.c lib/*.c unix/util.c ext/seek.c ext/path.c $(ARCH)
+	$(CC) $(CFLAGS) -o bin/seed util/seed.c lib/*.c unix/util.c ext/*.c $(ARCH)
  
 clean:
 	rm -f bin/*

@@ -40,7 +40,7 @@ chan_t chan_new(switch_t s, hn_t to, char *type, uint32_t id)
     to->chanOut += 2;
   }
 
-  DEBUG_PRINTF("channel new %d %s\n",id,type);
+  DEBUG_PRINTF("channel new %d %s",id,type);
   c = malloc(sizeof (struct chan_struct));
   memset(c,0,sizeof (struct chan_struct));
   c->type = strdup(type);
@@ -116,7 +116,7 @@ packet_t chan_pop(chan_t c)
 void chan_receive(chan_t c, packet_t p)
 {
   if(!c || !p) return;
-  DEBUG_PRINTF("channel in %d %.*s\n",c->id,p->json_len,p->json);
+  DEBUG_PRINTF("channel in %d %.*s",c->id,p->json_len,p->json);
   if(c->state == ENDED) return (void)packet_free(p);
   if(c->state == STARTING) c->state = OPEN;
   if(util_cmp(packet_get_str(p,"end"),"true") == 0) c->state = ENDED;

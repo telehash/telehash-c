@@ -128,7 +128,7 @@ hn_t hn_frompacket(xht_t index, packet_t p)
   return hn;
 }
 
-// derive a hn from json format
+// derive a hn from json seed or connect format
 hn_t hn_fromjson(xht_t index, packet_t p)
 {
   char *key;
@@ -139,20 +139,11 @@ hn_t hn_fromjson(xht_t index, packet_t p)
   if(!p) return NULL;
   
   // get/gen the hashname
-  hn = hn_getparts(index, packet_get_packet(p, "parts"));
+  pp = packet_get_packet(p,"from");
+  if(!pp) pp = packet_get_packet(p,"parts");
+  hn = hn_getparts(index, pp); // frees pp
   if(!hn) return NULL;
 
-  // load the matching public key
-  pp = packet_get_packet(p, "keys");
-  if(!hn->c && pp)
-  {
-    key = packet_get_str(pp,hn->hexid);
-    if(!key) return NULL;
-    hn->c = crypt_new(hn->csid, (unsigned char*)key, strlen(key));
-    if(!hn->c) return NULL;
-  }
-  packet_free(pp);
-  
   // if any paths are stored, associte them
   pp = packet_get_packets(p, "paths");
   while(pp)
@@ -163,8 +154,21 @@ hn_t hn_fromjson(xht_t index, packet_t p)
     packet_free(pp);
     pp = next;
   }
+
+  // already have crypto
+  if(hn->c) return hn;
+
+  if(p->body_len)
+  {
+    hn->c = crypt_new(hn->csid, p->body, p->body_len);
+  }else{
+    pp = packet_get_packet(p, "keys");
+    key = packet_get_str(pp,hn->hexid);
+    if(key) hn->c = crypt_new(hn->csid, (unsigned char*)key, strlen(key));
+    packet_free(pp);
+  }
   
-  return hn;
+  return (hn->c) ? hn : NULL;  
 }
 
 path_t hn_path(hn_t hn, path_t p)
