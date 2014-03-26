@@ -34,9 +34,6 @@ chan_t chan_in(struct switch_struct *s, struct hn_struct *from, packet_t p);
 // create a packet ready to be sent for this channel, returns NULL for backpressure
 packet_t chan_packet(chan_t c);
 
-// send a packet out on this channel
-void chan_send(chan_t c, packet_t p);
-
 // pop a packet from this channel to be processed, caller must free
 packet_t chan_pop(chan_t c);
 

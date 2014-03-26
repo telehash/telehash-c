@@ -59,9 +59,9 @@ int main(void)
   // create/send a ping packet  
   c = chan_new(s, bucket_get(seeds, 0), "seek", 0);
   p = chan_packet(c);
-  packet_set_str(p,"seek",s->id->hexname);
-  
-  chan_send(c, p);
+  packet_set_str(p,"seek",s->id->hexname);  
+  switch_send(s, p);
+
   while((p = switch_sending(s)))
   {
     if(util_cmp(p->out->type,"ipv4")!=0)

@@ -22,6 +22,8 @@ chan_t chan_reliable(chan_t c, int window)
 {
   if(!c || !window || c->state != STARTING) return c;
   c->reliable = window;
+  chan_seq_init(c);
+  chan_miss_init(c);
   return c;
 }
 
@@ -71,7 +73,12 @@ chan_t chan_in(switch_t s, hn_t from, packet_t p)
 
 void chan_free(chan_t c)
 {
-  // remove from hn
+  xht_set(c->to->chans,(char*)c->hexid,NULL);
+  if(c->reliable)
+  {
+    chan_seq_free(c);
+    chan_miss_free(c);
+  }
   free(c->type);
   free(c);
 }
@@ -81,7 +88,8 @@ packet_t chan_packet(chan_t c)
 {
   packet_t p;
   if(!c || c->state == ENDED) return NULL;
-  p = packet_new();
+  p = c->reliable?chan_seq_packet(c):packet_new();
+  if(!p) return NULL;
   p->to = c->to;
   if(path_alive(c->last)) p->out = c->last;
   if(c->state == STARTING)
@@ -92,15 +100,12 @@ packet_t chan_packet(chan_t c)
   return p;
 }
 
-void chan_send(chan_t c, packet_t p)
-{
-  if(!c->reliable) return switch_send(c->s, p);
-}
-
 packet_t chan_pop(chan_t c)
 {
   packet_t p;
-  if(!c || !c->in) return NULL;
+  if(!c) return NULL;
+  if(c->reliable) return chan_seq_pop(c);
+  if(!c->in) return NULL;
   p = c->in;
   c->in = p->next;
   if(!c->in) c->inend = NULL;
@@ -117,14 +122,20 @@ void chan_receive(chan_t c, packet_t p)
   if(util_cmp(packet_get_str(p,"end"),"true") == 0) c->state = ENDED;
   if(packet_get_str(p,"err")) c->state = ENDED;
 
-  // add to the end of the queue
-  if(c->inend)
+  if(c->reliable)
   {
-    c->inend->next = p;
-    c->inend = p;
-    return;
+    chan_miss_check(c,p);
+    if(!chan_seq_receive(c,p)) return; // queued, nothing to do
+  }else{
+    // add to the end of the raw packet queue
+    if(c->inend)
+    {
+      c->inend->next = p;
+      c->inend = p;
+      return;
+    }
+    c->inend = c->in = p;    
   }
-  c->inend = c->in = p;
   
   // add to channels queue, if not
   if(c->next || c->s->chans == c) return;
