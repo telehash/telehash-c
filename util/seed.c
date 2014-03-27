@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -9,8 +10,9 @@
 #include "ext.h"
 #include "util_unix.h"
 
-void sendall(switch_t s, int sock, struct	sockaddr_in sa)
+void sendall(switch_t s, int sock)
 {
+  struct	sockaddr_in sa;
   packet_t p;
 
   while((p = switch_sending(s)))
@@ -20,28 +22,73 @@ void sendall(switch_t s, int sock, struct	sockaddr_in sa)
       packet_free(p);
       continue;
     }
-    printf("sending packet %d %.*s %s\n",packet_len(p),p->json_len,p->json,path_json(p->out));
+    printf("<<< %s packet %d %s\n",p->json_len?"open":"line",packet_len(p),path_json(p->out));
     path2sa(p->out, &sa);
-    if(sendto(sock, packet_raw(p), packet_len(p), 0, (struct sockaddr *)&sa, sizeof(sa))==-1)
-    {
-  	  printf("sendto failed\n");
-  	  return;
-    }
+    if(sendto(sock, packet_raw(p), packet_len(p), 0, (struct sockaddr *)&sa, sizeof(sa))==-1) printf("sendto failed\n");
     packet_free(p);
-  }
+  }  
+}
+
+int readone(switch_t s, int sock, path_t in)
+{
+  unsigned char buf[2048];
+  struct	sockaddr_in sa;
+  int len, salen;
+  packet_t p;
   
+  salen = sizeof(sa);
+  memset(&sa,0,salen);
+  len = recvfrom(sock, buf, sizeof(buf), 0, (struct sockaddr *)&sa, (socklen_t *)&salen);
+
+  if(len < 0 && errno != EAGAIN && errno != EWOULDBLOCK) return -1;
+  if(len <= 0) return 0;
+
+  sa2path(&sa,in); // inits ip/port from sa
+  p = packet_parse(buf,len);
+  printf(">>> %s packet %d %s\n", p->json_len?"open":"line", len, path_json(in));
+  switch_receive(s,p,in);
+  return 0;
+}
+
+int server(int port)
+{
+  int sock;
+  struct	sockaddr_in sad;
+  struct timeval tv;
+
+  // create a udp socket
+  if( (sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP) ) < 0 )
+  {
+    printf("failed to create socket\n");
+    return -1;
+  }
+  memset(&sad,0,sizeof(sad));
+  sad.sin_family = AF_INET;
+  sad.sin_port = htons(port);
+  sad.sin_addr.s_addr = htonl(INADDR_ANY);
+  if (bind (sock, (struct sockaddr *)&sad, sizeof(sad)) < 0)
+  {
+    perror("bind failed");
+    return -1;
+  }
+  tv.tv_sec = 1;
+  tv.tv_usec = 0;
+  if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0)
+  {
+    perror("setsockopt");
+    return -1;
+  }
+  return sock;
 }
 
 int main(void)
 {
-  unsigned char buf[2048];
   switch_t s;
   bucket_t seeds;
   chan_t c;
   packet_t p;
-  path_t from;
-  int sock, len, blen;
-  struct	sockaddr_in sad, sa;
+  path_t in;
+  int sock;
 
   crypt_init();
   s = switch_new();
@@ -60,53 +107,19 @@ int main(void)
     return -1;
   }
 
-  // create a udp socket
-  if( (sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP) ) < 0 )
-  {
-	  printf("failed to create socket\n");
-	  return -1;
-  }
-  memset((char *)&sad,0,sizeof(sad));
-  memset((char *)&sa,0,sizeof(sa));
-  sa.sin_family = sad.sin_family = AF_INET;
-  sad.sin_port = htons(0);
-  sad.sin_addr.s_addr = htonl(INADDR_ANY);
-  if (bind (sock, (struct sockaddr *)&sad, sizeof(sad)) < 0)
-  {
-	  printf("bind failed");
-	  return -1;
-  }
+  if((sock = server(0)) <= 0) return -1;
 
   // create/send a ping packet  
   c = chan_new(s, bucket_get(seeds, 0), "link", 0);
   p = chan_packet(c);
-  
   switch_send(s, p);
-  sendall(s,sock,sa);
-  
-  from = path_new("ipv4");
-  len = sizeof(sa);
-  if ((blen = recvfrom(sock, buf, sizeof(buf), 0, (struct sockaddr *)&sa, (socklen_t *)&len)) == -1)
-  {
-	  printf("recvfrom failed\n");
-	  return -1;
-  }
-  sa2path(&sa,from); // inits ip/port from sa
-  p = packet_parse(buf,blen);
-  printf("Received packet from %s len %d data: %.*s\n", path_json(from), blen, p->json_len, p->json);
-  switch_receive(s,p,from);
+  sendall(s,sock);
 
-  sendall(s,sock,sa);
-
-  from = path_new("ipv4");
-  len = sizeof(sa);
-  while((blen = recvfrom(sock, buf, sizeof(buf), 0, (struct sockaddr *)&sa, (socklen_t *)&len)) != -1)
+  in = path_new("ipv4");
+  while(readone(s, sock, in) == 0)
   {
-    sa2path(&sa,from); // inits ip/port from sa
-    p = packet_parse(buf,blen);
-    printf("Received packet from %s len %d data: %.*s\n", path_json(from), blen, p->json_len, p->json);
-    switch_receive(s,p,from);
-  
+    switch_loop(s);
+
     while((c = switch_pop(s)))
     {
       printf("channel active %d %s %s\n",c->state,c->hexid,c->to->hexname);
@@ -121,8 +134,10 @@ int main(void)
         packet_free(p);
       }
     }
-    sendall(s,sock,sa);
+
+    sendall(s,sock);
   }
 
+  perror("exiting");
   return 0;
 }

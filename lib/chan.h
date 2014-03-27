@@ -37,8 +37,18 @@ packet_t chan_packet(chan_t c);
 // pop a packet from this channel to be processed, caller must free
 packet_t chan_pop(chan_t c);
 
+// flags channel as gracefully ended, optionally adds end to packet
+chan_t chan_end(chan_t c, packet_t p);
+
+// immediately fails/removes channel, if err tries to send message
+chan_t chan_fail(chan_t c, char *err);
+
 // internal, receives/processes incoming packet
 void chan_receive(chan_t c, packet_t p);
+
+// add/remove from switch processing queue
+void chan_queue(chan_t c);
+void chan_dequeue(chan_t c);
 
 // just add ack/miss
 packet_t chan_seq_ack(chan_t c, packet_t p);

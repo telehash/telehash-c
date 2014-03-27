@@ -9,6 +9,7 @@ void ext_connect(chan_t c)
   hn_t hn;
   while((p = chan_pop(c)))
   {
+    DEBUG_PRINTF("paths %s",packet_get_str(p,"paths"));
     hn = hn_fromjson(c->s->index,p);
     packet_free(p);
     printf("connect HN %s\n",hn?hn->hexname:"null");

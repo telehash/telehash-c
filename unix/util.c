@@ -3,6 +3,8 @@
 
 void path2sa(path_t p, struct sockaddr_in *sa)
 {
+  memset(sa,0,sizeof(struct sockaddr_in));
+  sa->sin_family = AF_INET;
   if(util_cmp("ipv4",p->type)==0) inet_aton(p->ip, &(sa->sin_addr));
   sa->sin_port = htons(p->port);
 }

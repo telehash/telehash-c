@@ -12,10 +12,18 @@ void chan_hn(hn_t hn, chan_t c)
   xht_set(hn->chans,(char*)c->hexid,c);
 }
 
+void walkend(xht_t h, const char *key, void *val, void *arg)
+{
+  uint8_t base = *(uint8_t*)arg;
+  chan_t c = (chan_t)val;
+  if(c->id % 2 != base % 2) chan_fail(c,NULL);
+}
 void chan_reset(switch_t s, hn_t to)
 {
-  // TODO, fail any existing hn->chans from the sender
-  if(!to->chanOut) to->chanOut = (strncmp(s->id->hexname,to->hexname,64) > 0) ? 1 : 2;
+  uint8_t base = (strncmp(s->id->hexname,to->hexname,64) > 0) ? 1 : 2;
+  if(!to->chanOut) to->chanOut = base;
+  // fail any existing chans from them
+  xht_walk(to->chans, &walkend, (void*)&base);
 }
 
 chan_t chan_reliable(chan_t c, int window)
@@ -71,9 +79,39 @@ chan_t chan_in(switch_t s, hn_t from, packet_t p)
   return chan_new(s, from, type, id);
 }
 
+// flags channel as ended, optionally adds end to packet
+chan_t chan_end(chan_t c, packet_t p)
+{
+  DEBUG_PRINTF("channel end %d",c->id);
+  if(p) packet_set(p,"end","true",4);
+  // if(c->reliable) TODO set to ENDING, add timer for cleanup and then queue for free
+  c->state = ENDED;
+  chan_queue(c);
+  return c;
+}
+
+// immediately fails/removes channel, if err tries to send message
+chan_t chan_fail(chan_t c, char *err)
+{
+  packet_t e;
+  DEBUG_PRINTF("channel fail %d",c->id);
+  if(err && c->state == OPEN && (e = chan_packet(c)))
+  {
+    packet_set_str(e,"err",err);
+    switch_send(c->s,e);
+  }
+  // no grace period for reliable
+  c->state = ENDED;
+  xht_set(c->to->chans,(char*)c->hexid,NULL);
+  chan_queue(c);
+  return c;
+}
+
 void chan_free(chan_t c)
 {
-  xht_set(c->to->chans,(char*)c->hexid,NULL);
+  // remove references
+  chan_dequeue(c);
+  if(xht_get(c->to->chans,(char*)c->hexid) == c) xht_set(c->to->chans,(char*)c->hexid,NULL);
   if(c->reliable)
   {
     chan_seq_free(c);
@@ -112,6 +150,31 @@ packet_t chan_pop(chan_t c)
   return p;
 }
 
+// add to processing queue
+void chan_queue(chan_t c)
+{
+  chan_t step = c->s->chans;
+  if(c->next || step == c) return;
+  while(step && (step = step->next)) if(step == c) return;
+  c->next = c->s->chans;
+  c->s->chans = c;
+}
+
+// remove from processing queue
+void chan_dequeue(chan_t c)
+{
+  chan_t step = c->s->chans;
+  if(step == c)
+  {
+    c->s->chans = c->next;
+    c->next = NULL;
+    return;
+  }
+  step = c->s->chans;
+  while(step) if(step->next == c) step->next = c->next;
+  c->next = NULL;
+}
+
 // internal, receives/processes incoming packet
 void chan_receive(chan_t c, packet_t p)
 {
@@ -136,9 +199,7 @@ void chan_receive(chan_t c, packet_t p)
     }
     c->inend = c->in = p;    
   }
-  
-  // add to channels queue, if not
-  if(c->next || c->s->chans == c) return;
-  c->next = c->s->chans;
-  c->s->chans = c;
+
+  // queue for processing
+  chan_queue(c);
 }

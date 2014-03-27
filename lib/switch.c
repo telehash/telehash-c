@@ -76,6 +76,11 @@ void switch_capwin(switch_t s, int cap, int window)
   s->window = window;
 }
 
+void switch_loop(switch_t s)
+{
+  // give all channels a chance
+}
+
 // add this hashname to our bucket list
 void switch_bucket(switch_t s, hn_t hn)
 {
@@ -151,14 +156,8 @@ void switch_sendingQ(switch_t s, packet_t p)
 void switch_open(switch_t s, hn_t to, path_t direct)
 {
   packet_t open, inner;
-  unsigned long now;
 
   if(!to || !to->c) return;
-
-  // don't send too frequently
-  now = platform_seconds();
-  if(now - to->sentOpen < 2) return;
-  to->sentOpen = now;
 
   // actually send the open
   inner = packet_new();
@@ -197,7 +196,7 @@ chan_t switch_pop(switch_t s)
   chan_t c;
   if(!s->chans) return NULL;
   c = s->chans;
-  s->chans = c->next;
+  chan_dequeue(c);
   return c;
 }
 
@@ -222,6 +221,7 @@ void switch_receive(switch_t s, packet_t p, path_t in)
     if(crypt_line(from->c, inner) != 0) return; // not new/valid, ignore
     
     // line is open!
+    DEBUG_PRINTF("line in %d %s",from->c->lined,from->hexname);
     if(from->c->lined == 1) chan_reset(s, from);
     xht_set(s->index, (const char*)from->c->lineHex, (void*)from);
     in = hn_path(from, in);
