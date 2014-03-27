@@ -40,6 +40,7 @@ packet_t packet_chain(packet_t p)
 
 packet_t packet_free(packet_t p)
 {
+  if(!p) return NULL;
   if(p->chain) packet_free(p->chain);
   if(p->jsoncp) free(p->jsoncp);
   free(p->raw);
@@ -75,17 +76,20 @@ packet_t packet_parse(unsigned char *raw, unsigned short len)
 
 unsigned char *packet_raw(packet_t p)
 {
+  if(!p) return NULL;
   return p->raw;
 }
 
 unsigned short packet_len(packet_t p)
 {
+  if(!p) return 0;
   return 2+p->json_len+p->body_len;
 }
 
 int packet_json(packet_t p, unsigned char *json, unsigned short len)
 {
   uint16_t nlen;
+  if(!p) return 1;
   if(len >= 2 && js0n(json,len,p->js,JSONDENSITY)) return 1;
   // new space and update pointers
   p->raw = realloc(p->raw,2+len+p->body_len);
@@ -105,6 +109,7 @@ int packet_json(packet_t p, unsigned char *json, unsigned short len)
 
 void packet_body(packet_t p, unsigned char *body, unsigned short len)
 {
+  if(!p) return;
   p->raw = realloc(p->raw,2+len+p->json_len);
   p->json = p->raw+2;
   p->body = p->raw+(2+p->json_len);

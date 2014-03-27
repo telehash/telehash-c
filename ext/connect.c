@@ -9,10 +9,9 @@ void ext_connect(chan_t c)
   hn_t hn;
   while((p = chan_pop(c)))
   {
-    printf("thtp packet %.*s\n", p->json_len, p->json);
     hn = hn_fromjson(c->s->index,p);
     packet_free(p);
-    printf("got HN %s\n",hn?hn->hexname:"null");
+    printf("connect HN %s\n",hn?hn->hexname:"null");
     if(!hn) continue;
     switch_open(c->s, hn, NULL);
   }

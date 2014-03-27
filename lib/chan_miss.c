@@ -44,11 +44,13 @@ void chan_miss_check(chan_t c, packet_t p)
 {
   uint32_t ack;
   int offset, i;
-  char *id;
+  char *id, *sack;
   packet_t miss = packet_get_packet(p,"miss");
   miss_t m = (miss_t)c->miss;
 
-  ack = (uint32_t)strtol(packet_get_str(p,"ack"), NULL, 10);
+  sack = packet_get_str(p,"ack");
+  if(!sack) return; // grow some
+  ack = (uint32_t)strtol(sack, NULL, 10);
   // bad data
   offset = ack - m->nextack;
   if(offset < 0 || offset >= c->reliable) return;

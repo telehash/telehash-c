@@ -71,12 +71,14 @@ int chan_seq_receive(chan_t c, packet_t p)
 {
   int offset;
   uint32_t id;
+  char *seq;
   seq_t s = (seq_t)c->seq;
 
   // drop or cache incoming packet
-  id = (uint32_t)strtol(packet_get_str(p,"seq"), NULL, 10);
+  seq = packet_get_str(p,"seq");
+  id = seq?(uint32_t)strtol(seq,NULL,10):0;
   offset = id - s->nextin;
-  if(offset < 0 || offset >= c->reliable || s->in[offset])
+  if(!seq || offset < 0 || offset >= c->reliable || s->in[offset])
   {
     packet_free(p);
   }else{

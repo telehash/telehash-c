@@ -11,7 +11,7 @@ typedef struct chan_struct
   struct hn_struct *to;
   char *type;
   int reliable;
-  enum {STARTING, OPEN, ENDED} state;
+  enum {STARTING, OPEN, ENDING, ENDED} state;
   struct path_struct *last;
   struct chan_struct *next;
   packet_t in, inend;
