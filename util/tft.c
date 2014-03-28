@@ -29,9 +29,8 @@ int main(void)
   packet_set_int(p,"status",200);
   packet_body(p,(unsigned char*)"bar\n",4);
   note = packet_new();
-  packet_set_str(note,"path","/foo");
   packet_link(note,p);
-  thtp_path(t,note);
+  thtp_path(t,"/foo",note);
   
   if(util_loadjson(s) != 0 || (sock = util_server(0)) <= 0)
   {

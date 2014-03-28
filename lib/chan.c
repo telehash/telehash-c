@@ -218,7 +218,7 @@ void chan_dequeue(chan_t c)
     return;
   }
   step = c->s->chans;
-  while(step) if(step->next == c) step->next = c->next;
+  while(step) step = (step->next == c) ? c->next : step->next;
   c->next = NULL;
 }
 

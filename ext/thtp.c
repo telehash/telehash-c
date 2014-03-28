@@ -26,21 +26,25 @@ thtp_t thtp_free(thtp_t t)
   return NULL;
 }
 
-void thtp_glob(thtp_t t, packet_t note)
+void thtp_glob(thtp_t t, char *glob, packet_t note)
 {
+  packet_set_str(note,"glob",glob);
   note->next = t->glob;
   t->glob = note;
 }
 
-void thtp_path(thtp_t t, packet_t note)
+void thtp_path(thtp_t t, char *path, packet_t note)
 {
+  packet_set_str(note,"path",path);
   xht_set(t->index,packet_get_str(note,"path"),(void*)note);
 }
 
 packet_t _thtp_glob(thtp_t t, char *p1)
 {
   char *p2;
-  packet_t cur = t->glob;
+  packet_t cur;
+  if(!t || !p1) return NULL;
+  cur = t->glob;
   while(cur)
   {
     p2 = packet_get_str(cur,"glob");
@@ -81,7 +85,7 @@ void ext_thtp(thtp_t t, chan_t c)
   // incoming note as an answer
   if(c->state == ENDING && (note = chan_notes(c)))
   {
-    printf("got note resp %.*s",note->json_len,note->json);
+    DEBUG_PRINTF("got note resp %.*s",note->json_len,note->json);
     thtp_send(c,packet_linked(note));
     packet_free(note);
     return;
@@ -106,7 +110,7 @@ void ext_thtp(thtp_t t, chan_t c)
     if(!p) return (void)chan_fail(c,"422");
     req = p;
 
-    printf("thtp packet %.*s\n", req->json_len, req->json);
+    DEBUG_PRINTF("thtp packet %.*s", req->json_len, req->json);
     path = packet_get_str(req,"path");
     match = xht_get(t->index,path);
     if(!match) match = _thtp_glob(t,path);
