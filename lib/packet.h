@@ -25,8 +25,13 @@ packet_t packet_new();
 packet_t packet_copy(packet_t p);
 packet_t packet_free(packet_t p); // returns NULL for convenience
 
-// creates a new packet chained to the given one, so freeing the new packet also free's it
-packet_t packet_chain(packet_t p);
+// creates a new parent packet chained to the given child one, so freeing the new packet also free's it
+packet_t packet_chain(packet_t child);
+// manually chain together two packets
+packet_t packet_link(packet_t parent, packet_t child);
+// return a linked child if any
+packet_t packet_linked(packet_t parent);
+
 
 // initialize json/body from raw, parses json
 packet_t packet_parse(unsigned char *raw, unsigned short len);

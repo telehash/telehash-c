@@ -271,3 +271,19 @@ void switch_receive(switch_t s, packet_t p, path_t in)
   packet_free(p);
 }
 
+// sends a note packet to it's channel if it can, !0 for error
+int switch_note(switch_t s, packet_t note)
+{
+  chan_t c;
+  packet_t notes;
+  if(!s || !note) return -1;
+  c = xht_get(s->index,packet_get_str(note,".to"));
+  if(!c) return -1;
+  notes = c->notes;
+  while(notes) notes = notes->next;
+  if(!notes) c->notes = note;
+  else notes->next = note;
+  chan_queue(c);
+  return 0;
+
+}

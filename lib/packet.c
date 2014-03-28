@@ -27,6 +27,14 @@ packet_t packet_copy(packet_t p)
   return np;
 }
 
+packet_t packet_link(packet_t parent, packet_t child)
+{
+  if(!parent) return NULL;
+  if(parent->chain) packet_free(parent->chain);
+  parent->chain = child;
+  return parent;
+}
+
 packet_t packet_chain(packet_t p)
 {
   packet_t np = packet_new();
@@ -36,6 +44,12 @@ packet_t packet_chain(packet_t p)
   np->from = p->from;
   np->out = p->out;
   return np;
+}
+
+packet_t packet_linked(packet_t parent)
+{
+  if(!parent) return NULL;
+  return parent->chain;
 }
 
 packet_t packet_free(packet_t p)

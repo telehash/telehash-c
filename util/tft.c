@@ -17,6 +17,7 @@ int main(void)
   packet_t p, note;
   path_t in;
   thtp_t t;
+  chat_t chat;
   int sock;
 
   crypt_init();
@@ -32,7 +33,7 @@ int main(void)
   packet_body(note,packet_raw(p),packet_len(p));
   packet_free(p);
   thtp_path(t,note);
-
+  
   if(util_loadjson(s) != 0 || (sock = util_server(0)) <= 0)
   {
     printf("failed to startup %s or %s\n", strerror(errno), crypt_err());
@@ -41,10 +42,13 @@ int main(void)
 
   printf("loaded hashname %s\n",s->id->hexname);
 
+  // new chat, must be after-init
+  chat = chat_get(s,t,"foo");
+
   // create/send a ping packet  
   c = chan_new(s, bucket_get(s->seeds, 0), "link", 0);
   p = chan_packet(c);
-  switch_send(s, p);
+  chan_send(c, p);
   util_sendall(s,sock);
 
   in = path_new("ipv4");
@@ -57,6 +61,7 @@ int main(void)
       printf("channel active %d %s %s\n",c->state,c->hexid,c->to->hexname);
       if(util_cmp(c->type,"connect") == 0) ext_connect(c);
       if(util_cmp(c->type,"thtp") == 0) ext_thtp(t,c);
+      if(util_cmp(c->type,"chat") == 0) ext_chat(c);
       if(util_cmp(c->type,"link") == 0) ext_link(c);
       if(util_cmp(c->type,"seek") == 0) ext_seek(c);
       if(util_cmp(c->type,"path") == 0) ext_path(c);

@@ -6,7 +6,7 @@
 typedef struct chan_struct
 {
   uint32_t id;
-  unsigned char hexid[9];
+  unsigned char hexid[9], uid[9];
   struct switch_struct *s;
   struct hn_struct *to;
   char *type;
@@ -14,7 +14,8 @@ typedef struct chan_struct
   enum {STARTING, OPEN, ENDING, ENDED} state;
   struct path_struct *last;
   struct chan_struct *next;
-  packet_t in, inend, note;
+  packet_t in, inend, notes;
+  void *arg; // used by app
   void *seq, *miss; // used by chan_seq/chan_miss
 } *chan_t;
 
@@ -46,11 +47,20 @@ chan_t chan_fail(chan_t c, char *err);
 // get the next incoming note waiting to be handled
 packet_t chan_notes(chan_t c);
 
-// create a new note tied to this channel
-packet_t chan_note(chan_t c);
+// stamp or create (if NULL) a note as from this channel
+packet_t chan_note(chan_t c, packet_t note);
+
+// send the note back to the creating channel, frees note
+int chan_reply(chan_t c, packet_t note);
 
 // internal, receives/processes incoming packet
 void chan_receive(chan_t c, packet_t p);
+
+// smartly send based on what type of channel we are
+void chan_send(chan_t c, packet_t p);
+
+// optionally sends reliable channel ack-only if needed
+void chan_ack(chan_t c);
 
 // add/remove from switch processing queue
 void chan_queue(chan_t c);

@@ -60,7 +60,7 @@ int main(void)
   c = chan_new(s, bucket_get(seeds, 0), "seek", 0);
   p = chan_packet(c);
   packet_set_str(p,"seek",s->id->hexname);  
-  switch_send(s, p);
+  chan_send(c, p);
 
   while((p = switch_sending(s)))
   {

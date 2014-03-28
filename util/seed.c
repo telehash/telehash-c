@@ -32,7 +32,7 @@ int main(void)
   // create/send a ping packet  
   c = chan_new(s, bucket_get(s->seeds, 0), "link", 0);
   p = chan_packet(c);
-  switch_send(s, p);
+  chan_send(c, p);
   util_sendall(s,sock);
 
   in = path_new("ipv4");

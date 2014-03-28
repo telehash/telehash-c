@@ -8,8 +8,6 @@
 void chan_hn(hn_t hn, chan_t c)
 {
   if(!hn || !c) return;
-  if(!hn->chans) hn->chans = xht_new(17);
-  xht_set(hn->chans,(char*)c->hexid,c);
 }
 
 void walkend(xht_t h, const char *key, void *val, void *arg)
@@ -56,8 +54,12 @@ chan_t chan_new(switch_t s, hn_t to, char *type, uint32_t id)
   c->to = to;
   c->state = STARTING;
   c->id = id;
+  util_hex((unsigned char*)&(s->uid),4,(unsigned char*)c->uid); // switch-wide unique id
+  s->uid++;
   util_hex((unsigned char*)&(c->id),4,(unsigned char*)c->hexid);
-  chan_hn(to, c);
+  if(!to->chans) to->chans = xht_new(17);
+  xht_set(to->chans,(char*)c->hexid,c);
+  xht_set(s->index,(char*)c->uid,c);
   return c;
 }
 
@@ -94,11 +96,11 @@ chan_t chan_end(chan_t c, packet_t p)
 chan_t chan_fail(chan_t c, char *err)
 {
   packet_t e;
-  DEBUG_PRINTF("channel fail %d",c->id);
+  DEBUG_PRINTF("channel fail %d %s",c->id,err);
   if(err && c->state != ENDED && (e = chan_packet(c)))
   {
     packet_set_str(e,"err",err);
-    switch_send(c->s,e);
+    chan_send(c,e);
   }
   // no grace period for reliable
   c->state = ENDED;
@@ -109,16 +111,31 @@ chan_t chan_fail(chan_t c, char *err)
 
 void chan_free(chan_t c)
 {
+  packet_t p;
   // remove references
   DEBUG_PRINTF("channel free %d",c->id);
   chan_dequeue(c);
   if(xht_get(c->to->chans,(char*)c->hexid) == c) xht_set(c->to->chans,(char*)c->hexid,NULL);
+  xht_set(c->s->index,(char*)c->uid,NULL);
   if(c->reliable)
   {
     chan_seq_free(c);
     chan_miss_free(c);
   }
-  if(c->note) packet_free(c->note);
+  while(c->in)
+  {
+    DEBUG_PRINTF("unused packets on channel %d",c->id);
+    p = c->in;
+    c->in = p->next;
+    packet_free(p);
+  }
+  while(c->notes)
+  {
+    DEBUG_PRINTF("unused notes on channel %d",c->id);
+    p = c->notes;
+    c->notes = p->next;
+    packet_free(p);
+  }
   free(c->type);
   free(c);
 }
@@ -126,13 +143,29 @@ void chan_free(chan_t c)
 // get the next incoming note waiting to be handled
 packet_t chan_notes(chan_t c)
 {
-  return NULL;
+  packet_t note;
+  if(!c) return NULL;
+  note = c->notes;
+  if(note) c->notes = note->next;
+  return note;
 }
 
 // create a new note tied to this channel
-packet_t chan_note(chan_t c)
+packet_t chan_note(chan_t c, packet_t note)
 {
-  return NULL;
+  if(!note) note = packet_new();
+  packet_set_str(note,".from",(char*)c->uid);
+  return note;
+}
+
+// send this note back to the sender
+int chan_reply(chan_t c, packet_t note)
+{
+  char *from;
+  if(!c || !(from = packet_get_str(note,".from"))) return -1;
+  packet_set_str(note,".to",from);
+  packet_set_str(note,".from",(char*)c->uid);
+  return switch_note(c->s,note);
 }
 
 // create a packet ready to be sent for this channel
@@ -216,4 +249,20 @@ void chan_receive(chan_t c, packet_t p)
 
   // queue for processing
   chan_queue(c);
+}
+
+// smartly send based on what type of channel we are
+void chan_send(chan_t c, packet_t p)
+{
+  if(!p) return;
+  if(!c) return (void)packet_free(p);
+  if(c->reliable) p = packet_copy(p); // miss tracks the original p = chan_packet()
+  switch_send(c->s,p);
+}
+
+// optionally sends reliable channel ack-only if needed
+void chan_ack(chan_t c)
+{
+  if(!c || !c->reliable) return;
+  switch_send(c->s,chan_seq_ack(c,NULL));  
 }
