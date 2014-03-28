@@ -58,9 +58,6 @@ void ext_thtp(thtp_t t, chan_t c)
   packet_t p, req, resp, match;
   char *path;
 
-  // cleanup
-  if(c->state == ENDED) return chan_free(c);
-
   // incoming note as an answer
   if(c->state == ENDING && (resp = chan_notes(c)))
   {
@@ -80,7 +77,7 @@ void ext_thtp(thtp_t t, chan_t c)
       continue;
     }
     // parse the request if there is one
-    if(c->note->body_len)
+    if(c->note->body_len > 4)
     {
       packet_free(p);
       req = packet_parse(c->note->body,c->note->body_len);
@@ -98,14 +95,10 @@ void ext_thtp(thtp_t t, chan_t c)
       // TODO send a nice error
       return (void)chan_fail(c,"404");
     }
-    p = chan_packet(c);
-    packet_set(p,"end","true",4);
-    resp = packet_new();
-    packet_set_int(resp,"status",200);
-    packet_body(resp,(unsigned char*)"ok",2);
-    packet_body(p,packet_raw(resp),packet_len(resp));
-    packet_free(resp);
-    switch_send(c->s,p);
+    resp = chan_packet(c);
+    packet_set(resp,"end","true",4);
+    packet_body(resp,match->body,match->body_len);
+    switch_send(c->s,resp);
   }
   
   // optionally sends ack if needed

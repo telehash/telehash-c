@@ -95,7 +95,7 @@ chan_t chan_fail(chan_t c, char *err)
 {
   packet_t e;
   DEBUG_PRINTF("channel fail %d",c->id);
-  if(err && c->state == OPEN && (e = chan_packet(c)))
+  if(err && c->state != ENDED && (e = chan_packet(c)))
   {
     packet_set_str(e,"err",err);
     switch_send(c->s,e);
@@ -110,6 +110,7 @@ chan_t chan_fail(chan_t c, char *err)
 void chan_free(chan_t c)
 {
   // remove references
+  DEBUG_PRINTF("channel free %d",c->id);
   chan_dequeue(c);
   if(xht_get(c->to->chans,(char*)c->hexid) == c) xht_set(c->to->chans,(char*)c->hexid,NULL);
   if(c->reliable)

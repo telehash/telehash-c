@@ -9,7 +9,7 @@ ARCH = unix/platform.c $(JSON) $(CS1a) $(INCLUDE) $(LIBS)
 #ARCH = unix/platform.c $(JSON) $(CS2a) $(INCLUDE) $(LIBS)
 
 LIBS+=
-all: idgen ping seed
+all: idgen ping seed tft
 
 test:
 	$(CC) $(CFLAGS) -o bin/test util/test.c lib/packet.c lib/crypt.c lib/util.c $(ARCH)
@@ -22,6 +22,9 @@ ping:
 
 seed:
 	$(CC) $(CFLAGS) -o bin/seed util/seed.c lib/*.c unix/util.c ext/*.c $(ARCH)
+
+tft:
+	$(CC) $(CFLAGS) -o bin/tft util/tft.c lib/*.c unix/util.c ext/*.c $(ARCH)
  
 clean:
 	rm -f bin/*

@@ -14,12 +14,24 @@ int main(void)
 {
   switch_t s;
   chan_t c;
-  packet_t p;
+  packet_t p, note;
   path_t in;
+  thtp_t t;
   int sock;
 
   crypt_init();
   s = switch_new();
+  
+  // make a thtp server and dummy response
+  t = thtp_new(NULL);
+  p = packet_new();
+  packet_set_int(p,"status",200);
+  packet_body(p,(unsigned char*)"bar\n",4);
+  note = packet_new();
+  packet_set_str(note,"path","/foo");
+  packet_body(note,packet_raw(p),packet_len(p));
+  packet_free(p);
+  thtp_path(t,note);
 
   if(util_loadjson(s) != 0 || (sock = util_server(0)) <= 0)
   {
@@ -44,7 +56,9 @@ int main(void)
     {
       printf("channel active %d %s %s\n",c->state,c->hexid,c->to->hexname);
       if(util_cmp(c->type,"connect") == 0) ext_connect(c);
+      if(util_cmp(c->type,"thtp") == 0) ext_thtp(t,c);
       if(util_cmp(c->type,"link") == 0) ext_link(c);
+      if(util_cmp(c->type,"seek") == 0) ext_seek(c);
       if(util_cmp(c->type,"path") == 0) ext_path(c);
       while((p = chan_pop(c)))
       {
