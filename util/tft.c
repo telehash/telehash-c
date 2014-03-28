@@ -30,8 +30,7 @@ int main(void)
   packet_body(p,(unsigned char*)"bar\n",4);
   note = packet_new();
   packet_set_str(note,"path","/foo");
-  packet_body(note,packet_raw(p),packet_len(p));
-  packet_free(p);
+  packet_link(note,p);
   thtp_path(t,note);
   
   if(util_loadjson(s) != 0 || (sock = util_server(0)) <= 0)

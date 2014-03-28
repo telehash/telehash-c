@@ -50,19 +50,39 @@ packet_t _thtp_glob(thtp_t t, char *p1)
   return NULL;
 }
 
+// chunk the packet out
+void thtp_send(chan_t c, packet_t p)
+{
+  packet_t chunk;
+  unsigned char *raw;
+  unsigned short len, space;
+  if(!c || !p) return;
+  raw = packet_raw(p);
+  len = packet_len(p);
+  while(len)
+  {
+    chunk = chan_packet(c);
+    if(!chunk) return; // TODO backpressure
+    space = packet_space(chunk);
+    if(space > len) space = len;
+    packet_body(chunk,raw,space);
+    if(len==space) packet_set(chunk,"end","true",4);
+    chan_send(c,chunk);
+    raw+=space;
+    len-=space;
+  }
+}
+
 void ext_thtp(thtp_t t, chan_t c)
 {
-  packet_t p, req, resp, match, note;
+  packet_t p, req, match, note;
   char *path;
 
   // incoming note as an answer
   if(c->state == ENDING && (note = chan_notes(c)))
   {
     printf("got note resp %.*s",note->json_len,note->json);
-    resp = chan_packet(c);
-    packet_set(resp,"end","true",4);
-    packet_body(resp,note->body,note->body_len);
-    chan_send(c,resp);
+    thtp_send(c,packet_linked(note));
     packet_free(note);
     return;
   }
@@ -79,40 +99,39 @@ void ext_thtp(thtp_t t, chan_t c)
     }
     // for now we're processing whole-requests-at-once, to do streaming we can try parsing note->body for the headers anytime
     if(!c->state == ENDING) continue;
-    // parse the request if there is one
-    if(req->body_len > 4)
-    {
-      p = packet_parse(req->body,req->body_len);
-      if(p)
-      {
-        packet_free(req);
-        req = p;
-      }
-    }
-    path = packet_get_str(req,"path");
-    if(!path) return (void)chan_fail(c,"invalid");
+
+    // parse the request
+    p = packet_parse(req->body,req->body_len);
+    packet_free(req);
+    if(!p) return (void)chan_fail(c,"422");
+    req = p;
+
     printf("thtp packet %.*s\n", req->json_len, req->json);
+    path = packet_get_str(req,"path");
     match = xht_get(t->index,path);
     if(!match) match = _thtp_glob(t,path);
     if(!match)
     {
-      // TODO send a nice error
-      return (void)chan_fail(c,"404");
+      chan_fail(c,"404");
+      packet_free(req);
+      return;
     }
+
     // built in response
-    if(match->body_len)
+    if(packet_linked(match))
     {
-      resp = chan_packet(c);
-      packet_set(resp,"end","true",4);
-      packet_body(resp,match->body,match->body_len);
-      chan_send(c,resp);
+      thtp_send(c,packet_linked(match));
+      packet_free(req);
       return;
     }
     
     // attach and route request to a new note
     note = packet_copy(match);
     packet_link(note,req);
-    if(chan_reply(c,note) != 0) return (void)chan_fail(c,"500");
+    if(chan_reply(c,note) == 0) return;
+
+    chan_fail(c,"500");
+    packet_free(req);
   }
   
   // optionally sends ack if needed

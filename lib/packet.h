@@ -40,6 +40,9 @@ packet_t packet_parse(unsigned char *raw, unsigned short len);
 unsigned char *packet_raw(packet_t p);
 unsigned short packet_len(packet_t p);
 
+// return current packet capacity
+unsigned short packet_space(packet_t p);
+
 // return json pointer safe to use w j0g
 char *packet_j0g(packet_t p);
 

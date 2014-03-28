@@ -52,8 +52,7 @@ chat_t ext_chat(chan_t c)
       p = packet_new();
       packet_set_int(p,"status",200);
       packet_body(p,(unsigned char*)"chat\n",5);
-      packet_body(note,packet_raw(p),packet_len(p));
-      packet_free(p);
+      packet_link(note,p);
       chan_reply(c,note);
     }
     return NULL;

@@ -62,6 +62,16 @@ packet_t packet_free(packet_t p)
   return NULL;
 }
 
+unsigned short packet_space(packet_t p)
+{
+  unsigned short len;
+  if(!p) return 0;
+  len = 2+p->json_len+p->body_len;
+  if(len > 1440) return 0;
+  return 1440-len;
+}
+
+
 packet_t packet_parse(unsigned char *raw, unsigned short len)
 {
   packet_t p;
