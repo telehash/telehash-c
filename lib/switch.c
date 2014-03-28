@@ -176,8 +176,8 @@ void switch_send(switch_t s, packet_t p)
 
   if(!p) return;
   
-  // require recipient at least
-  if(!p->to) return (void)packet_free(p);
+  // require recipient at least, and not us
+  if(!p->to || p->to == s->id) return (void)packet_free(p);
 
   // encrypt the packet to the line, chains together
   lined = crypt_lineize(p->to->c, p);

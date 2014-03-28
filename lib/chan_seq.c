@@ -5,7 +5,7 @@
 
 typedef struct seq_struct
 {
-  uint32_t id, nextin, seen;
+  uint32_t id, nextin, seen, acked;
   packet_t *in;
 } *seq_t;
 
@@ -34,8 +34,13 @@ packet_t chan_seq_ack(chan_t c, packet_t p)
   int i,max;
   seq_t s = (seq_t)c->seq;
 
+  // determine if we need to ack
   if(!s->nextin) return p;
-  packet_set_int(p,"ack",(int)s->nextin-1);
+  if(!p && s->acked == s->nextin-1) return NULL;
+
+  if(!p) p = chan_packet(c); // ack-only packet
+  s->acked = s->nextin-1;
+  packet_set_int(p,"ack",(int)s->acked);
 
   // check if miss is not needed
   if(s->seen < s->nextin || s->in[0]) return p;

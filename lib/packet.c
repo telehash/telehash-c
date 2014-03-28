@@ -117,6 +117,16 @@ void packet_body(packet_t p, unsigned char *body, unsigned short len)
   p->body_len = len;
 }
 
+void packet_append(packet_t p, unsigned char *chunk, unsigned short len)
+{
+  if(!p || !chunk || !len) return;
+  p->raw = realloc(p->raw,2+len+p->body_len+p->json_len);
+  p->json = p->raw+2;
+  p->body = p->raw+(2+p->json_len);
+  memcpy(p->body+p->body_len,chunk,len);
+  p->body_len += len;
+}
+
 void packet_set(packet_t p, char *key, char *val, int vlen)
 {
   unsigned char *json, *at, *eval;

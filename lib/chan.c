@@ -117,8 +117,21 @@ void chan_free(chan_t c)
     chan_seq_free(c);
     chan_miss_free(c);
   }
+  if(c->note) packet_free(c->note);
   free(c->type);
   free(c);
+}
+
+// get the next incoming note waiting to be handled
+packet_t chan_notes(chan_t c)
+{
+  return NULL;
+}
+
+// create a new note tied to this channel
+packet_t chan_note(chan_t c)
+{
+  return NULL;
 }
 
 // create a packet ready to be sent for this channel

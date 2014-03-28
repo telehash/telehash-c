@@ -14,7 +14,7 @@ typedef struct chan_struct
   enum {STARTING, OPEN, ENDING, ENDED} state;
   struct path_struct *last;
   struct chan_struct *next;
-  packet_t in, inend;
+  packet_t in, inend, note;
   void *seq, *miss; // used by chan_seq/chan_miss
 } *chan_t;
 
@@ -42,6 +42,12 @@ chan_t chan_end(chan_t c, packet_t p);
 
 // immediately fails/removes channel, if err tries to send message
 chan_t chan_fail(chan_t c, char *err);
+
+// get the next incoming note waiting to be handled
+packet_t chan_notes(chan_t c);
+
+// create a new note tied to this channel
+packet_t chan_note(chan_t c);
 
 // internal, receives/processes incoming packet
 void chan_receive(chan_t c, packet_t p);

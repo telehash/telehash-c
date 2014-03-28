@@ -17,6 +17,6 @@ typedef struct thtp_struct *thtp_t;
 void ext_thtp(thtp_t t, chan_t c);
 thtp_t thtp_new();
 thtp_t thtp_free(thtp_t t);
-thtp_t thtp_xht(thtp_t t, xht_t index);
+void thtp_match(thtp_t t, char *path, packet_t note);
 
 #endif
