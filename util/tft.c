@@ -42,8 +42,8 @@ int main(void)
 
   // new chat, must be after-init
   chat = chat_get(s,t,"foo");
-
-  printf("created chat %s\n",chat->id);
+  p = chat_join(chat,1000);
+  printf("created chat %s %s\n",chat->id,packet_get_str(p,"id"));
 
   // create/send a ping packet  
   c = chan_new(s, bucket_get(s->seeds, 0), "link", 0);
