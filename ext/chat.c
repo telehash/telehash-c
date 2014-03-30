@@ -74,15 +74,26 @@ chat_t chat_get(switch_t s, char *id)
   sprintf(ct->id,"%s@%s",ct->name,ct->orig->hexname);
   ct->s = s;
   ct->roster = packet_new();
-  
+  ct->index = xht_new(101);
+  ct->seq = 1000;
+  crypt_rand((unsigned char*)&(ct->seed),4);
+
   // an admin channel for distribution and thtp requests
   ct->base = chan_new(s, s->id, "chat", 0);
   ct->base->arg = ct;
   note = chan_note(ct->base,NULL);
   sprintf(buf,"/chat/%s/",ct->name);
   thtp_glob(s,buf,note);
-
   xht_set(s->index,ct->id,ct);
+
+  // any other hashname and we try to initialize
+  if(ct->orig != s->id)
+  {
+    ct->state = LOADING;
+    // TODO fetch roster and joins
+  }else{
+    ct->state = OFFLINE;
+  }
   return ct;
 }
 
@@ -90,7 +101,8 @@ chat_t chat_free(chat_t ct)
 {
   if(!ct) return ct;
   xht_set(ct->s->index,ct->id,NULL);
-  packet_free(ct->join);
+  // TODO xht-walk ct->index and free packets
+  xht_free(ct->index);
   packet_free(ct->roster);
   free(ct);
   return NULL;
@@ -102,6 +114,7 @@ packet_t chat_message(chat_t ct)
   char id[32];
   uint16_t step;
   uint32_t hash;
+  unsigned long at = platform_seconds();
 
   if(!ct || !ct->seq) return NULL;
 
@@ -115,18 +128,36 @@ packet_t chat_message(chat_t ct)
   sprintf(id+8,",%d",ct->seq);
   ct->seq--;
   packet_set_str(p,"id",id);
+  packet_set_str(p,"type","message");
+  if(ct->after) packet_set_str(p,"after",ct->after);
+  if(at > 1396184861) packet_set_int(p,"at",at); // only if platform_seconds() is epoch
   return p;
 }
 
-packet_t chat_join(chat_t ct, uint16_t count)
+chat_t chat_join(chat_t ct, packet_t join)
 {
-  if(!ct || !count) return NULL;
-  ct->seq = count;
-  crypt_rand((unsigned char*)&(ct->seed),4);
-  ct->join = chat_message(ct);
-  packet_set_str(ct->roster,ct->s->id->hexname,packet_get_str(ct->join,"id"));
+  if(!ct || !join) return NULL;
+  packet_set_str(join,"type","join");
+  ct->join = packet_get_str(join,"id");
+  xht_set(ct->index,ct->join,join);
+  packet_set_str(ct->roster,ct->s->id->hexname,ct->join);
   chat_rhash(ct);
-  return ct->join;
+  if(ct->orig == ct->s->id)
+  {
+    ct->state = JOINED;
+    return ct;
+  }
+  ct->state = JOINING;
+  // TODO mesh
+  return ct;
+}
+
+chat_t chat_default(chat_t ct, char *val)
+{
+  if(!ct) return NULL;
+  packet_set_str(ct->roster,"*",val);
+  chat_rhash(ct);
+  return ct;
 }
 
 chat_t ext_chat(chan_t c)

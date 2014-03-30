@@ -151,6 +151,7 @@ void packet_append(packet_t p, unsigned char *chunk, unsigned short len)
   p->body_len += len;
 }
 
+// TODO allow empty val to remove existing
 void packet_set(packet_t p, char *key, char *val, int vlen)
 {
   unsigned char *json, *at, *eval;

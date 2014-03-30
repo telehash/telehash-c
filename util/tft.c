@@ -40,7 +40,8 @@ int main(void)
 
   // new chat, must be after-init
   chat = chat_get(s,"foo");
-  p = chat_join(chat,1000);
+  p = chat_message(chat);
+  chat_join(chat,p);
   printf("created chat %s %s %s\n",chat->id,packet_get_str(p,"id"),chat->rhash);
 
   // create/send a ping packet  
