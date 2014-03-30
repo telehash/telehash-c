@@ -16,21 +16,19 @@ int main(void)
   chan_t c;
   packet_t p, note;
   path_t in;
-  thtp_t t;
   chat_t chat;
   int sock;
 
   crypt_init();
   s = switch_new();
   
-  // make a thtp server and dummy response
-  t = thtp_new(NULL);
+  // make a dummy thtp response
   p = packet_new();
   packet_set_int(p,"status",200);
   packet_body(p,(unsigned char*)"bar\n",4);
   note = packet_new();
   packet_link(note,p);
-  thtp_path(t,"/foo",note);
+  thtp_path(s,"/foo",note);
   
   if(util_loadjson(s) != 0 || (sock = util_server(0)) <= 0)
   {
@@ -41,9 +39,9 @@ int main(void)
   printf("loaded hashname %s\n",s->id->hexname);
 
   // new chat, must be after-init
-  chat = chat_get(s,t,"foo");
+  chat = chat_get(s,"foo");
   p = chat_join(chat,1000);
-  printf("created chat %s %s\n",chat->id,packet_get_str(p,"id"));
+  printf("created chat %s %s %s\n",chat->id,packet_get_str(p,"id"),chat->rhash);
 
   // create/send a ping packet  
   c = chan_new(s, bucket_get(s->seeds, 0), "link", 0);
@@ -60,7 +58,7 @@ int main(void)
     {
       printf("channel active %d %s %s\n",c->state,c->hexid,c->to->hexname);
       if(util_cmp(c->type,"connect") == 0) ext_connect(c);
-      if(util_cmp(c->type,"thtp") == 0) ext_thtp(t,c);
+      if(util_cmp(c->type,"thtp") == 0) ext_thtp(c);
       if(util_cmp(c->type,"chat") == 0) ext_chat(c);
       if(util_cmp(c->type,"link") == 0) ext_link(c);
       if(util_cmp(c->type,"seek") == 0) ext_seek(c);

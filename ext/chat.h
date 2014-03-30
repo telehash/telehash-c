@@ -2,23 +2,21 @@
 #define ext_chat_h
 
 #include "switch.h"
-#include "thtp.h"
 
 typedef struct chat_struct 
 {
   char name[32+1], id[32+1+64+1];
   hn_t orig;
   switch_t s;
-  thtp_t t;
   chan_t base;
-  char seed[9];
+  char seed[9], rhash[9];
   uint16_t seq;
-  packet_t join;
+  packet_t join, roster;
 } *chat_t;
 
 chat_t ext_chat(chan_t c);
 
-chat_t chat_get(switch_t s, thtp_t t, char *id);
+chat_t chat_get(switch_t s, char *id);
 chat_t chat_free(chat_t ct);
 
 packet_t chat_join(chat_t ct, uint16_t count);

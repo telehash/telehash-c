@@ -18,7 +18,26 @@ int chat_namelen(char *id)
   return 0;
 }
 
-chat_t chat_get(switch_t s, thtp_t t, char *id)
+char *chat_rhash(chat_t ct)
+{
+  char *buf, *str;
+  int at=0, i, len;
+  uint32_t hash;
+  // TODO, should be a way to optimize doing the mmh on the fly
+  buf = malloc(ct->roster->json_len);
+  for(i=0;(str = packet_get_istr(ct->roster,i));i++)
+  {
+    len = strlen(str);
+    memcpy(buf+at,str,len);
+    at += len;
+  }
+  hash = mmh32(buf,at);
+  free(buf);
+  util_hex((unsigned char*)&hash,4,(unsigned char*)ct->rhash);
+  return ct->rhash;
+}
+
+chat_t chat_get(switch_t s, char *id)
 {
   chat_t ct;
   packet_t note;
@@ -54,17 +73,27 @@ chat_t chat_get(switch_t s, thtp_t t, char *id)
   ct->orig = orig ? orig : s->id;
   sprintf(ct->id,"%s@%s",ct->name,ct->orig->hexname);
   ct->s = s;
-  ct->t = t;
+  ct->roster = packet_new();
   
   // an admin channel for distribution and thtp requests
   ct->base = chan_new(s, s->id, "chat", 0);
   ct->base->arg = ct;
   note = chan_note(ct->base,NULL);
   sprintf(buf,"/chat/%s/",ct->name);
-  thtp_glob(t,buf,note);
+  thtp_glob(s,buf,note);
 
   xht_set(s->index,ct->id,ct);
   return ct;
+}
+
+chat_t chat_free(chat_t ct)
+{
+  if(!ct) return ct;
+  xht_set(ct->s->index,ct->id,NULL);
+  packet_free(ct->join);
+  packet_free(ct->roster);
+  free(ct);
+  return NULL;
 }
 
 packet_t chat_message(chat_t ct)
@@ -94,15 +123,10 @@ packet_t chat_join(chat_t ct, uint16_t count)
   if(!ct || !count) return NULL;
   ct->seq = count;
   crypt_rand((unsigned char*)&(ct->seed),4);
-  return chat_message(ct);
-}
-
-chat_t chat_free(chat_t ct)
-{
-  if(!ct) return ct;
-  xht_set(ct->s->index,ct->id,NULL);
-  free(ct);
-  return NULL;
+  ct->join = chat_message(ct);
+  packet_set_str(ct->roster,ct->s->id->hexname,packet_get_str(ct->join,"id"));
+  chat_rhash(ct);
+  return ct->join;
 }
 
 chat_t ext_chat(chan_t c)
@@ -128,9 +152,17 @@ chat_t ext_chat(chan_t c)
     return NULL;
   }
 
+  if(!ct && (p = chan_pop(c)))
+  {
+    ct = chat_get(c->s,packet_get_str(p,"to"));
+    if(!ct) return (chat_t)chan_fail(c,"500");
+    printf("new chat %s from %s\n",ct->id,c->to->hexname);
+    return ct;
+  }
+
   while((p = chan_pop(c)))
   {
-    printf("chat packet %.*s\n", p->json_len, p->json);      
+    printf("chat packet %.*s\n", p->json_len, p->json);
     packet_free(p);
   }
   return NULL;

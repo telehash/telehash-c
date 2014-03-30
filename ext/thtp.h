@@ -4,12 +4,16 @@
 #include "xht.h"
 #include "chan.h"
 
-typedef struct thtp_struct *thtp_t;
+void ext_thtp(chan_t c);
 
-void ext_thtp(thtp_t t, chan_t c);
-thtp_t thtp_new();
-thtp_t thtp_free(thtp_t t);
-void thtp_glob(thtp_t t, char *glob, packet_t note);
-void thtp_path(thtp_t t, char *path, packet_t note);
+// optionally initialize thtp w/ an index, happens automatically too
+void thtp_init(switch_t s, xht_t index);
+void thtp_free(switch_t s);
+
+// sends requests matching this glob ("/path" matches "/path/foo") to this note, most specific wins
+void thtp_glob(switch_t s, char *glob, packet_t note);
+
+// sends requests matching this exact path to this note
+void thtp_path(switch_t s, char *path, packet_t note);
 
 #endif

@@ -244,7 +244,7 @@ char *packet_get_str(packet_t p, char *key)
   return j0g_str(key, packet_j0g(p), p->js);
 }
 
-// returns ["0","1","2"]
+// returns ["0","1","2"] or {"0":"1","2":"3"}
 char *packet_get_istr(packet_t p, int i)
 {
   int j;

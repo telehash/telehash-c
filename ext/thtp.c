@@ -1,40 +1,56 @@
 #include "ext.h"
 
-struct thtp_struct 
+typedef struct thtp_struct 
 {
   xht_t index;
   packet_t glob;
-};
+} *thtp_t;
 
-thtp_t thtp_new(xht_t index)
+thtp_t thtp_new(switch_t s, xht_t index)
 {
   thtp_t t;
   t = malloc(sizeof (struct thtp_struct));
   memset(t,0,sizeof (struct thtp_struct));
   if(!index) index = xht_new(13);
   t->index = index;
+  xht_set(s->index,"thtp",t);
   return t;
+  
 }
 
-thtp_t thtp_free(thtp_t t)
+// typeless wrapper
+void thtp_init(switch_t s, xht_t index)
 {
-  if(!t) return t;
+  thtp_new(s,index);
+}
+
+thtp_t thtp_get(switch_t s)
+{
+  thtp_t t;
+  t = xht_get(s->index,"thtp");
+  return t ? t : thtp_new(s,NULL);
+}
+
+void thtp_free(switch_t s)
+{
+  thtp_t t = thtp_get(s);
   //xht_walk() TODO free all notes
   // free all globs
   xht_free(t->index);
   free(t);
-  return NULL;
 }
 
-void thtp_glob(thtp_t t, char *glob, packet_t note)
+void thtp_glob(switch_t s, char *glob, packet_t note)
 {
+  thtp_t t = thtp_get(s);
   packet_set_str(note,"glob",glob);
   note->next = t->glob;
   t->glob = note;
 }
 
-void thtp_path(thtp_t t, char *path, packet_t note)
+void thtp_path(switch_t s, char *path, packet_t note)
 {
+  thtp_t t = thtp_get(s);
   packet_set_str(note,"path",path);
   xht_set(t->index,packet_get_str(note,"path"),(void*)note);
 }
@@ -77,10 +93,11 @@ void thtp_send(chan_t c, packet_t p)
   }
 }
 
-void ext_thtp(thtp_t t, chan_t c)
+void ext_thtp(chan_t c)
 {
   packet_t p, req, match, note;
   char *path;
+  thtp_t t = thtp_get(c->s);
 
   // incoming note as an answer
   if(c->state == ENDING && (note = chan_notes(c)))
