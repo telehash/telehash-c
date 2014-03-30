@@ -1,4 +1,8 @@
 #include <stdlib.h>
+#include <stdlib.h>
+#include <time.h>
+#include <sys/time.h>
+#include <unistd.h>
 #include "switch.h"
 #include "ecc.h"
 #include "aes.h"
@@ -25,7 +29,11 @@ int RNG(uint8_t *p_dest, unsigned p_size)
 
 int crypt_init_1a()
 {
-  srandomdev();
+  struct timeval tv;
+  unsigned int seed;
+  gettimeofday(&tv, NULL);
+  seed = (getpid() << 16) ^ tv.tv_sec ^ tv.tv_usec;
+  srandom(seed); // srandomdev() is not universal
   ecc_set_rng(&RNG);
   return 0;
 }

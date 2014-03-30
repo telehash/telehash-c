@@ -4,6 +4,8 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #include "switch.h"
 #include "util.h"
@@ -18,6 +20,10 @@ int main(void)
   path_t in;
   chat_t chat;
   int sock;
+  char buf[64];
+  const int fd = fileno(stdin);
+  const int fcflags = fcntl(fd,F_GETFL);
+  fcntl(fd,F_SETFL,fcflags | O_NONBLOCK);
 
   crypt_init();
   s = switch_new();
