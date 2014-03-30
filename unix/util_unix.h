@@ -22,8 +22,8 @@ void util_sendall(switch_t s, int sock);
 // read the next packet and process it from the socket
 int util_readone(switch_t s, int sock, path_t in);
 
-// create a listening ipv4 udp sock
-int util_server(int port);
+// create a listening ipv4 udp sock, blocks for up to ms
+int util_server(int port, int ms);
 
 // load id.json and seeds.json
 int util_loadjson(switch_t s);

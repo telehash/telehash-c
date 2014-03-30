@@ -113,7 +113,7 @@ int util_readone(switch_t s, int sock, path_t in)
   return 0;
 }
 
-int util_server(int port)
+int util_server(int port, int ms)
 {
   int sock;
   struct	sockaddr_in sad;
@@ -134,8 +134,8 @@ int util_server(int port)
     perror("bind failed");
     return -1;
   }
-  tv.tv_sec = 1;
-  tv.tv_usec = 0;
+  tv.tv_sec = 0;
+  tv.tv_usec = ms*1000;
   if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0)
   {
     perror("setsockopt");

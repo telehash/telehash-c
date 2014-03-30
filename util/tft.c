@@ -37,7 +37,7 @@ int main(void)
   packet_link(note,p);
   thtp_path(s,"/foo",note);
   
-  if(util_loadjson(s) != 0 || (sock = util_server(0)) <= 0)
+  if(util_loadjson(s) != 0 || (sock = util_server(0,100)) <= 0)
   {
     printf("failed to startup %s or %s\n", strerror(errno), crypt_err());
     return -1;
