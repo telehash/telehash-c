@@ -27,11 +27,21 @@ packet_t packet_copy(packet_t p)
   return np;
 }
 
+packet_t packet_unlink(packet_t parent)
+{
+  packet_t child;
+  if(!parent) return NULL;
+  child = parent->chain;
+  parent->chain = NULL;
+  return child;
+}
+
 packet_t packet_link(packet_t parent, packet_t child)
 {
   if(!parent) return NULL;
   if(parent->chain) packet_free(parent->chain);
   parent->chain = child;
+  if(child && child->chain == parent) child->chain = NULL;
   return parent;
 }
 

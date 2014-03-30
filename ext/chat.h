@@ -24,5 +24,6 @@ chat_t chat_free(chat_t ct);
 
 packet_t chat_message(chat_t ct);
 chat_t chat_join(chat_t ct, packet_t join);
+chat_t chat_send(chat_t ct, packet_t msg);
 
 #endif

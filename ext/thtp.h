@@ -16,4 +16,7 @@ void thtp_glob(switch_t s, char *glob, packet_t note);
 // sends requests matching this exact path to this note
 void thtp_path(switch_t s, char *path, packet_t note);
 
+// generate an outgoing request, send the response attached to the note
+chan_t thtp_req(switch_t s, packet_t note);
+
 #endif

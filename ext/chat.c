@@ -102,6 +102,7 @@ chat_t chat_free(chat_t ct)
   if(!ct) return ct;
   xht_set(ct->s->index,ct->id,NULL);
   // TODO xht-walk ct->index and free packets
+  // TODO unregister thtp
   xht_free(ct->index);
   packet_free(ct->roster);
   free(ct);
@@ -136,8 +137,15 @@ packet_t chat_message(chat_t ct)
 
 chat_t chat_join(chat_t ct, packet_t join)
 {
+  packet_t p;
   if(!ct || !join) return NULL;
   packet_set_str(join,"type","join");
+  if(ct->join)
+  {
+    p = xht_get(ct->index,ct->join);
+    xht_set(ct->index,ct->join,NULL);
+    packet_free(p);
+  }
   ct->join = packet_get_str(join,"id");
   xht_set(ct->index,ct->join,join);
   packet_set_str(ct->roster,ct->s->id->hexname,ct->join);
@@ -150,6 +158,13 @@ chat_t chat_join(chat_t ct, packet_t join)
   ct->state = JOINING;
   // TODO mesh
   return ct;
+}
+
+chat_t chat_send(chat_t ct, packet_t msg)
+{
+  if(!ct || !msg) return NULL;
+  // TODO walk roster, find connected in index and send notes
+  return NULL;
 }
 
 chat_t chat_default(chat_t ct, char *val)

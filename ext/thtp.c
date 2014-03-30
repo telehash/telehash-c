@@ -40,6 +40,7 @@ void thtp_free(switch_t s)
   free(t);
 }
 
+// TODO support NULL note to delete
 void thtp_glob(switch_t s, char *glob, packet_t note)
 {
   thtp_t t = thtp_get(s);
@@ -93,6 +94,42 @@ void thtp_send(chan_t c, packet_t p)
   }
 }
 
+// generate an outgoing request, send the response attached to the note
+chan_t thtp_req(switch_t s, packet_t note)
+{
+  char *hn, *uri, *path, *method;
+  hn_t to;
+  packet_t req;
+  chan_t c;
+  if(!s || !note) return NULL;
+
+  method = packet_get_str(note,"method");
+  path = packet_get_str(note,"path");
+  hn = packet_get_str(note,"hn");
+  if((uri = packet_get_str(note,"uri")))
+  {
+    // parse URI, set hn and path
+  }
+  to = hn_gethex(s->index,packet_get_str(note,"hn"));
+  if(!to) return NULL;
+  req = packet_linked(note);
+  if(!req)
+  {
+    req = packet_chain(note);
+    packet_set_str(req,"path",path?path:"/");
+    packet_set_str(req,"method",method?method:"get");
+  }
+
+  // inverse req->note
+  packet_link(req,note);
+
+  // open channel and send req
+  c = chan_new(s, to, "thtp", 0);
+  c->arg = req;
+  thtp_send(c,req);
+  return c;
+}
+
 void ext_thtp(chan_t c)
 {
   packet_t p, req, match, note;
@@ -121,8 +158,17 @@ void ext_thtp(chan_t c)
     // for now we're processing whole-requests-at-once, to do streaming we can try parsing note->body for the headers anytime
     if(!c->state == ENDING) continue;
 
-    // parse the request
+    // parse the payload
     p = packet_parse(req->body,req->body_len);
+    // this is a response, send it
+    if((note = packet_unlink(req)))
+    {
+      packet_free(req);
+      packet_link(note,p);
+      chan_reply(c,note);
+      chan_end(c,NULL);
+      return;
+    }
     packet_free(req);
     if(!p) return (void)chan_fail(c,"422");
     req = p;

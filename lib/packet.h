@@ -31,7 +31,8 @@ packet_t packet_chain(packet_t child);
 packet_t packet_link(packet_t parent, packet_t child);
 // return a linked child if any
 packet_t packet_linked(packet_t parent);
-
+// returns child, unlinked
+packet_t packet_unlink(packet_t parent);
 
 // initialize json/body from raw, parses json
 packet_t packet_parse(unsigned char *raw, unsigned short len);
