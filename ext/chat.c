@@ -2,8 +2,8 @@
 
 uint32_t mmh32(const char* data, size_t len_);
 
-// validate name part of an id
-int chat_namelen(char *id)
+// validate endpoint part of an id
+int chat_eplen(char *id)
 {
   int at;
   if(!id) return -1;
@@ -51,7 +51,7 @@ chat_t chat_get(switch_t s, char *id)
   // if there's an id, validate and optionally parse out originator
   if(id)
   {
-    at = chat_namelen(id);
+    at = chat_eplen(id);
     if(at < 0) return NULL;
     if(at > 0)
     {
@@ -66,12 +66,12 @@ chat_t chat_get(switch_t s, char *id)
   if(!id)
   {
     crypt_rand((unsigned char*)buf,4);
-    util_hex((unsigned char*)buf,4,(unsigned char*)ct->name);
+    util_hex((unsigned char*)buf,4,(unsigned char*)ct->ep);
   }else{
-    memcpy(ct->name,id,strlen(id)+1);
+    memcpy(ct->ep,id,strlen(id)+1);
   }
   ct->orig = orig ? orig : s->id;
-  sprintf(ct->id,"%s@%s",ct->name,ct->orig->hexname);
+  sprintf(ct->id,"%s@%s",ct->ep,ct->orig->hexname);
   ct->s = s;
   ct->roster = packet_new();
   ct->index = xht_new(101);
@@ -82,7 +82,7 @@ chat_t chat_get(switch_t s, char *id)
   ct->base = chan_new(s, s->id, "chat", 0);
   ct->base->arg = ct;
   note = chan_note(ct->base,NULL);
-  sprintf(buf,"/chat/%s/",ct->name);
+  sprintf(buf,"/chat/%s/",ct->ep);
   thtp_glob(s,buf,note);
   xht_set(s->index,ct->id,ct);
 

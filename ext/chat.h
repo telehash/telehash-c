@@ -6,7 +6,7 @@
 typedef struct chat_struct 
 {
   enum {LOADING, OFFLINE, CONNECTING, CONNECTED, JOINING, JOINED} state;
-  char name[32+1], id[32+1+64+1];
+  char ep[32+1], id[32+1+64+1];
   hn_t orig;
   switch_t s;
   chan_t base;
