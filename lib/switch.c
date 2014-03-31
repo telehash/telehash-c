@@ -12,9 +12,6 @@ switch_t switch_new()
   memset(s, 0, sizeof(struct switch_struct));
   s->cap = 256; // default cap size
   s->window = 32; // default reliable window size
-  // create all the buckets
-  s->buckets = malloc(256 * sizeof(bucket_t));
-  memset(s->buckets, 0, 256 * sizeof(bucket_t));
   s->index = xht_new(MAXPRIME);
   s->parts = packet_new();
   return s;
@@ -64,8 +61,6 @@ int switch_init(switch_t s, packet_t keys)
 
 void switch_free(switch_t s)
 {
-  int i;
-  for(i=0;i<=255;i++) if(s->buckets[i]) bucket_free(s->buckets[i]);
   if(s->seeds) bucket_free(s->seeds);
   free(s);
 }
@@ -79,16 +74,6 @@ void switch_capwin(switch_t s, int cap, int window)
 void switch_loop(switch_t s)
 {
   // give all channels a chance
-}
-
-// add this hashname to our bucket list
-void switch_bucket(switch_t s, hn_t hn)
-{
-  unsigned char bucket = hn_distance(s->id, hn);
-  if(!s->buckets[bucket]) s->buckets[bucket] = bucket_new();
-  bucket_add(s->buckets[bucket], hn);
-  // TODO figure out if there's actually more capacity
-  
 }
 
 void switch_seed(switch_t s, hn_t hn)

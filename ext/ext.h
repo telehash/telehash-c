@@ -8,12 +8,9 @@
 
 #include "chat.h"
 #include "thtp.h"
-
-void ext_link(chan_t c);
+#include "link.h"
 
 void ext_connect(chan_t c);
-
-void ext_seek(chan_t c);
 
 void ext_path(chan_t c);
 

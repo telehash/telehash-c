@@ -14,7 +14,7 @@
 typedef struct switch_struct
 {
   hn_t id;
-  bucket_t seeds, *buckets;
+  bucket_t seeds;
   packet_t out, last; // packets waiting to be delivered
   packet_t parts;
   chan_t chans; // channels waiting to be processed

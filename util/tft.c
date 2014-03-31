@@ -52,10 +52,7 @@ int main(void)
   chat_join(chat,p);
   printf("created chat %s %s %s\n",chat->id,packet_get_str(p,"id"),chat->rhash);
 
-  // create/send a ping packet  
-  c = chan_new(s, bucket_get(s->seeds, 0), "link", 0);
-  p = chan_packet(c);
-  chan_send(c, p);
+  link_hn(s, bucket_get(s->seeds, 0));
   util_sendall(s,sock);
 
   in = path_new("ipv4");
@@ -90,6 +87,8 @@ int main(void)
       }else if(strcmp(buf,"/quit") == 0){
         // TODO test freeing all
         return 0;
+      }else if(strncmp(buf,"/get ",5) == 0){
+        printf("get %s\n",buf+5);
       }else if(strncmp(buf,"/chat ",6) == 0){
         chat_free(chat);
         chat = chat_get(s,buf+6);
