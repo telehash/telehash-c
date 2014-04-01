@@ -15,12 +15,12 @@
 int main(void)
 {
   switch_t s;
-  chan_t c;
+  chan_t c, admin;
   packet_t p, note;
   path_t in;
   chat_t chat;
   int sock, len;
-  char buf[64], nick[16];
+  char buf[256], nick[16];
   const int fd = fileno(stdin);
   const int fcflags = fcntl(fd,F_GETFL);
   fcntl(fd,F_SETFL,fcflags | O_NONBLOCK);
@@ -55,6 +55,9 @@ int main(void)
   link_hn(s, bucket_get(s->seeds, 0));
   util_sendall(s,sock);
 
+  // create an admin channel for notes
+  admin = chan_new(s, s->id, ".admin", 0);
+
   in = path_new("ipv4");
   while(util_readone(s, sock, in) == 0)
   {
@@ -62,22 +65,37 @@ int main(void)
 
     while((c = switch_pop(s)))
     {
+      // our internal testing stuff
+      if(c == admin)
+      {
+        while((p = chan_notes(c)))
+        {
+          printf("admin note %.*s\n",p->json_len,p->json);
+          packet_free(p);
+        }
+        continue;
+      }
+
       printf("channel active %d %s %s\n",c->state,c->hexid,c->to->hexname);
-      if(util_cmp(c->type,"connect") == 0) ext_connect(c);
-      if(util_cmp(c->type,"thtp") == 0) ext_thtp(c);
-      if(util_cmp(c->type,"chat") == 0) ext_chat(c);
-      if(util_cmp(c->type,"link") == 0) ext_link(c);
-      if(util_cmp(c->type,"seek") == 0) ext_seek(c);
-      if(util_cmp(c->type,"path") == 0) ext_path(c);
+      if(c->handler) c->handler(c);
+      else {
+        if(util_cmp(c->type,"connect") == 0) ext_connect(c);
+        if(util_cmp(c->type,"thtp") == 0) ext_thtp(c);
+        if(util_cmp(c->type,"chat") == 0) ext_chat(c);
+        if(util_cmp(c->type,"link") == 0) ext_link(c);
+        if(util_cmp(c->type,"seek") == 0) ext_link(c);
+        if(util_cmp(c->type,"path") == 0) ext_path(c);
+      }
+
       while((p = chan_pop(c)))
       {
         printf("unhandled channel packet %.*s\n", p->json_len, p->json);      
         packet_free(p);
       }
+
       if(c->state == ENDED) chan_free(c);
     }
 
-    util_sendall(s,sock);
     if((len = fread(buf,1,255,stdin)))
     {
       buf[len-1] = 0;
@@ -89,6 +107,9 @@ int main(void)
         return 0;
       }else if(strncmp(buf,"/get ",5) == 0){
         printf("get %s\n",buf+5);
+        p = chan_note(admin,NULL);
+        packet_set_str(p,"uri",buf+5);
+        thtp_req(s,p);
       }else if(strncmp(buf,"/chat ",6) == 0){
         chat_free(chat);
         chat = chat_get(s,buf+6);
@@ -104,6 +125,8 @@ int main(void)
       }
       printf("%s> ",nick);
     }
+    
+    util_sendall(s,sock);
   }
 
   perror("exiting");

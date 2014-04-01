@@ -18,7 +18,7 @@ typedef struct chan_struct
   packet_t in, inend, notes;
   void *arg; // used by app
   void *seq, *miss; // used by chan_seq/chan_miss
-  void (*autof)(struct chan_struct*); // auto-fire callback
+  void (*handler)(struct chan_struct*); // auto-fire callback
 } *chan_t;
 
 // new channel, pass id=0 to create an outgoing one

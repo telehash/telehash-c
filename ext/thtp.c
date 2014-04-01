@@ -97,20 +97,21 @@ void thtp_send(chan_t c, packet_t p)
 // generate an outgoing request, send the response attached to the note
 chan_t thtp_req(switch_t s, packet_t note)
 {
-  char *hn, *uri, *path, *method;
-  hn_t to;
+  char *uri, *path, *method;
+  hn_t to = NULL;
   packet_t req;
   chan_t c;
   if(!s || !note) return NULL;
 
   method = packet_get_str(note,"method");
   path = packet_get_str(note,"path");
-  hn = packet_get_str(note,"hn");
-  if((uri = packet_get_str(note,"uri")))
+  if((uri = packet_get_str(note,"uri")) && strncmp(uri,"thtp://",7) == 0)
   {
-    // parse URI, set hn and path
+    uri += 7;
+    path = strchr(uri,'/');
+    to = hn_gethex(s->index,uri);
   }
-  to = hn_gethex(s->index,packet_get_str(note,"hn"));
+  if(!to) to = hn_gethex(s->index,packet_get_str(note,"to"));
   if(!to) return NULL;
   req = packet_linked(note);
   if(!req)
@@ -120,6 +121,7 @@ chan_t thtp_req(switch_t s, packet_t note)
     packet_set_str(req,"method",method?method:"get");
   }
 
+  DEBUG_PRINTF("thtp req %s %s %s",packet_get_str(req,"method"),packet_get_str(req,"path"),to->hexname);
   // inverse req->note
   packet_link(req,note);
 

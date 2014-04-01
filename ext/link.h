@@ -5,7 +5,6 @@
 #include "chan.h"
 
 void ext_link(chan_t c);
-void ext_seek(chan_t c);
 
 void link_free(switch_t s);
 

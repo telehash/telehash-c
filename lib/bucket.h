@@ -13,6 +13,7 @@ bucket_t bucket_new();
 void bucket_free(bucket_t b);
 
 void bucket_add(bucket_t b, hn_t h);
+hn_t bucket_in(bucket_t b, hn_t h);
 
 // simple array index function
 hn_t bucket_get(bucket_t b, int index);

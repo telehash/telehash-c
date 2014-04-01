@@ -21,6 +21,7 @@ typedef struct switch_struct
   uint32_t uid;
   int cap, window;
   xht_t index;
+  void (*handler)(struct switch_struct *, hn_t); // called w/ a hn that has no key info
 } *switch_t;
 
 switch_t switch_new();

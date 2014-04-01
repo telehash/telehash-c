@@ -142,7 +142,13 @@ void switch_open(switch_t s, hn_t to, path_t direct)
 {
   packet_t open, inner;
 
-  if(!to || !to->c) return;
+  if(!to) return;
+  if(!to->c)
+  {
+    DEBUG_PRINTF("can't open, no key for %s",to->hexname);
+    if(s->handler) s->handler(s,to);
+    return;
+  }
 
   // actually send the open
   inner = packet_new();

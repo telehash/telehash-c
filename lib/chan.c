@@ -201,8 +201,6 @@ packet_t chan_pop(chan_t c)
 void chan_queue(chan_t c)
 {
   chan_t step;
-  // fire auto callback instead if any
-  if(c->autof) return (*c->autof)(c);
   // add to switch queue
   step = c->s->chans;
   if(c->next || step == c) return;

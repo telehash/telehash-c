@@ -51,6 +51,7 @@ void link_mesh(switch_t s, int max)
   l->meshing = max;
   if(!max) return;
   if(!l->meshed) l->meshed = bucket_new();
+  // TODO check s->seeds
 }
 
 // enable acting as a seed
