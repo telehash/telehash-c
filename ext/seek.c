@@ -15,6 +15,18 @@ seek_t seek_new(switch_t s)
   return sk;
 }
 
+// create a seek to this hn and initiate connect
+void seek_handler(switch_t s, hn_t hn)
+{
+//  seek_t sk = seek_get(s);
+  DEBUG_PRINTF("seek connecting %s",hn->hexname);
+}
+
+void seek_auto(switch_t s)
+{
+  s->handler = seek_handler;
+}
+
 seek_t seek_get(switch_t s)
 {
   seek_t sk;
@@ -29,12 +41,12 @@ void seek_free(switch_t s)
   free(sk);
 }
 
-// create a seek to this hn and initiate connect
-void seek_connect(switch_t s, hn_t hn)
+void seek_peer(switch_t s, hn_t to, hn_t id)
 {
-//  seek_t sk = seek_get(s);
-  DEBUG_PRINTF("seek connecting %s",hn->hexname);
+  // create peer channel
+  // handler for response as raw packets w/ path
 }
+
 
 // just call back note instead of auto-connect
 void seek_note(switch_t s, hn_t h, packet_t note)

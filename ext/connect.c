@@ -17,8 +17,3 @@ void ext_connect(chan_t c)
   }
 }
 
-void connect_send(switch_t s, hn_t to, hn_t id)
-{
-  // create connect channel
-  // handler for response as raw packets w/ path
-}

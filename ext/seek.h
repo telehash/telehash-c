@@ -3,10 +3,10 @@
 
 #include "ext.h"
 
-void seek_free(switch_t s);
+// this will set up the switch to auto-connect hashnames on demand
+void seek_auto(switch_t s);
 
-// create a seek to this hn and initiate connect
-void seek_connect(switch_t s, hn_t h);
+void seek_free(switch_t s);
 
 // just call back note instead of auto-connect
 void seek_note(switch_t s, hn_t h, packet_t note);

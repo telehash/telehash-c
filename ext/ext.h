@@ -12,5 +12,6 @@
 #include "seek.h"
 #include "connect.h"
 #include "path.h"
+#include "peer.h"
 
 #endif

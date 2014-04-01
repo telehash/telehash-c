@@ -27,6 +27,7 @@ int main(void)
 
   crypt_init();
   s = switch_new();
+  seek_auto(s);
   sprintf(nick,"%d",getpid());
 
   // make a dummy thtp response
@@ -85,6 +86,7 @@ int main(void)
         if(util_cmp(c->type,"link") == 0) ext_link(c);
         if(util_cmp(c->type,"seek") == 0) ext_link(c);
         if(util_cmp(c->type,"path") == 0) ext_path(c);
+        if(util_cmp(c->type,"peer") == 0) ext_peer(c);
       }
 
       while((p = chan_pop(c)))
