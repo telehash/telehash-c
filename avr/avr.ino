@@ -1,6 +1,7 @@
+// you need https://github.com/kmackay/avr-ecc and https://github.com/quartzjer/js0n added to your libraries to compile
 
 extern "C" {
-#include "./ecc.h"
+#include "ecc.h"
 #include "./aes.h"
 #include "./sha256.h"
 #include "./sha1.h"
