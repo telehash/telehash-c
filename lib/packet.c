@@ -312,3 +312,32 @@ packet_t packet_get_packets(packet_t p, char *key)
   packet_free(parr);
   return pret;
 }
+
+// count of keys
+int packet_keys(packet_t p)
+{
+  int i;
+  if(!p || !p->js[0]) return 0;
+  for(i=0;p->js[i];i+=2);
+  i = i/2; // i is start,len pairs
+  if(i % 2) return 0; // must be even number for key:val pairs
+  return i/2;
+}
+
+int pkeycmp(void *s, const void *a, const void *b)
+{
+  unsigned short *aa = (unsigned short *)a;
+  unsigned short *bb = (unsigned short *)b;
+  char *str = s;
+  unsigned short len = aa[1];
+  if(bb[1] < aa[1]) len = bb[1]; // take shortest
+  return strncmp(str+aa[0],str+bb[0],len);
+}
+
+// alpha sort the keys
+void packet_sort(packet_t p)
+{
+  int keys = packet_keys(p);
+  if(!keys) return;
+  qsort_r(p->js,keys,sizeof(unsigned short)*4,p->json,pkeycmp);
+}

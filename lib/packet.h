@@ -57,6 +57,12 @@ void packet_set(packet_t p, char *key, char *val, int vlen); // raw
 void packet_set_str(packet_t p, char *key, char *val); // escapes value
 void packet_set_int(packet_t p, char *key, int val);
 
+// count of keys
+int packet_keys(packet_t p);
+
+// alpha sorts the json keys in the packet
+void packet_sort(packet_t p);
+
 // the return char* is invalidated with any _set* operation!
 char *packet_get_str(packet_t p, char *key);
 char *packet_get_istr(packet_t p, int i); // returns ["0","1","2","3"] or {"0":"1","2":"3"}
