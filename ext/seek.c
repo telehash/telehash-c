@@ -41,15 +41,82 @@ seek_t seek_get(switch_t s, hn_t id)
   return sk;
 }
 
+void peer_handler(chan_t c)
+{
+  // remove the nat punch path if any
+  if(c->arg)
+  {
+    path_free((path_t)c->arg);
+    c->arg = NULL;
+  }
+
+  DEBUG_PRINTF("peer handler %s",c->to->hexname);
+  // TODO process relay'd packets
+}
+
+// csid may be address format
+void peer_send(switch_t s, hn_t to, char *address)
+{
+  char *csid, *ip = NULL, *port;
+  packet_t punch = NULL;
+  crypt_t cs;
+  chan_t c;
+  packet_t p;
+
+  if(!address) return;
+  if(!(csid = strchr(address,','))) return;
+  *csid = 0;
+  csid++;
+  // optional address ,ip,port for punch
+  if((ip = strchr(csid,',')))
+  {
+    *ip = 0;
+    ip++;
+  }
+  if(!(cs = xht_get(s->index,csid))) return;
+
+  // new peer channel
+  c = chan_new(s, to, "peer", 0);
+  c->handler = peer_handler;
+  p = chan_packet(c);
+  packet_set_str(p,"peer",address);
+  packet_body(p,cs->key,cs->keylen);
+
+  // send the nat punch packet if ip,port is given
+  if(ip && (port = strchr(ip,',')))
+  {
+    *port = 0;
+    port++;
+    punch = packet_new();
+    c->arg = punch->out = path_new("ipv4"); // free path w/ peer channel cleanup
+    path_ip(punch->out,ip);
+    path_port(punch->out,atoi(port));
+    switch_sendingQ(s,punch);
+  }
+
+  chan_send(c, p);
+}
 
 void seek_handler(chan_t c)
 {
+  int i = 0;
+  char *address;
   seek_t sk = (seek_t)c->arg;
-  packet_t p = chan_pop(c);
+  packet_t see, p = chan_pop(c);
   if(!sk || !p) return;
   DEBUG_PRINTF("seek response for %s of %.*s",sk->id->hexname,p->json_len,p->json);
+
   // process see array and end channel
-  // sk->active-- and check to return note
+  see = packet_get_packet(p,"see");
+  while((address = packet_get_istr(see,i)))
+  {
+    i++;
+    if(strncmp(address,sk->id->hexname,64) == 0) peer_send(c->s, c->to, address);
+    // TODO maybe recurse others
+  }
+  packet_free(see);
+  packet_free(p);
+  // TODO sk->active-- and check to return note
 }
 
 void seek_send(switch_t s, seek_t sk, hn_t to)
@@ -85,13 +152,6 @@ void seek_free(switch_t s)
   // TODO xht_walk active and free each one
   free(sks);
 }
-
-void seek_peer(switch_t s, hn_t to, hn_t id)
-{
-  // create peer channel
-  // handler for response as raw packets w/ path
-}
-
 
 // just call back note instead of auto-connect
 void seek_note(switch_t s, hn_t h, packet_t note)

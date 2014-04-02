@@ -21,7 +21,7 @@ int main(void)
   crypt_init();
   s = switch_new();
 
-  if(util_loadjson(s) != 0 || (sock = util_server(0)) <= 0)
+  if(util_loadjson(s) != 0 || (sock = util_server(0,1000)) <= 0)
   {
     printf("failed to startup %s or %s\n", strerror(errno), crypt_err());
     return -1;

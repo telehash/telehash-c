@@ -44,6 +44,8 @@ chan_t switch_pop(switch_t s);
 
 // encrypts a packet and adds it to the sending queue, mostly internal use
 void switch_send(switch_t s, packet_t p);
+// adds to sending queue, internal only
+void switch_sendingQ(switch_t s, packet_t p);
 
 // adjust/set the cap of how many lines to maintain (256) and reliable window packet buffer size (32)
 void switch_capwin(switch_t s, int cap, int window);

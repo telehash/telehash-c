@@ -72,14 +72,14 @@ packet_t _thtp_glob(thtp_t t, char *p1)
 }
 
 // chunk the packet out
-void thtp_send(chan_t c, packet_t p)
+void thtp_send(chan_t c, packet_t req)
 {
   packet_t chunk;
   unsigned char *raw;
   unsigned short len, space;
-  if(!c || !p) return;
-  raw = packet_raw(p);
-  len = packet_len(p);
+  if(!c || !req) return;
+  raw = packet_raw(req);
+  len = packet_len(req);
   while(len)
   {
     chunk = chan_packet(c);
@@ -121,20 +121,21 @@ chan_t thtp_req(switch_t s, packet_t note)
     packet_set_str(req,"method",method?method:"get");
   }
 
-  DEBUG_PRINTF("thtp req %s %s %s",packet_get_str(req,"method"),packet_get_str(req,"path"),to->hexname);
-  // inverse req->note
-  packet_link(req,note);
+  DEBUG_PRINTF("thtp req %s %s %s %.*s",packet_get_str(req,"method"),packet_get_str(req,"path"),to->hexname,note->json_len,note->json);
 
   // open channel and send req
   c = chan_new(s, to, "thtp", 0);
-  c->arg = req;
+  c->arg = packet_link(NULL,note); // create buffer packet w/ the note linked
+  c->handler = ext_thtp; // shortcut
+  chan_reliable(c,10);
   thtp_send(c,req);
+
   return c;
 }
 
 void ext_thtp(chan_t c)
 {
-  packet_t p, req, match, note;
+  packet_t p, buf, req, match, note;
   char *path;
   thtp_t t = thtp_get(c->s);
 
@@ -151,31 +152,38 @@ void ext_thtp(chan_t c)
   {
     if(!c->arg)
     {
-      c->arg = req = p;
+      c->arg = buf = p;
     }else{
-      req = c->arg;
-      packet_append(req,p->body,p->body_len);
+      buf = c->arg;
+      packet_append(buf,p->body,p->body_len);
       packet_free(p);
     }
     // for now we're processing whole-requests-at-once, to do streaming we can try parsing note->body for the headers anytime
     if(!c->state == ENDING) continue;
 
     // parse the payload
-    p = packet_parse(req->body,req->body_len);
+    p = packet_parse(buf->body,buf->body_len);
+
     // this is a response, send it
-    if((note = packet_unlink(req)))
+    if((note = packet_unlink(buf)))
     {
-      packet_free(req);
+      packet_free(buf);
+      if(p)
+      {
+        DEBUG_PRINTF("got response %.*s for %.*s",p->json_len,p->json,note->json_len,note->json);        
+      }
       packet_link(note,p);
       chan_reply(c,note);
       chan_end(c,NULL);
       return;
     }
-    packet_free(req);
+
+    // this is an incoming request
+    packet_free(buf);
     if(!p) return (void)chan_fail(c,"422");
     req = p;
 
-    DEBUG_PRINTF("thtp packet %.*s", req->json_len, req->json);
+    DEBUG_PRINTF("thtp req packet %.*s", req->json_len, req->json);
     path = packet_get_str(req,"path");
     match = xht_get(t->index,path);
     if(!match) match = _thtp_glob(t,path);
