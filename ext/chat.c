@@ -2,6 +2,33 @@
 
 uint32_t mmh32(const char* data, size_t len_);
 
+// chatr is just per-chat-channel state holder
+typedef struct chatr_struct 
+{
+  chat_t chat;
+  packet_t in, out;
+  int active;
+} *chatr_t;
+
+chatr_t chatr_new(chat_t chat)
+{
+  chatr_t r;
+  r = malloc(sizeof (struct chatr_struct));
+  memset(r,0,sizeof (struct chatr_struct));
+  r->chat = chat;
+  r->active = 0;
+  r->in = packet_new();
+  r->out = packet_new();
+  return r;
+}
+
+void chatr_free(chatr_t r)
+{
+  packet_free(r->in);
+  packet_free(r->out);
+  free(r);
+}
+
 // validate endpoint part of an id
 int chat_eplen(char *id)
 {
@@ -18,14 +45,15 @@ int chat_eplen(char *id)
   return 0;
 }
 
-char *chat_rhash(chat_t ct)
+char *chat_rhash(chat_t chat)
 {
   char *buf, *str;
   int at=0, i, len;
   uint32_t hash;
   // TODO, should be a way to optimize doing the mmh on the fly
-  buf = malloc(ct->roster->json_len);
-  for(i=0;(str = packet_get_istr(ct->roster,i));i++)
+  buf = malloc(chat->roster->json_len);
+  packet_sort(chat->roster);
+  for(i=0;(str = packet_get_istr(chat->roster,i));i++)
   {
     len = strlen(str);
     memcpy(buf+at,str,len);
@@ -33,20 +61,20 @@ char *chat_rhash(chat_t ct)
   }
   hash = mmh32(buf,at);
   free(buf);
-  util_hex((unsigned char*)&hash,4,(unsigned char*)ct->rhash);
-  return ct->rhash;
+  util_hex((unsigned char*)&hash,4,(unsigned char*)chat->rhash);
+  return chat->rhash;
 }
 
 chat_t chat_get(switch_t s, char *id)
 {
-  chat_t ct;
+  chat_t chat;
   packet_t note;
   hn_t orig = NULL;
   int at;
   char buf[128];
 
-  ct = xht_get(s->index,id);
-  if(ct) return ct;
+  chat = xht_get(s->index,id);
+  if(chat) return chat;
 
   // if there's an id, validate and optionally parse out originator
   if(id)
@@ -61,55 +89,55 @@ chat_t chat_get(switch_t s, char *id)
     }
   }
 
-  ct = malloc(sizeof (struct chat_struct));
-  memset(ct,0,sizeof (struct chat_struct));
+  chat = malloc(sizeof (struct chat_struct));
+  memset(chat,0,sizeof (struct chat_struct));
   if(!id)
   {
     crypt_rand((unsigned char*)buf,4);
-    util_hex((unsigned char*)buf,4,(unsigned char*)ct->ep);
+    util_hex((unsigned char*)buf,4,(unsigned char*)chat->ep);
   }else{
-    memcpy(ct->ep,id,strlen(id)+1);
+    memcpy(chat->ep,id,strlen(id)+1);
   }
-  ct->orig = orig ? orig : s->id;
-  sprintf(ct->id,"%s@%s",ct->ep,ct->orig->hexname);
-  ct->s = s;
-  ct->roster = packet_new();
-  ct->index = xht_new(101);
-  ct->seq = 1000;
-  crypt_rand((unsigned char*)&(ct->seed),4);
+  chat->orig = orig ? orig : s->id;
+  sprintf(chat->id,"%s@%s",chat->ep,chat->orig->hexname);
+  chat->s = s;
+  chat->roster = packet_new();
+  chat->index = xht_new(101);
+  chat->seq = 1000;
+  crypt_rand((unsigned char*)&(chat->seed),4);
 
   // an admin channel for distribution and thtp requests
-  ct->base = chan_new(s, s->id, "chat", 0);
-  ct->base->arg = ct;
-  note = chan_note(ct->base,NULL);
-  sprintf(buf,"/chat/%s/",ct->ep);
+  chat->hub = chan_new(s, s->id, "chat", 0);
+  chat->hub->arg = chatr_new(chat); // stub so we know it's the hub chat channel
+  note = chan_note(chat->hub,NULL);
+  sprintf(buf,"/chat/%s/",chat->ep);
   thtp_glob(s,buf,note);
-  xht_set(s->index,ct->id,ct);
+  xht_set(s->index,chat->id,chat);
 
   // any other hashname and we try to initialize
-  if(ct->orig != s->id)
+  if(chat->orig != s->id)
   {
-    ct->state = LOADING;
+    chat->state = LOADING;
     // TODO fetch roster and joins
   }else{
-    ct->state = OFFLINE;
+    chat->state = OFFLINE;
   }
-  return ct;
+  return chat;
 }
 
-chat_t chat_free(chat_t ct)
+chat_t chat_free(chat_t chat)
 {
-  if(!ct) return ct;
-  xht_set(ct->s->index,ct->id,NULL);
-  // TODO xht-walk ct->index and free packets
+  if(!chat) return chat;
+  xht_set(chat->s->index,chat->id,NULL);
+  // TODO xht-walk chat->index and free packets
   // TODO unregister thtp
-  xht_free(ct->index);
-  packet_free(ct->roster);
-  free(ct);
+  xht_free(chat->index);
+  packet_free(chat->roster);
+  free(chat);
   return NULL;
 }
 
-packet_t chat_message(chat_t ct)
+packet_t chat_message(chat_t chat)
 {
   packet_t p;
   char id[32];
@@ -117,93 +145,103 @@ packet_t chat_message(chat_t ct)
   uint32_t hash;
   unsigned long at = platform_seconds();
 
-  if(!ct || !ct->seq) return NULL;
+  if(!chat || !chat->seq) return NULL;
 
   p = packet_new();
-  memcpy(id,ct->seed,9);
-  for(step=0; step <= ct->seq; step++)
+  memcpy(id,chat->seed,9);
+  for(step=0; step <= chat->seq; step++)
   {
     hash = mmh32(id,8);
     util_hex((unsigned char*)&hash,4,(unsigned char*)id);
   }
-  sprintf(id+8,",%d",ct->seq);
-  ct->seq--;
+  sprintf(id+8,",%d",chat->seq);
+  chat->seq--;
   packet_set_str(p,"id",id);
   packet_set_str(p,"type","message");
-  if(ct->after) packet_set_str(p,"after",ct->after);
+  if(chat->after) packet_set_str(p,"after",chat->after);
   if(at > 1396184861) packet_set_int(p,"at",at); // only if platform_seconds() is epoch
   return p;
 }
 
-chat_t chat_join(chat_t ct, packet_t join)
+chat_t chat_join(chat_t chat, packet_t join)
 {
   packet_t p;
-  if(!ct || !join) return NULL;
+  if(!chat || !join) return NULL;
   packet_set_str(join,"type","join");
-  if(ct->join)
+  if(chat->join)
   {
-    p = xht_get(ct->index,ct->join);
-    xht_set(ct->index,ct->join,NULL);
+    p = xht_get(chat->index,chat->join);
+    xht_set(chat->index,chat->join,NULL);
     packet_free(p);
   }
-  ct->join = packet_get_str(join,"id");
-  xht_set(ct->index,ct->join,join);
-  packet_set_str(ct->roster,ct->s->id->hexname,ct->join);
-  chat_rhash(ct);
-  if(ct->orig == ct->s->id)
+  chat->join = packet_get_str(join,"id");
+  xht_set(chat->index,chat->join,join);
+  packet_set_str(chat->roster,chat->s->id->hexname,chat->join);
+  chat_rhash(chat);
+  if(chat->orig == chat->s->id)
   {
-    ct->state = JOINED;
-    return ct;
+    chat->state = JOINED;
+    return chat;
   }
-  ct->state = JOINING;
+  chat->state = JOINING;
   // TODO mesh
-  return ct;
+  return chat;
 }
 
-chat_t chat_send(chat_t ct, packet_t msg)
+chat_t chat_send(chat_t chat, packet_t msg)
 {
-  if(!ct || !msg) return NULL;
+  if(!chat || !msg) return NULL;
   // TODO walk roster, find connected in index and send notes
   return NULL;
 }
 
-chat_t chat_default(chat_t ct, char *val)
+chat_t chat_default(chat_t chat, char *val)
 {
-  if(!ct) return NULL;
-  packet_set_str(ct->roster,"*",val);
-  chat_rhash(ct);
-  return ct;
+  if(!chat) return NULL;
+  packet_set_str(chat->roster,"*",val);
+  chat_rhash(chat);
+  return chat;
+}
+
+// this is the hub channel, it just receives notes
+chat_t chat_hub(chat_t chat)
+{
+  packet_t p, note, req;
+  char *path;
+  
+  while((note = chan_notes(chat->hub)))
+  {
+    req = packet_linked(note);
+    printf("note req packet %.*s\n", req->json_len, req->json);
+    path = packet_get_str(req,"path");
+    p = packet_new();
+    packet_set_int(p,"status",200);
+    packet_body(p,(unsigned char*)path,strlen(path));
+    packet_link(note,p);
+    chan_reply(chat->hub,note);
+  }
+  // TODO if the chat is active return it or not
+  return chat;
 }
 
 chat_t ext_chat(chan_t c)
 {
-  packet_t p, note, req;
-  chat_t ct = c->arg;
-  char *path;
-  
-  // if this is the base channel, it just receives notes
-  if(ct && ct->base == c)
-  {
-    while((note = chan_notes(c)))
-    {
-      req = packet_linked(note);
-      printf("note req packet %.*s\n", req->json_len, req->json);
-      path = packet_get_str(req,"path");
-      p = packet_new();
-      packet_set_int(p,"status",200);
-      packet_body(p,(unsigned char*)path,strlen(path));
-      packet_link(note,p);
-      chan_reply(c,note);
-    }
-    return NULL;
-  }
+  packet_t p;
+  chatr_t r = c->arg;
+  chat_t chat;
 
-  if(!ct && (p = chan_pop(c)))
+  // this is the hub channel, process it there
+  if(r && r->chat->hub == c) return chat_hub(r->chat);
+
+  if(!r)
   {
-    ct = chat_get(c->s,packet_get_str(p,"to"));
-    if(!ct) return (chat_t)chan_fail(c,"500");
-    printf("new chat %s from %s\n",ct->id,c->to->hexname);
-    return ct;
+    if(!(p = chan_pop(c))) return (chat_t)chan_fail(c,"500");
+    chat = chat_get(c->s,packet_get_str(p,"to"));
+    if(!chat) return (chat_t)chan_fail(c,"500");
+    printf("new chat %s from %s\n",chat->id,c->to->hexname);
+    r = c->arg = chatr_new(chat);
+    xht_set(chat->index,c->to->hexname,r);
+    return chat;
   }
 
   while((p = chan_pop(c)))
@@ -211,6 +249,15 @@ chat_t ext_chat(chan_t c)
     printf("chat packet %.*s\n", p->json_len, p->json);
     packet_free(p);
   }
+  
+  if(c->state == ENDING || c->state == ENDED)
+  {
+    // if it's this channel in the index, zap it
+    if(xht_get(r->chat->index,c->to->hexname) == r) xht_set(r->chat->index,c->to->hexname,NULL);
+    chatr_free(r);
+    c->arg = NULL;
+  }
+
   return NULL;
 }
 

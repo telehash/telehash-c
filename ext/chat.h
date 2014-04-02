@@ -9,7 +9,7 @@ typedef struct chat_struct
   char ep[32+1], id[32+1+64+1];
   hn_t orig;
   switch_t s;
-  chan_t base;
+  chan_t hub;
   char seed[9], rhash[9];
   uint16_t seq;
   packet_t roster;
