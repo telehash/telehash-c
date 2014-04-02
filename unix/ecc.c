@@ -2,53 +2,116 @@
 
 #include <string.h>
 
+#ifndef ECC_PLATFORM
+    #if __AVR__
+        #define ECC_PLATFORM ecc_avr
+    #elif defined(__thumb2__) || defined(_M_ARMT) /* I think MSVC only supports Thumb-2 targets */
+        #define ECC_PLATFORM ecc_arm_thumb2
+    #elif defined(__thumb__)
+        #define ECC_PLATFORM ecc_arm_thumb
+    #elif defined(__arm__) || defined(_M_ARM)
+        #define ECC_PLATFORM ecc_arm
+    #elif defined(__i386__) || defined(_M_IX86) || defined(_X86_) || defined(__I86__)
+        #define ECC_PLATFORM ecc_x86
+    #elif defined(__amd64__) || defined(_M_X64)
+        #define ECC_PLATFORM ecc_x86_64
+    #else
+        #define ECC_PLATFORM ecc_arch_other
+    #endif
+#endif
+
+#ifndef ECC_WORD_SIZE
+    #if ECC_PLATFORM == ecc_avr
+        #define ECC_WORD_SIZE 1
+    #elif (ECC_PLATFORM == ecc_x86_64)
+        #define ECC_WORD_SIZE 8
+    #else
+        #define ECC_WORD_SIZE 4
+    #endif
+#endif
+
+#if (ECC_CURVE == secp160r1) && (ECC_WORD_SIZE == 8)
+    #pragma message ("Using a word size of 4 for secp160r1")
+    #undef ECC_WORD_SIZE
+    #define ECC_WORD_SIZE 4
+    #if (ECC_PLATFORM == ecc_x86_64)
+        #undef ECC_PLATFORM
+        #define ECC_PLATFORM ecc_x86
+    #endif
+#endif
+
+#if (ECC_WORD_SIZE != 1) && (ECC_WORD_SIZE != 4) && (ECC_WORD_SIZE != 8)
+    #error "Unsupported value for ECC_WORD_SIZE"
+#endif
+
+#if (ECC_ASM && (ECC_PLATFORM == ecc_avr) && (ECC_WORD_SIZE != 1))
+    #pragma message ("ECC_WORD_SIZE must be 1 when using AVR asm")
+    #undef ECC_WORD_SIZE
+    #define ECC_WORD_SIZE 1
+#endif
+
+#if (ECC_ASM && (ECC_PLATFORM == ecc_arm || ECC_PLATFORM == ecc_arm_thumb) && (ECC_WORD_SIZE != 4))
+    #pragma message ("ECC_WORD_SIZE must be 4 when using ARM asm")
+    #undef ECC_WORD_SIZE
+    #define ECC_WORD_SIZE 4
+#endif
+
 #if __STDC_VERSION__ >= 199901L
     #define RESTRICT restrict
 #else
     #define RESTRICT
 #endif
 
-typedef struct EccPoint
-{
-    uint8_t x[ECC_BYTES];
-    uint8_t y[ECC_BYTES];
-} EccPoint;
+#if defined(__SIZEOF_INT128__) || ((__clang_major__ * 100 + __clang_minor__) >= 302)
+    #define SUPPORTS_INT128 1
+#else
+    #define SUPPORTS_INT128 0
+#endif
 
 #define MAX_TRIES 16
 
-#define Curve_P_1 {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, \
-                   0xFF, 0xFF, 0xFF, 0xFF, 0xFD, 0xFF, 0xFF, 0xFF}
-#define Curve_P_2 {0xFF, 0xFF, 0xFF, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, \
+#if (ECC_WORD_SIZE == 1)
+
+typedef uint8_t ecc_word_t;
+typedef uint16_t ecc_dword_t;
+typedef uint8_t wordcount_t;
+typedef int8_t swordcount_t;
+typedef int16_t bitcount_t;
+typedef int8_t cmpresult_t;
+
+#define HIGH_BIT_SET 0x80
+
+#define ECC_WORDS_1 20
+#define ECC_WORDS_2 24
+#define ECC_WORDS_3 32
+
+#define ECC_N_WORDS_1 21
+#define ECC_N_WORDS_2 24
+#define ECC_N_WORDS_3 32
+
+#define Curve_P_1 {0xFF, 0xFF, 0xFF, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, \
                    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, \
                    0xFF, 0xFF, 0xFF, 0xFF}
-#define Curve_P_3 {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, \
+#define Curve_P_2 {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, \
                    0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, \
                    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
-#define Curve_P_4 {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, \
+#define Curve_P_3 {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, \
                    0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, \
                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, \
                    0x01, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF}
 
-#define Curve_B_1 {0xD3, 0x5E, 0xEE, 0x2C, 0x3C, 0x99, 0x24, 0xD8, \
-                   0x3D, 0xF4, 0x79, 0x10, 0xC1, 0x79, 0x75, 0xE8}
-#define Curve_B_2 {0x45, 0xFA, 0x65, 0xC5, 0xAD, 0xD4, 0xD4, 0x81, \
+#define Curve_B_1 {0x45, 0xFA, 0x65, 0xC5, 0xAD, 0xD4, 0xD4, 0x81, \
                    0x9F, 0xF8, 0xAC, 0x65, 0x8B, 0x7A, 0xBD, 0x54, \
                    0xFC, 0xBE, 0x97, 0x1C}
-#define Curve_B_3 {0xB1, 0xB9, 0x46, 0xC1, 0xEC, 0xDE, 0xB8, 0xFE, \
+#define Curve_B_2 {0xB1, 0xB9, 0x46, 0xC1, 0xEC, 0xDE, 0xB8, 0xFE, \
                    0x49, 0x30, 0x24, 0x72, 0xAB, 0xE9, 0xA7, 0x0F, \
                    0xE7, 0x80, 0x9C, 0xE5, 0x19, 0x05, 0x21, 0x64}
-#define Curve_B_4 {0x4B, 0x60, 0xD2, 0x27, 0x3E, 0x3C, 0xCE, 0x3B, \
+#define Curve_B_3 {0x4B, 0x60, 0xD2, 0x27, 0x3E, 0x3C, 0xCE, 0x3B, \
                    0xF6, 0xB0, 0x53, 0xCC, 0xB0, 0x06, 0x1D, 0x65, \
                    0xBC, 0x86, 0x98, 0x76, 0x55, 0xBD, 0xEB, 0xB3, \
                    0xE7, 0x93, 0x3A, 0xAA, 0xD8, 0x35, 0xC6, 0x5A}
 
 #define Curve_G_1 { \
-    {0x86, 0x5B, 0x2C, 0xA5, 0x7C, 0x60, 0x28, 0x0C, \
-        0x2D, 0x9B, 0x89, 0x8B, 0x52, 0xF7, 0x1F, 0x16}, \
-    {0x83, 0x7A, 0xED, 0xDD, 0x92, 0xA2, 0x2D, 0xC0, \
-        0x13, 0xEB, 0xAF, 0x5B, 0x39, 0xC8, 0x5A, 0xCF}}
-
-#define Curve_G_2 { \
     {0x82, 0xFC, 0xCB, 0x13, 0xB9, 0x8B, 0xC3, 0x68, \
         0x89, 0x69, 0x64, 0x46, 0x28, 0x73, 0xF5, 0x8E, \
         0x68, 0xB5, 0x96, 0x4A}, \
@@ -56,7 +119,7 @@ typedef struct EccPoint
         0x12, 0xC9, 0xDC, 0x59, 0x7D, 0x94, 0x68, 0x31, \
         0x55, 0x28, 0xA6, 0x23}}
 
-#define Curve_G_3 { \
+#define Curve_G_2 { \
     {0x12, 0x10, 0xFF, 0x82, 0xFD, 0x0A, 0xFF, 0xF4, \
         0x00, 0x88, 0xA1, 0x43, 0xEB, 0x20, 0xBF, 0x7C, \
         0xF6, 0x90, 0x30, 0xB0, 0x0E, 0xA8, 0x8D, 0x18}, \
@@ -64,7 +127,7 @@ typedef struct EccPoint
         0xD5, 0xCD, 0x24, 0x6B, 0xED, 0x11, 0x10, 0x63, \
         0x78, 0xDA, 0xC8, 0xFF, 0x95, 0x2B, 0x19, 0x07}}
 
-#define Curve_G_4 { \
+#define Curve_G_3 { \
     {0x96, 0xC2, 0x98, 0xD8, 0x45, 0x39, 0xA1, 0xF4, \
         0xA0, 0x33, 0xEB, 0x2D, 0x81, 0x7D, 0x03, 0x77, \
         0xF2, 0x40, 0xA4, 0x63, 0xE5, 0xE6, 0xBC, 0xF8, \
@@ -74,149 +137,248 @@ typedef struct EccPoint
         0x16, 0x9E, 0x0F, 0x7C, 0x4A, 0xEB, 0xE7, 0x8E, \
         0x9B, 0x7F, 0x1A, 0xFE, 0xE2, 0x42, 0xE3, 0x4F}}
 
-#define Curve_N_1 {0x15, 0xA1, 0x38, 0x90, 0x1B, 0x0D, 0xA3, 0x75, \
-                   0x00, 0x00, 0x00, 0x00, 0xFE, 0xFF, 0xFF, 0xFF}
-#define Curve_N_2 {0x57, 0x22, 0x75, 0xCA, 0xD3, 0xAE, 0x27, 0xF9, \
+#define Curve_N_1 {0x57, 0x22, 0x75, 0xCA, 0xD3, 0xAE, 0x27, 0xF9, \
                    0xC8, 0xF4, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, \
-                   0x00, 0x00, 0x00, 0x00} /* 01 */
-#define Curve_N_3 {0x31, 0x28, 0xD2, 0xB4, 0xB1, 0xC9, 0x6B, 0x14, \
+                   0x00, 0x00, 0x00, 0x00, 0x01}
+#define Curve_N_2 {0x31, 0x28, 0xD2, 0xB4, 0xB1, 0xC9, 0x6B, 0x14, \
                    0x36, 0xF8, 0xDE, 0x99, 0xFF, 0xFF, 0xFF, 0xFF, \
                    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
-#define Curve_N_4 {0x51, 0x25, 0x63, 0xFC, 0xC2, 0xCA, 0xB9, 0xF3, \
+#define Curve_N_3 {0x51, 0x25, 0x63, 0xFC, 0xC2, 0xCA, 0xB9, 0xF3, \
                    0x84, 0x9E, 0x17, 0xA7, 0xAD, 0xFA, 0xE6, 0xBC, \
                    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, \
                    0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF}
 
-static uint8_t curve_p[ECC_BYTES] = ECC_CONCAT(Curve_P_, ECC_CURVE);
-static uint8_t curve_b[ECC_BYTES] = ECC_CONCAT(Curve_B_, ECC_CURVE);
-static EccPoint curve_G = ECC_CONCAT(Curve_G_, ECC_CURVE);
-static uint8_t curve_n[ECC_BYTES] = ECC_CONCAT(Curve_N_, ECC_CURVE);
+#elif (ECC_WORD_SIZE == 4)
 
-#define DEC_1 0
-#define DEC_2 1
-#define DEC_3 2
-#define DEC_4 3
-#define DEC_5 4
-#define DEC_6 5
-#define DEC_7 6
-#define DEC_8 7
-#define DEC_9 8
-#define DEC_10 9
-#define DEC_11 10
-#define DEC_12 11
-#define DEC_13 12
-#define DEC_14 13
-#define DEC_15 14
-#define DEC_16 15
-#define DEC_17 16
-#define DEC_18 17
-#define DEC_19 18
-#define DEC_20 19
-#define DEC_21 20
-#define DEC_22 21
-#define DEC_23 22
-#define DEC_24 23
-#define DEC_25 24
-#define DEC_26 25
-#define DEC_27 26
-#define DEC_28 27
-#define DEC_29 28
-#define DEC_30 29
-#define DEC_31 30
-#define DEC_32 31
+typedef uint32_t ecc_word_t;
+typedef uint64_t ecc_dword_t;
+typedef unsigned wordcount_t;
+typedef int swordcount_t;
+typedef int bitcount_t;
+typedef int cmpresult_t;
 
-#define DEC(N) ECC_CONCAT(DEC_, N)
+#define HIGH_BIT_SET 0x80000000
 
-#define REPEAT_1(stuff) stuff
-#define REPEAT_2(stuff) REPEAT_1(stuff) stuff
-#define REPEAT_3(stuff) REPEAT_2(stuff) stuff
-#define REPEAT_4(stuff) REPEAT_3(stuff) stuff
-#define REPEAT_5(stuff) REPEAT_4(stuff) stuff
-#define REPEAT_6(stuff) REPEAT_5(stuff) stuff
-#define REPEAT_7(stuff) REPEAT_6(stuff) stuff
-#define REPEAT_8(stuff) REPEAT_7(stuff) stuff
-#define REPEAT_9(stuff) REPEAT_8(stuff) stuff
-#define REPEAT_10(stuff) REPEAT_9(stuff) stuff
-#define REPEAT_11(stuff) REPEAT_10(stuff) stuff
-#define REPEAT_12(stuff) REPEAT_11(stuff) stuff
-#define REPEAT_13(stuff) REPEAT_12(stuff) stuff
-#define REPEAT_14(stuff) REPEAT_13(stuff) stuff
-#define REPEAT_15(stuff) REPEAT_14(stuff) stuff
-#define REPEAT_16(stuff) REPEAT_15(stuff) stuff
-#define REPEAT_17(stuff) REPEAT_16(stuff) stuff
-#define REPEAT_18(stuff) REPEAT_17(stuff) stuff
-#define REPEAT_19(stuff) REPEAT_18(stuff) stuff
-#define REPEAT_20(stuff) REPEAT_19(stuff) stuff
-#define REPEAT_21(stuff) REPEAT_20(stuff) stuff
-#define REPEAT_22(stuff) REPEAT_21(stuff) stuff
-#define REPEAT_23(stuff) REPEAT_22(stuff) stuff
-#define REPEAT_24(stuff) REPEAT_23(stuff) stuff
-#define REPEAT_25(stuff) REPEAT_24(stuff) stuff
-#define REPEAT_26(stuff) REPEAT_25(stuff) stuff
-#define REPEAT_27(stuff) REPEAT_26(stuff) stuff
-#define REPEAT_28(stuff) REPEAT_27(stuff) stuff
-#define REPEAT_29(stuff) REPEAT_28(stuff) stuff
-#define REPEAT_30(stuff) REPEAT_29(stuff) stuff
-#define REPEAT_31(stuff) REPEAT_30(stuff) stuff
-#define REPEAT_32(stuff) REPEAT_31(stuff) stuff
+#define ECC_WORDS_1 5
+#define ECC_WORDS_2 6
+#define ECC_WORDS_3 8
 
-#define REPEAT(N, stuff) ECC_CONCAT(REPEAT_, N)(stuff)
+#define ECC_N_WORDS_1 6
+#define ECC_N_WORDS_2 6
+#define ECC_N_WORDS_3 8
 
-static int fake_RNG(uint8_t *p_dest, unsigned p_size)
-{
-    return 0;
-}
+#define Curve_P_1 {0x7FFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
+#define Curve_P_2 {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
+#define Curve_P_3 {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0x00000000, 0x00000000, 0x00000000, 0x00000001, 0xFFFFFFFF}
 
-static int test_RNG(uint8_t *p_dest, unsigned p_size)
-{
-    static uint64_t l_rand = 88172645463325252ull;
+#define Curve_B_1 {0xC565FA45, 0x81D4D4AD, 0x65ACF89F, 0x54BD7A8B, 0x1C97BEFC}
+#define Curve_B_2 {0xC146B9B1, 0xFEB8DEEC, 0x72243049, 0x0FA7E9AB, 0xE59C80E7, 0x64210519}
+#define Curve_B_3 {0x27D2604B, 0x3BCE3C3E, 0xCC53B0F6, 0x651D06B0, 0x769886BC, 0xB3EBBD55, 0xAA3A93E7, 0x5AC635D8}
+
+#define Curve_G_1 { \
+    {0x13CBFC82, 0x68C38BB9, 0x46646989, 0x8EF57328, 0x4A96B568}, \
+    {0x7AC5FB32, 0x04235137, 0x59DCC912, 0x3168947D, 0x23A62855}}
+
+#define Curve_G_2 { \
+    {0x82FF1012, 0xF4FF0AFD, 0x43A18800, 0x7CBF20EB, 0xB03090F6, 0x188DA80E}, \
+    {0x1E794811, 0x73F977A1, 0x6B24CDD5, 0x631011ED, 0xFFC8DA78, 0x07192B95}}
     
-    while(p_size)
+#define Curve_G_3 { \
+    {0xD898C296, 0xF4A13945, 0x2DEB33A0, 0x77037D81, 0x63A440F2, 0xF8BCE6E5, 0xE12C4247, 0x6B17D1F2}, \
+    {0x37BF51F5, 0xCBB64068, 0x6B315ECE, 0x2BCE3357, 0x7C0F9E16, 0x8EE7EB4A, 0xFE1A7F9B, 0x4FE342E2}}
+
+#define Curve_N_1 {0xCA752257, 0xF927AED3, 0x0001F4C8, 0x00000000, 0x00000000, 0x00000001}
+#define Curve_N_2 {0xB4D22831, 0x146BC9B1, 0x99DEF836, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
+#define Curve_N_3 {0xFC632551, 0xF3B9CAC2, 0xA7179E84, 0xBCE6FAAD, 0xFFFFFFFF, 0xFFFFFFFF, 0x00000000, 0xFFFFFFFF}
+
+#elif (ECC_WORD_SIZE == 8)
+
+typedef uint64_t ecc_word_t;
+#if SUPPORTS_INT128
+typedef unsigned __int128 ecc_dword_t;
+#endif
+typedef unsigned wordcount_t;
+typedef int swordcount_t;
+typedef int bitcount_t;
+typedef int cmpresult_t;
+
+#define HIGH_BIT_SET 0x8000000000000000ull
+
+#define ECC_WORDS_1 3
+#define ECC_WORDS_2 3
+#define ECC_WORDS_3 4
+
+#define ECC_N_WORDS_1 3
+#define ECC_N_WORDS_2 3
+#define ECC_N_WORDS_3 4
+
+#define Curve_P_1 {0xFFFFFFFF7FFFFFFFull, 0xFFFFFFFFFFFFFFFFull, 0x00000000FFFFFFFFull}
+#define Curve_P_2 {0xFFFFFFFFFFFFFFFFull, 0xFFFFFFFFFFFFFFFEull, 0xFFFFFFFFFFFFFFFFull}
+#define Curve_P_3 {0xFFFFFFFFFFFFFFFFull, 0x00000000FFFFFFFFull, 0x0000000000000000ull, 0xFFFFFFFF00000001ull}
+
+#define Curve_B_1 {0x81D4D4ADC565FA45ull, 0x54BD7A8B65ACF89Full, 0x000000001C97BEFCull}
+#define Curve_B_2 {0xFEB8DEECC146B9B1ull, 0x0FA7E9AB72243049ull, 0x64210519E59C80E7ull}
+#define Curve_B_3 {0x3BCE3C3E27D2604Bull, 0x651D06B0CC53B0F6ull, 0xB3EBBD55769886BCull, 0x5AC635D8AA3A93E7ull}
+
+#define Curve_G_1 { \
+    {0x68C38BB913CBFC82ull, 0x8EF5732846646989ull, 0x000000004A96B568ull}, \
+    {0x042351377AC5FB32ull, 0x3168947D59DCC912ull, 0x0000000023A62855ull}}
+
+#define Curve_G_2 { \
+    {0xF4FF0AFD82FF1012ull, 0x7CBF20EB43A18800ull, 0x188DA80EB03090F6ull}, \
+    {0x73F977A11E794811ull, 0x631011ED6B24CDD5ull, 0x07192B95FFC8DA78ull}}
+    
+#define Curve_G_3 { \
+    {0xF4A13945D898C296ull, 0x77037D812DEB33A0ull, 0xF8BCE6E563A440F2ull, 0x6B17D1F2E12C4247ull}, \
+    {0xCBB6406837BF51F5ull, 0x2BCE33576B315ECEull, 0x8EE7EB4A7C0F9E16ull, 0x4FE342E2FE1A7F9Bull}}
+
+#define Curve_N_1 {0xF927AED3CA752257ull, 0x000000000001F4C8ull, 0x0000000100000000ull}
+#define Curve_N_2 {0x146BC9B1B4D22831ull, 0xFFFFFFFF99DEF836ull, 0xFFFFFFFFFFFFFFFFull}
+#define Curve_N_3 {0xF3B9CAC2FC632551ull, 0xBCE6FAADA7179E84ull, 0xFFFFFFFFFFFFFFFFull, 0xFFFFFFFF00000000ull}
+
+#endif
+
+#define ECC_WORD_BITS (ECC_WORD_SIZE * 8)
+#define ECC_WORDS ECC_CONCAT(ECC_WORDS_, ECC_CURVE)
+#define ECC_N_WORDS ECC_CONCAT(ECC_N_WORDS_, ECC_CURVE)
+
+typedef struct EccPoint
+{
+    ecc_word_t x[ECC_WORDS];
+    ecc_word_t y[ECC_WORDS];
+} EccPoint;
+
+static ecc_word_t curve_p[ECC_WORDS] = ECC_CONCAT(Curve_P_, ECC_CURVE);
+static ecc_word_t curve_b[ECC_WORDS] = ECC_CONCAT(Curve_B_, ECC_CURVE);
+static EccPoint curve_G = ECC_CONCAT(Curve_G_, ECC_CURVE);
+static ecc_word_t curve_n[ECC_N_WORDS] = ECC_CONCAT(Curve_N_, ECC_CURVE);
+
+static void vli_clear(ecc_word_t *p_vli);
+static ecc_word_t vli_isZero(const ecc_word_t *p_vli);
+static ecc_word_t vli_testBit(const ecc_word_t *p_vli, bitcount_t p_bit);
+static bitcount_t vli_numBits(const ecc_word_t *p_vli, wordcount_t p_maxWords);
+static void vli_set(ecc_word_t *p_dest, const ecc_word_t *p_src);
+static cmpresult_t vli_cmp(ecc_word_t *p_left, ecc_word_t *p_right);
+static void vli_rshift1(ecc_word_t *p_vli);
+static ecc_word_t vli_add(ecc_word_t *p_result, ecc_word_t *p_left, ecc_word_t *p_right);
+static ecc_word_t vli_sub(ecc_word_t *p_result, ecc_word_t *p_left, ecc_word_t *p_right);
+static void vli_mult(ecc_word_t *p_result, ecc_word_t *p_left, ecc_word_t *p_right);
+static void vli_modAdd(ecc_word_t *p_result, ecc_word_t *p_left, ecc_word_t *p_right, ecc_word_t *p_mod);
+static void vli_modSub(ecc_word_t *p_result, ecc_word_t *p_left, ecc_word_t *p_right, ecc_word_t *p_mod);
+static void vli_mmod_fast(ecc_word_t *RESTRICT p_result, ecc_word_t *RESTRICT p_product);
+static void vli_modMult_fast(ecc_word_t *p_result, ecc_word_t *p_left, ecc_word_t *p_right);
+static void vli_modInv(ecc_word_t *p_result, ecc_word_t *p_input, ecc_word_t *p_mod);
+#if ECC_SQUARE_FUNC
+static void vli_square(ecc_word_t *p_result, ecc_word_t *p_left);
+static void vli_modSquare_fast(ecc_word_t *p_result, ecc_word_t *p_left);
+#endif
+
+#if (defined(_WIN32) || defined(_WIN64))
+/* Windows */
+
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <wincrypt.h>
+
+static int default_RNG(uint8_t *p_dest, unsigned p_size)
+{
+    HCRYPTPROV l_prov;
+    if(!CryptAcquireContext(&l_prov, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT))
     {
-        l_rand ^= (l_rand << 13);
-        l_rand ^= (l_rand >> 7);
-        l_rand ^= (l_rand << 17);
-        
-        uint8_t l_cpy = (p_size >= 8 ? 8 : p_size);
-        memcpy(p_dest, &l_rand, l_cpy);
-        p_dest += l_cpy;
-        p_size -= l_cpy;
+        return 0;
     }
+
+    CryptGenRandom(l_prov, p_size, (BYTE *)p_dest);
+    CryptReleaseContext(l_prov, 0);
     
     return 1;
 }
 
-static RNG_Function g_rng = &test_RNG;
+#elif defined(unix) || defined(__linux__) || defined(__unix__) || defined(__unix) || \
+    (defined(__APPLE__) && defined(__MACH__)) || defined(ECC_POSIX)
+
+/* Some POSIX-like system with /dev/urandom or /dev/random. */
+#include <sys/types.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+#ifndef O_CLOEXEC
+    #define O_CLOEXEC 0
+#endif
+
+static int default_RNG(uint8_t *p_dest, unsigned p_size)
+{
+    int l_fd = open("/dev/urandom", O_RDONLY | O_CLOEXEC);
+    if(l_fd == -1)
+    {
+        l_fd = open("/dev/random", O_RDONLY | O_CLOEXEC);
+        if(l_fd == -1)
+        {
+            return 0;
+        }
+    }
+    
+    char *l_ptr = (char *)p_dest;
+    size_t l_left = p_size;
+    while(l_left > 0)
+    {
+        int l_read = read(l_fd, l_ptr, l_left);
+        if(l_read <= 0)
+        { // read failed
+            close(l_fd);
+            return 0;
+        }
+        l_left -= l_read;
+        l_ptr += l_read;
+    }
+    
+    close(l_fd);
+    return 1;
+}
+
+#else /* Some other platform */
+
+static int default_RNG(uint8_t *p_dest, unsigned p_size)
+{
+    return 0;
+}
+
+#endif
+
+static RNG_Function g_rng = &default_RNG;
 
 void ecc_set_rng(RNG_Function p_rng)
 {
     g_rng = p_rng;
 }
 
-static void vli_clear(uint8_t *p_vli)
-{
-#if (ECC_ASM == ecc_asm_avr)
-    __asm__ volatile (
-        REPEAT(ECC_BYTES, "st %a[ptr]+, r1 \n\t")
+#ifdef __GNUC__ /* Only support GCC inline asm for now */
+    #if (ECC_ASM && (ECC_PLATFORM == ecc_avr))
+        #include "asm_avr.inc"
+    #endif
 
-        : [ptr] "+e" (p_vli)
-        :
-        : "r0", "cc", "memory"
-    );
-#else
-    uint8_t i;
-    for(i=0; i<ECC_BYTES; ++i)
+    #if (ECC_ASM && (ECC_PLATFORM == ecc_arm || ECC_PLATFORM == ecc_arm_thumb || ECC_PLATFORM == ecc_arm_thumb2))
+        #include "asm_arm.inc"
+    #endif
+#endif
+
+#if !asm_clear
+static void vli_clear(ecc_word_t *p_vli)
+{
+    wordcount_t i;
+    for(i = 0; i < ECC_WORDS; ++i)
     {
         p_vli[i] = 0;
     }
-#endif
 }
+#endif
 
 /* Returns 1 if p_vli == 0, 0 otherwise. */
-static uint8_t vli_isZero(const uint8_t *p_vli)
+#if !asm_isZero
+static ecc_word_t vli_isZero(const ecc_word_t *p_vli)
 {
-    uint8_t i;
-    for(i = 0; i < ECC_BYTES; ++i)
+    wordcount_t i;
+    for(i = 0; i < ECC_WORDS; ++i)
     {
         if(p_vli[i])
         {
@@ -225,72 +387,70 @@ static uint8_t vli_isZero(const uint8_t *p_vli)
     }
     return 1;
 }
+#endif
 
 /* Returns nonzero if bit p_bit of p_vli is set. */
-static uint8_t vli_testBit(const uint8_t *p_vli, uint16_t p_bit)
+#if !asm_testBit
+static ecc_word_t vli_testBit(const ecc_word_t *p_vli, bitcount_t p_bit)
 {
-    return (p_vli[p_bit/8] & ((uint8_t)1 << (p_bit % 8)));
+    return (p_vli[p_bit/ECC_WORD_BITS] & ((ecc_word_t)1 << (p_bit % ECC_WORD_BITS)));
 }
+#endif
 
-/* Counts the number of 8-bit "digits" in p_vli. */
-static uint8_t vli_numDigits(const uint8_t *p_vli)
+/* Counts the number of words in p_vli. */
+#if !asm_numBits
+static wordcount_t vli_numDigits(const ecc_word_t *p_vli, wordcount_t p_maxWords)
 {
-    int8_t i;
+    swordcount_t i;
     /* Search from the end until we find a non-zero digit.
        We do it in reverse because we expect that most digits will be nonzero. */
-    for(i = ECC_BYTES - 1; i >= 0 && p_vli[i] == 0; --i)
+    for(i = p_maxWords-1; i >= 0 && p_vli[i] == 0; --i)
     {
     }
 
     return (i + 1);
 }
 
-/* Counts the number of bits required for p_vli. */
-static int16_t vli_numBits(const uint8_t *p_vli)
+/* Counts the number of bits required to represent p_vli. */
+static bitcount_t vli_numBits(const ecc_word_t *p_vli, wordcount_t p_maxWords)
 {
-    uint8_t i;
-    uint8_t l_digit;
+    ecc_word_t i;
+    ecc_word_t l_digit;
     
-    uint8_t l_numDigits = vli_numDigits(p_vli);
+    wordcount_t l_numDigits = vli_numDigits(p_vli, p_maxWords);
     if(l_numDigits == 0)
     {
         return 0;
     }
 
     l_digit = p_vli[l_numDigits - 1];
-    for(i=0; l_digit; ++i)
+    for(i = 0; l_digit; ++i)
     {
         l_digit >>= 1;
     }
     
-    return ((int16_t)(l_numDigits - 1) * 8 + i);
+    return ((bitcount_t)(l_numDigits - 1) * ECC_WORD_BITS + i);
 }
+#endif /* !asm_numBits */
 
 /* Sets p_dest = p_src. */
-static void vli_set(uint8_t *p_dest, const uint8_t *p_src)
+#if !asm_set
+static void vli_set(ecc_word_t *p_dest, const ecc_word_t *p_src)
 {
-#if (ECC_ASM == ecc_asm_avr)
-    __asm__ volatile (
-        REPEAT(ECC_BYTES, "ld r0, %a[sptr]+ \n\t"
-            "st %a[dptr]+, r0 \n\t")
-        : [dptr] "+e" (p_dest), [sptr] "+e" (p_src)
-        :
-        : "r0", "cc", "memory"
-    );
-#else
-    uint8_t i;
-    for(i=0; i<ECC_BYTES; ++i)
+    wordcount_t i;
+    for(i=0; i<ECC_WORDS; ++i)
     {
         p_dest[i] = p_src[i];
     }
-#endif
 }
+#endif
 
 /* Returns sign of p_left - p_right. */
-static int8_t vli_cmp(uint8_t *p_left, uint8_t *p_right)
+#if !asm_cmp
+static cmpresult_t vli_cmp(ecc_word_t *p_left, ecc_word_t *p_right)
 {
-    int8_t i;
-    for(i = ECC_BYTES-1; i >= 0; --i)
+    swordcount_t i;
+    for(i = ECC_WORDS-1; i >= 0; --i)
     {
         if(p_left[i] > p_right[i])
         {
@@ -303,3251 +463,216 @@ static int8_t vli_cmp(uint8_t *p_left, uint8_t *p_right)
     }
     return 0;
 }
+#endif
 
 /* Computes p_vli = p_vli >> 1. */
-static void vli_rshift1(uint8_t *p_vli)
+#if !asm_rshift1
+static void vli_rshift1(ecc_word_t *p_vli)
 {
-#if (ECC_ASM == ecc_asm_avr)
-    __asm__ volatile (
-        "adiw r30, 20 \n\t"
-        "ld r0, -z \n\t"  /* Load word. */
-        "lsr r0 \n\t" /* Shift. */
-        "st z, r0 \n\t"  /* Store the first result word. */
-
-        /* Now we just do the remaining words with the carry bit (using ROR) */
-        REPEAT(DEC(ECC_BYTES), "ld r0, -z \n\t"
-            "ror r0 \n\t"
-            "st z, r0 \n\t")
-
-        : "+z" (p_vli)
-        :
-        : "r0", "cc", "memory"
-    );
-#else
-    uint8_t *l_end = p_vli;
-    uint8_t l_carry = 0;
+    ecc_word_t *l_end = p_vli;
+    ecc_word_t l_carry = 0;
     
-    p_vli += ECC_BYTES;
+    p_vli += ECC_WORDS;
     while(p_vli-- > l_end)
     {
-        uint8_t l_temp = *p_vli;
+        ecc_word_t l_temp = *p_vli;
         *p_vli = (l_temp >> 1) | l_carry;
-        l_carry = l_temp << 7;
+        l_carry = l_temp << (ECC_WORD_BITS - 1);
     }
-#endif
 }
+#endif
 
 /* Computes p_result = p_left + p_right, returning carry. Can modify in place. */
-static inline uint8_t vli_add(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
+#if !asm_add
+static ecc_word_t vli_add(ecc_word_t *p_result, ecc_word_t *p_left, ecc_word_t *p_right)
 {
-#if (ECC_ASM == ecc_asm_avr)
-    uint8_t l_carry = 0;
-    uint8_t l_left;
-    uint8_t l_right;
-
-    __asm__ volatile (
-        "ld %[left], %a[lptr]+ \n\t"  /* Load left word. */
-        "ld %[right], %a[rptr]+ \n\t" /* Load right word. */
-        "add %[left], %[right] \n\t" /* Add the first word. */
-        "st %a[dptr]+, %[left] \n\t"  /* Store the first result word. */
-        
-        /* Now we just do the remaining words with the carry bit (using ADC) */
-        REPEAT(DEC(ECC_BYTES), "ld %[left], %a[lptr]+ \n\t"
-            "ld %[right], %a[rptr]+ \n\t"
-            "adc %[left], %[right] \n\t"
-            "st %a[dptr]+, %[left] \n\t")
-        
-        "adc %[carry], %[carry] \n\t"    /* Store carry bit in l_carry. */
-
-        : [dptr] "+e" (p_result), [lptr] "+e" (p_left), [rptr] "+e" (p_right),
-            [carry] "+r" (l_carry), [left] "=r" (l_left), [right] "=r" (l_right)
-        :
-        : "cc", "memory"
-    );
-    return l_carry;
-#else
-    uint8_t l_carry = 0;
-    uint8_t i;
-    for(i=0; i<ECC_BYTES; ++i)
+    ecc_word_t l_carry = 0;
+    wordcount_t i;
+    for(i = 0; i < ECC_WORDS; ++i)
     {
-        uint16_t l_sum = (uint16_t)p_left[i] + p_right[i] + l_carry;
-        p_result[i] = (uint8_t)l_sum;
-        l_carry = l_sum >> 8;
+        ecc_word_t l_sum = p_left[i] + p_right[i] + l_carry;
+        if(l_sum != p_left[i])
+        {
+            l_carry = (l_sum < p_left[i]);
+        }
+        p_result[i] = l_sum;
     }
     return l_carry;
-#endif
 }
+#endif
 
 /* Computes p_result = p_left - p_right, returning borrow. Can modify in place. */
-static inline uint8_t vli_sub(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
+#if !asm_sub
+static ecc_word_t vli_sub(ecc_word_t *p_result, ecc_word_t *p_left, ecc_word_t *p_right)
 {
-#if (ECC_ASM == ecc_asm_avr)
-    uint8_t l_borrow = 0;
-    uint8_t l_left;
-    uint8_t l_right;
-
-    __asm__ volatile (
-        "ld %[left], %a[lptr]+ \n\t"  /* Load left word. */
-        "ld %[right], %a[rptr]+ \n\t" /* Load right word. */
-        "sub %[left], %[right] \n\t" /* Subtract the first word. */
-        "st %a[dptr]+, %[left] \n\t"  /* Store the first result word. */
-        
-        /* Now we just do the remaining words with the carry bit (using SBC) */
-        REPEAT(DEC(ECC_BYTES), "ld %[left], %a[lptr]+ \n\t"
-            "ld %[right], %a[rptr]+ \n\t"
-            "sbc %[left], %[right] \n\t"
-            "st %a[dptr]+, %[left] \n\t")
-        
-        "adc %[borrow], %[borrow] \n\t"    /* Store carry bit in l_carry. */
-
-        : [dptr] "+e" (p_result), [lptr] "+e" (p_left), [rptr] "+e" (p_right),
-            [borrow] "+r" (l_borrow), [left] "=r" (l_left), [right] "=r" (l_right)
-        :
-        : "cc", "memory"
-    );
-    return l_borrow;
-#else
-    uint8_t l_borrow = 0;
-    uint8_t i;
-    for(i=0; i<ECC_BYTES; ++i)
+    ecc_word_t l_borrow = 0;
+    wordcount_t i;
+    for(i = 0; i < ECC_WORDS; ++i)
     {
-        uint16_t l_diff = (uint16_t)p_left[i] - p_right[i] - l_borrow;
-        p_result[i] = (uint8_t)l_diff;
-        l_borrow = (l_diff >> 8) & 0x01;
+        ecc_word_t l_diff = p_left[i] - p_right[i] - l_borrow;
+        if(l_diff != p_left[i])
+        {
+            l_borrow = (l_diff > p_left[i]);
+        }
+        p_result[i] = l_diff;
     }
     return l_borrow;
+}
+#endif
+
+#if !asm_mult
+static void muladd(ecc_word_t a, ecc_word_t b, ecc_word_t *r0, ecc_word_t *r1, ecc_word_t *r2)
+{
+#if ECC_WORD_SIZE == 8 && !SUPPORTS_INT128
+    uint64_t a0 = a & 0xffffffffull;
+    uint64_t a1 = a >> 32;
+    uint64_t b0 = b & 0xffffffffull;
+    uint64_t b1 = b >> 32;
+    
+    uint64_t i0 = a0 * b0;
+    uint64_t i1 = a0 * b1;
+    uint64_t i2 = a1 * b0;
+    uint64_t i3 = a1 * b1;
+    
+    uint64_t p0, p1;
+    
+    i2 += (i0 >> 32);
+    i2 += i1;
+    if(i2 < i1)
+    { // overflow
+        i3 += 0x100000000ull;
+    }
+    
+    p0 = (i0 & 0xffffffffull) | (i2 << 32);
+    p1 = i3 + (i2 >> 32);
+    
+    *r0 += p0;
+    *r1 += (p1 + (*r0 < p0));
+    *r2 += ((*r1 < p1) || (*r1 == p1 && *r0 < p0));
+#else
+    ecc_dword_t p = (ecc_dword_t)a * b;
+    ecc_dword_t r01 = ((ecc_dword_t)(*r1) << ECC_WORD_BITS) | *r0;
+    r01 += p;
+    *r2 += (r01 < p);
+    *r1 = r01 >> ECC_WORD_BITS;
+    *r0 = (ecc_word_t)r01;
 #endif
 }
 
-__attribute__ ((noinline))
-static void vli_mult(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
+static void vli_mult(ecc_word_t *p_result, ecc_word_t *p_left, ecc_word_t *p_right)
 {
-#if (ECC_ASM == ecc_asm_avr)
-    __asm__ volatile (
-        "adiw r30, 10 \n\t"
-        "adiw r28, 10 \n\t"
-        "ld r2, x+ \n\t"
-        "ld r3, x+ \n\t"
-        "ld r4, x+ \n\t"
-        "ld r5, x+ \n\t"
-        "ld r6, x+ \n\t"
-        "ld r7, x+ \n\t"
-        "ld r8, x+ \n\t"
-        "ld r9, x+ \n\t"
-        "ld r10, x+ \n\t"
-        "ld r11, x+ \n\t"
-        "ld r12, y+ \n\t"
-        "ld r13, y+ \n\t"
-        "ld r14, y+ \n\t"
-        "ld r15, y+ \n\t"
-        "ld r16, y+ \n\t"
-        "ld r17, y+ \n\t"
-        "ld r18, y+ \n\t"
-        "ld r19, y+ \n\t"
-        "ld r20, y+ \n\t"
-        "ld r21, y+ \n\t"
-        "ldi r25, 0 \n\t"
-
-        "ldi r23, 0 \n\t"
-        "mul r2, r12 \n\t"
-        "st z+, r0 \n\t"
-        "mov r22, r1 \n\t"
-
-        "ldi r24, 0 \n\t"
-        "mul r2, r13 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "mul r3, r12 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "st z+, r22 \n\t"
-
-        "ldi r22, 0 \n\t"
-        "mul r2, r14 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r3, r13 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r4, r12 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r23, 0 \n\t"
-        "mul r2, r15 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r3, r14 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r4, r13 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r5, r12 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "st z+, r24 \n\t"
-
-        "ldi r24, 0 \n\t"
-        "mul r2, r16 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r3, r15 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r4, r14 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r5, r13 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r6, r12 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "st z+, r22 \n\t"
-
-        "ldi r22, 0 \n\t"
-        "mul r2, r17 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r3, r16 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r4, r15 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r5, r14 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r6, r13 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r7, r12 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r23, 0 \n\t"
-        "mul r2, r18 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r3, r17 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r4, r16 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r5, r15 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r6, r14 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r7, r13 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r8, r12 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "st z+, r24 \n\t"
-
-        "ldi r24, 0 \n\t"
-        "mul r2, r19 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r3, r18 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r4, r17 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r5, r16 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r6, r15 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r7, r14 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r8, r13 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r9, r12 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "st z+, r22 \n\t"
-
-        "ldi r22, 0 \n\t"
-        "mul r2, r20 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r3, r19 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r4, r18 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r5, r17 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r6, r16 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r7, r15 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r8, r14 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r9, r13 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r10, r12 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r23, 0 \n\t"
-        "mul r2, r21 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r3, r20 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r4, r19 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r5, r18 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r6, r17 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r7, r16 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r8, r15 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r9, r14 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r10, r13 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r11, r12 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "st z+, r24 \n\t"
-
-        "ldi r24, 0 \n\t"
-        "mul r3, r21 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r4, r20 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r5, r19 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r6, r18 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r7, r17 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r8, r16 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r9, r15 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r10, r14 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r11, r13 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "st z+, r22 \n\t"
-
-        "ldi r22, 0 \n\t"
-        "mul r4, r21 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r5, r20 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r6, r19 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r7, r18 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r8, r17 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r9, r16 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r10, r15 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r11, r14 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r23, 0 \n\t"
-        "mul r5, r21 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r6, r20 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r7, r19 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r8, r18 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r9, r17 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r10, r16 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r11, r15 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "st z+, r24 \n\t"
-
-        "ldi r24, 0 \n\t"
-        "mul r6, r21 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r7, r20 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r8, r19 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r9, r18 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r10, r17 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r11, r16 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "st z+, r22 \n\t"
-
-        "ldi r22, 0 \n\t"
-        "mul r7, r21 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r8, r20 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r9, r19 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r10, r18 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r11, r17 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r23, 0 \n\t"
-        "mul r8, r21 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r9, r20 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r10, r19 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r11, r18 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "st z+, r24 \n\t"
-
-        "ldi r24, 0 \n\t"
-        "mul r9, r21 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r10, r20 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r11, r19 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "st z+, r22 \n\t"
-
-        "ldi r22, 0 \n\t"
-        "mul r10, r21 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r11, r20 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "st z+, r23 \n\t"
-
-        "mul r11, r21 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "st z+, r24 \n\t"
-        "st z+, r22 \n\t"
-
-        "sbiw r30, 30 \n\t"
-        "sbiw r28, 20 \n\t"
-        "ld r12, y+ \n\t"
-        "ld r13, y+ \n\t"
-        "ld r14, y+ \n\t"
-        "ld r15, y+ \n\t"
-        "ld r16, y+ \n\t"
-        "ld r17, y+ \n\t"
-        "ld r18, y+ \n\t"
-        "ld r19, y+ \n\t"
-        "ld r20, y+ \n\t"
-        "ld r21, y+ \n\t"
-
-        "ldi r23, 0 \n\t"
-        "mul r2, r12 \n\t"
-        "st z+, r0 \n\t"
-        "mov r22, r1 \n\t"
-
-        "ldi r24, 0 \n\t"
-        "mul r2, r13 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "mul r3, r12 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "st z+, r22 \n\t"
-
-        "ldi r22, 0 \n\t"
-        "mul r2, r14 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r3, r13 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r4, r12 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r23, 0 \n\t"
-        "mul r2, r15 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r3, r14 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r4, r13 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r5, r12 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "st z+, r24 \n\t"
-
-        "ldi r24, 0 \n\t"
-        "mul r2, r16 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r3, r15 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r4, r14 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r5, r13 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r6, r12 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "st z+, r22 \n\t"
-
-        "ldi r22, 0 \n\t"
-        "mul r2, r17 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r3, r16 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r4, r15 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r5, r14 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r6, r13 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r7, r12 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r23, 0 \n\t"
-        "mul r2, r18 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r3, r17 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r4, r16 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r5, r15 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r6, r14 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r7, r13 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r8, r12 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "st z+, r24 \n\t"
-
-        "ldi r24, 0 \n\t"
-        "mul r2, r19 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r3, r18 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r4, r17 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r5, r16 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r6, r15 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r7, r14 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r8, r13 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r9, r12 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "st z+, r22 \n\t"
-
-        "ldi r22, 0 \n\t"
-        "mul r2, r20 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r3, r19 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r4, r18 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r5, r17 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r6, r16 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r7, r15 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r8, r14 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r9, r13 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r10, r12 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r23, 0 \n\t"
-        "mul r2, r21 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r3, r20 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r4, r19 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r5, r18 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r6, r17 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r7, r16 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r8, r15 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r9, r14 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r10, r13 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r11, r12 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "st z+, r24 \n\t"
-
-        "ld r2, x+ \n\t"
-        "ldi r24, 0 \n\t"
-        "mul r3, r21 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r4, r20 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r5, r19 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r6, r18 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r7, r17 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r8, r16 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r9, r15 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r10, r14 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r11, r13 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r2, r12 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "ld r0, z \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r25 \n\t"
-        "adc r24, r25 \n\t"
-        "st z+, r22 \n\t"
-
-        "ld r3, x+ \n\t"
-        "ldi r22, 0 \n\t"
-        "mul r4, r21 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r5, r20 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r6, r19 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r7, r18 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r8, r17 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r9, r16 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r10, r15 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r11, r14 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r2, r13 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r3, r12 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "ld r0, z \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r25 \n\t"
-        "adc r22, r25 \n\t"
-        "st z+, r23 \n\t"
-
-        "ld r4, x+ \n\t"
-        "ldi r23, 0 \n\t"
-        "mul r5, r21 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r6, r20 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r7, r19 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r8, r18 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r9, r17 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r10, r16 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r11, r15 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r2, r14 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r3, r13 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r4, r12 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "ld r0, z \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r25 \n\t"
-        "adc r23, r25 \n\t"
-        "st z+, r24 \n\t"
-
-        "ld r5, x+ \n\t"
-        "ldi r24, 0 \n\t"
-        "mul r6, r21 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r7, r20 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r8, r19 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r9, r18 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r10, r17 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r11, r16 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r2, r15 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r3, r14 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r4, r13 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r5, r12 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "ld r0, z \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r25 \n\t"
-        "adc r24, r25 \n\t"
-        "st z+, r22 \n\t"
-
-        "ld r6, x+ \n\t"
-        "ldi r22, 0 \n\t"
-        "mul r7, r21 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r8, r20 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r9, r19 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r10, r18 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r11, r17 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r2, r16 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r3, r15 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r4, r14 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r5, r13 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r6, r12 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "ld r0, z \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r25 \n\t"
-        "adc r22, r25 \n\t"
-        "st z+, r23 \n\t"
-
-        "ld r7, x+ \n\t"
-        "ldi r23, 0 \n\t"
-        "mul r8, r21 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r9, r20 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r10, r19 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r11, r18 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r2, r17 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r3, r16 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r4, r15 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r5, r14 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r6, r13 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r7, r12 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "ld r0, z \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r25 \n\t"
-        "adc r23, r25 \n\t"
-        "st z+, r24 \n\t"
-
-        "ld r8, x+ \n\t"
-        "ldi r24, 0 \n\t"
-        "mul r9, r21 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r10, r20 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r11, r19 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r2, r18 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r3, r17 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r4, r16 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r5, r15 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r6, r14 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r7, r13 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r8, r12 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "ld r0, z \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r25 \n\t"
-        "adc r24, r25 \n\t"
-        "st z+, r22 \n\t"
-
-        "ld r9, x+ \n\t"
-        "ldi r22, 0 \n\t"
-        "mul r10, r21 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r11, r20 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r2, r19 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r3, r18 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r4, r17 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r5, r16 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r6, r15 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r7, r14 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r8, r13 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r9, r12 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "ld r0, z \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r25 \n\t"
-        "adc r22, r25 \n\t"
-        "st z+, r23 \n\t"
-
-        "ld r10, x+ \n\t"
-        "ldi r23, 0 \n\t"
-        "mul r11, r21 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r2, r20 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r3, r19 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r4, r18 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r5, r17 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r6, r16 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r7, r15 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r8, r14 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r9, r13 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r10, r12 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "ld r0, z \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r25 \n\t"
-        "adc r23, r25 \n\t"
-        "st z+, r24 \n\t"
-
-        "ld r11, x+ \n\t"
-        "ldi r24, 0 \n\t"
-        "mul r2, r21 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r3, r20 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r4, r19 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r5, r18 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r6, r17 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r7, r16 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r8, r15 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r9, r14 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r10, r13 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r11, r12 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "ld r0, z \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r25 \n\t"
-        "adc r24, r25 \n\t"
-        "st z+, r22 \n\t"
-
-        "ld r12, y+ \n\t"
-        "ldi r22, 0 \n\t"
-        "mul r2, r12 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r3, r21 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r4, r20 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r5, r19 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r6, r18 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r7, r17 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r8, r16 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r9, r15 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r10, r14 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r11, r13 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "ld r0, z \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r25 \n\t"
-        "adc r22, r25 \n\t"
-        "st z+, r23 \n\t"
-
-        "ld r13, y+ \n\t"
-        "ldi r23, 0 \n\t"
-        "mul r2, r13 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r3, r12 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r4, r21 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r5, r20 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r6, r19 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r7, r18 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r8, r17 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r9, r16 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r10, r15 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r11, r14 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "ld r0, z \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r25 \n\t"
-        "adc r23, r25 \n\t"
-        "st z+, r24 \n\t"
-
-        "ld r14, y+ \n\t"
-        "ldi r24, 0 \n\t"
-        "mul r2, r14 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r3, r13 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r4, r12 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r5, r21 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r6, r20 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r7, r19 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r8, r18 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r9, r17 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r10, r16 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r11, r15 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "ld r0, z \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r25 \n\t"
-        "adc r24, r25 \n\t"
-        "st z+, r22 \n\t"
-
-        "ld r15, y+ \n\t"
-        "ldi r22, 0 \n\t"
-        "mul r2, r15 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r3, r14 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r4, r13 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r5, r12 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r6, r21 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r7, r20 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r8, r19 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r9, r18 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r10, r17 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r11, r16 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "ld r0, z \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r25 \n\t"
-        "adc r22, r25 \n\t"
-        "st z+, r23 \n\t"
-
-        "ld r16, y+ \n\t"
-        "ldi r23, 0 \n\t"
-        "mul r2, r16 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r3, r15 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r4, r14 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r5, r13 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r6, r12 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r7, r21 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r8, r20 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r9, r19 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r10, r18 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r11, r17 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "ld r0, z \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r25 \n\t"
-        "adc r23, r25 \n\t"
-        "st z+, r24 \n\t"
-
-        "ld r17, y+ \n\t"
-        "ldi r24, 0 \n\t"
-        "mul r2, r17 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r3, r16 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r4, r15 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r5, r14 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r6, r13 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r7, r12 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r8, r21 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r9, r20 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r10, r19 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r11, r18 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "ld r0, z \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r25 \n\t"
-        "adc r24, r25 \n\t"
-        "st z+, r22 \n\t"
-
-        "ld r18, y+ \n\t"
-        "ldi r22, 0 \n\t"
-        "mul r2, r18 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r3, r17 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r4, r16 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r5, r15 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r6, r14 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r7, r13 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r8, r12 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r9, r21 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r10, r20 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r11, r19 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "ld r0, z \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r25 \n\t"
-        "adc r22, r25 \n\t"
-        "st z+, r23 \n\t"
-
-        "ld r19, y+ \n\t"
-        "ldi r23, 0 \n\t"
-        "mul r2, r19 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r3, r18 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r4, r17 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r5, r16 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r6, r15 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r7, r14 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r8, r13 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r9, r12 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r10, r21 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r11, r20 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "ld r0, z \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r25 \n\t"
-        "adc r23, r25 \n\t"
-        "st z+, r24 \n\t"
-
-        "ld r20, y+ \n\t"
-        "ldi r24, 0 \n\t"
-        "mul r2, r20 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r3, r19 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r4, r18 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r5, r17 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r6, r16 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r7, r15 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r8, r14 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r9, r13 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r10, r12 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r11, r21 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "ld r0, z \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r25 \n\t"
-        "adc r24, r25 \n\t"
-        "st z+, r22 \n\t"
-
-        "ld r21, y+ \n\t"
-        "ldi r22, 0 \n\t"
-        "mul r2, r21 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r3, r20 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r4, r19 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r5, r18 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r6, r17 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r7, r16 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r8, r15 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r9, r14 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r10, r13 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r11, r12 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "ld r0, z \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r25 \n\t"
-        "adc r22, r25 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r23, 0 \n\t"
-        "mul r3, r21 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r4, r20 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r5, r19 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r6, r18 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r7, r17 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r8, r16 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r9, r15 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r10, r14 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r11, r13 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "st z+, r24 \n\t"
-
-        "ldi r24, 0 \n\t"
-        "mul r4, r21 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r5, r20 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r6, r19 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r7, r18 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r8, r17 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r9, r16 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r10, r15 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r11, r14 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "st z+, r22 \n\t"
-
-        "ldi r22, 0 \n\t"
-        "mul r5, r21 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r6, r20 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r7, r19 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r8, r18 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r9, r17 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r10, r16 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r11, r15 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r23, 0 \n\t"
-        "mul r6, r21 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r7, r20 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r8, r19 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r9, r18 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r10, r17 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r11, r16 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "st z+, r24 \n\t"
-
-        "ldi r24, 0 \n\t"
-        "mul r7, r21 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r8, r20 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r9, r19 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r10, r18 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r11, r17 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "st z+, r22 \n\t"
-
-        "ldi r22, 0 \n\t"
-        "mul r8, r21 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r9, r20 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r10, r19 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "mul r11, r18 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r25 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r23, 0 \n\t"
-        "mul r9, r21 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r10, r20 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "mul r11, r19 \n\t"
-        "add r24, r0 \n\t"
-        "adc r22, r1 \n\t"
-        "adc r23, r25 \n\t"
-        "st z+, r24 \n\t"
-
-        "ldi r24, 0 \n\t"
-        "mul r10, r21 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "mul r11, r20 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r25 \n\t"
-        "st z+, r22 \n\t"
-
-        "mul r11, r21 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "st z+, r23 \n\t"
-        "st z+, r24 \n\t"
-        "eor r1, r1 \n\t"
-        : "+x" (p_left), "+y" (p_right), "+z" (p_result)
-        :
-        : "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12",
-          "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "cc", "memory"
-    );
-#else
-    uint16_t r01 = 0;
-    uint8_t r2 = 0;
+    ecc_word_t r0 = 0;
+    ecc_word_t r1 = 0;
+    ecc_word_t r2 = 0;
     
-    uint8_t i, k;
+    wordcount_t i, k;
     
     /* Compute each digit of p_result in sequence, maintaining the carries. */
-    for(k=0; k < ECC_BYTES*2 - 1; ++k)
+    for(k = 0; k < ECC_WORDS; ++k)
     {
-        uint8_t l_min = (k < ECC_BYTES ? 0 : (k + 1) - ECC_BYTES);
-        for(i=l_min; i<=k && i<ECC_BYTES; ++i)
+        for(i = 0; i <= k; ++i)
         {
-            uint16_t l_product = (uint16_t)p_left[i] * p_right[k-i];
-            r01 += l_product;
-            r2 += (r01 < l_product);
+            muladd(p_left[i], p_right[k-i], &r0, &r1, &r2);
         }
-        p_result[k] = (uint8_t)r01;
-        r01 = (r01 >> 8) | (((uint16_t)r2) << 8);
+        p_result[k] = r0;
+        r0 = r1;
+        r1 = r2;
+        r2 = 0;
+    }
+    for(k = ECC_WORDS; k < ECC_WORDS*2 - 1; ++k)
+    {
+        for(i = (k + 1) - ECC_WORDS; i<ECC_WORDS; ++i)
+        {
+            muladd(p_left[i], p_right[k-i], &r0, &r1, &r2);
+        }
+        p_result[k] = r0;
+        r0 = r1;
+        r1 = r2;
         r2 = 0;
     }
     
-    p_result[ECC_BYTES*2 - 1] = (uint8_t)r01;
-#endif
+    p_result[ECC_WORDS*2 - 1] = r0;
 }
+#endif
 
 #if ECC_SQUARE_FUNC
 
-static void vli_square(uint8_t *p_result, uint8_t *p_left)
+#if !asm_square
+static void mul2add(ecc_word_t a, ecc_word_t b, ecc_word_t *r0, ecc_word_t *r1, ecc_word_t *r2)
 {
-#if (ECC_ASM == ecc_asm_avr)
-    __asm__ volatile (
-        "ld r2, x+ \n\t"
-        "ld r3, x+ \n\t"
-        "ld r4, x+ \n\t"
-        "ld r5, x+ \n\t"
-        "ld r6, x+ \n\t"
-        "ld r7, x+ \n\t"
-        "ld r8, x+ \n\t"
-        "ld r9, x+ \n\t"
-        "ld r10, x+ \n\t"
-        "ld r11, x+ \n\t"
-        "ld r12, x+ \n\t"
-        "ld r13, x+ \n\t"
-        "ld r14, x+ \n\t"
-        "ld r15, x+ \n\t"
-        "ld r16, x+ \n\t"
-        "ld r17, x+ \n\t"
-        "ld r18, x+ \n\t"
-        "ld r19, x+ \n\t"
-        "ld r20, x+ \n\t"
-        "ld r21, x+ \n\t"
-        "ldi r27, 0 \n\t"
-
-        "ldi r23, 0 \n\t"
-        "mul r2, r2 \n\t"
-        "st z+, r0 \n\t"
-        "mov r22, r1 \n\t"
-
-        "ldi r24, 0 \n\t"
-        "mul r2, r3 \n\t"
-        "lsl r0 \n\t"
-        "rol r1 \n\t"
-        "adc r24, r27 \n\t"
-        "add r22, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r24, r27 \n\t"
-        "st z+, r22 \n\t"
-
-        "ldi r22, 0 \n\t"
-        "mul r2, r4 \n\t"
-        "lsl r0 \n\t"
-        "rol r1 \n\t"
-        "adc r22, r27 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r3, r3 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r26, 0 \n\t"
-        "mul r2, r5 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r25, r1 \n\t"
-        "mul r3, r4 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r25 \n\t"
-        "rol r26 \n\t"
-        "add r23, r24 \n\t"
-        "adc r25, r22 \n\t"
-        "adc r26, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r22, 0 \n\t"
-        "mul r2, r6 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r24, r1 \n\t"
-        "mul r3, r5 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r24 \n\t"
-        "rol r22 \n\t"
-        "mul r4, r4 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "add r23, r25 \n\t"
-        "adc r24, r26 \n\t"
-        "adc r22, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r26, 0 \n\t"
-        "mul r2, r7 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r25, r1 \n\t"
-        "mul r3, r6 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r4, r5 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r25 \n\t"
-        "rol r26 \n\t"
-        "add r23, r24 \n\t"
-        "adc r25, r22 \n\t"
-        "adc r26, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r22, 0 \n\t"
-        "mul r2, r8 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r24, r1 \n\t"
-        "mul r3, r7 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r4, r6 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r24 \n\t"
-        "rol r22 \n\t"
-        "mul r5, r5 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "add r23, r25 \n\t"
-        "adc r24, r26 \n\t"
-        "adc r22, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r26, 0 \n\t"
-        "mul r2, r9 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r25, r1 \n\t"
-        "mul r3, r8 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r4, r7 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r5, r6 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r25 \n\t"
-        "rol r26 \n\t"
-        "add r23, r24 \n\t"
-        "adc r25, r22 \n\t"
-        "adc r26, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r22, 0 \n\t"
-        "mul r2, r10 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r24, r1 \n\t"
-        "mul r3, r9 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r4, r8 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r5, r7 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r24 \n\t"
-        "rol r22 \n\t"
-        "mul r6, r6 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "add r23, r25 \n\t"
-        "adc r24, r26 \n\t"
-        "adc r22, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r26, 0 \n\t"
-        "mul r2, r11 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r25, r1 \n\t"
-        "mul r3, r10 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r4, r9 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r5, r8 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r6, r7 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r25 \n\t"
-        "rol r26 \n\t"
-        "add r23, r24 \n\t"
-        "adc r25, r22 \n\t"
-        "adc r26, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r22, 0 \n\t"
-        "mul r2, r12 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r24, r1 \n\t"
-        "mul r3, r11 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r4, r10 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r5, r9 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r6, r8 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r24 \n\t"
-        "rol r22 \n\t"
-        "mul r7, r7 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "add r23, r25 \n\t"
-        "adc r24, r26 \n\t"
-        "adc r22, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r26, 0 \n\t"
-        "mul r2, r13 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r25, r1 \n\t"
-        "mul r3, r12 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r4, r11 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r5, r10 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r6, r9 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r7, r8 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r25 \n\t"
-        "rol r26 \n\t"
-        "add r23, r24 \n\t"
-        "adc r25, r22 \n\t"
-        "adc r26, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r22, 0 \n\t"
-        "mul r2, r14 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r24, r1 \n\t"
-        "mul r3, r13 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r4, r12 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r5, r11 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r6, r10 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r7, r9 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r24 \n\t"
-        "rol r22 \n\t"
-        "mul r8, r8 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "add r23, r25 \n\t"
-        "adc r24, r26 \n\t"
-        "adc r22, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r26, 0 \n\t"
-        "mul r2, r15 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r25, r1 \n\t"
-        "mul r3, r14 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r4, r13 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r5, r12 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r6, r11 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r7, r10 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r8, r9 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r25 \n\t"
-        "rol r26 \n\t"
-        "add r23, r24 \n\t"
-        "adc r25, r22 \n\t"
-        "adc r26, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r22, 0 \n\t"
-        "mul r2, r16 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r24, r1 \n\t"
-        "mul r3, r15 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r4, r14 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r5, r13 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r6, r12 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r7, r11 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r8, r10 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r24 \n\t"
-        "rol r22 \n\t"
-        "mul r9, r9 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "add r23, r25 \n\t"
-        "adc r24, r26 \n\t"
-        "adc r22, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r26, 0 \n\t"
-        "mul r2, r17 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r25, r1 \n\t"
-        "mul r3, r16 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r4, r15 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r5, r14 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r6, r13 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r7, r12 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r8, r11 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r9, r10 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r25 \n\t"
-        "rol r26 \n\t"
-        "add r23, r24 \n\t"
-        "adc r25, r22 \n\t"
-        "adc r26, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r22, 0 \n\t"
-        "mul r2, r18 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r24, r1 \n\t"
-        "mul r3, r17 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r4, r16 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r5, r15 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r6, r14 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r7, r13 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r8, r12 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r9, r11 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r24 \n\t"
-        "rol r22 \n\t"
-        "mul r10, r10 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "add r23, r25 \n\t"
-        "adc r24, r26 \n\t"
-        "adc r22, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r26, 0 \n\t"
-        "mul r2, r19 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r25, r1 \n\t"
-        "mul r3, r18 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r4, r17 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r5, r16 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r6, r15 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r7, r14 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r8, r13 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r9, r12 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r10, r11 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r25 \n\t"
-        "rol r26 \n\t"
-        "add r23, r24 \n\t"
-        "adc r25, r22 \n\t"
-        "adc r26, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r22, 0 \n\t"
-        "mul r2, r20 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r24, r1 \n\t"
-        "mul r3, r19 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r4, r18 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r5, r17 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r6, r16 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r7, r15 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r8, r14 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r9, r13 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r10, r12 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r24 \n\t"
-        "rol r22 \n\t"
-        "mul r11, r11 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "add r23, r25 \n\t"
-        "adc r24, r26 \n\t"
-        "adc r22, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r26, 0 \n\t"
-        "mul r2, r21 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r25, r1 \n\t"
-        "mul r3, r20 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r4, r19 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r5, r18 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r6, r17 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r7, r16 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r8, r15 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r9, r14 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r10, r13 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r11, r12 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r25 \n\t"
-        "rol r26 \n\t"
-        "add r23, r24 \n\t"
-        "adc r25, r22 \n\t"
-        "adc r26, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r22, 0 \n\t"
-        "mul r3, r21 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r24, r1 \n\t"
-        "mul r4, r20 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r5, r19 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r6, r18 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r7, r17 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r8, r16 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r9, r15 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r10, r14 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r11, r13 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r24 \n\t"
-        "rol r22 \n\t"
-        "mul r12, r12 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "add r23, r25 \n\t"
-        "adc r24, r26 \n\t"
-        "adc r22, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r26, 0 \n\t"
-        "mul r4, r21 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r25, r1 \n\t"
-        "mul r5, r20 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r6, r19 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r7, r18 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r8, r17 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r9, r16 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r10, r15 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r11, r14 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r12, r13 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r25 \n\t"
-        "rol r26 \n\t"
-        "add r23, r24 \n\t"
-        "adc r25, r22 \n\t"
-        "adc r26, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r22, 0 \n\t"
-        "mul r5, r21 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r24, r1 \n\t"
-        "mul r6, r20 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r7, r19 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r8, r18 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r9, r17 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r10, r16 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r11, r15 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r12, r14 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r24 \n\t"
-        "rol r22 \n\t"
-        "mul r13, r13 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "add r23, r25 \n\t"
-        "adc r24, r26 \n\t"
-        "adc r22, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r26, 0 \n\t"
-        "mul r6, r21 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r25, r1 \n\t"
-        "mul r7, r20 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r8, r19 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r9, r18 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r10, r17 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r11, r16 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r12, r15 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r13, r14 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r25 \n\t"
-        "rol r26 \n\t"
-        "add r23, r24 \n\t"
-        "adc r25, r22 \n\t"
-        "adc r26, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r22, 0 \n\t"
-        "mul r7, r21 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r24, r1 \n\t"
-        "mul r8, r20 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r9, r19 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r10, r18 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r11, r17 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r12, r16 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r13, r15 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r24 \n\t"
-        "rol r22 \n\t"
-        "mul r14, r14 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "add r23, r25 \n\t"
-        "adc r24, r26 \n\t"
-        "adc r22, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r26, 0 \n\t"
-        "mul r8, r21 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r25, r1 \n\t"
-        "mul r9, r20 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r10, r19 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r11, r18 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r12, r17 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r13, r16 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r14, r15 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r25 \n\t"
-        "rol r26 \n\t"
-        "add r23, r24 \n\t"
-        "adc r25, r22 \n\t"
-        "adc r26, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r22, 0 \n\t"
-        "mul r9, r21 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r24, r1 \n\t"
-        "mul r10, r20 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r11, r19 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r12, r18 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r13, r17 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r14, r16 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r24 \n\t"
-        "rol r22 \n\t"
-        "mul r15, r15 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "add r23, r25 \n\t"
-        "adc r24, r26 \n\t"
-        "adc r22, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r26, 0 \n\t"
-        "mul r10, r21 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r25, r1 \n\t"
-        "mul r11, r20 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r12, r19 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r13, r18 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r14, r17 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r15, r16 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r25 \n\t"
-        "rol r26 \n\t"
-        "add r23, r24 \n\t"
-        "adc r25, r22 \n\t"
-        "adc r26, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r22, 0 \n\t"
-        "mul r11, r21 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r24, r1 \n\t"
-        "mul r12, r20 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r13, r19 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r14, r18 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r15, r17 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r24 \n\t"
-        "rol r22 \n\t"
-        "mul r16, r16 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "add r23, r25 \n\t"
-        "adc r24, r26 \n\t"
-        "adc r22, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r26, 0 \n\t"
-        "mul r12, r21 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r25, r1 \n\t"
-        "mul r13, r20 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r14, r19 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r15, r18 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r16, r17 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r25 \n\t"
-        "rol r26 \n\t"
-        "add r23, r24 \n\t"
-        "adc r25, r22 \n\t"
-        "adc r26, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r22, 0 \n\t"
-        "mul r13, r21 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r24, r1 \n\t"
-        "mul r14, r20 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r15, r19 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r16, r18 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r24 \n\t"
-        "rol r22 \n\t"
-        "mul r17, r17 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "add r23, r25 \n\t"
-        "adc r24, r26 \n\t"
-        "adc r22, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r26, 0 \n\t"
-        "mul r14, r21 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r25, r1 \n\t"
-        "mul r15, r20 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r16, r19 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r17, r18 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r25 \n\t"
-        "rol r26 \n\t"
-        "add r23, r24 \n\t"
-        "adc r25, r22 \n\t"
-        "adc r26, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r22, 0 \n\t"
-        "mul r15, r21 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r24, r1 \n\t"
-        "mul r16, r20 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "mul r17, r19 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r24 \n\t"
-        "rol r22 \n\t"
-        "mul r18, r18 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "add r23, r25 \n\t"
-        "adc r24, r26 \n\t"
-        "adc r22, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r26, 0 \n\t"
-        "mul r16, r21 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r25, r1 \n\t"
-        "mul r17, r20 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "mul r18, r19 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r25 \n\t"
-        "rol r26 \n\t"
-        "add r23, r24 \n\t"
-        "adc r25, r22 \n\t"
-        "adc r26, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r22, 0 \n\t"
-        "mul r17, r21 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r24, r1 \n\t"
-        "mul r18, r20 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r24 \n\t"
-        "rol r22 \n\t"
-        "mul r19, r19 \n\t"
-        "add r23, r0 \n\t"
-        "adc r24, r1 \n\t"
-        "adc r22, r27 \n\t"
-        "add r23, r25 \n\t"
-        "adc r24, r26 \n\t"
-        "adc r22, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r26, 0 \n\t"
-        "mul r18, r21 \n\t"
-        "mov r23, r0 \n\t"
-        "mov r25, r1 \n\t"
-        "mul r19, r20 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "adc r26, r27 \n\t"
-        "lsl r23 \n\t"
-        "rol r25 \n\t"
-        "rol r26 \n\t"
-        "add r23, r24 \n\t"
-        "adc r25, r22 \n\t"
-        "adc r26, r27 \n\t"
-        "st z+, r23 \n\t"
-
-        "ldi r23, 0 \n\t"
-        "mul r19, r21 \n\t"
-        "lsl r0 \n\t"
-        "rol r1 \n\t"
-        "adc r23, r27 \n\t"
-        "add r25, r0 \n\t"
-        "adc r26, r1 \n\t"
-        "adc r23, r27 \n\t"
-        "mul r20, r20 \n\t"
-        "add r25, r0 \n\t"
-        "adc r26, r1 \n\t"
-        "adc r23, r27 \n\t"
-        "st z+, r25 \n\t"
-
-        "ldi r25, 0 \n\t"
-        "mul r20, r21 \n\t"
-        "lsl r0 \n\t"
-        "rol r1 \n\t"
-        "adc r25, r27 \n\t"
-        "add r26, r0 \n\t"
-        "adc r23, r1 \n\t"
-        "adc r25, r27 \n\t"
-        "st z+, r26 \n\t"
-
-        "mul r21, r21 \n\t"
-        "add r23, r0 \n\t"
-        "adc r25, r1 \n\t"
-        "st z+, r23 \n\t"
-        "st z+, r25 \n\t"
-        "eor r1, r1 \n\t"
-        : "+x" (p_left), "+z" (p_result)
-        :
-        : "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12",
-          "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r24", "r25", "cc", "memory"
-    );
-#else
-    uint16_t r01 = 0;
-    uint8_t r2 = 0;
+#if ECC_WORD_SIZE == 8 && !SUPPORTS_INT128
+    uint64_t a0 = a & 0xffffffffull;
+    uint64_t a1 = a >> 32;
+    uint64_t b0 = b & 0xffffffffull;
+    uint64_t b1 = b >> 32;
     
-    uint8_t i, k;
-    for(k=0; k < ECC_BYTES*2 - 1; ++k)
+    uint64_t i0 = a0 * b0;
+    uint64_t i1 = a0 * b1;
+    uint64_t i2 = a1 * b0;
+    uint64_t i3 = a1 * b1;
+    
+    uint64_t p0, p1;
+    
+    i2 += (i0 >> 32);
+    i2 += i1;
+    if(i2 < i1)
+    { // overflow
+        i3 += 0x100000000ull;
+    }
+    
+    p0 = (i0 & 0xffffffffull) | (i2 << 32);
+    p1 = i3 + (i2 >> 32);
+    
+    *r2 += (p1 >> 63);
+    p1 = (p1 << 1) | (p0 >> 63);
+    p0 <<= 1;
+    
+    *r0 += p0;
+    *r1 += (p1 + (*r0 < p0));
+    *r2 += ((*r1 < p1) || (*r1 == p1 && *r0 < p0));
+#else
+    ecc_dword_t p = (ecc_dword_t)a * b;
+    ecc_dword_t r01 = ((ecc_dword_t)(*r1) << ECC_WORD_BITS) | *r0;
+    *r2 += (p >> (ECC_WORD_BITS * 2 - 1));
+    p *= 2;
+    r01 += p;
+    *r2 += (r01 < p);
+    *r1 = r01 >> ECC_WORD_BITS;
+    *r0 = (ecc_word_t)r01;
+#endif
+}
+
+static void vli_square(ecc_word_t *p_result, ecc_word_t *p_left)
+{
+    ecc_word_t r0 = 0;
+    ecc_word_t r1 = 0;
+    ecc_word_t r2 = 0;
+    
+    wordcount_t i, k;
+    
+    for(k = 0; k < ECC_WORDS*2 - 1; ++k)
     {
-        uint8_t l_min = (k < ECC_BYTES ? 0 : (k + 1) - ECC_BYTES);
-        for(i=l_min; i<=k && i<=k-i; ++i)
+        ecc_word_t l_min = (k < ECC_WORDS ? 0 : (k + 1) - ECC_WORDS);
+        for(i = l_min; i<=k && i<=k-i; ++i)
         {
-            uint16_t l_product = (uint16_t)p_left[i] * p_left[k-i];
             if(i < k-i)
             {
-                r2 += l_product >> 15;
-                l_product *= 2;
+                mul2add(p_left[i], p_left[k-i], &r0, &r1, &r2);
             }
-            r01 += l_product;
-            r2 += (r01 < l_product);
+            else
+            {
+                muladd(p_left[i], p_left[k-i], &r0, &r1, &r2);
+            }
         }
-        p_result[k] = (uint8_t)r01;
-        r01 = (r01 >> 8) | (((uint16_t)r2) << 8);
+        p_result[k] = r0;
+        r0 = r1;
+        r1 = r2;
         r2 = 0;
     }
     
-    p_result[ECC_BYTES*2 - 1] = (uint8_t)r01;
-#endif
+    p_result[ECC_WORDS*2 - 1] = r0;
 }
+#endif
 
 #else /* ECC_SQUARE_FUNC */
 
@@ -3558,82 +683,41 @@ static void vli_square(uint8_t *p_result, uint8_t *p_left)
 
 /* Computes p_result = (p_left + p_right) % p_mod.
    Assumes that p_left < p_mod and p_right < p_mod, p_result != p_mod. */
-static void vli_modAdd(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right, uint8_t *p_mod)
+#if !asm_modAdd
+static void vli_modAdd(ecc_word_t *p_result, ecc_word_t *p_left, ecc_word_t *p_right, ecc_word_t *p_mod)
 {
-    uint8_t l_carry = vli_add(p_result, p_left, p_right);
+    ecc_word_t l_carry = vli_add(p_result, p_left, p_right);
     if(l_carry || vli_cmp(p_result, p_mod) >= 0)
     { /* p_result > p_mod (p_result = p_mod + remainder), so subtract p_mod to get remainder. */
         vli_sub(p_result, p_result, p_mod);
     }
 }
+#endif
 
 /* Computes p_result = (p_left - p_right) % p_mod.
    Assumes that p_left < p_mod and p_right < p_mod, p_result != p_mod. */
-__attribute__((noinline))
-static void vli_modSub_fast(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
+#if !asm_modSub
+static void vli_modSub(ecc_word_t *p_result, ecc_word_t *p_left, ecc_word_t *p_right, ecc_word_t *p_mod)
 {
-#if (ECC_ASM == ecc_asm_avr)
-    __asm__ volatile (
-        "ld r18, x+ \n\t"  /* Load left word. */
-        "ld r19, y+ \n\t" /* Load right word. */
-        "sub r18, r19 \n\t" /* Subtract the first word. */
-        "st z+, r18 \n\t"  /* Store the first result word. */
-        
-        /* Now we just do the remaining words with the carry bit (using SBC) */
-        REPEAT(DEC(ECC_BYTES), "ld r18, x+ \n\t"
-            "ld r19, y+ \n\t"
-            "sbc r18, r19 \n\t"
-            "st z+, r18 \n\t")
-        
-        "brcs 1f \n\t" /* If borrow is set, then we need to add */
-        "rjmp done \n\t" /* otherwise we are done */
-        "1: \n\t"
-        
-        "sbiw r30, 20 \n\t" /* make z point at p_result again */
-        "ldi r28, lo8(curve_p) \n\t" /* make y point at curve_p */
-    	"ldi r29, hi8(curve_p) \n\t"
-    	
-    	/* do the addition */
-    	"ld r18, z \n\t"
-        "ld r19, y+ \n\t"
-        "add r18, r19 \n\t"
-        "st z+, r18 \n\t"
-        REPEAT(DEC(ECC_BYTES), "ld r18, z \n\t"
-            "ld r19, y+ \n\t"
-            "adc r18, r19 \n\t"
-            "st z+, r18 \n\t")
-        
-        "done: \n\t"
-
-        : "+z" (p_result), "+x" (p_left), "+y" (p_right)
-        :
-        : "r18", "r19", "cc", "memory"
-    );
-#else
-    uint8_t l_borrow = vli_sub(p_result, p_left, p_right);
+    ecc_word_t l_borrow = vli_sub(p_result, p_left, p_right);
     if(l_borrow)
     { /* In this case, p_result == -diff == (max int) - diff.
          Since -x % d == d - x, we can get the correct result from p_result + p_mod (with overflow). */
-        vli_add(p_result, p_result, curve_p);
+        vli_add(p_result, p_result, p_mod);
     }
+}
 #endif
-}
 
-#if ECC_CURVE == secp128r1
+#if !asm_modSub_fast
+    #define vli_modSub_fast(result, left, right) vli_modSub((result), (left), (right), curve_p)
+#endif
 
-/* Computes p_result = p_product % curve_p.
-   See algorithm 5 and 6 from http://www.isys.uni-klu.ac.at/PDF/2001-0126-MT.pdf */
-static void vli_mmod_fast(uint8_t * RESTRICT p_result, uint8_t *RESTRICT p_product)
-{
-    /* TODO */
-}
+#if !asm_mmod_fast
+#if ECC_CURVE == secp160r1
 
-#elif ECC_CURVE == secp160r1
-
-#if 1//(ECC_ASM != ecc_asm_avr)
+#if ECC_WORD_SIZE == 1
 static void omega_mult(uint8_t * RESTRICT p_result, uint8_t * RESTRICT p_right)
 {
-
     uint8_t l_carry;
     uint8_t i;
     
@@ -3643,230 +727,31 @@ static void omega_mult(uint8_t * RESTRICT p_result, uint8_t * RESTRICT p_right)
     p_result[3] = p_right[0] << 7; /* get last bit from shift */
     
     l_carry = vli_add(p_result, p_result, p_right); /* 2^31 + 1 */
-    for(i = ECC_BYTES; l_carry; ++i)
+    for(i = ECC_WORDS; l_carry; ++i)
     {
         uint16_t l_sum = (uint16_t)p_result[i] + l_carry;
         p_result[i] = (uint8_t)l_sum;
         l_carry = l_sum >> 8;
     }
 }
-#endif
 
 /* Computes p_result = p_product % curve_p
     see http://www.isys.uni-klu.ac.at/PDF/2001-0126-MT.pdf page 354 */
-__attribute__ ((noinline))
 static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_product)
 {
-#if (ECC_ASM == ecc_asm_avr)
-    uint8_t l_carry = 0;
-    __asm__ volatile (
-        "in r30, __SP_L__ \n\t"
-    	"in r31, __SP_H__ \n\t"
-    	"sbiw r30, 24 \n\t"
-    	"in r0, __SREG__ \n\t"
-    	"cli \n\t"
-    	"out __SP_H__, r31 \n\t"
-    	"out __SREG__, r0 \n\t"
-    	"out __SP_L__, r30 \n\t"
-    	
-    	"adiw r30, 25 \n\t" /* we are shifting by 31 bits, so shift over 4 bytes (+ 1 since z initially points below the stack) */
-        "adiw r26, 40 \n\t" /* end of p_product */
-        "ld r18, -x \n\t"  /* Load word. */
-        "lsr r18 \n\t" /* Shift. */
-        "st -z, r18 \n\t"  /* Store the first result word. */
-
-        /* Now we just do the remaining words with the carry bit (using ROR) */
-        REPEAT(19, "ld r18, -x \n\t"
-            "ror r18 \n\t"
-            "st -z, r18 \n\t")
-
-        "eor r18, r18 \n\t" /* r18 = 0 */
-        "ror r18 \n\t" /* get last bit */
-        "st -z, r18 \n\t" /* store it */
-
-        "sbiw r30, 3 \n\t" /* move z back to point at tmp */
-        /* now we add p_right */
-        "ld r18, x+ \n\t"
-        "st z+, r18 \n\t" /* the first 3 bytes do not need to be added */
-        "ld r18, x+ \n\t"
-        "st z+, r18 \n\t"
-        "ld r18, x+ \n\t"
-        "st z+, r18 \n\t"
-
-        "ld r18, x+ \n\t"
-        "ld r19, z \n\t"
-        "add r18, r19 \n\t"
-        "st z+, r18 \n\t"
-
-        /* Now we just do the remaining words with the carry bit (using ADC) */
-        REPEAT(16, "ld r18, x+ \n\t"
-            "ld r19, z \n\t"
-            "adc r18, r19 \n\t"
-            "st z+, r18 \n\t")
-
-        /* Propagate over the remaining bytes of p_result */
-        "ld r18, z \n\t"
-        "adc r18, r1 \n\t"
-        "st z+, r18 \n\t"
-
-        "ld r18, z \n\t"
-        "adc r18, r1 \n\t"
-        "st z+, r18 \n\t"
-
-        "ld r18, z \n\t"
-        "adc r18, r1 \n\t"
-        "st z+, r18 \n\t"
-
-        "ld r18, z \n\t"
-        "adc r18, r1 \n\t"
-        "st z+, r18 \n\t"
-        
-        "sbiw r30, 24 \n\t" /* move z back to point at tmp */
-        "sbiw r26, 40 \n\t" /* move x back to point at p_product */
-        
-        /* add low bytes of tmp to p_product, storing in p_result */
-        "ld r18, z+ \n\t"
-        "ld r19, x+ \n\t"
-        "add r18, r19 \n\t"
-        "st y+, r18 \n\t"
-        REPEAT(19, "ld r18, z+ \n\t"
-            "ld r19, x+ \n\t"
-            "adc r18, r19 \n\t"
-            "st y+, r18 \n\t")
-        "adc %[carry], __zero_reg__ \n\t"    /* Store carry bit (carry flag is cleared). */
-        /* at this point x is at the end of p_product, y is at the end of p_result, z is 20 bytes into tmp */
-        "sbiw r28, 20 \n\t" /* move y back to point at p_result */
-        
-        "eor r19, r19 \n\t"
-        "ld r18, z+ \n\t"
-        "add r19, r18 \n\t"
-        "ld r18, z+ \n\t"
-        "adc r19, r18 \n\t"
-        "ld r18, z+ \n\t"
-        "adc r19, r18 \n\t"
-        "ld r18, z+ \n\t"
-        "adc r19, r18 \n\t"
-        /* now z points to the end of tmp */
-        "brcs mmod_remult \n\t" /* carry was set, so something was not zero (need to mult again) */
-        "cp r19, __zero_reg__ \n\t"
-        "brne mmod_remult \n\t" /* sum was not equal to zero (need to mult again) */
-        "rjmp mmod_after_remult \n\t"
-        
-        "mmod_remult: \n\t" /* do omega_mult with the 4 relevant bytes */
-        
-        /* z already points to the end of tmp, x points to the end of p_product */
-        
-        "ld r18, -z \n\t"  /* Load word. */
-        "lsr r18 \n\t" /* Shift. */
-        "st -x, r18 \n\t"  /* Store the first result word. */
-        
-        "ld r18, -z \n\t"
-        "ror r18 \n\t"
-        "st -x, r18 \n\t"
-        "ld r18, -z \n\t"
-        "ror r18 \n\t"
-        "st -x, r18 \n\t"
-        "ld r18, -z \n\t"
-        "ror r18 \n\t"
-        "st -x, r18 \n\t"
-        
-        "eor r18, r18 \n\t" /* r18 = 0 */
-        "ror r18 \n\t" /* get last bit */
-        "st -x, r18 \n\t" /* store it */
-        
-        "sbiw r26, 3 \n\t" /* move x back to point at beginning */
-        /* now we add a copy of the 4 bytes */
-        "ld r18, z+ \n\t"
-        "st x+, r18 \n\t" /* the first 3 bytes do not need to be added */
-        "ld r18, z+ \n\t"
-        "st x+, r18 \n\t"
-        "ld r18, z+ \n\t"
-        "st x+, r18 \n\t"
-        
-        "ld r18, z+ \n\t"
-        "ld r19, x \n\t"
-        "add r18, r19 \n\t"
-        "st x+, r18 \n\t"
-        
-        /* Propagate over the remaining bytes */
-        "ld r18, x \n\t"
-        "adc r18, r1 \n\t"
-        "st x+, r18 \n\t"
-        
-        "ld r18, x \n\t"
-        "adc r18, r1 \n\t"
-        "st x+, r18 \n\t"
-        
-        "ld r18, x \n\t"
-        "adc r18, r1 \n\t"
-        "st x+, r18 \n\t"
-        
-        "ld r18, x \n\t"
-        "adc r18, r1 \n\t"
-        "st x+, r18 \n\t"
-        
-        /* now z points to the end of tmp, x points to the end of p_product (y still points at p_result) */
-        "sbiw r26, 8 \n\t" /* move x back to point at beginning of actual data */
-        /* add into p_result */
-        "ld r18, x+ \n\t"
-        "ld r19, y \n\t"
-        "add r18, r19 \n\t"
-        "st y+, r18 \n\t"
-        REPEAT(7, "ld r18, x+ \n\t"
-            "ld r19, y \n\t"
-            "adc r18, r19 \n\t"
-            "st y+, r18 \n\t")
-        
-        /* Done adding, now propagate carry bit */
-        REPEAT(12, "ld r18, y \n\t"
-            "adc r18, __zero_reg__ \n\t"
-            "st y+, r18 \n\t")
-        
-        "adc %[carry], __zero_reg__ \n\t"    /* Store carry bit (carry flag is cleared). */
-        "sbiw r28, 20 \n\t" /* move y back to point at p_result */
-        
-        "mmod_after_remult: \n\t"
-        
-        "sbiw r30, 1 \n\t" /* fix stack pointer */
-    	"in r0, __SREG__ \n\t"
-    	"cli \n\t"
-    	"out __SP_H__, r31 \n\t"
-    	"out __SREG__, r0 \n\t"
-    	"out __SP_L__, r30 \n\t"
-        
-        : "+y" (p_result), "+x" (p_product), [carry] "+r" (l_carry)
-        :
-        : "r0", "r18", "r19", "r30", "r31", "cc", "memory"
-    );
-    
-    if(l_carry > 0)
-    {
-        --l_carry;
-        vli_sub(p_result, p_result, curve_p);
-    }
-    if(l_carry > 0)
-    {
-        vli_sub(p_result, p_result, curve_p);
-    }
-    
-    if(vli_cmp(p_result, curve_p) > 0)
-    {
-        vli_sub(p_result, p_result, curve_p);
-    }
-#else
-    uint8_t l_tmp[2*ECC_BYTES];
+    uint8_t l_tmp[2*ECC_WORDS];
     uint8_t l_carry;
     
     vli_clear(l_tmp);
-    vli_clear(l_tmp + ECC_BYTES);
+    vli_clear(l_tmp + ECC_WORDS);
     
-    omega_mult(l_tmp, p_product + ECC_BYTES); /* (Rq, q) = q * c */
+    omega_mult(l_tmp, p_product + ECC_WORDS); /* (Rq, q) = q * c */
     
     l_carry = vli_add(p_result, p_product, l_tmp); /* (C, r) = r + q       */
-    if(!vli_isZero(l_tmp + ECC_BYTES)) /* if Rq > 0 */
+    if(!vli_isZero(l_tmp + ECC_WORDS)) /* if Rq > 0 */
     {
         vli_clear(p_product);
-        omega_mult(p_product, l_tmp + ECC_BYTES); /* Rq*c */
+        omega_mult(p_product, l_tmp + ECC_WORDS); /* Rq*c */
         l_carry += vli_add(p_result, p_result, p_product); /* (C1, r) = r + Rq*c */
     }
     
@@ -3880,68 +765,461 @@ static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_produc
     {
         vli_sub(p_result, p_result, curve_p);
     }
-#endif
+}
+#elif ECC_WORD_SIZE == 4
+static void omega_mult(uint32_t * RESTRICT p_result, uint32_t * RESTRICT p_right)
+{
+    uint32_t l_carry;
+    unsigned i;
+    
+    /* Multiply by (2^31 + 1). */
+    vli_set(p_result + 1, p_right); /* 2^32 */
+    vli_rshift1(p_result + 1); /* 2^31 */
+    p_result[0] = p_right[0] << 31; /* get last bit from shift */
+    
+    l_carry = vli_add(p_result, p_result, p_right); /* 2^31 + 1 */
+    for(i = ECC_WORDS; l_carry; ++i)
+    {
+        uint64_t l_sum = (uint64_t)p_result[i] + l_carry;
+        p_result[i] = (uint32_t)l_sum;
+        l_carry = l_sum >> 32;
+    }
 }
 
-// /* Computes p_result = p_product % curve_p
-//     see PDF "Comparing Elliptic Curve Cryptography and RSA on 8-bit CPUs"
-//     section "Curve-Specific Optimizations" */
-// static void vli_mmod_fast(uint8_t * RESTRICT p_result, uint8_t * RESTRICT p_product)
-// {
-//     uint8_t l_tmp[2*ECC_BYTES];
-//      
-//     while(!vli_isZero(p_product + ECC_BYTES)) /* While c1 != 0 */
-//     {
-//         uint8_t l_carry = 0;
-//         uint8_t i;
-//         
-//         vli_clear(l_tmp);
-//         vli_clear(l_tmp + ECC_BYTES);
-//         omega_mult(l_tmp, p_product + ECC_BYTES); /* tmp = w * c1 */
-//         vli_clear(p_product + ECC_BYTES); /* p = c0 */
-//         
-//         /* (c1, c0) = c0 + w * c1 */
-//         for(i=0; i<ECC_BYTES+4; ++i)
-//         {
-//             uint16_t l_sum = (uint16_t)p_product[i] + l_tmp[i] + l_carry;
-//             p_product[i] = (uint8_t)l_sum;
-//             l_carry = l_sum >> 8;
-//         }
-//         p_product[ECC_BYTES+4] = l_carry;
-//     }
-//     
-//     while(vli_cmp(p_product, curve_p) > 0)
-//     {
-//         vli_sub(p_product, p_product, curve_p);
-//     }
-//     vli_set(p_result, p_product);
-// }
+static void vli_mmod_fast(uint32_t *RESTRICT p_result, uint32_t *RESTRICT p_product)
+{
+    uint32_t l_tmp[2*ECC_WORDS];
+    uint32_t l_carry;
+    
+    vli_clear(l_tmp);
+    vli_clear(l_tmp + ECC_WORDS);
+    
+    omega_mult(l_tmp, p_product + ECC_WORDS); /* (Rq, q) = q * c */
+    
+    l_carry = vli_add(p_result, p_product, l_tmp); /* (C, r) = r + q       */
+    if(!vli_isZero(l_tmp + ECC_WORDS)) /* if Rq > 0 */
+    {
+        vli_clear(p_product);
+        omega_mult(p_product, l_tmp + ECC_WORDS); /* Rq*c */
+        l_carry += vli_add(p_result, p_result, p_product); /* (C1, r) = r + Rq*c */
+    }
+    
+    while(l_carry > 0)
+    {
+        --l_carry;
+        vli_sub(p_result, p_result, curve_p);
+    }
+    
+    if(vli_cmp(p_result, curve_p) > 0)
+    {
+        vli_sub(p_result, p_result, curve_p);
+    }
+}
+#endif /* ECC_WORD_SIZE */
 
 #elif ECC_CURVE == secp192r1
 
 /* Computes p_result = p_product % curve_p.
    See algorithm 5 and 6 from http://www.isys.uni-klu.ac.at/PDF/2001-0126-MT.pdf */
+#if ECC_WORD_SIZE == 1
+static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_product)
+{
+    uint8_t l_tmp[ECC_WORDS];
+    uint8_t l_carry;
+    
+    vli_set(p_result, p_product);
+    
+    vli_set(l_tmp, &p_product[24]);
+    l_carry = vli_add(p_result, p_result, l_tmp);
+    
+    l_tmp[0] = l_tmp[1] = l_tmp[2] = l_tmp[3] = l_tmp[4] = l_tmp[5] = l_tmp[6] = l_tmp[7] = 0;
+    l_tmp[8] = p_product[24]; l_tmp[9] = p_product[25]; l_tmp[10] = p_product[26]; l_tmp[11] = p_product[27];
+    l_tmp[12] = p_product[28]; l_tmp[13] = p_product[29]; l_tmp[14] = p_product[30]; l_tmp[15] = p_product[31];
+    l_tmp[16] = p_product[32]; l_tmp[17] = p_product[33]; l_tmp[18] = p_product[34]; l_tmp[19] = p_product[35];
+    l_tmp[20] = p_product[36]; l_tmp[21] = p_product[37]; l_tmp[22] = p_product[38]; l_tmp[23] = p_product[39];
+    l_carry += vli_add(p_result, p_result, l_tmp);
+    
+    l_tmp[0] = l_tmp[8] = p_product[40];
+    l_tmp[1] = l_tmp[9] = p_product[41];
+    l_tmp[2] = l_tmp[10] = p_product[42];
+    l_tmp[3] = l_tmp[11] = p_product[43];
+    l_tmp[4] = l_tmp[12] = p_product[44];
+    l_tmp[5] = l_tmp[13] = p_product[45];
+    l_tmp[6] = l_tmp[14] = p_product[46];
+    l_tmp[7] = l_tmp[15] = p_product[47];
+    l_tmp[16] = l_tmp[17] = l_tmp[18] = l_tmp[19] = l_tmp[20] = l_tmp[21] = l_tmp[22] = l_tmp[23] = 0;
+    l_carry += vli_add(p_result, p_result, l_tmp);
+    
+    while(l_carry || vli_cmp(curve_p, p_result) != 1)
+    {
+        l_carry -= vli_sub(p_result, p_result, curve_p);
+    }
+}
+#elif ECC_WORD_SIZE == 4
+static void vli_mmod_fast(uint32_t *RESTRICT p_result, uint32_t *RESTRICT p_product)
+{
+    uint32_t l_tmp[ECC_WORDS];
+    int l_carry;
+    
+    vli_set(p_result, p_product);
+    
+    vli_set(l_tmp, &p_product[6]);
+    l_carry = vli_add(p_result, p_result, l_tmp);
+    
+    l_tmp[0] = l_tmp[1] = 0;
+    l_tmp[2] = p_product[6];
+    l_tmp[3] = p_product[7];
+    l_tmp[4] = p_product[8];
+    l_tmp[5] = p_product[9];
+    l_carry += vli_add(p_result, p_result, l_tmp);
+    
+    l_tmp[0] = l_tmp[2] = p_product[10];
+    l_tmp[1] = l_tmp[3] = p_product[11];
+    l_tmp[4] = l_tmp[5] = 0;
+    l_carry += vli_add(p_result, p_result, l_tmp);
+    
+    while(l_carry || vli_cmp(curve_p, p_result) != 1)
+    {
+        l_carry -= vli_sub(p_result, p_result, curve_p);
+    }
+}
+#else
 static void vli_mmod_fast(uint64_t *RESTRICT p_result, uint64_t *RESTRICT p_product)
 {
-    /* TODO */
+    uint64_t l_tmp[ECC_WORDS];
+    int l_carry;
+    
+    vli_set(p_result, p_product);
+    
+    vli_set(l_tmp, &p_product[3]);
+    l_carry = vli_add(p_result, p_result, l_tmp);
+    
+    l_tmp[0] = 0;
+    l_tmp[1] = p_product[3];
+    l_tmp[2] = p_product[4];
+    l_carry += vli_add(p_result, p_result, l_tmp);
+    
+    l_tmp[0] = l_tmp[1] = p_product[5];
+    l_tmp[2] = 0;
+    l_carry += vli_add(p_result, p_result, l_tmp);
+    
+    while(l_carry || vli_cmp(curve_p, p_result) != 1)
+    {
+        l_carry -= vli_sub(p_result, p_result, curve_p);
+    }
 }
+#endif /* ECC_WORD_SIZE */
 
 #elif ECC_CURVE == secp256r1
 
 /* Computes p_result = p_product % curve_p
    from http://www.nsa.gov/ia/_files/nist-routines.pdf */
+#if ECC_WORD_SIZE == 1
+static void vli_mmod_fast(uint8_t *RESTRICT p_result, uint8_t *RESTRICT p_product)
+{
+    uint8_t l_tmp[ECC_BYTES];
+    int8_t l_carry;
+    
+    /* t */
+    vli_set(p_result, p_product);
+    
+    /* s1 */
+    l_tmp[0] = l_tmp[1] = l_tmp[2] = l_tmp[3] = 0;
+    l_tmp[4] = l_tmp[5] = l_tmp[6] = l_tmp[7] = 0;
+    l_tmp[8] = l_tmp[9] = l_tmp[10] = l_tmp[11] = 0;
+    l_tmp[12] = p_product[44]; l_tmp[13] = p_product[45]; l_tmp[14] = p_product[46]; l_tmp[15] = p_product[47];
+    l_tmp[16] = p_product[48]; l_tmp[17] = p_product[49]; l_tmp[18] = p_product[50]; l_tmp[19] = p_product[51];
+    l_tmp[20] = p_product[52]; l_tmp[21] = p_product[53]; l_tmp[22] = p_product[54]; l_tmp[23] = p_product[55];
+    l_tmp[24] = p_product[56]; l_tmp[25] = p_product[57]; l_tmp[26] = p_product[58]; l_tmp[27] = p_product[59];
+    l_tmp[28] = p_product[60]; l_tmp[29] = p_product[61]; l_tmp[30] = p_product[62]; l_tmp[31] = p_product[63];
+    l_carry = vli_add(l_tmp, l_tmp, l_tmp);
+    l_carry += vli_add(p_result, p_result, l_tmp);
+    
+    /* s2 */
+    l_tmp[12] = p_product[48]; l_tmp[13] = p_product[49]; l_tmp[14] = p_product[50]; l_tmp[15] = p_product[51];
+    l_tmp[16] = p_product[52]; l_tmp[17] = p_product[53]; l_tmp[18] = p_product[54]; l_tmp[19] = p_product[55];
+    l_tmp[20] = p_product[56]; l_tmp[21] = p_product[57]; l_tmp[22] = p_product[58]; l_tmp[23] = p_product[59];
+    l_tmp[24] = p_product[60]; l_tmp[25] = p_product[61]; l_tmp[26] = p_product[62]; l_tmp[27] = p_product[63];
+    l_tmp[28] = l_tmp[29] = l_tmp[30] = l_tmp[31] = 0;
+    l_carry += vli_add(l_tmp, l_tmp, l_tmp);
+    l_carry += vli_add(p_result, p_result, l_tmp);
+    
+    /* s3 */
+    l_tmp[0] = p_product[32]; l_tmp[1] = p_product[33]; l_tmp[2] = p_product[34]; l_tmp[3] = p_product[35];
+    l_tmp[4] = p_product[36]; l_tmp[5] = p_product[37]; l_tmp[6] = p_product[38]; l_tmp[7] = p_product[39];
+    l_tmp[8] = p_product[40]; l_tmp[9] = p_product[41]; l_tmp[10] = p_product[42]; l_tmp[11] = p_product[43];
+    l_tmp[12] = l_tmp[13] = l_tmp[14] = l_tmp[15] = 0;
+    l_tmp[16] = l_tmp[17] = l_tmp[18] = l_tmp[19] = 0;
+    l_tmp[20] = l_tmp[21] = l_tmp[22] = l_tmp[23] = 0;
+    l_tmp[24] = p_product[56]; l_tmp[25] = p_product[57]; l_tmp[26] = p_product[58]; l_tmp[27] = p_product[59];
+    l_tmp[28] = p_product[60]; l_tmp[29] = p_product[61]; l_tmp[30] = p_product[62]; l_tmp[31] = p_product[63];
+    l_carry += vli_add(p_result, p_result, l_tmp);
+    
+    /* s4 */
+    l_tmp[0] = p_product[36]; l_tmp[1] = p_product[37]; l_tmp[2] = p_product[38]; l_tmp[3] = p_product[39];
+    l_tmp[4] = p_product[40]; l_tmp[5] = p_product[41]; l_tmp[6] = p_product[42]; l_tmp[7] = p_product[43];
+    l_tmp[8] = p_product[44]; l_tmp[9] = p_product[45]; l_tmp[10] = p_product[46]; l_tmp[11] = p_product[47];
+    l_tmp[12] = p_product[52]; l_tmp[13] = p_product[53]; l_tmp[14] = p_product[54]; l_tmp[15] = p_product[55];
+    l_tmp[16] = p_product[56]; l_tmp[17] = p_product[57]; l_tmp[18] = p_product[58]; l_tmp[19] = p_product[59];
+    l_tmp[20] = p_product[60]; l_tmp[21] = p_product[61]; l_tmp[22] = p_product[62]; l_tmp[23] = p_product[63];
+    l_tmp[24] = p_product[52]; l_tmp[25] = p_product[53]; l_tmp[26] = p_product[54]; l_tmp[27] = p_product[55];
+    l_tmp[28] = p_product[32]; l_tmp[29] = p_product[33]; l_tmp[30] = p_product[34]; l_tmp[31] = p_product[35];
+    l_carry += vli_add(p_result, p_result, l_tmp);
+    
+    /* d1 */
+    l_tmp[0] = p_product[44]; l_tmp[1] = p_product[45]; l_tmp[2] = p_product[46]; l_tmp[3] = p_product[47];
+    l_tmp[4] = p_product[48]; l_tmp[5] = p_product[49]; l_tmp[6] = p_product[50]; l_tmp[7] = p_product[51];
+    l_tmp[8] = p_product[52]; l_tmp[9] = p_product[53]; l_tmp[10] = p_product[54]; l_tmp[11] = p_product[55];
+    l_tmp[12] = l_tmp[13] = l_tmp[14] = l_tmp[15] = 0;
+    l_tmp[16] = l_tmp[17] = l_tmp[18] = l_tmp[19] = 0;
+    l_tmp[20] = l_tmp[21] = l_tmp[22] = l_tmp[23] = 0;
+    l_tmp[24] = p_product[32]; l_tmp[25] = p_product[33]; l_tmp[26] = p_product[34]; l_tmp[27] = p_product[35];
+    l_tmp[28] = p_product[40]; l_tmp[29] = p_product[41]; l_tmp[30] = p_product[42]; l_tmp[31] = p_product[43];
+    l_carry -= vli_sub(p_result, p_result, l_tmp);
+    
+    /* d2 */
+    l_tmp[0] = p_product[48]; l_tmp[1] = p_product[49]; l_tmp[2] = p_product[50]; l_tmp[3] = p_product[51];
+    l_tmp[4] = p_product[52]; l_tmp[5] = p_product[53]; l_tmp[6] = p_product[54]; l_tmp[7] = p_product[55];
+    l_tmp[8] = p_product[56]; l_tmp[9] = p_product[57]; l_tmp[10] = p_product[58]; l_tmp[11] = p_product[59];
+    l_tmp[12] = p_product[60]; l_tmp[13] = p_product[61]; l_tmp[14] = p_product[62]; l_tmp[15] = p_product[63];
+    l_tmp[16] = l_tmp[17] = l_tmp[18] = l_tmp[19] = 0;
+    l_tmp[20] = l_tmp[21] = l_tmp[22] = l_tmp[23] = 0;
+    l_tmp[24] = p_product[36]; l_tmp[25] = p_product[37]; l_tmp[26] = p_product[38]; l_tmp[27] = p_product[39];
+    l_tmp[28] = p_product[44]; l_tmp[29] = p_product[45]; l_tmp[30] = p_product[46]; l_tmp[31] = p_product[47];
+    l_carry -= vli_sub(p_result, p_result, l_tmp);
+    
+    /* d3 */
+    l_tmp[0] = p_product[52]; l_tmp[1] = p_product[53]; l_tmp[2] = p_product[54]; l_tmp[3] = p_product[55];
+    l_tmp[4] = p_product[56]; l_tmp[5] = p_product[57]; l_tmp[6] = p_product[58]; l_tmp[7] = p_product[59];
+    l_tmp[8] = p_product[60]; l_tmp[9] = p_product[61]; l_tmp[10] = p_product[62]; l_tmp[11] = p_product[63];
+    l_tmp[12] = p_product[32]; l_tmp[13] = p_product[33]; l_tmp[14] = p_product[34]; l_tmp[15] = p_product[35];
+    l_tmp[16] = p_product[36]; l_tmp[17] = p_product[37]; l_tmp[18] = p_product[38]; l_tmp[19] = p_product[39];
+    l_tmp[20] = p_product[40]; l_tmp[21] = p_product[41]; l_tmp[22] = p_product[42]; l_tmp[23] = p_product[43];
+    l_tmp[24] = l_tmp[25] = l_tmp[26] = l_tmp[27] = 0;
+    l_tmp[28] = p_product[48]; l_tmp[29] = p_product[49]; l_tmp[30] = p_product[50]; l_tmp[31] = p_product[51];
+    l_carry -= vli_sub(p_result, p_result, l_tmp);
+    
+    /* d4 */
+    l_tmp[0] = p_product[56]; l_tmp[1] = p_product[57]; l_tmp[2] = p_product[58]; l_tmp[3] = p_product[59];
+    l_tmp[4] = p_product[60]; l_tmp[5] = p_product[61]; l_tmp[6] = p_product[62]; l_tmp[7] = p_product[63];
+    l_tmp[8] = l_tmp[9] = l_tmp[10] = l_tmp[11] = 0;
+    l_tmp[12] = p_product[36]; l_tmp[13] = p_product[37]; l_tmp[14] = p_product[38]; l_tmp[15] = p_product[39];
+    l_tmp[16] = p_product[40]; l_tmp[17] = p_product[41]; l_tmp[18] = p_product[42]; l_tmp[19] = p_product[43];
+    l_tmp[20] = p_product[44]; l_tmp[21] = p_product[45]; l_tmp[22] = p_product[46]; l_tmp[23] = p_product[47];
+    l_tmp[24] = l_tmp[25] = l_tmp[26] = l_tmp[27] = 0;
+    l_tmp[28] = p_product[52]; l_tmp[29] = p_product[53]; l_tmp[30] = p_product[54]; l_tmp[31] = p_product[55];
+    l_carry -= vli_sub(p_result, p_result, l_tmp);
+    
+    if(l_carry < 0)
+    {
+        do
+        {
+            l_carry += vli_add(p_result, p_result, curve_p);
+        } while(l_carry < 0);
+    }
+    else
+    {
+        while(l_carry || vli_cmp(curve_p, p_result) != 1)
+        {
+            l_carry -= vli_sub(p_result, p_result, curve_p);
+        }
+    }
+}
+#elif ECC_WORD_SIZE == 4
+static void vli_mmod_fast(uint32_t *RESTRICT p_result, uint32_t *RESTRICT p_product)
+{
+    uint32_t l_tmp[ECC_WORDS];
+    int l_carry;
+    
+    /* t */
+    vli_set(p_result, p_product);
+    
+    /* s1 */
+    l_tmp[0] = l_tmp[1] = l_tmp[2] = 0;
+    l_tmp[3] = p_product[11];
+    l_tmp[4] = p_product[12];
+    l_tmp[5] = p_product[13];
+    l_tmp[6] = p_product[14];
+    l_tmp[7] = p_product[15];
+    l_carry = vli_add(l_tmp, l_tmp, l_tmp);
+    l_carry += vli_add(p_result, p_result, l_tmp);
+    
+    /* s2 */
+    l_tmp[3] = p_product[12];
+    l_tmp[4] = p_product[13];
+    l_tmp[5] = p_product[14];
+    l_tmp[6] = p_product[15];
+    l_tmp[7] = 0;
+    l_carry += vli_add(l_tmp, l_tmp, l_tmp);
+    l_carry += vli_add(p_result, p_result, l_tmp);
+    
+    /* s3 */
+    l_tmp[0] = p_product[8];
+    l_tmp[1] = p_product[9];
+    l_tmp[2] = p_product[10];
+    l_tmp[3] = l_tmp[4] = l_tmp[5] = 0;
+    l_tmp[6] = p_product[14];
+    l_tmp[7] = p_product[15];
+    l_carry += vli_add(p_result, p_result, l_tmp);
+    
+    /* s4 */
+    l_tmp[0] = p_product[9];
+    l_tmp[1] = p_product[10];
+    l_tmp[2] = p_product[11];
+    l_tmp[3] = p_product[13];
+    l_tmp[4] = p_product[14];
+    l_tmp[5] = p_product[15];
+    l_tmp[6] = p_product[13];
+    l_tmp[7] = p_product[8];
+    l_carry += vli_add(p_result, p_result, l_tmp);
+    
+    /* d1 */
+    l_tmp[0] = p_product[11];
+    l_tmp[1] = p_product[12];
+    l_tmp[2] = p_product[13];
+    l_tmp[3] = l_tmp[4] = l_tmp[5] = 0;
+    l_tmp[6] = p_product[8];
+    l_tmp[7] = p_product[10];
+    l_carry -= vli_sub(p_result, p_result, l_tmp);
+    
+    /* d2 */
+    l_tmp[0] = p_product[12];
+    l_tmp[1] = p_product[13];
+    l_tmp[2] = p_product[14];
+    l_tmp[3] = p_product[15];
+    l_tmp[4] = l_tmp[5] = 0;
+    l_tmp[6] = p_product[9];
+    l_tmp[7] = p_product[11];
+    l_carry -= vli_sub(p_result, p_result, l_tmp);
+    
+    /* d3 */
+    l_tmp[0] = p_product[13];
+    l_tmp[1] = p_product[14];
+    l_tmp[2] = p_product[15];
+    l_tmp[3] = p_product[8];
+    l_tmp[4] = p_product[9];
+    l_tmp[5] = p_product[10];
+    l_tmp[6] = 0;
+    l_tmp[7] = p_product[12];
+    l_carry -= vli_sub(p_result, p_result, l_tmp);
+    
+    /* d4 */
+    l_tmp[0] = p_product[14];
+    l_tmp[1] = p_product[15];
+    l_tmp[2] = 0;
+    l_tmp[3] = p_product[9];
+    l_tmp[4] = p_product[10];
+    l_tmp[5] = p_product[11];
+    l_tmp[6] = 0;
+    l_tmp[7] = p_product[13];
+    l_carry -= vli_sub(p_result, p_result, l_tmp);
+    
+    if(l_carry < 0)
+    {
+        do
+        {
+            l_carry += vli_add(p_result, p_result, curve_p);
+        } while(l_carry < 0);
+    }
+    else
+    {
+        while(l_carry || vli_cmp(curve_p, p_result) != 1)
+        {
+            l_carry -= vli_sub(p_result, p_result, curve_p);
+        }
+    }
+}
+#else
 static void vli_mmod_fast(uint64_t *RESTRICT p_result, uint64_t *RESTRICT p_product)
 {
-    /* TODO */
+    uint64_t l_tmp[ECC_WORDS];
+    int l_carry;
+    
+    /* t */
+    vli_set(p_result, p_product);
+    
+    /* s1 */
+    l_tmp[0] = 0;
+    l_tmp[1] = p_product[5] & 0xffffffff00000000ull;
+    l_tmp[2] = p_product[6];
+    l_tmp[3] = p_product[7];
+    l_carry = vli_add(l_tmp, l_tmp, l_tmp);
+    l_carry += vli_add(p_result, p_result, l_tmp);
+    
+    /* s2 */
+    l_tmp[1] = p_product[6] << 32;
+    l_tmp[2] = (p_product[6] >> 32) | (p_product[7] << 32);
+    l_tmp[3] = p_product[7] >> 32;
+    l_carry += vli_add(l_tmp, l_tmp, l_tmp);
+    l_carry += vli_add(p_result, p_result, l_tmp);
+    
+    /* s3 */
+    l_tmp[0] = p_product[4];
+    l_tmp[1] = p_product[5] & 0xffffffff;
+    l_tmp[2] = 0;
+    l_tmp[3] = p_product[7];
+    l_carry += vli_add(p_result, p_result, l_tmp);
+    
+    /* s4 */
+    l_tmp[0] = (p_product[4] >> 32) | (p_product[5] << 32);
+    l_tmp[1] = (p_product[5] >> 32) | (p_product[6] & 0xffffffff00000000ull);
+    l_tmp[2] = p_product[7];
+    l_tmp[3] = (p_product[6] >> 32) | (p_product[4] << 32);
+    l_carry += vli_add(p_result, p_result, l_tmp);
+    
+    /* d1 */
+    l_tmp[0] = (p_product[5] >> 32) | (p_product[6] << 32);
+    l_tmp[1] = (p_product[6] >> 32);
+    l_tmp[2] = 0;
+    l_tmp[3] = (p_product[4] & 0xffffffff) | (p_product[5] << 32);
+    l_carry -= vli_sub(p_result, p_result, l_tmp);
+    
+    /* d2 */
+    l_tmp[0] = p_product[6];
+    l_tmp[1] = p_product[7];
+    l_tmp[2] = 0;
+    l_tmp[3] = (p_product[4] >> 32) | (p_product[5] & 0xffffffff00000000ull);
+    l_carry -= vli_sub(p_result, p_result, l_tmp);
+    
+    /* d3 */
+    l_tmp[0] = (p_product[6] >> 32) | (p_product[7] << 32);
+    l_tmp[1] = (p_product[7] >> 32) | (p_product[4] << 32);
+    l_tmp[2] = (p_product[4] >> 32) | (p_product[5] << 32);
+    l_tmp[3] = (p_product[6] << 32);
+    l_carry -= vli_sub(p_result, p_result, l_tmp);
+    
+    /* d4 */
+    l_tmp[0] = p_product[7];
+    l_tmp[1] = p_product[4] & 0xffffffff00000000ull;
+    l_tmp[2] = p_product[5];
+    l_tmp[3] = p_product[6] & 0xffffffff00000000ull;
+    l_carry -= vli_sub(p_result, p_result, l_tmp);
+    
+    if(l_carry < 0)
+    {
+        do
+        {
+            l_carry += vli_add(p_result, p_result, curve_p);
+        } while(l_carry < 0);
+    }
+    else
+    {
+        while(l_carry || vli_cmp(curve_p, p_result) != 1)
+        {
+            l_carry -= vli_sub(p_result, p_result, curve_p);
+        }
+    }
 }
+#endif /* ECC_WORD_SIZE */
 
 #endif
+#endif /* !asm_mmod_fast */
 
 
 /* Computes p_result = (p_left * p_right) % curve_p. */
-static void vli_modMult_fast(uint8_t *p_result, uint8_t *p_left, uint8_t *p_right)
+static void vli_modMult_fast(ecc_word_t *p_result, ecc_word_t *p_left, ecc_word_t *p_right)
 {
-    uint8_t l_product[2 * ECC_BYTES];
+    ecc_word_t l_product[2 * ECC_WORDS];
     vli_mult(l_product, p_left, p_right);
     vli_mmod_fast(p_result, l_product);
 }
@@ -3949,9 +1227,9 @@ static void vli_modMult_fast(uint8_t *p_result, uint8_t *p_left, uint8_t *p_righ
 #if ECC_SQUARE_FUNC
 
 /* Computes p_result = p_left^2 % curve_p. */
-static void vli_modSquare_fast(uint8_t *p_result, uint8_t *p_left)
+static void vli_modSquare_fast(ecc_word_t *p_result, ecc_word_t *p_left)
 {
-    uint8_t l_product[2 * ECC_BYTES];
+    ecc_word_t l_product[2 * ECC_WORDS];
     vli_square(l_product, p_left);
     vli_mmod_fast(p_result, l_product);
 }
@@ -3967,11 +1245,12 @@ static void vli_modSquare_fast(uint8_t *p_result, uint8_t *p_left)
 /* Computes p_result = (1 / p_input) % p_mod. All VLIs are the same size.
    See "From Euclid's GCD to Montgomery Multiplication to the Great Divide"
    https://labs.oracle.com/techrep/2001/smli_tr-2001-95.pdf */
-static void vli_modInv(uint8_t *p_result, uint8_t *p_input, uint8_t *p_mod)
+#if !asm_modInv
+static void vli_modInv(ecc_word_t *p_result, ecc_word_t *p_input, ecc_word_t *p_mod)
 {
-    uint8_t a[ECC_BYTES], b[ECC_BYTES], u[ECC_BYTES], v[ECC_BYTES];
-    uint8_t l_carry;
-    int l_cmpResult;
+    ecc_word_t a[ECC_WORDS], b[ECC_WORDS], u[ECC_WORDS], v[ECC_WORDS];
+    ecc_word_t l_carry;
+    cmpresult_t l_cmpResult;
     
     if(vli_isZero(p_input))
     {
@@ -3984,7 +1263,6 @@ static void vli_modInv(uint8_t *p_result, uint8_t *p_input, uint8_t *p_mod)
     vli_clear(u);
     u[0] = 1;
     vli_clear(v);
-    
     while((l_cmpResult = vli_cmp(a, b)) != 0)
     {
         l_carry = 0;
@@ -3998,7 +1276,7 @@ static void vli_modInv(uint8_t *p_result, uint8_t *p_input, uint8_t *p_mod)
             vli_rshift1(u);
             if(l_carry)
             {
-                u[ECC_BYTES-1] |= 0x80;
+                u[ECC_WORDS-1] |= HIGH_BIT_SET;
             }
         }
         else if(EVEN(b))
@@ -4011,7 +1289,7 @@ static void vli_modInv(uint8_t *p_result, uint8_t *p_input, uint8_t *p_mod)
             vli_rshift1(v);
             if(l_carry)
             {
-                v[ECC_BYTES-1] |= 0x80;
+                v[ECC_WORDS-1] |= HIGH_BIT_SET;
             }
         }
         else if(l_cmpResult > 0)
@@ -4030,7 +1308,7 @@ static void vli_modInv(uint8_t *p_result, uint8_t *p_input, uint8_t *p_mod)
             vli_rshift1(u);
             if(l_carry)
             {
-                u[ECC_BYTES-1] |= 0x80;
+                u[ECC_WORDS-1] |= HIGH_BIT_SET;
             }
         }
         else
@@ -4049,18 +1327,19 @@ static void vli_modInv(uint8_t *p_result, uint8_t *p_input, uint8_t *p_mod)
             vli_rshift1(v);
             if(l_carry)
             {
-                v[ECC_BYTES-1] |= 0x80;
+                v[ECC_WORDS-1] |= HIGH_BIT_SET;
             }
         }
     }
     
     vli_set(p_result, u);
 }
+#endif /* !asm_modInv */
 
 /* ------ Point operations ------ */
 
 /* Returns 1 if p_point is the point at infinity, 0 otherwise. */
-static int EccPoint_isZero(EccPoint *p_point)
+static cmpresult_t EccPoint_isZero(EccPoint *p_point)
 {
     return (vli_isZero(p_point->x) && vli_isZero(p_point->y));
 }
@@ -4070,11 +1349,11 @@ From http://eprint.iacr.org/2011/338.pdf
 */
 
 /* Double in place */
-static void EccPoint_double_jacobian(uint8_t * RESTRICT X1, uint8_t * RESTRICT Y1, uint8_t * RESTRICT Z1)
+static void EccPoint_double_jacobian(ecc_word_t * RESTRICT X1, ecc_word_t * RESTRICT Y1, ecc_word_t * RESTRICT Z1)
 {
     /* t1 = X, t2 = Y, t3 = Z */
-    uint8_t t4[ECC_BYTES];
-    uint8_t t5[ECC_BYTES];
+    ecc_word_t t4[ECC_WORDS];
+    ecc_word_t t5[ECC_WORDS];
     
     if(vli_isZero(Z1))
     {
@@ -4096,9 +1375,9 @@ static void EccPoint_double_jacobian(uint8_t * RESTRICT X1, uint8_t * RESTRICT Y
     vli_modAdd(X1, X1, Z1, curve_p); /* t1 = 3*(x1^2 - z1^4) */
     if(vli_testBit(X1, 0))
     {
-        uint8_t l_carry = vli_add(X1, X1, curve_p);
+        ecc_word_t l_carry = vli_add(X1, X1, curve_p);
         vli_rshift1(X1);
-        X1[ECC_BYTES-1] |= l_carry << 7;
+        X1[ECC_WORDS-1] |= l_carry << (ECC_WORD_BITS - 1);
     }
     else
     {
@@ -4119,9 +1398,9 @@ static void EccPoint_double_jacobian(uint8_t * RESTRICT X1, uint8_t * RESTRICT Y
 }
 
 /* Modify (x1, y1) => (x1 * z^2, y1 * z^3) */
-static void apply_z(uint8_t * RESTRICT X1, uint8_t * RESTRICT Y1, uint8_t * RESTRICT Z)
+static void apply_z(ecc_word_t * RESTRICT X1, ecc_word_t * RESTRICT Y1, ecc_word_t * RESTRICT Z)
 {
-    uint8_t t1[ECC_BYTES];
+    ecc_word_t t1[ECC_WORDS];
 
     vli_modSquare_fast(t1, Z);    /* z^2 */
     vli_modMult_fast(X1, X1, t1); /* x1 * z^2 */
@@ -4130,10 +1409,10 @@ static void apply_z(uint8_t * RESTRICT X1, uint8_t * RESTRICT Y1, uint8_t * REST
 }
 
 /* P = (x1, y1) => 2P, (x2, y2) => P' */
-static void XYcZ_initial_double(uint8_t * RESTRICT X1, uint8_t * RESTRICT Y1,
-    uint8_t * RESTRICT X2, uint8_t * RESTRICT Y2, const uint8_t * RESTRICT p_initialZ)
+static void XYcZ_initial_double(ecc_word_t * RESTRICT X1, ecc_word_t * RESTRICT Y1,
+    ecc_word_t * RESTRICT X2, ecc_word_t * RESTRICT Y2, const ecc_word_t * RESTRICT p_initialZ)
 {
-    uint8_t z[ECC_BYTES];
+    ecc_word_t z[ECC_WORDS];
     
     vli_set(X2, X1);
     vli_set(Y2, Y1);
@@ -4156,10 +1435,10 @@ static void XYcZ_initial_double(uint8_t * RESTRICT X1, uint8_t * RESTRICT Y1,
    Output P' = (x1', y1', Z3), P + Q = (x3, y3, Z3)
    or P => P', Q => P + Q
 */
-static void XYcZ_add(uint8_t * RESTRICT X1, uint8_t * RESTRICT Y1, uint8_t * RESTRICT X2, uint8_t * RESTRICT Y2)
+static void XYcZ_add(ecc_word_t * RESTRICT X1, ecc_word_t * RESTRICT Y1, ecc_word_t * RESTRICT X2, ecc_word_t * RESTRICT Y2)
 {
     /* t1 = X1, t2 = Y1, t3 = X2, t4 = Y2 */
-    uint8_t t5[ECC_BYTES];
+    ecc_word_t t5[ECC_WORDS];
     
     vli_modSub_fast(t5, X2, X1); /* t5 = x2 - x1 */
     vli_modSquare_fast(t5, t5);      /* t5 = (x2 - x1)^2 = A */
@@ -4183,12 +1462,12 @@ static void XYcZ_add(uint8_t * RESTRICT X1, uint8_t * RESTRICT Y1, uint8_t * RES
    Output P + Q = (x3, y3, Z3), P - Q = (x3', y3', Z3)
    or P => P - Q, Q => P + Q
 */
-static void XYcZ_addC(uint8_t * RESTRICT X1, uint8_t * RESTRICT Y1, uint8_t * RESTRICT X2, uint8_t * RESTRICT Y2)
+static void XYcZ_addC(ecc_word_t * RESTRICT X1, ecc_word_t * RESTRICT Y1, ecc_word_t * RESTRICT X2, ecc_word_t * RESTRICT Y2)
 {
     /* t1 = X1, t2 = Y1, t3 = X2, t4 = Y2 */
-    uint8_t t5[ECC_BYTES];
-    uint8_t t6[ECC_BYTES];
-    uint8_t t7[ECC_BYTES];
+    ecc_word_t t5[ECC_WORDS];
+    ecc_word_t t6[ECC_WORDS];
+    ecc_word_t t7[ECC_WORDS];
     
     vli_modSub_fast(t5, X2, X1); /* t5 = x2 - x1 */
     vli_modSquare_fast(t5, t5);      /* t5 = (x2 - x1)^2 = A */
@@ -4217,22 +1496,22 @@ static void XYcZ_addC(uint8_t * RESTRICT X1, uint8_t * RESTRICT Y1, uint8_t * RE
 }
 
 static void EccPoint_mult(EccPoint * RESTRICT p_result, EccPoint * RESTRICT p_point,
-    const uint8_t * RESTRICT p_scalar, const uint8_t * RESTRICT p_initialZ)
+    const ecc_word_t * RESTRICT p_scalar, const ecc_word_t * RESTRICT p_initialZ, bitcount_t p_numBits)
 {
     /* R0 and R1 */
-    uint8_t Rx[2][ECC_BYTES];
-    uint8_t Ry[2][ECC_BYTES];
-    uint8_t z[ECC_BYTES];
+    ecc_word_t Rx[2][ECC_WORDS];
+    ecc_word_t Ry[2][ECC_WORDS];
+    ecc_word_t z[ECC_WORDS];
     
-    int16_t i;
-    uint8_t nb;
+    bitcount_t i;
+    ecc_word_t nb;
     
     vli_set(Rx[1], p_point->x);
     vli_set(Ry[1], p_point->y);
 
     XYcZ_initial_double(Rx[1], Ry[1], Rx[0], Ry[0], p_initialZ);
 
-    for(i = vli_numBits(p_scalar) - 2; i > 0; --i)
+    for(i = p_numBits - 2; i > 0; --i)
     {
         nb = !vli_testBit(p_scalar, i);
         XYcZ_addC(Rx[1-nb], Ry[1-nb], Rx[nb], Ry[nb]);
@@ -4260,16 +1539,16 @@ static void EccPoint_mult(EccPoint * RESTRICT p_result, EccPoint * RESTRICT p_po
 }
 
 /* Compute a = sqrt(a) (mod curve_p). */
-static void mod_sqrt(uint8_t a[ECC_BYTES])
+static void mod_sqrt(ecc_word_t *a)
 {
-    int16_t i;
-    uint8_t p1[ECC_BYTES] = {1};
-    uint8_t l_result[ECC_BYTES] = {1};
+    bitcount_t i;
+    ecc_word_t p1[ECC_WORDS] = {1};
+    ecc_word_t l_result[ECC_WORDS] = {1};
     
     /* Since curve_p == 3 (mod 4) for all supported curves, we can
        compute sqrt(a) = a^((curve_p + 1) / 4) (mod curve_p). */
     vli_add(p1, curve_p, p1); /* p1 = curve_p + 1 */
-    for(i = vli_numBits(p1) - 1; i > 1; --i)
+    for(i = vli_numBits(p1, ECC_WORDS) - 1; i > 1; --i)
     {
         vli_modSquare_fast(l_result, l_result);
         if(vli_testBit(p1, i))
@@ -4280,7 +1559,11 @@ static void mod_sqrt(uint8_t a[ECC_BYTES])
     vli_set(a, l_result);
 }
 
-static void vli_flip(uint8_t * RESTRICT p_dest, const uint8_t * RESTRICT p_src)
+
+
+#if ECC_WORD_SIZE == 1
+
+static void vli_nativeToBytes(uint8_t * RESTRICT p_dest, const uint8_t * RESTRICT p_src)
 {
     uint8_t i;
     for(i=0; i<ECC_BYTES; ++i)
@@ -4289,71 +1572,135 @@ static void vli_flip(uint8_t * RESTRICT p_dest, const uint8_t * RESTRICT p_src)
     }
 }
 
+#define vli_bytesToNative(dest, src) vli_nativeToBytes((dest), (src))
+
+#elif ECC_WORD_SIZE == 4
+
+static void vli_nativeToBytes(uint8_t *p_bytes, const uint32_t *p_native)
+{
+    unsigned i;
+    for(i=0; i<ECC_WORDS; ++i)
+    {
+        uint8_t *p_digit = p_bytes + 4 * (ECC_WORDS - 1 - i);
+        p_digit[0] = p_native[i] >> 24;
+        p_digit[1] = p_native[i] >> 16;
+        p_digit[2] = p_native[i] >> 8;
+        p_digit[3] = p_native[i];
+    }
+}
+
+static void vli_bytesToNative(uint32_t *p_native, const uint8_t *p_bytes)
+{
+    unsigned i;
+    for(i=0; i<ECC_WORDS; ++i)
+    {
+        const uint8_t *p_digit = p_bytes + 4 * (ECC_WORDS - 1 - i);
+        p_native[i] = ((uint32_t)p_digit[0] << 24) | ((uint32_t)p_digit[1] << 16) | ((uint32_t)p_digit[2] << 8) | (uint32_t)p_digit[3];
+    }
+}
+
+#else
+
+static void vli_nativeToBytes(uint8_t *p_bytes, const uint64_t *p_native)
+{
+    unsigned i;
+    for(i=0; i<ECC_WORDS; ++i)
+    {
+        uint8_t *p_digit = p_bytes + 8 * (ECC_WORDS - 1 - i);
+        p_digit[0] = p_native[i] >> 56;
+        p_digit[1] = p_native[i] >> 48;
+        p_digit[2] = p_native[i] >> 40;
+        p_digit[3] = p_native[i] >> 32;
+        p_digit[4] = p_native[i] >> 24;
+        p_digit[5] = p_native[i] >> 16;
+        p_digit[6] = p_native[i] >> 8;
+        p_digit[7] = p_native[i];
+    }
+}
+
+static void vli_bytesToNative(uint64_t *p_native, const uint8_t *p_bytes)
+{
+    unsigned i;
+    for(i=0; i<ECC_WORDS; ++i)
+    {
+        const uint8_t *p_digit = p_bytes + 8 * (ECC_WORDS - 1 - i);
+        p_native[i] = ((uint64_t)p_digit[0] << 56) | ((uint64_t)p_digit[1] << 48) | ((uint64_t)p_digit[2] << 40) | ((uint64_t)p_digit[3] << 32) |
+            ((uint64_t)p_digit[4] << 24) | ((uint64_t)p_digit[5] << 16) | ((uint64_t)p_digit[6] << 8) | (uint64_t)p_digit[7];
+    }
+}
+
+#endif /* ECC_WORD_SIZE */
+
 int ecc_make_key(uint8_t p_publicKey[ECC_BYTES*2], uint8_t p_privateKey[ECC_BYTES])
 {
     EccPoint l_public;
-    uint8_t l_private[ECC_BYTES];
-    uint8_t l_tries = 0;
+    ecc_word_t l_private[ECC_WORDS];
+    ecc_word_t l_tries = 0;
     
     do
     {
-        if(!g_rng(l_private, ECC_BYTES) || (l_tries++ >= MAX_TRIES))
+    repeat:
+        if(!g_rng((uint8_t *)l_private, ECC_WORDS) || (l_tries++ >= MAX_TRIES))
         {
             return 0;
         }
         if(vli_isZero(l_private))
         {
-            continue;
+            goto repeat;
         }
     
         /* Make sure the private key is in the range [1, n-1]. */
     #if ECC_CURVE != secp160r1
         if(vli_cmp(curve_n, l_private) != 1)
         {
-            continue;
+            goto repeat;
         }
     #endif
 
-        EccPoint_mult(&l_public, &curve_G, l_private, 0);
+        EccPoint_mult(&l_public, &curve_G, l_private, 0, vli_numBits(l_private, ECC_WORDS));
     } while(EccPoint_isZero(&l_public));
     
-    vli_flip(p_privateKey, l_private);
-    vli_flip(p_publicKey, l_public.x);
-    vli_flip(p_publicKey + ECC_BYTES, l_public.y);
+    vli_nativeToBytes(p_privateKey, l_private);
+    vli_nativeToBytes(p_publicKey, l_public.x);
+    vli_nativeToBytes(p_publicKey + ECC_BYTES, l_public.y);
     return 1;
 }
 
 int ecdh_shared_secret(const uint8_t p_publicKey[ECC_BYTES*2], const uint8_t p_privateKey[ECC_BYTES], uint8_t p_secret[ECC_BYTES])
 {
     EccPoint l_public;
-    uint8_t l_private[ECC_BYTES];
-    uint8_t l_random[ECC_BYTES];
+    ecc_word_t l_private[ECC_WORDS];
+    ecc_word_t l_random[ECC_WORDS];
     
-    g_rng(l_random, ECC_BYTES);
+    g_rng((uint8_t *)l_random, ECC_WORDS);
     
-    vli_flip(l_private, p_privateKey);
-    vli_flip(l_public.x, p_publicKey);
-    vli_flip(l_public.y, p_publicKey + ECC_BYTES);
+    vli_bytesToNative(l_private, p_privateKey);
+    vli_bytesToNative(l_public.x, p_publicKey);
+    vli_bytesToNative(l_public.y, p_publicKey + ECC_BYTES);
     
     EccPoint l_product;
-    EccPoint_mult(&l_product, &l_public, l_private, (vli_isZero(l_random) ? 0: l_random));
+    EccPoint_mult(&l_product, &l_public, l_private, (vli_isZero(l_random) ? 0: l_random), vli_numBits(l_private, ECC_WORDS));
     
-    vli_flip(p_secret, l_product.x);
+    vli_nativeToBytes(p_secret, l_product.x);
     
     return !EccPoint_isZero(&l_product);
 }
 
 void ecc_compress(uint8_t p_publicKey[ECC_BYTES*2], uint8_t p_compressed[ECC_BYTES+1])
 {
-    vli_set(p_compressed + 1, p_publicKey);
+    wordcount_t i;
+    for(i=0; i<ECC_BYTES; ++i)
+    {
+        p_compressed[i+1] = p_publicKey[i];
+    }
     p_compressed[0] = 2 + (p_publicKey[ECC_BYTES * 2 - 1] & 0x01);
 }
 
 void ecc_decompress(uint8_t p_compressed[ECC_BYTES+1], uint8_t p_publicKey[ECC_BYTES*2])
 {
     EccPoint l_point;
-    uint8_t _3[ECC_BYTES] = {3}; /* -a = 3 */
-    vli_flip(l_point.x, p_compressed + 1);
+    ecc_word_t _3[ECC_WORDS] = {3}; /* -a = 3 */
+    vli_bytesToNative(l_point.x, p_compressed + 1);
     
     vli_modSquare_fast(l_point.y, l_point.x); /* y = x^2 */
     vli_modSub_fast(l_point.y, l_point.y, _3); /* y = x^2 - 3 */
@@ -4367,6 +1714,460 @@ void ecc_decompress(uint8_t p_compressed[ECC_BYTES+1], uint8_t p_publicKey[ECC_B
         vli_sub(l_point.y, curve_p, l_point.y);
     }
     
-    vli_flip(p_publicKey, l_point.x);
-    vli_flip(p_publicKey + ECC_BYTES, l_point.y);
+    vli_nativeToBytes(p_publicKey, l_point.x);
+    vli_nativeToBytes(p_publicKey + ECC_BYTES, l_point.y);
+}
+
+/* -------- ECDSA code -------- */
+
+#if (ECC_CURVE == secp160r1)
+static void vli_clear_n(ecc_word_t *p_vli)
+{
+    vli_clear(p_vli);
+    p_vli[ECC_N_WORDS - 1] = 0;
+}
+
+static ecc_word_t vli_isZero_n(const ecc_word_t *p_vli)
+{
+    if(p_vli[ECC_N_WORDS - 1])
+    {
+        return 0;
+    }
+    return vli_isZero(p_vli);
+}
+
+static void vli_set_n(ecc_word_t *p_dest, const ecc_word_t *p_src)
+{
+    vli_set(p_dest, p_src);
+    p_dest[ECC_N_WORDS-1] = p_src[ECC_N_WORDS-1];
+}
+
+static cmpresult_t vli_cmp_n(ecc_word_t *p_left, ecc_word_t *p_right)
+{
+    if(p_left[ECC_N_WORDS-1] > p_right[ECC_N_WORDS-1])
+    {
+        return 1;
+    }
+    else if(p_left[ECC_N_WORDS-1] < p_right[ECC_N_WORDS-1])
+    {
+        return -1;
+    }
+    return vli_cmp(p_left, p_right);
+}
+
+static void vli_rshift1_n(ecc_word_t *p_vli)
+{
+    vli_rshift1(p_vli);
+    p_vli[ECC_N_WORDS-2] |= p_vli[ECC_N_WORDS-1] << (ECC_WORD_BITS - 1);
+    p_vli[ECC_N_WORDS-1] = p_vli[ECC_N_WORDS-1] >> 1;
+}
+
+static ecc_word_t vli_add_n(ecc_word_t *p_result, ecc_word_t *p_left, ecc_word_t *p_right)
+{
+    ecc_word_t l_carry = vli_add(p_result, p_left, p_right);
+    ecc_word_t l_sum = p_left[ECC_N_WORDS-1] + p_right[ECC_N_WORDS-1] + l_carry;
+    if(l_sum != p_left[ECC_N_WORDS-1])
+    {
+        l_carry = (l_sum < p_left[ECC_N_WORDS-1]);
+    }
+    p_result[ECC_N_WORDS-1] = l_sum;
+    return l_carry;
+}
+
+static ecc_word_t vli_sub_n(ecc_word_t *p_result, ecc_word_t *p_left, ecc_word_t *p_right)
+{
+    ecc_word_t l_borrow = vli_sub(p_result, p_left, p_right);
+    ecc_word_t l_diff = p_left[ECC_N_WORDS-1] - p_right[ECC_N_WORDS-1] - l_borrow;
+    if(l_diff != p_left[ECC_N_WORDS-1])
+    {
+        l_borrow = (l_diff > p_left[ECC_N_WORDS-1]);
+    }
+    p_result[ECC_N_WORDS-1] = l_diff;
+    return l_borrow;
+}
+
+static void vli_mult_n(ecc_word_t *p_result, ecc_word_t *p_left, ecc_word_t *p_right)
+{
+    ecc_word_t r0 = 0;
+    ecc_word_t r1 = 0;
+    ecc_word_t r2 = 0;
+    
+    wordcount_t i, k;
+    for(k = 0; k < ECC_N_WORDS*2 - 1; ++k)
+    {
+        wordcount_t l_min = (k < ECC_N_WORDS ? 0 : (k + 1) - ECC_N_WORDS);
+        wordcount_t l_max = (k < ECC_N_WORDS ? k : ECC_N_WORDS-1);
+        for(i = l_min; i <= l_max; ++i)
+        {
+            muladd(p_left[i], p_right[k-i], &r0, &r1, &r2);
+        }
+        p_result[k] = r0;
+        r0 = r1;
+        r1 = r2;
+        r2 = 0;
+    }
+    
+    p_result[ECC_N_WORDS*2 - 1] = r0;
+}
+
+static void vli_modAdd_n(ecc_word_t *p_result, ecc_word_t *p_left, ecc_word_t *p_right, ecc_word_t *p_mod)
+{
+    ecc_word_t l_carry = vli_add_n(p_result, p_left, p_right);
+    if(l_carry || vli_cmp_n(p_result, p_mod) >= 0)
+    {
+        vli_sub_n(p_result, p_result, p_mod);
+    }
+}
+
+static void vli_modInv_n(ecc_word_t *p_result, ecc_word_t *p_input, ecc_word_t *p_mod)
+{
+    ecc_word_t a[ECC_N_WORDS], b[ECC_N_WORDS], u[ECC_N_WORDS], v[ECC_N_WORDS];
+    ecc_word_t l_carry;
+    cmpresult_t l_cmpResult;
+    
+    if(vli_isZero_n(p_input))
+    {
+        vli_clear_n(p_result);
+        return;
+    }
+
+    vli_set_n(a, p_input);
+    vli_set_n(b, p_mod);
+    vli_clear_n(u);
+    u[0] = 1;
+    vli_clear_n(v);
+    while((l_cmpResult = vli_cmp_n(a, b)) != 0)
+    {
+        l_carry = 0;
+        if(EVEN(a))
+        {
+            vli_rshift1_n(a);
+            if(!EVEN(u)) l_carry = vli_add_n(u, u, p_mod);
+            vli_rshift1_n(u);
+            if(l_carry) u[ECC_N_WORDS-1] |= HIGH_BIT_SET;
+        }
+        else if(EVEN(b))
+        {
+            vli_rshift1_n(b);
+            if(!EVEN(v)) l_carry = vli_add_n(v, v, p_mod);
+            vli_rshift1_n(v);
+            if(l_carry) v[ECC_N_WORDS-1] |= HIGH_BIT_SET;
+        }
+        else if(l_cmpResult > 0)
+        {
+            vli_sub_n(a, a, b);
+            vli_rshift1_n(a);
+            if(vli_cmp_n(u, v) < 0) vli_add_n(u, u, p_mod);
+            vli_sub_n(u, u, v);
+            if(!EVEN(u)) l_carry = vli_add_n(u, u, p_mod);
+            vli_rshift1_n(u);
+            if(l_carry) u[ECC_N_WORDS-1] |= HIGH_BIT_SET;
+        }
+        else
+        {
+            vli_sub_n(b, b, a);
+            vli_rshift1_n(b);
+            if(vli_cmp_n(v, u) < 0) vli_add_n(v, v, p_mod);
+            vli_sub_n(v, v, u);
+            if(!EVEN(v)) l_carry = vli_add_n(v, v, p_mod);
+            vli_rshift1_n(v);
+            if(l_carry) v[ECC_N_WORDS-1] |= HIGH_BIT_SET;
+        }
+    }
+    
+    vli_set_n(p_result, u);
+}
+
+static void vli2_rshift1_n(ecc_word_t *p_vli)
+{
+    vli_rshift1_n(p_vli);
+    p_vli[ECC_N_WORDS-1] |= p_vli[ECC_N_WORDS] << (ECC_WORD_BITS - 1);
+    vli_rshift1_n(p_vli + ECC_N_WORDS);
+}
+
+static ecc_word_t vli2_sub_n(ecc_word_t *p_result, ecc_word_t *p_left, ecc_word_t *p_right)
+{
+    ecc_word_t l_borrow = 0;
+    wordcount_t i;
+    for(i=0; i<ECC_N_WORDS*2; ++i)
+    {
+        ecc_word_t l_diff = p_left[i] - p_right[i] - l_borrow;
+        if(l_diff != p_left[i])
+        {
+            l_borrow = (l_diff > p_left[i]);
+        }
+        p_result[i] = l_diff;
+    }
+    return l_borrow;
+}
+
+/* Computes p_result = (p_left * p_right) % curve_n. */
+static void vli_modMult_n(ecc_word_t *p_result, ecc_word_t *p_left, ecc_word_t *p_right)
+{
+    ecc_word_t l_product[2 * ECC_N_WORDS];
+    ecc_word_t l_modMultiple[2 * ECC_N_WORDS];
+    ecc_word_t l_tmp[2 * ECC_N_WORDS];
+    ecc_word_t *v[2] = {l_tmp, l_product};
+    
+    vli_mult_n(l_product, p_left, p_right);
+    vli_clear_n(l_modMultiple);
+    vli_set(l_modMultiple + ECC_N_WORDS + 1, curve_n);
+    vli_rshift1(l_modMultiple + ECC_N_WORDS + 1);
+    l_modMultiple[2 * ECC_N_WORDS - 1] |= HIGH_BIT_SET;
+    l_modMultiple[ECC_N_WORDS] = HIGH_BIT_SET;
+    
+    bitcount_t i;
+    ecc_word_t l_index = 1;
+    for(i=0; i<=((ECC_N_WORDS * ECC_WORD_BITS) + (ECC_WORD_BITS - 1)); ++i) 
+    {
+        ecc_word_t l_borrow = vli2_sub_n(v[1-l_index], v[l_index], l_modMultiple);
+        l_index = !(l_index ^ l_borrow); /* Swap the index if there was no borrow */
+        vli2_rshift1_n(l_modMultiple);
+    }
+
+    vli_set_n(p_result, v[l_index]);
+}
+
+#else
+
+#define vli_modInv_n vli_modInv
+#define vli_modAdd_n vli_modAdd
+
+static void vli2_rshift1(ecc_word_t *p_vli)
+{
+    vli_rshift1(p_vli);
+    p_vli[ECC_WORDS-1] |= p_vli[ECC_WORDS] << (ECC_WORD_BITS - 1);
+    vli_rshift1(p_vli + ECC_WORDS);
+}
+
+static ecc_word_t vli2_sub(ecc_word_t *p_result, ecc_word_t *p_left, ecc_word_t *p_right)
+{
+    ecc_word_t l_borrow = 0;
+    wordcount_t i;
+    for(i=0; i<ECC_WORDS*2; ++i)
+    {
+        ecc_word_t l_diff = p_left[i] - p_right[i] - l_borrow;
+        if(l_diff != p_left[i])
+        {
+            l_borrow = (l_diff > p_left[i]);
+        }
+        p_result[i] = l_diff;
+    }
+    return l_borrow;
+}
+
+/* Computes p_result = (p_left * p_right) % curve_n. */
+static void vli_modMult_n(ecc_word_t *p_result, ecc_word_t *p_left, ecc_word_t *p_right)
+{
+    ecc_word_t l_product[2 * ECC_WORDS];
+    ecc_word_t l_modMultiple[2 * ECC_WORDS];
+    ecc_word_t l_tmp[2 * ECC_WORDS];
+    ecc_word_t *v[2] = {l_tmp, l_product};
+    
+    vli_mult(l_product, p_left, p_right);
+    vli_set(l_modMultiple + ECC_WORDS, curve_n); /* works if curve_n has its highest bit set */
+    vli_clear(l_modMultiple);
+    
+    bitcount_t i;
+    ecc_word_t l_index = 1;
+    for(i=0; i<=ECC_BYTES * 8; ++i)
+    {
+        ecc_word_t l_borrow = vli2_sub(v[1-l_index], v[l_index], l_modMultiple);
+        l_index = !(l_index ^ l_borrow); /* Swap the index if there was no borrow */
+        vli2_rshift1(l_modMultiple);
+    }
+
+    vli_set(p_result, v[l_index]);
+}
+#endif /* (ECC_CURVE != secp160r1) */
+
+int ecdsa_sign(const uint8_t p_privateKey[ECC_BYTES], const uint8_t p_hash[ECC_BYTES], uint8_t p_signature[ECC_BYTES*2])
+{
+    ecc_word_t k[ECC_N_WORDS];
+    ecc_word_t l_tmp[ECC_N_WORDS];
+    ecc_word_t s[ECC_N_WORDS];
+    ecc_word_t *k2[2] = {l_tmp, s};
+    EccPoint p;
+    ecc_word_t l_tries = 0;
+    
+    do
+    {
+    repeat:
+        if(!g_rng((uint8_t *)k, sizeof(k)) || (l_tries++ >= MAX_TRIES))
+        {
+            return 0;
+        }
+        
+        if(vli_isZero(k))
+        {
+            goto repeat;
+        }
+        
+    #if (ECC_CURVE == secp160r1)
+        k[ECC_WORDS] &= 0x01;
+        if(vli_cmp_n(curve_n, k) != 1)
+        {
+            goto repeat;
+        }
+        
+        /* make sure that we don't leak timing information about k. See http://eprint.iacr.org/2011/232.pdf */
+        vli_add_n(l_tmp, k, curve_n);
+        ecc_word_t l_carry = (l_tmp[ECC_WORDS] & 0x02);
+        vli_add_n(s, l_tmp, curve_n);
+    
+        /* p = k * G */
+        EccPoint_mult(&p, &curve_G, k2[!l_carry], 0, (ECC_BYTES * 8) + 2);
+    #else
+        if(vli_cmp(curve_n, k) != 1)
+        {
+            goto repeat;
+        }
+        
+        /* make sure that we don't leak timing information about k. See http://eprint.iacr.org/2011/232.pdf */
+        ecc_word_t l_carry = vli_add(l_tmp, k, curve_n);
+        vli_add(s, l_tmp, curve_n);
+    
+        /* p = k * G */
+        EccPoint_mult(&p, &curve_G, k2[!l_carry], 0, (ECC_BYTES * 8) + 1);
+    
+        /* r = x1 (mod n) */
+        if(vli_cmp(curve_n, p.x) != 1)
+        {
+            vli_sub(p.x, p.x, curve_n);
+        }
+    #endif
+    } while(vli_isZero(p.x));
+    
+    l_tries = 0;
+    do
+    {
+        if(!g_rng((uint8_t *)l_tmp, sizeof(l_tmp)) || (l_tries++ >= MAX_TRIES))
+        {
+            return 0;
+        }
+    } while(vli_isZero(l_tmp));
+    
+    /* Prevent side channel analysis of vli_modInv() to determine
+       bits of k / the private key by premultiplying by a random number */
+    vli_modMult_n(k, k, l_tmp); /* k' = rand * k */
+    vli_modInv_n(k, k, curve_n); /* k = 1 / k' */
+    vli_modMult_n(k, k, l_tmp); /* k = 1 / k */
+    
+    vli_nativeToBytes(p_signature, p.x); /* store r */
+    
+    l_tmp[ECC_N_WORDS-1] = 0;
+    vli_bytesToNative(l_tmp, p_privateKey); /* tmp = d */
+    s[ECC_N_WORDS-1] = 0;
+    vli_set(s, p.x);
+    vli_modMult_n(s, l_tmp, s); /* s = r*d */
+
+    vli_bytesToNative(l_tmp, p_hash);
+    vli_modAdd_n(s, l_tmp, s, curve_n); /* s = e + r*d */
+    vli_modMult_n(s, s, k); /* s = (e + r*d) / k */
+#if (ECC_CURVE == secp160r1)
+    if(s[ECC_N_WORDS-1])
+    {
+        goto repeat;
+    }
+#endif
+    vli_nativeToBytes(p_signature + ECC_BYTES, s);
+    
+    return 1;
+}
+
+static bitcount_t smax(bitcount_t a, bitcount_t b)
+{
+    return (a > b ? a : b);
+}
+
+int ecdsa_verify(const uint8_t p_publicKey[ECC_BYTES*2], const uint8_t p_hash[ECC_BYTES], const uint8_t p_signature[ECC_BYTES*2])
+{
+    ecc_word_t u1[ECC_N_WORDS], u2[ECC_N_WORDS];
+    ecc_word_t z[ECC_N_WORDS];
+    EccPoint l_public, l_sum;
+    ecc_word_t rx[ECC_WORDS];
+    ecc_word_t ry[ECC_WORDS];
+    ecc_word_t tx[ECC_WORDS];
+    ecc_word_t ty[ECC_WORDS];
+    ecc_word_t tz[ECC_WORDS];
+    
+    ecc_word_t r[ECC_N_WORDS], s[ECC_N_WORDS];
+    r[ECC_N_WORDS-1] = 0;
+    s[ECC_N_WORDS-1] = 0;
+    
+    vli_bytesToNative(l_public.x, p_publicKey);
+    vli_bytesToNative(l_public.y, p_publicKey + ECC_BYTES);
+    vli_bytesToNative(r, p_signature);
+    vli_bytesToNative(s, p_signature + ECC_BYTES);
+    
+    if(vli_isZero(r) || vli_isZero(s))
+    { /* r, s must not be 0. */
+        return 0;
+    }
+    
+#if (ECC_CURVE != secp160r1)
+    if(vli_cmp(curve_n, r) != 1 || vli_cmp(curve_n, s) != 1)
+    { /* r, s must be < n. */
+        return 0;
+    }
+#endif
+
+    /* Calculate u1 and u2. */
+    vli_modInv_n(z, s, curve_n); /* Z = s^-1 */
+    u1[ECC_N_WORDS-1] = 0;
+    vli_bytesToNative(u1, p_hash);
+    vli_modMult_n(u1, u1, z); /* u1 = e/s */
+    vli_modMult_n(u2, r, z); /* u2 = r/s */
+    
+    /* Calculate l_sum = G + Q. */
+    vli_set(l_sum.x, l_public.x);
+    vli_set(l_sum.y, l_public.y);
+    vli_set(tx, curve_G.x);
+    vli_set(ty, curve_G.y);
+    vli_modSub_fast(z, l_sum.x, tx); /* Z = x2 - x1 */
+    XYcZ_add(tx, ty, l_sum.x, l_sum.y);
+    vli_modInv(z, z, curve_p); /* Z = 1/Z */
+    apply_z(l_sum.x, l_sum.y, z);
+    
+    /* Use Shamir's trick to calculate u1*G + u2*Q */
+    EccPoint *l_points[4] = {NULL, &curve_G, &l_public, &l_sum};
+    bitcount_t l_numBits = smax(vli_numBits(u1, ECC_N_WORDS), vli_numBits(u2, ECC_N_WORDS));
+    
+    EccPoint *l_point = l_points[(!!vli_testBit(u1, l_numBits-1)) | ((!!vli_testBit(u2, l_numBits-1)) << 1)];
+    vli_set(rx, l_point->x);
+    vli_set(ry, l_point->y);
+    vli_clear(z);
+    z[0] = 1;
+
+    bitcount_t i;
+    for(i = l_numBits - 2; i >= 0; --i)
+    {
+        EccPoint_double_jacobian(rx, ry, z);
+        
+        ecc_word_t l_index = (!!vli_testBit(u1, i)) | ((!!vli_testBit(u2, i)) << 1);
+        l_point = l_points[l_index];
+        if(l_point)
+        {
+            vli_set(tx, l_point->x);
+            vli_set(ty, l_point->y);
+            apply_z(tx, ty, z);
+            vli_modSub_fast(tz, rx, tx); /* Z = x2 - x1 */
+            XYcZ_add(tx, ty, rx, ry);
+            vli_modMult_fast(z, z, tz);
+        }
+    }
+
+    vli_modInv(z, z, curve_p); /* Z = 1/Z */
+    apply_z(rx, ry, z);
+    
+    /* v = x1 (mod n) */
+#if (ECC_CURVE != secp160r1)
+    if(vli_cmp(curve_n, rx) != 1)
+    {
+        vli_sub(rx, rx, curve_n);
+    }
+#endif
+
+    /* Accept only if v == r. */
+    return (vli_cmp(rx, r) == 0);
 }
