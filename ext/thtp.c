@@ -173,6 +173,7 @@ void ext_thtp(chan_t c)
         DEBUG_PRINTF("got response %.*s for %.*s",p->json_len,p->json,note->json_len,note->json);        
       }
       packet_link(note,p);
+      packet_set_str(note,"thtp","resp");
       chan_reply(c,note);
       chan_end(c,NULL);
       return;
@@ -205,6 +206,7 @@ void ext_thtp(chan_t c)
     // attach and route request to a new note
     note = packet_copy(match);
     packet_link(note,req);
+    packet_set_str(note,"thtp","req");
     if(chan_reply(c,note) == 0) return;
 
     chan_fail(c,"500");

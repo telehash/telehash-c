@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <stdarg.h>
 #include "js0n.h"
 #include "j0g.h"
 #include "hn.h"
@@ -212,6 +213,27 @@ void packet_set(packet_t p, char *key, char *val, int vlen)
   }
   packet_json(p, json, len);
   free(json);
+}
+
+void packet_set_printf(packet_t p, char *key, const char *format, ...)
+{
+  va_list ap, cp;
+  int len;
+  char *val;
+
+  if(!p || !key || !format) return;
+
+  va_start(ap, format);
+  va_copy(cp, ap);
+
+  len = vsnprintf(NULL, 0, format, cp);
+  val = malloc(len);
+
+  vsprintf(val, format, ap);
+  va_end(ap);
+  va_end(cp);
+
+  packet_set_str(p, key, val);
 }
 
 void packet_set_int(packet_t p, char *key, int val)

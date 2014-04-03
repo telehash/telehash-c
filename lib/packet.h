@@ -56,6 +56,7 @@ void packet_append(packet_t p, unsigned char *chunk, unsigned short len);
 void packet_set(packet_t p, char *key, char *val, int vlen); // raw
 void packet_set_str(packet_t p, char *key, char *val); // escapes value
 void packet_set_int(packet_t p, char *key, int val);
+void packet_set_printf(packet_t p, char *key, const char *format, ...);
 
 // count of keys
 int packet_keys(packet_t p);
