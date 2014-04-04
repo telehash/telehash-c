@@ -1,6 +1,7 @@
 #include "ext.h"
 
-uint32_t mmh32(const char* data, size_t len_);
+char *mmh32hex(const unsigned char* data, size_t len, char *hex);
+uint32_t mmh32(const uint8_t * data, size_t len_);
 
 // chatr is just per-chat-channel state holder
 typedef struct chatr_struct 
@@ -47,7 +48,6 @@ char *chat_rhash(chat_t chat)
 {
   char *buf, *str;
   int at=0, i, len;
-  uint32_t hash;
   // TODO, should be a way to optimize doing the mmh on the fly
   buf = malloc(chat->roster->json_len);
   packet_sort(chat->roster);
@@ -57,9 +57,7 @@ char *chat_rhash(chat_t chat)
     memcpy(buf+at,str,len);
     at += len;
   }
-  hash = mmh32(buf,at);
-  free(buf);
-  util_hex((unsigned char*)&hash,4,(unsigned char*)chat->rhash);
+  mmh32hex((unsigned char*)buf,at,chat->rhash);
   return chat->rhash;
 }
 
@@ -108,8 +106,9 @@ chat_t chat_get(switch_t s, char *id)
   chat->hub = chan_new(s, s->id, "chat", 0);
   chat->hub->arg = chatr_new(chat); // stub so we know it's the hub chat channel
   note = chan_note(chat->hub,NULL);
-  sprintf(buf,"/chat/%s/",chat->ep);
-  thtp_glob(s,buf,note);
+  packet_set_printf(note,"glob","/chat/%s/",mmh32hex((unsigned char*)chat->id,strlen(chat->id),buf));
+  DEBUG_PRINTF("chat %s glob %s",chat->id,packet_get_str(note,"glob"));
+  thtp_glob(s,0,note);
   xht_set(s->index,chat->id,chat);
 
   // any other hashname and we try to initialize
@@ -139,19 +138,15 @@ packet_t chat_message(chat_t chat)
 {
   packet_t p;
   char id[32];
+  unsigned char buf[4];
   uint16_t step;
-  uint32_t hash;
   unsigned long at = platform_seconds();
 
   if(!chat || !chat->seq) return NULL;
 
   p = packet_new();
-  memcpy(id,chat->seed,9);
-  for(step=0; step <= chat->seq; step++)
-  {
-    hash = mmh32(id,8);
-    util_hex((unsigned char*)&hash,4,(unsigned char*)id);
-  }
+  util_hex((unsigned char*)chat->seed,4,(unsigned char*)id);
+  for(step=0; step <= chat->seq; step++) mmh32hex(util_unhex((unsigned char*)id,8,(unsigned char*)buf),4,id);
   sprintf(id+8,",%d",chat->seq);
   chat->seq--;
   packet_set_str(p,"id",id);
@@ -363,12 +358,12 @@ static inline uint32_t rotl32(uint32_t x, int8_t r)
     return (x << r) | (x >> (32 - r));
 }
 
-uint32_t mmh32(const char* data, size_t len_)
+uint32_t mmh32(const uint8_t * data, size_t len_)
 {
     const int len = (int) len_;
     const int nblocks = len / 4;
 
-    uint32_t h1 = 0xc062fb4a;
+    uint32_t h1 = 0;
 
     uint32_t c1 = 0xcc9e2d51;
     uint32_t c2 = 0x1b873593;
@@ -415,4 +410,11 @@ uint32_t mmh32(const char* data, size_t len_)
     h1 = fmix(h1);
 
     return h1;
+}
+
+char *mmh32hex(const unsigned char* data, size_t len, char *hex)
+{
+  uint32_t hash = mmh32((uint8_t*)data,len);
+  sprintf(hex,"%08lx",(unsigned long)hash);
+  return hex;
 }

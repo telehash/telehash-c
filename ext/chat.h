@@ -10,7 +10,8 @@ typedef struct chat_struct
   hn_t orig;
   switch_t s;
   chan_t hub;
-  char seed[9], rhash[9];
+  char rhash[9];
+  uint8_t seed[4];
   uint16_t seq;
   packet_t roster;
   xht_t index;

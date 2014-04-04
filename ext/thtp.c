@@ -44,7 +44,7 @@ void thtp_free(switch_t s)
 void thtp_glob(switch_t s, char *glob, packet_t note)
 {
   thtp_t t = thtp_get(s);
-  packet_set_str(note,"glob",glob);
+  if(glob) packet_set_str(note,"glob",glob);
   note->next = t->glob;
   t->glob = note;
 }
