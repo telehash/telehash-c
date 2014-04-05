@@ -33,6 +33,15 @@ chan_t chan_reliable(chan_t c, int window)
   return c;
 }
 
+// kind of a macro, just make a reliable channel of this type
+chan_t chan_start(switch_t s, char *hn, char *type)
+{
+  chan_t c;
+  if(!s || !hn) return NULL;
+  c = chan_new(s, hn_gethex(s->index,hn), type, 0);
+  return chan_reliable(c, s->window);
+}
+
 chan_t chan_new(switch_t s, hn_t to, char *type, uint32_t id)
 {
   chan_t c;

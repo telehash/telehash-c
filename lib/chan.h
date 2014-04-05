@@ -21,6 +21,9 @@ typedef struct chan_struct
   void (*handler)(struct chan_struct*); // auto-fire callback
 } *chan_t;
 
+// kind of a macro, just make a reliable channel of this type to this hashname
+chan_t chan_start(struct switch_struct *s, char *hn, char *type);
+
 // new channel, pass id=0 to create an outgoing one
 chan_t chan_new(struct switch_struct *s, struct hn_struct *to, char *type, uint32_t id);
 void chan_free(chan_t c);

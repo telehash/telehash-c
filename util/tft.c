@@ -48,6 +48,7 @@ int main(void)
 
   // new chat, must be after-init
   chat = chat_get(s,"tft");
+  chat_add(chat,"*","invited");
   p = chat_message(chat);
   packet_set_str(p,"text",nick);
   chat_join(chat,p);

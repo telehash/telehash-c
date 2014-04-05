@@ -78,6 +78,7 @@ void thtp_send(chan_t c, packet_t req)
   unsigned char *raw;
   unsigned short len, space;
   if(!c || !req) return;
+  DEBUG_PRINTF("THTP sending %.*s %.*s",req->json_len,req->json,req->body_len,req->body);
   raw = packet_raw(req);
   len = packet_len(req);
   while(len)

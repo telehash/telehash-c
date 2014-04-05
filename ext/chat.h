@@ -6,15 +6,15 @@
 typedef struct chat_struct 
 {
   enum {LOADING, OFFLINE, CONNECTING, CONNECTED, JOINING, JOINED} state;
-  char ep[32+1], id[32+1+64+1];
-  hn_t orig;
+  char ep[32+1], id[32+1+64+1], idhash[9];
+  hn_t origin;
   switch_t s;
   chan_t hub;
   char rhash[9];
   uint8_t seed[4];
   uint16_t seq;
   packet_t roster;
-  xht_t index;
+  xht_t conn, log;
   char *join, *sent, *after;
 } *chat_t;
 
@@ -26,5 +26,6 @@ chat_t chat_free(chat_t ct);
 packet_t chat_message(chat_t ct);
 chat_t chat_join(chat_t ct, packet_t join);
 chat_t chat_send(chat_t ct, packet_t msg);
+chat_t chat_add(chat_t chat, char *hn, char *val);
 
 #endif
