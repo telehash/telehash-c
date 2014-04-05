@@ -1,8 +1,5 @@
 #include "ext.h"
 
-char *mmh32hex(const unsigned char* data, size_t len, char *hex);
-uint32_t mmh32(const uint8_t * data, size_t len_);
-
 // chatr is just per-chat-channel state holder
 typedef struct chatr_struct 
 {
@@ -56,7 +53,7 @@ char *chat_rhash(chat_t chat)
     memcpy(buf+at,str,len);
     at += len;
   }
-  mmh32hex((unsigned char*)buf,at,chat->rhash);
+  util_murmur((unsigned char*)buf,at,chat->rhash);
   return chat->rhash;
 }
 
@@ -110,7 +107,7 @@ chat_t chat_get(switch_t s, char *id)
   }
   chat->origin = origin ? origin : s->id;
   sprintf(chat->id,"%s@%s",chat->ep,chat->origin->hexname);
-  mmh32hex((unsigned char*)chat->id,strlen(chat->id),chat->idhash);
+  util_murmur((unsigned char*)chat->id,strlen(chat->id),chat->idhash);
   chat->s = s;
   chat->roster = packet_new();
   packet_json(chat->roster,(unsigned char*)"{}",2);
@@ -164,8 +161,9 @@ packet_t chat_message(chat_t chat)
   if(!chat || !chat->seq) return NULL;
 
   p = packet_new();
+  // this can be optimized by not converting to/from hex once mmh32 is endian safe
   util_hex((unsigned char*)chat->seed,4,(unsigned char*)id);
-  for(step=0; step <= chat->seq; step++) mmh32hex(util_unhex((unsigned char*)id,8,(unsigned char*)buf),4,id);
+  for(step=0; step <= chat->seq; step++) util_murmur(util_unhex((unsigned char*)id,8,(unsigned char*)buf),4,id);
   sprintf(id+8,",%d",chat->seq);
   chat->seq--;
   packet_set_str(p,"id",id);
@@ -407,85 +405,4 @@ chat_t ext_chat(chan_t c)
   }
 
   return NULL;
-}
-
-
-
-// murmurhash stuffs
-
-static inline uint32_t fmix(uint32_t h)
-{
-    h ^= h >> 16;
-    h *= 0x85ebca6b;
-    h ^= h >> 13;
-    h *= 0xc2b2ae35;
-    h ^= h >> 16;
-
-    return h;
-}
-
-static inline uint32_t rotl32(uint32_t x, int8_t r)
-{
-    return (x << r) | (x >> (32 - r));
-}
-
-uint32_t mmh32(const uint8_t * data, size_t len_)
-{
-    const int len = (int) len_;
-    const int nblocks = len / 4;
-
-    uint32_t h1 = 0;
-
-    uint32_t c1 = 0xcc9e2d51;
-    uint32_t c2 = 0x1b873593;
-
-    //----------
-    // body
-
-    const uint32_t * blocks = (const uint32_t*) (data + nblocks * 4);
-
-    int i;
-    for(i = -nblocks; i; i++)
-    {
-        uint32_t k1 = blocks[i];
-
-        k1 *= c1;
-        k1 = rotl32(k1, 15);
-        k1 *= c2;
-
-        h1 ^= k1;
-        h1 = rotl32(h1, 13);
-        h1 = h1*5+0xe6546b64;
-    }
-
-    //----------
-    // tail
-
-    const uint8_t * tail = (const uint8_t*)(data + nblocks*4);
-
-    uint32_t k1 = 0;
-
-    switch(len & 3)
-    {
-        case 3: k1 ^= tail[2] << 16;
-        case 2: k1 ^= tail[1] << 8;
-        case 1: k1 ^= tail[0];
-              k1 *= c1; k1 = rotl32(k1,15); k1 *= c2; h1 ^= k1;
-    }
-
-    //----------
-    // finalization
-
-    h1 ^= len;
-
-    h1 = fmix(h1);
-
-    return h1;
-}
-
-char *mmh32hex(const unsigned char* data, size_t len, char *hex)
-{
-  uint32_t hash = mmh32((uint8_t*)data,len);
-  sprintf(hex,"%08lx",(unsigned long)hash);
-  return hex;
 }
