@@ -45,6 +45,7 @@ unsigned char *util_unhex(unsigned char *in, int len, unsigned char *out)
 int util_cmp(char *a, char *b)
 {
   if(!a || !b) return -1;
+  if(a == b) return 0;
   return strcasecmp(a,b);
 }
 

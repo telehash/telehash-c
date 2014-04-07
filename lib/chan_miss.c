@@ -58,7 +58,8 @@ void chan_miss_check(chan_t c, packet_t p)
   // free and shift up to the ack
   while(m->nextack <= ack)
   {
-    packet_free(m->out[0]);
+    // TODO FIX, refactor check into two stages
+//    packet_free(m->out[0]);
     memmove(m->out,m->out+1,(sizeof (packet_t)) * (c->reliable - 1));
     m->out[c->reliable-1] = 0;
     m->nextack++;

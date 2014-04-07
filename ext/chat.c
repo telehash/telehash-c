@@ -6,6 +6,7 @@ typedef struct chatr_struct
   chat_t chat;
   packet_t in;
   int joined;
+  int online;
 } *chatr_t;
 
 chatr_t chatr_new(chat_t chat)
@@ -58,15 +59,18 @@ char *chat_rhash(chat_t chat)
 }
 
 // if id is NULL it requests the roster, otherwise requests message id
-void chat_cache(chat_t chat, char *from, char *id)
+void chat_cache(chat_t chat, char *hn, char *id)
 {
+  char *via;
   packet_t note;
   if(!chat || (id && !strchr(id,','))) return;
-  if(!from) from = chat->origin->hexname;
+  // only fetch from origin until joined
+  via = (!hn || !chat->join) ? chat->origin->hexname : hn;
   if(id && xht_get(chat->log,id)) return; // cached message id
-  if(util_cmp(from,chat->s->id->hexname) == 0) return; // can't request from ourselves
+  if(util_cmp(via,chat->s->id->hexname) == 0) return; // can't request from ourselves
   note = chan_note(chat->hub,NULL);
-  packet_set_str(note,"to",from);
+  packet_set_str(note,"to",via);
+  packet_set_str(note,"for",hn);
   if(!id) packet_set_printf(note,"path","/chat/%s/roster",chat->idhash);
   else packet_set_printf(note,"path","/chat/%s/id/%s",chat->idhash,id);
   thtp_req(chat->s,note);  
@@ -106,6 +110,7 @@ chat_t chat_get(switch_t s, char *id)
     memcpy(chat->ep,id,strlen(id)+1);
   }
   chat->origin = origin ? origin : s->id;
+  if(chat->origin == s->id) chat->local = 1;
   sprintf(chat->id,"%s@%s",chat->ep,chat->origin->hexname);
   util_murmur((unsigned char*)chat->id,strlen(chat->id),chat->idhash);
   chat->s = s;
@@ -126,13 +131,8 @@ chat_t chat_get(switch_t s, char *id)
   xht_set(s->index,chat->id,chat);
 
   // any other hashname and we try to initialize
-  if(chat->origin != s->id)
-  {
-    chat->state = LOADING;
-    chat_cache(chat,chat->origin->hexname,NULL);
-  }else{
-    chat->state = OFFLINE;
-  }
+  if(!chat->local) chat_cache(chat,chat->origin->hexname,NULL);
+
   return chat;
 }
 
@@ -143,6 +143,7 @@ chat_t chat_free(chat_t chat)
   // TODO xht-walk chat->log and free packets
   // TODO xht-walk chat->conn and end channels
   // TODO unregister thtp
+  // TODO free chat->msgs chain
   xht_free(chat->log);
   xht_free(chat->conn);
   packet_free(chat->roster);
@@ -173,6 +174,78 @@ packet_t chat_message(chat_t chat)
   return p;
 }
 
+// add msg to queue
+void chat_push(chat_t chat, packet_t msg)
+{
+  packet_t prev;
+  if(!chat) return (void)packet_free(msg);
+  msg->next = NULL; // paranoid safety
+  if(!chat->msgs) return (void)(chat->msgs = msg);
+  prev = chat->msgs;
+  while(prev->next) prev = prev->next;
+  prev->next = msg;
+}
+
+packet_t chat_pop(chat_t chat)
+{
+  packet_t msg;
+  if(!chat || !chat->msgs) return NULL;
+  msg = chat->msgs;
+  chat->msgs = msg->next;
+  msg->next = NULL;
+  return msg;
+}
+
+// updates/saves current stored state, consumes join packet
+void chat_restate(chat_t chat, char *hn)
+{
+  char *id;
+  packet_t join, state, cur;
+  chan_t c;
+  chatr_t r;
+
+  if(!chat || !hn) return;
+
+  // load from roster
+  id = packet_get_str(chat->roster,hn);
+  if(!id) return;
+
+  // see if there's a join message cached
+  join = xht_get(chat->log,id);
+  if(join)
+  {
+    state = packet_copy(join);
+  }else{
+    state = packet_new();
+    if(strchr(id,','))
+    {
+      // we should have the join id, try to get it again
+      chat_cache(chat,hn,id);
+      packet_set_str(state,"text","connecting");
+    }else{
+      packet_set_str(state,"text",id);
+    }
+  }
+
+  // make a state packet
+  packet_set_str(state,"type","state");
+  packet_set_str(state,"from",hn);
+
+  if((c = xht_get(chat->conn,hn)) && (r = c->arg) && r->online) packet_set(state,"online","true",4);
+  else packet_set(state,"online","false",5);
+
+  // if the new state is the same, drop it
+  cur = xht_get(chat->log,hn);
+  if(packet_cmp(state,cur) == 0) return (void)packet_free(state);
+  
+  // replace/save new state
+  xht_set(chat->log,packet_get_str(state,"from"),state);
+  packet_free(cur);
+
+  // notify if not ourselves
+  if(util_cmp(hn,chat->s->id->hexname)) chat_push(chat,packet_copy(state));
+}
+
 // process roster to check connection/join state
 void chat_sync(chat_t chat)
 {
@@ -183,10 +256,17 @@ void chat_sync(chat_t chat)
   int joined, i = 0;
 
   joined = chat->join ? 1 : 0;
-  while((part = packet_get_istr(chat->roster,i++)))
+  while((part = packet_get_istr(chat->roster,i)))
   {
+    i += 2;
+    if(strlen(part) != 64) continue;
+    if(util_cmp(part,chat->s->id->hexname) == 0) continue;
     if((c = xht_get(chat->conn,part)) && (r = c->arg) && r->joined == joined) continue;
-    
+
+    DEBUG_PRINTF("initiating chat to %s for %s",part,chat->id);
+    // state change
+    chat_restate(chat,part);
+
     // try to connect
     c = chan_start(chat->s, part, "chat");
     if(!c) continue;
@@ -201,28 +281,30 @@ void chat_sync(chat_t chat)
   }
 }
 
+// just add to the log
+void chat_log(chat_t chat, packet_t msg)
+{
+  packet_t cur;
+  char *id = packet_get_str(msg,"id");
+  if(!chat || !id) return (void)packet_free(msg);
+  cur = xht_get(chat->log,id);
+  xht_set(chat->log,id,msg);
+  packet_free(cur);
+}
+
 chat_t chat_join(chat_t chat, packet_t join)
 {
-  packet_t p;
-
   if(!chat || !join) return NULL;
+
+  // paranoid, don't double-join
+  if(util_cmp(chat->join,packet_get_str(join,"id")) == 0) return (chat_t)packet_free(join);
+
   packet_set_str(join,"type","join");
-  if(chat->join)
-  {
-    p = xht_get(chat->log,chat->join);
-    xht_set(chat->log,chat->join,NULL);
-    packet_free(p);
-  }
   chat->join = packet_get_str(join,"id");
-  xht_set(chat->log,chat->join,join);
+  chat_log(chat,join);
   packet_set_str(chat->roster,chat->s->id->hexname,chat->join);
+  chat_restate(chat,chat->s->id->hexname);
   chat_rhash(chat);
-  if(chat->origin == chat->s->id)
-  {
-    chat->state = JOINED;
-  }else{
-    chat->state = JOINING;
-  }
   
   // create/activate all chat channels
   chat_sync(chat);
@@ -262,12 +344,15 @@ chat_t chat_send(chat_t chat, packet_t msg)
 
   if(!chat || !msg) return NULL;
 
+  chat_log(chat,msg);
+
   // send as a note to all connected
-  while((part = packet_get_istr(chat->roster,i++)))
+  while((part = packet_get_istr(chat->roster,i)))
   {
+    i += 2;
     if(!(c = xht_get(chat->conn,part))) continue;
     r = c->arg;
-    if(!r || !r->joined) continue;
+    if(!r || !r->joined || !r->online) continue;
     chat_chunk(c,msg);
   }
   return NULL;
@@ -276,6 +361,7 @@ chat_t chat_send(chat_t chat, packet_t msg)
 chat_t chat_add(chat_t chat, char *hn, char *val)
 {
   if(!chat || !hn || !val) return NULL;
+  if(!chat->local) return NULL; // has to be our own to add
   packet_set_str(chat->roster,hn,val);
   chat_rhash(chat);
   chat_sync(chat);
@@ -310,7 +396,7 @@ chat_t chat_hub(chat_t chat)
     if(util_cmp(thtp,"req") == 0)
     {
       req = packet_linked(note);
-      printf("note req packet %.*s\n", req->json_len, req->json);
+      DEBUG_PRINTF("note req packet %.*s", req->json_len, req->json);
       path = packet_get_str(req,"path");
       p = packet_new();
       packet_set_int(p,"status",404);
@@ -334,21 +420,44 @@ chat_t chat_hub(chat_t chat)
     {
       resp = packet_linked(note);
       path = packet_get_str(note,"path");
-      printf("note resp packet %s %.*s\n", path, resp->json_len, resp->json);
-      // TODO process roster or msg result, roster runs chat_cache for each
+      DEBUG_PRINTF("note resp packet %s %.*s", path, resp->json_len, resp->json);
+      if(strstr(path,"/roster"))
+      {
+        p = packet_new();
+        if(packet_json(p,resp->body,resp->body_len) == 0)
+        {
+          packet_free(chat->roster);
+          chat->roster = p;
+          chat_sync(chat);
+        }else{
+          packet_free(p);
+        }
+      }
+      if(strstr(path,"/id/"))
+      {
+        p = packet_parse(resp->body,resp->body_len);
+        if(p)
+        {
+          id = packet_get_str(note,"for");
+          packet_set_str(p,"from",id);
+          chat_log(chat,p);
+          // is either a join to be processed or an old msg
+          if(util_cmp(packet_get_str(p,"type"),"join") == 0) chat_restate(chat,id);
+          else chat_push(chat,packet_copy(p));
+        }
+      }
       packet_free(note);
     }
   }
 
-  // TODO if the chat is active return it or not
-  return chat;
+  return chat->msgs ? chat : NULL;
 }
 
 chat_t ext_chat(chan_t c)
 {
-  packet_t p;
+  packet_t p, msg;
   chatr_t r = c->arg;
-  chat_t chat;
+  chat_t chat = NULL;
   int perm;
   char *id;
 
@@ -363,12 +472,13 @@ chat_t ext_chat(chan_t c)
     if(!chat) return (chat_t)chan_fail(c,"500");
     perm = chat_perm(chat,c->to->hexname);
     id = packet_get_str(p,"from");
-    printf("chat %s from %s is %d\n",chat->id,c->to->hexname,perm);
+    DEBUG_PRINTF("chat %s from %s is %d",chat->id,c->to->hexname,perm);
     if(perm < 0) return (chat_t)chan_fail(c,"blocked");
     if(perm == 0 && id) return (chat_t)chan_fail(c,"read-only");
 
     // legit new chat conn
     r = c->arg = chatr_new(chat);
+    r->online = 1;
     xht_set(chat->conn,c->to->hexname,c);
 
     // add to roster if given
@@ -386,15 +496,38 @@ chat_t ext_chat(chan_t c)
     }
     packet_set_str(p,"roster",chat->rhash);
     chan_send(c,p);
-
-    return chat;
+  }
+  
+  // response to a join
+  if(!r->online && (p = chan_pop(c)))
+  {
+    id = packet_get_str(p,"from");
+    DEBUG_PRINTF("chat online %s from %s %s",r->chat->id,c->to->hexname,id?id:packet_get_str(p,"err"));
+    if(!id) return (chat_t)chan_fail(c,"invalid");
+    r->online = 1;
+    chat_restate(r->chat,c->to->hexname);
+    packet_free(p);
   }
 
   while((p = chan_pop(c)))
   {
-    printf("chat packet %.*s\n", p->json_len, p->json);
+    DEBUG_PRINTF("chat packet %.*s", p->json_len, p->json);
+    packet_append(r->in,p->body,p->body_len);
+    if(util_cmp(packet_get_str(p,"done"),"true") == 0)
+    {
+      msg = packet_parse(r->in->body,r->in->body_len);
+      if(msg)
+      {
+        packet_set_str(msg,"from",c->to->hexname);
+        chat_push(r->chat,msg);        
+      }
+      packet_body(r->in,NULL,0);
+    }
     packet_free(p);
   }
+  
+  // optionally sends ack if needed
+  chan_ack(c);
   
   if(c->state == ENDING || c->state == ENDED)
   {
@@ -404,5 +537,17 @@ chat_t ext_chat(chan_t c)
     c->arg = NULL;
   }
 
-  return NULL;
+  return r->chat->msgs ? r->chat : NULL;
+}
+
+packet_t chat_participant(chat_t chat, char *hn)
+{
+  if(!chat) return NULL;
+  return xht_get(chat->log,hn);
+}
+
+packet_t chat_iparticipant(chat_t chat, int index)
+{
+  if(!chat) return NULL;
+  return xht_get(chat->log,packet_get_istr(chat->roster,index*2));
 }

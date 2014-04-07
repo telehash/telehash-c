@@ -363,3 +363,22 @@ void packet_sort(packet_t p)
   if(!keys) return;
   qsort_r(p->js,keys,sizeof(unsigned short)*4,p->json,pkeycmp);
 }
+
+int packet_cmp(packet_t a, packet_t b)
+{
+  int i = 0;
+  char *str;
+  if(!a || !b) return -1;
+  if(a->body_len != b->body_len) return -1;
+  if(packet_keys(a) != packet_keys(b)) return -1;
+
+  packet_sort(a);
+  packet_sort(b);
+  while((str = packet_get_istr(a,i)))
+  {
+    if(strcmp(str,packet_get_istr(b,i)) != 0) return -1;
+    i++;
+  }
+
+  return memcmp(a->body,b->body,a->body_len);
+}

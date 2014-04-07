@@ -83,11 +83,15 @@ int main(void)
       else {
         if(util_cmp(c->type,"connect") == 0) ext_connect(c);
         if(util_cmp(c->type,"thtp") == 0) ext_thtp(c);
-        if(util_cmp(c->type,"chat") == 0) ext_chat(c);
         if(util_cmp(c->type,"link") == 0) ext_link(c);
         if(util_cmp(c->type,"seek") == 0) ext_link(c);
         if(util_cmp(c->type,"path") == 0) ext_path(c);
         if(util_cmp(c->type,"peer") == 0) ext_peer(c);
+        if(util_cmp(c->type,"chat") == 0 && ext_chat(c)) while((p = chat_pop(chat)))
+        {
+          printf("chat %s from %s: %s\n",packet_get_str(p,"type"),packet_get_str(p,"from"),packet_get_str(p,"text"));
+          packet_free(p);
+        }
       }
 
       while((p = chan_pop(c)))
@@ -120,7 +124,7 @@ int main(void)
         packet_set_str(p,"text",nick);
         chat_join(chat,p);
         printf("joining chat %s %s %s\n",chat->id,packet_get_str(p,"id"),chat->rhash);
-      }else{
+      }else if(strlen(buf)){
         // default send as message
         p = chat_message(chat);
         packet_set_str(p,"text",buf);

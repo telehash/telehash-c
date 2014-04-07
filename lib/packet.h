@@ -64,6 +64,9 @@ int packet_keys(packet_t p);
 // alpha sorts the json keys in the packet
 void packet_sort(packet_t p);
 
+// 0 to match, !0 if different, compares only top-level json and body
+int packet_cmp(packet_t a, packet_t b);
+
 // the return char* is invalidated with any _set* operation!
 char *packet_get_str(packet_t p, char *key);
 char *packet_get_istr(packet_t p, int i); // returns ["0","1","2","3"] or {"0":"1","2":"3"}
