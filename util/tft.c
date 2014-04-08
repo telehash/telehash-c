@@ -6,11 +6,28 @@
 #include <netdb.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <stdarg.h>
 
 #include "switch.h"
 #include "util.h"
 #include "ext.h"
 #include "util_unix.h"
+
+char nick[16];
+void logg(char * format, ...)
+{
+    char buffer[1024];
+    va_list args;
+    va_start (args, format);
+    vsnprintf (buffer, 1024, format, args);
+    if(strlen(buffer))
+    {
+      printf("\n%s\n%s> ", buffer, nick);      
+    }else{
+      printf("%s> ",nick);
+    }
+    va_end (args);
+}
 
 int main(void)
 {
@@ -20,7 +37,7 @@ int main(void)
   path_t in;
   chat_t chat;
   int sock, len;
-  char buf[256], nick[16];
+  char buf[256];
   const int fd = fileno(stdin);
   const int fcflags = fcntl(fd,F_GETFL);
   fcntl(fd,F_SETFL,fcflags | O_NONBLOCK);
@@ -44,7 +61,7 @@ int main(void)
     return -1;
   }
 
-  printf("loaded hashname %s\n",s->id->hexname);
+  DEBUG_PRINTF("loaded hashname %s\n",s->id->hexname);
 
   // new chat, must be after-init
   chat = chat_get(s,"tft");
@@ -53,6 +70,7 @@ int main(void)
   packet_set_str(p,"text",nick);
   chat_join(chat,p);
   printf("created chat %s %s %s\n",chat->id,packet_get_str(p,"id"),chat->rhash);
+  printf("%s> ",nick);
 
   link_hn(s, bucket_get(s->seeds, 0));
   util_sendall(s,sock);
@@ -78,7 +96,7 @@ int main(void)
         continue;
       }
 
-      printf("channel active %d %s %s\n",c->state,c->hexid,c->to->hexname);
+      DEBUG_PRINTF("channel active %d %s %s\n",c->state,c->hexid,c->to->hexname);
       if(c->handler) c->handler(c);
       else {
         if(util_cmp(c->type,"connect") == 0) ext_connect(c);
@@ -89,7 +107,14 @@ int main(void)
         if(util_cmp(c->type,"peer") == 0) ext_peer(c);
         if(util_cmp(c->type,"chat") == 0 && ext_chat(c)) while((p = chat_pop(chat)))
         {
-          printf("chat %s from %s: %s\n",packet_get_str(p,"type"),packet_get_str(p,"from"),packet_get_str(p,"text"));
+          if(util_cmp(packet_get_str(p,"type"),"state") == 0)
+          {
+            logg("%s joined",packet_get_str(p,"text"));
+          }
+          if(util_cmp(packet_get_str(p,"type"),"chat") == 0)
+          {
+            logg("%s> %s",packet_get_str(chat_participant(chat,packet_get_str(p,"from")),"text"),packet_get_str(p,"text"));
+          }
           packet_free(p);
         }
       }
@@ -112,11 +137,15 @@ int main(void)
         p = chat_message(chat);
         packet_set_str(p,"text",nick);
         chat_join(chat,p);
+        logg("");
       }else if(strcmp(buf,"/quit") == 0){
         // TODO test freeing all
         return 0;
+      }else if(strcmp(buf,"/debug") == 0){
+        platform_debugging(-1); // toggle
+        logg("");
       }else if(strncmp(buf,"/get ",5) == 0){
-        printf("get %s\n",buf+5);
+        logg("get %s\n",buf+5);
         p = chan_note(admin,NULL);
         packet_set_str(p,"uri",buf+5);
         thtp_req(s,p);
@@ -126,14 +155,16 @@ int main(void)
         p = chat_message(chat);
         packet_set_str(p,"text",nick);
         chat_join(chat,p);
-        printf("joining chat %s %s %s\n",chat->id,packet_get_str(p,"id"),chat->rhash);
+        logg("joining chat %s %s %s\n",chat->id,packet_get_str(p,"id"),chat->rhash);
       }else if(strlen(buf)){
         // default send as message
         p = chat_message(chat);
         packet_set_str(p,"text",buf);
         chat_send(chat,p);
+        logg("");
+      }else{
+        logg("");
       }
-      printf("%s> ",nick);
     }
     
     util_sendall(s,sock);

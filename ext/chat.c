@@ -196,7 +196,7 @@ packet_t chat_pop(chat_t chat)
   return msg;
 }
 
-// updates/saves current stored state, consumes join packet
+// updates current stored state to notify app of changes
 void chat_restate(chat_t chat, char *hn)
 {
   char *id;

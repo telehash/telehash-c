@@ -85,7 +85,7 @@ void util_sendall(switch_t s, int sock)
       packet_free(p);
       continue;
     }
-    printf("<<< %s packet %d %s\n",p->json_len?"open":"line",packet_len(p),path_json(p->out));
+    DEBUG_PRINTF("<<< %s packet %d %s",p->json_len?"open":"line",packet_len(p),path_json(p->out));
     path2sa(p->out, &sa);
     if(sendto(sock, packet_raw(p), packet_len(p), 0, (struct sockaddr *)&sa, sizeof(sa))==-1) printf("sendto failed\n");
     packet_free(p);
@@ -108,7 +108,7 @@ int util_readone(switch_t s, int sock, path_t in)
 
   sa2path(&sa,in); // inits ip/port from sa
   p = packet_parse(buf,len);
-  printf(">>> %s packet %d %s\n", p->json_len?"open":"line", len, path_json(in));
+  DEBUG_PRINTF(">>> %s packet %d %s", p->json_len?"open":"line", len, path_json(in));
   switch_receive(s,p,in);
   return 0;
 }

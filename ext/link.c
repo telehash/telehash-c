@@ -93,9 +93,11 @@ void ext_link(chan_t c)
   packet_t p;
   while((p = chan_pop(c)))
   {
-    printf("link packet %.*s\n", p->json_len, p->json);      
+    DEBUG_PRINTF("TODO link packet %.*s\n", p->json_len, p->json);      
     packet_free(p);
   }
+  // always respond/ack
+  chan_send(c,chan_packet(c));
 }
 
 void ext_seek(chan_t c)

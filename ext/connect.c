@@ -11,7 +11,7 @@ void ext_connect(chan_t c)
     DEBUG_PRINTF("paths %s",packet_get_str(p,"paths"));
     hn = hn_fromjson(c->s->index,p);
     packet_free(p);
-    printf("connect HN %s\n",hn?hn->hexname:"null");
+    DEBUG_PRINTF("connect HN %s\n",hn?hn->hexname:"null");
     if(!hn) continue;
     switch_open(c->s, hn, NULL);
   }
