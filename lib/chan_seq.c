@@ -36,7 +36,7 @@ packet_t chan_seq_ack(chan_t c, packet_t p)
 
   // determine if we need to ack
   if(!s->nextin) return p;
-  if(!p && s->acked == s->nextin-1) return NULL;
+  if(!p && s->acked && s->acked == s->nextin-1) return NULL;
 
   if(!p) p = chan_packet(c); // ack-only packet
   s->acked = s->nextin-1;

@@ -26,7 +26,7 @@ void chan_reset(switch_t s, hn_t to)
 
 chan_t chan_reliable(chan_t c, int window)
 {
-  if(!c || !window || c->state != STARTING) return c;
+  if(!c || !window || c->state != STARTING || c->reliable) return c;
   c->reliable = window;
   chan_seq_init(c);
   chan_miss_init(c);
@@ -267,6 +267,7 @@ void chan_send(chan_t c, packet_t p)
 {
   if(!p) return;
   if(!c) return (void)packet_free(p);
+  DEBUG_PRINTF("channel out %d %.*s",c->id,p->json_len,p->json);
   if(c->reliable) p = packet_copy(p); // miss tracks the original p = chan_packet()
   switch_send(c->s,p);
 }
@@ -274,6 +275,10 @@ void chan_send(chan_t c, packet_t p)
 // optionally sends reliable channel ack-only if needed
 void chan_ack(chan_t c)
 {
+  packet_t p;
   if(!c || !c->reliable) return;
-  switch_send(c->s,chan_seq_ack(c,NULL));  
+  p = chan_seq_ack(c,NULL);
+  if(!p) return;
+  DEBUG_PRINTF("channel ack %d %.*s",c->id,p->json_len,p->json);
+  switch_send(c->s,p);
 }

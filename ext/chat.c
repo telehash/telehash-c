@@ -168,7 +168,7 @@ packet_t chat_message(chat_t chat)
   sprintf(id+8,",%d",chat->seq);
   chat->seq--;
   packet_set_str(p,"id",id);
-  packet_set_str(p,"type","message");
+  packet_set_str(p,"type","chat");
   if(chat->after) packet_set_str(p,"after",chat->after);
   if(at > 1396184861) packet_set_int(p,"at",at); // only if platform_seconds() is epoch
   return p;
@@ -481,20 +481,21 @@ chat_t ext_chat(chan_t c)
     r->online = 1;
     xht_set(chat->conn,c->to->hexname,c);
 
-    // add to roster if given
-    if(id) chat_add(chat,c->to->hexname,id);
-    
-    // re-fetch roster if hashes don't match
-    if(util_cmp(packet_get_str(p,"roster"),chat->rhash) != 0) chat_cache(chat,chat->origin->hexname,NULL);
-
-    // respond
+    // response
     p = chan_packet(c);
     if(chat->join)
     {
       r->joined = 1;
       packet_set_str(p,"from",chat->join);
     }
+
+    // add to roster if given
+    if(id) chat_add(chat,c->to->hexname,id);
     packet_set_str(p,"roster",chat->rhash);
+    
+    // re-fetch roster if hashes don't match
+    if(util_cmp(packet_get_str(p,"roster"),chat->rhash) != 0) chat_cache(chat,chat->origin->hexname,NULL);
+
     chan_send(c,p);
   }
   

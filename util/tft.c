@@ -109,6 +109,9 @@ int main(void)
       if(strncmp(buf,"/nick ",6) == 0)
       {
         snprintf(nick,16,"%s",buf+6);
+        p = chat_message(chat);
+        packet_set_str(p,"text",nick);
+        chat_join(chat,p);
       }else if(strcmp(buf,"/quit") == 0){
         // TODO test freeing all
         return 0;
