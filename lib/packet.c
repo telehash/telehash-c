@@ -192,7 +192,7 @@ void packet_set(packet_t p, char *key, char *val, int vlen)
       eval--;
       evlen += 2;
     }
-    memmove(eval+vlen,eval+evlen,vlen);
+    memmove(eval+vlen,eval+evlen,(json+p->json_len) - (eval+evlen)); // frowney face
     memcpy(eval,val,vlen);
     len = p->json_len - evlen;
     len += vlen;
