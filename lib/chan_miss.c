@@ -27,15 +27,15 @@ void chan_miss_free(chan_t c)
 }
 
 // 1 when full, backpressure
-int chan_miss_track(chan_t c, int id, packet_t p)
+int chan_miss_track(chan_t c, uint32_t seq, packet_t p)
 {
   miss_t m = (miss_t)c->miss;
-  if(id - m->nextack > c->reliable - 1)
+  if(seq - m->nextack > (uint32_t)(c->reliable - 1))
   {
     packet_free(p);
     return 1;
   }
-  m->out[id - m->nextack] = p;
+  m->out[seq - m->nextack] = p;
   return 0;
 }
 

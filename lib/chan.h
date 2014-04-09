@@ -87,7 +87,7 @@ void chan_seq_init(chan_t c);
 void chan_seq_free(chan_t c);
 
 // tracks packet for outgoing, eventually free's it, 0 ok or 1 for full/backpressure
-int chan_miss_track(chan_t c, int id, packet_t p);
+int chan_miss_track(chan_t c, uint32_t seq, packet_t p);
 
 // buffers packets to be able to re-send
 void chan_miss_send(chan_t c, packet_t p);
