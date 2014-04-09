@@ -5,6 +5,8 @@
 #include "crypt.h"
 #include "util.h"
 
+char *crypt_supported;
+
 int crypt_init()
 {
   int ret = -1;
