@@ -1,6 +1,7 @@
 #include "hn.h"
 #include <string.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include "packet.h"
 #include "crypt.h"
 #include "util.h"
