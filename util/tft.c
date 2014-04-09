@@ -29,7 +29,7 @@ void logg(char * format, ...)
     va_end (args);
 }
 
-int main(void)
+int main(int argc, char *argv[])
 {
   switch_t s;
   chan_t c, admin;
@@ -41,6 +41,8 @@ int main(void)
   const int fd = fileno(stdin);
   const int fcflags = fcntl(fd,F_GETFL);
   fcntl(fd,F_SETFL,fcflags | O_NONBLOCK);
+
+  if(argc > 1) platform_debugging(1);
 
   crypt_init();
   s = switch_new();
