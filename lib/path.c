@@ -47,17 +47,15 @@ char *path_id(path_t p, char *id)
 {
   if(!id) return p->id;
   if(p->id) free(p->id);
-  p->id = strdup(id);
+  p->id = malloc(strlen(id)+1);
+  memcpy(p->id,id,strlen(id)+1);
   return p->id;
 }
 
 // overloads our .id for the http value
 char *path_http(path_t p, char *http)
 {
-  if(!http) return p->id;
-  if(p->id) free(p->id);
-  p->id = strdup(http);
-  return p->id;
+  return path_id(p,http);
 }
 
 char *path_ip(path_t p, char *ip)

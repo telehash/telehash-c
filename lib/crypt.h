@@ -13,7 +13,7 @@ typedef struct crypt_struct
   void *cs; // for CS usage
 } *crypt_t;
 
-char *crypt_supported;
+static char *crypt_supported;
 
 // these functions are all independent of CS, implemented in crypt.c
 

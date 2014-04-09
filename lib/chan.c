@@ -58,7 +58,8 @@ chan_t chan_new(switch_t s, hn_t to, char *type, uint32_t id)
   DEBUG_PRINTF("channel new %d %s",id,type);
   c = malloc(sizeof (struct chan_struct));
   memset(c,0,sizeof (struct chan_struct));
-  c->type = strdup(type);
+  c->type = malloc(strlen(type)+1);
+  memcpy(c->type,type,strlen(type)+1);
   c->s = s;
   c->to = to;
   c->state = STARTING;

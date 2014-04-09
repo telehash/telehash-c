@@ -46,7 +46,8 @@ int util_cmp(char *a, char *b)
 {
   if(!a || !b) return -1;
   if(a == b) return 0;
-  return strcasecmp(a,b);
+  if(strlen(a) != strlen(b)) return -1;
+  return memcmp(a,b,strlen(a));
 }
 
 static inline uint32_t rotl32(uint32_t x, int8_t r)

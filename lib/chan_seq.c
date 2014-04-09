@@ -49,7 +49,7 @@ packet_t chan_seq_ack(chan_t c, packet_t p)
   max = (c->reliable < 10) ? c->reliable : 10;
   miss = malloc(3+(max*11)); // up to X uint32,'s
   memcpy(miss,"[\0",2);
-  for(i=0;i<max;i++) if(!s->in[i]) sprintf(miss+strlen(miss),"%d,",s->nextin+i);
+  for(i=0;i<max;i++) if(!s->in[i]) sprintf(miss+strlen(miss),"%d,",(int)s->nextin+i);
   if(miss[strlen(miss)-1] == ',') miss[strlen(miss)-1] = 0;
   memcpy(miss+strlen(miss),"]\0",2);
   packet_set(p,"miss",miss,strlen(miss));
