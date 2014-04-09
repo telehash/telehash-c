@@ -1,6 +1,7 @@
 #include "bucket.h"
 #include <string.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include "packet.h"
 #include "util.h"
   
