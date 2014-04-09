@@ -45,7 +45,7 @@ hn_t hn_gethex(xht_t index, char *hex)
   return hn_get(index,bin);
 }
 
-int csidcmp(const void *a, const void *b)
+int csidcmp(void *arg, const void *a, const void *b)
 {
   if(*(char*)a == *(char*)b) return *(char*)(a+1) - *(char*)(b+1);
   return *(char*)a - *(char*)b;
@@ -73,7 +73,7 @@ hn_t hn_getparts(xht_t index, packet_t p)
   }
   
   if(!best) return NULL; // we must match at least one
-  qsort(csids,ids,2,csidcmp);
+  util_sort(csids,ids,2,csidcmp,NULL);
 
   rollup = NULL;
   ri = 0;

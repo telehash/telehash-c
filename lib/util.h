@@ -17,5 +17,8 @@ uint32_t util_mmh32(const uint8_t * data, int len);
 // hex must be 9
 char *util_murmur(const unsigned char* data, int len, char *hex);
 
+// portable sort
+void util_sort(void *base, int nel, int width, int (*comp)(void *, const void *, const void *), void *arg);
+
 
 #endif

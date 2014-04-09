@@ -117,3 +117,49 @@ char *util_murmur(const unsigned char* data, int len, char *hex)
   sprintf(hex,"%08lx",(unsigned long)hash);
   return hex;
 }
+
+// from http://git.uclibc.org/uClibc/tree/libc/stdlib/stdlib.c?id=515d54433138596e81267237542bd9168b8cc787#n789
+/* This code is derived from a public domain shell sort routine by
+ * Ray Gardner and found in Bob Stout's snippets collection. */
+
+void util_sort(void *base, int nel, int width, int (*comp)(void *, const void *, const void *), void *arg)
+{
+  int wgap, i, j, k;
+  char tmp;
+
+  if ((nel > 1) && (width > 0)) {
+    wgap = 0;
+    do {
+      wgap = 3 * wgap + 1;
+    } while (wgap < (nel-1)/3);
+    /* From the above, we know that either wgap == 1 < nel or */
+    /* ((wgap-1)/3 < (int) ((nel-1)/3) <= (nel-1)/3 ==> wgap <  nel. */
+    wgap *= width;			/* So this can not overflow if wnel doesn't. */
+    nel *= width;			/* Convert nel to 'wnel' */
+    do {
+      i = wgap;
+      do {
+        j = i;
+        do {
+          register char *a;
+          register char *b;
+
+          j -= wgap;
+          a = j + ((char *)base);
+          b = a + wgap;
+          if ((*comp)(arg, a, b) <= 0) {
+            break;
+          }
+          k = width;
+          do {
+            tmp = *a;
+            *a++ = *b;
+            *b++ = tmp;
+          } while (--k);
+        } while (j >= wgap);
+        i += width;
+      } while (i < nel);
+      wgap = (wgap - width)/3;
+    } while (wgap);
+  }
+}
