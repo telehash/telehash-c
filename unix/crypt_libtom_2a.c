@@ -112,7 +112,7 @@ int crypt_private_2a(crypt_t c, unsigned char *key, int len)
   unsigned char der[der_len];
   crypt_libtom_t cs = (crypt_libtom_t)c->cs;
   
-  if(len > der_len) return 1;
+  if(len > (int)der_len) return 1;
 
   // try to base64 decode in case that's the incoming format
   if(base64_decode(key, len, der, &der_len) != CRYPT_OK) {

@@ -40,6 +40,9 @@ typedef UINT32 uint32_t;
 extern "C" {
 #endif
 
+// namespace conflict avoidance
+#define sha1_process _sha1_process
+
 /**
  * \brief          SHA-1 context structure
  */
