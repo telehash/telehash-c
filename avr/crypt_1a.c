@@ -1,11 +1,4 @@
-#include "switch.h"
-#include "./ecc.h"
-#include "./aes.h"
-#include "./sha256.h"
-#include "./sha1.h"
-#include "./hmac.h"
-#include "./base64_enc.h"
-#include "./base64_dec.h"
+#include "avr.h"
 
 typedef struct crypt_1a_struct
 {
@@ -26,6 +19,7 @@ int RNG(uint8_t *p_dest, unsigned p_size)
 
 int crypt_init_1a()
 {
+  DEBUG_PRINTF("CS1a init");
   ecc_set_rng(&RNG);
 }
 
