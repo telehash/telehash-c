@@ -1,6 +1,7 @@
 #include "switch.h"
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include "util.h"
 
 // a prime number for the internal hashtable used to track all active hashnames/lines
@@ -17,43 +18,39 @@ switch_t switch_new()
   return s;
 }
 
-crypt_t loadkey(char csid, switch_t s, packet_t keys)
-{
-  char hex[12], *pk, *sk;
-  crypt_t c;
-  util_hex((unsigned char*)&csid,1,(unsigned char*)hex);
-  pk = packet_get_str(keys,hex);
-  DEBUG_PRINTF("*** public key %s ***",pk);
-  strcpy(hex+2,"_secret");
-  sk = packet_get_str(keys,hex);
-  DEBUG_PRINTF("*** secret key %s ***",sk);
-  if(!pk || !sk) return NULL;
-  c = crypt_new(csid, (unsigned char*)pk, strlen(pk));
-  if(!c) return NULL;
-  if(crypt_private(c, (unsigned char*)sk, strlen(sk)))
-  {
-    crypt_free(c);
-    return NULL;
-  }
-  xht_set(s->index,(const char*)c->csidHex,(void *)c);
-  packet_set_str(s->parts,c->csidHex,c->part);
-  return c;
-}
-
 int switch_init(switch_t s, packet_t keys)
 {
+  int i = 0, err = 0;
+  char *key, secret[10], csid, *pk, *sk;
+  crypt_t c;
 
-  char *csid = crypt_supported;
-  if(!keys) return 1;
-  
-  while(*csid)
+  while((key = packet_get_istr(keys,i)))
   {
-    loadkey(*csid,s,keys);
-    csid++;
+    i += 2;
+    if(strlen(key) != 2) continue;
+    util_unhex((unsigned char*)key,2,(unsigned char*)&csid);
+    sprintf(secret,"%s_secret",key);
+    pk = packet_get_str(keys,key);
+    sk = packet_get_str(keys,secret);
+    DEBUG_PRINTF("loading pk %s sk %s",pk,sk);
+    c = crypt_new(csid, (unsigned char*)pk, strlen(pk));
+    if(crypt_private(c, (unsigned char*)sk, strlen(sk)))
+    {
+      err = 1;
+      crypt_free(c);
+      continue;
+    }
+    DEBUG_PRINTF("loaded %s",key);
+    xht_set(s->index,(const char*)c->csidHex,(void *)c);
+    packet_set_str(s->parts,c->csidHex,c->part);
   }
   
   packet_free(keys);
-  if(!s->parts->json) return 1;
+  if(err || !s->parts->json)
+  {
+    DEBUG_PRINTF("key loading failed");
+    return 1;
+  }
   s->id = hn_getparts(s->index, s->parts);
   if(!s->id) return 1;
   return 0;
