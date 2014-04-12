@@ -1,7 +1,5 @@
-#ifndef util_h
-#define util_h
-
-#define CS_1a 1
+#ifndef avr_h
+#define avr_h
 
 #include "./platform.h"
 #include <switch.h>
