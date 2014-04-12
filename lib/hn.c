@@ -40,8 +40,10 @@ hn_t hn_get(xht_t index, unsigned char *bin)
 
 hn_t hn_gethex(xht_t index, char *hex)
 {
+  hn_t hn;
   unsigned char bin[32];
   if(!hex || strlen(hex) < 64) return NULL;
+  if((hn = xht_get(index,hex))) return hn;
   util_unhex((unsigned char*)hex,64,bin);
   return hn_get(index,bin);
 }
