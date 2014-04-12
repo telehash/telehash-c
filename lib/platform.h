@@ -10,10 +10,10 @@ unsigned short platform_short(unsigned short x);
 void platform_debugging(int enabled);
 void platform_debug(char * format, ...);
 
-#ifdef DEBUG
-#define DEBUG_PRINTF platform_debug
-#else
+#ifdef NODEBUG
 #define DEBUG_PRINTF(...)
+#else
+#define DEBUG_PRINTF platform_debug
 #endif
 
   

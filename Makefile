@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS+=-g -Wall -Wextra -Wno-unused-parameter -DDEBUG
+CFLAGS+=-g -Wall -Wextra -Wno-unused-parameter
 INCLUDE+=-Iunix -Ilib -Iext
 CS2a = -ltomcrypt -ltommath -DLTM_DESC -DCS_2a unix/crypt_libtom*.c
 JSON = ../js0n/js0n.c ../js0n/j0g.c -I../js0n
