@@ -1,4 +1,4 @@
-#include "./sha256.h"
+#include "avr.h"
 
 unsigned char *crypt_rand(unsigned char *s, int len)
 {
@@ -13,7 +13,7 @@ unsigned char *crypt_rand(unsigned char *s, int len)
 
 unsigned char *crypt_hash(unsigned char *input, unsigned long len, unsigned char *output)
 {
-  sha256((uint8_t (*)[32])output,input,len);
+  sha256((uint8_t (*)[32])output,input,len*8);
   return output;
 }
 

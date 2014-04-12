@@ -44,7 +44,7 @@ int crypt_new_1a(crypt_t c, unsigned char *key, int len)
   }
   
   // generate fingerprint
-  sha1(hash,cs->id_public,ECC_BYTES*2);
+  sha1(hash,cs->id_public,ECC_BYTES*2*8);
 
   // create line ephemeral key
   ecc_make_key(cs->line_public, cs->line_private);
@@ -119,7 +119,7 @@ packet_t crypt_lineize_1a(crypt_t c, packet_t p)
   aes_setkey_enc(&ctx,cs->keyOut,16);
   aes_crypt_ctr(&ctx,packet_len(p),&off,iv,block,packet_raw(p),line->body+16+4+4);
 
-  hmac_sha1(hmac,cs->keyOut,16,line->body+16+4,4+packet_len(p));
+  hmac_sha1(hmac,cs->keyOut,16*8,line->body+16+4,(4+packet_len(p))*8);
   memcpy(line->body+16,hmac,4);
 
   return line;
@@ -139,7 +139,7 @@ packet_t crypt_delineize_1a(crypt_t c, packet_t p)
   aes_setkey_dec(&ctx,cs->keyIn,16);
   aes_crypt_ctr(&ctx,p->body_len-(16+4+4),&off,iv,block,p->body+16+4+4,p->body+16+4+4);
 
-  hmac_sha1(hmac,cs->keyIn,16,p->body+16+4,p->body_len-(16+4));
+  hmac_sha1(hmac,cs->keyIn,16*8,p->body+16+4,(p->body_len-(16+4))*8);
   if(memcmp(hmac,p->body+16,4) != 0) return packet_free(p);
 
   line = packet_parse(p->body+16+4+4, p->body_len-(16+4+4));
@@ -166,12 +166,12 @@ int crypt_line_1a(crypt_t c, packet_t inner)
   memcpy(input,secret,16);
   memcpy(input+16,c->lineOut,16);
   memcpy(input+32,c->lineIn,16);
-  sha1(hash,input,16+16+16);
+  sha1(hash,input,(16+16+16)*8);
   memcpy(cs->keyOut,hash,16);
 
   memcpy(input+16,c->lineIn,16);
   memcpy(input+32,c->lineOut,16);
-  sha1(hash,input,16+16+16);
+  sha1(hash,input,(16+16+16)*8);
   memcpy(cs->keyIn,hash,16);
 
   return 0;
@@ -206,7 +206,7 @@ packet_t crypt_openize_1a(crypt_t self, crypt_t c, packet_t inner)
 
   // generate secret for hmac
   if(!ecdh_shared_secret(cs->id_public, scs->line_private, secret)) return packet_free(open);
-  hmac_sha1(open->body,secret,16,open->body+20,40+inner_len);
+  hmac_sha1(open->body,secret,16*8,open->body+20,(40+inner_len)*8);
 
   return open;
 }
@@ -242,7 +242,7 @@ packet_t crypt_deopenize_1a(crypt_t self, packet_t open)
   if(!ecdh_shared_secret(inner->body, cs->id_private, secret)) return packet_free(inner);
 
   // verify
-  hmac_sha1(hmac,secret,16,open->body+20,open->body_len-20);
+  hmac_sha1(hmac,secret,16*8,open->body+20,(open->body_len-20)*8);
   if(memcmp(hmac,open->body,20) != 0) return packet_free(inner);
 
   // stash the hex line key w/ the inner
