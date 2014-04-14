@@ -1,6 +1,7 @@
 #ifndef path_h
 #define path_h
 
+#include <stdint.h>
 
 typedef struct path_struct
 {
@@ -8,7 +9,7 @@ typedef struct path_struct
   unsigned char *json;
   char *id;
   char ip[46];
-  int port;
+  uint16_t port;
   unsigned long atIn, atOut;
 } *path_t;
 
@@ -24,8 +25,9 @@ unsigned char *path_json(path_t p);
 // these set and/or return path values
 char *path_id(path_t p, char *id);
 char *path_ip(path_t p, char *ip);
+char *path_ip4(path_t p, uint32_t ip);
 char *path_http(path_t p, char *http);
-int path_port(path_t p, int port);
+uint16_t path_port(path_t p, uint16_t port);
 
 // inits ip/port from .sa
 void path_sa(path_t p);

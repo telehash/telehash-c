@@ -36,7 +36,7 @@ path_t path_parse(unsigned char *json, int len)
 
   // just try to set all possible attributes
   path_ip(p, j0g_str("ip",(char*)json,js));
-  if(j0g_val("port",(char*)json,js)) path_port(p, atoi(j0g_str("port",(char*)json,js)));
+  path_port(p, (uint16_t)strtol(j0g_str("port",(char*)json,js),NULL,10));
   path_id(p, j0g_str("id",(char*)json,js));
   path_http(p, j0g_str("http",(char*)json,js));
   
@@ -66,9 +66,17 @@ char *path_ip(path_t p, char *ip)
   return p->ip;
 }
 
-int path_port(path_t p, int port)
+char *path_ip4(path_t p, uint32_t ip)
 {
-  if(port > 0 && port <= 65535) p->port = port;
+  uint8_t *ip4 = (uint8_t*)&ip;
+  if(!ip) return p->ip;
+  sprintf(p->ip,"%d.%d.%d.%d",ip4[0],ip4[1],ip4[2],ip4[3]);
+  return p->ip;
+}
+
+uint16_t path_port(path_t p, uint16_t port)
+{
+  if(port) p->port = port;
   return p->port;
 }
 
@@ -91,7 +99,7 @@ unsigned char *path_json(path_t p)
   if(strstr("ipv4 ipv6", p->type))
   {
     if(*p->ip) sprintf(json+strlen(json), ",\"ip\":\"%s\"", p->ip);
-    if(p->port) sprintf(json+strlen(json), ",\"port\":%d", p->port);
+    if(p->port) sprintf(json+strlen(json), ",\"port\":%hu", p->port);
   }
   if(p->id)
   {
