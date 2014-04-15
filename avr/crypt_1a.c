@@ -206,7 +206,7 @@ packet_t crypt_openize_1a(crypt_t self, crypt_t c, packet_t inner)
 
   // generate secret for hmac
   if(!uECC_shared_secret(cs->id_public, scs->id_private, secret)) return packet_free(open);
-  hmac_sha1(open->body,secret,16*8,open->body+20,(40+inner_len)*8);
+  hmac_sha1(open->body,secret,uECC_BYTES*8,open->body+20,(40+inner_len)*8);
 
   return open;
 }
