@@ -152,7 +152,7 @@ void switch_open(switch_t s, hn_t to, path_t direct)
   packet_set_str(inner,"to",to->hexname);
   packet_set(inner,"from",(char*)s->parts->json,s->parts->json_len);
   open = crypt_openize((crypt_t)xht_get(s->index,to->c->csidHex), to->c, inner);
-  DEBUG_PRINTF("opening to %s %d %d %d %s",to->hexname,packet_len(open),xht_get(s->index,to->c->csidHex),to->c,to->c->csidHex);
+  DEBUG_PRINTF("opening to %s %hu %d %d %s",to->hexname,packet_len(open),xht_get(s->index,to->c->csidHex),to->c,to->c->csidHex);
   if(!open) return;
   open->to = to;
   if(direct) open->out = direct;
