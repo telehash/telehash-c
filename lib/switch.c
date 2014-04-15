@@ -121,7 +121,6 @@ void switch_sendingQ(switch_t s, packet_t p)
     }
   }
 
-  DEBUG_PRINTF("SENDQ");
   // update stats
   p->out->atOut = platform_seconds();
 
