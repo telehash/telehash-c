@@ -26,7 +26,7 @@ int crypt_init_1a()
 
 int crypt_new_1a(crypt_t c, unsigned char *key, int len)
 {
-  unsigned char hash[SHA1_HASH_BYTES];
+  unsigned char hash[20];
   crypt_1a_t cs;
   
   if(!key || len <= 0) return 1;
@@ -50,11 +50,11 @@ int crypt_new_1a(crypt_t c, unsigned char *key, int len)
   uECC_make_key(cs->line_public, cs->line_private);
 
   // alloc/copy in the public values (free'd by crypt_free)  
-  c->part = malloc(SHA1_HASH_BYTES*2+1);
+  c->part = malloc(20*2+1);
   c->keylen = uECC_BYTES*2;
   c->key = malloc(c->keylen);
   memcpy(c->key,cs->id_public,uECC_BYTES*2);
-  util_hex(hash,SHA1_HASH_BYTES,(unsigned char*)c->part);
+  util_hex(hash,20,(unsigned char*)c->part);
 
   return 0;
 }
@@ -104,7 +104,7 @@ packet_t crypt_lineize_1a(crypt_t c, packet_t p)
 {
   packet_t line;
   aes_context ctx;
-  unsigned char iv[16], block[16], hmac[HMAC_SHA1_BYTES];
+  unsigned char iv[16], block[16], hmac[20];
   size_t off = 0;
   crypt_1a_t cs = (crypt_1a_t)c->cs;
 
@@ -116,7 +116,7 @@ packet_t crypt_lineize_1a(crypt_t c, packet_t p)
   memcpy(iv+12,&(cs->seq),4);
   cs->seq++;
 
-  aes_setkey_enc(&ctx,cs->keyOut,16);
+  aes_setkey_enc(&ctx,cs->keyOut,128);
   aes_crypt_ctr(&ctx,packet_len(p),&off,iv,block,packet_raw(p),line->body+16+4+4);
 
   hmac_sha1(hmac,cs->keyOut,16*8,line->body+16+4,(4+packet_len(p))*8);
@@ -129,14 +129,14 @@ packet_t crypt_delineize_1a(crypt_t c, packet_t p)
 {
   packet_t line;
   aes_context ctx;
-  unsigned char block[16], iv[16], hmac[HMAC_SHA1_BYTES];
+  unsigned char block[16], iv[16], hmac[20];
   size_t off = 0;
   crypt_1a_t cs = (crypt_1a_t)c->cs;
 
   memset(iv,0,16);
   memcpy(iv+12,p->body+16+4,4);
 
-  aes_setkey_dec(&ctx,cs->keyIn,16);
+  aes_setkey_enc(&ctx,cs->keyIn,128);
   aes_crypt_ctr(&ctx,p->body_len-(16+4+4),&off,iv,block,p->body+16+4+4,p->body+16+4+4);
 
   hmac_sha1(hmac,cs->keyIn,16*8,p->body+16+4,(p->body_len-(16+4))*8);
@@ -150,7 +150,7 @@ packet_t crypt_delineize_1a(crypt_t c, packet_t p)
 // makes sure all the crypto line state is set up, and creates line keys if exist
 int crypt_line_1a(crypt_t c, packet_t inner)
 {
-  unsigned char line_public[uECC_BYTES*2], secret[uECC_BYTES], input[16+16+16], hash[SHA1_HASH_BYTES];
+  unsigned char line_public[uECC_BYTES*2], secret[uECC_BYTES], input[uECC_BYTES+16+16], hash[20];
   char *hecc;
   crypt_1a_t cs;
   
@@ -163,15 +163,15 @@ int crypt_line_1a(crypt_t c, packet_t inner)
   if(!uECC_shared_secret(line_public, cs->line_private, secret)) return 1;
 
   // make line keys!
-  memcpy(input,secret,16);
-  memcpy(input+16,c->lineOut,16);
-  memcpy(input+32,c->lineIn,16);
-  sha1(hash,input,(16+16+16)*8);
+  memcpy(input,secret,uECC_BYTES);
+  memcpy(input+uECC_BYTES,c->lineOut,16);
+  memcpy(input+uECC_BYTES+16,c->lineIn,16);
+  sha1(hash,input,(uECC_BYTES+16+16)*8);
   memcpy(cs->keyOut,hash,16);
 
-  memcpy(input+16,c->lineIn,16);
-  memcpy(input+32,c->lineOut,16);
-  sha1(hash,input,(16+16+16)*8);
+  memcpy(input+uECC_BYTES,c->lineIn,16);
+  memcpy(input+uECC_BYTES+16,c->lineOut,16);
+  sha1(hash,input,(uECC_BYTES+16+16)*8);
   memcpy(cs->keyIn,hash,16);
 
   return 0;
@@ -193,7 +193,7 @@ packet_t crypt_openize_1a(crypt_t self, crypt_t c, packet_t inner)
   packet_body(open,NULL,20+40+inner_len);
 
   // copy in the line public key
-  memcpy(open->body+20, cs->id_public, 40);
+  memcpy(open->body+20, cs->line_public, 40);
 
   // get the shared secret to create the iv+key for the open aes
   if(!uECC_shared_secret(cs->id_public, cs->line_private, secret)) return packet_free(open);
@@ -201,11 +201,11 @@ packet_t crypt_openize_1a(crypt_t self, crypt_t c, packet_t inner)
   iv[15] = 1;
 
   // encrypt the inner
-  aes_setkey_enc(&ctx,secret,16);
+  aes_setkey_enc(&ctx,secret,128);
   aes_crypt_ctr(&ctx,inner_len,&off,iv,block,packet_raw(inner),open->body+20+40);
 
   // generate secret for hmac
-  if(!uECC_shared_secret(cs->id_public, scs->line_private, secret)) return packet_free(open);
+  if(!uECC_shared_secret(cs->id_public, scs->id_private, secret)) return packet_free(open);
   hmac_sha1(open->body,secret,16*8,open->body+20,(40+inner_len)*8);
 
   return open;
@@ -213,7 +213,7 @@ packet_t crypt_openize_1a(crypt_t self, crypt_t c, packet_t inner)
 
 packet_t crypt_deopenize_1a(crypt_t self, packet_t open)
 {
-  unsigned char secret[uECC_BYTES], iv[16], block[16], b64[uECC_BYTES*2*2], hmac[HMAC_SHA1_BYTES];
+  unsigned char secret[uECC_BYTES], iv[16], block[16], b64[uECC_BYTES*2*2], hmac[20];
   aes_context ctx;
   packet_t inner, tmp;
   size_t off = 0;
@@ -229,7 +229,7 @@ packet_t crypt_deopenize_1a(crypt_t self, packet_t open)
   iv[15] = 1;
 
   // decrypt the inner
-  aes_setkey_dec(&ctx,secret,16);
+  aes_setkey_enc(&ctx,secret,128); // tricky, must use _enc to decrypt here
   aes_crypt_ctr(&ctx,inner->body_len,&off,iv,block,open->body+20+40,inner->body);
 
   // load inner packet
@@ -242,7 +242,7 @@ packet_t crypt_deopenize_1a(crypt_t self, packet_t open)
   if(!uECC_shared_secret(inner->body, cs->id_private, secret)) return packet_free(inner);
 
   // verify
-  hmac_sha1(hmac,secret,16*8,open->body+20,(open->body_len-20)*8);
+  hmac_sha1(hmac,secret,uECC_BYTES*8,open->body+20,(open->body_len-20)*8);
   if(memcmp(hmac,open->body,20) != 0) return packet_free(inner);
 
   // stash the hex line key w/ the inner
