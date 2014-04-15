@@ -2,7 +2,7 @@
 
 typedef struct crypt_1a_struct
 {
-  uint8_t id_private[ECC_BYTES], id_public[ECC_BYTES *2], line_private[ECC_BYTES], line_public[ECC_BYTES *2];
+  uint8_t id_private[uECC_BYTES], id_public[uECC_BYTES *2], line_private[uECC_BYTES], line_public[uECC_BYTES *2];
   uint32_t seq;
   unsigned char keyOut[16], keyIn[16];
 } *crypt_1a_t;
@@ -20,7 +20,7 @@ int RNG(uint8_t *p_dest, unsigned p_size)
 int crypt_init_1a()
 {
   DEBUG_PRINTF("CS1a init");
-  ecc_set_rng(&RNG);
+  uECC_set_rng(&RNG);
   return 0;
 }
 
@@ -35,25 +35,25 @@ int crypt_new_1a(crypt_t c, unsigned char *key, int len)
   memset(c->cs, 0, sizeof (struct crypt_1a_struct));
   cs = (crypt_1a_t)c->cs;
 
-  if(len == ECC_BYTES*2)
+  if(len == uECC_BYTES*2)
   {
-    memcpy(cs->id_public,key,ECC_BYTES*2);
+    memcpy(cs->id_public,key,uECC_BYTES*2);
   }else{
     // try to base64 decode in case that's the incoming format
-    if(key[len] != 0 || base64_binlength((char*)key,0) != ECC_BYTES*2 || base64dec(cs->id_public,(char*)key,0)) return -1;
+    if(key[len] != 0 || base64_binlength((char*)key,0) != uECC_BYTES*2 || base64dec(cs->id_public,(char*)key,0)) return -1;
   }
   
   // generate fingerprint
-  sha1(hash,cs->id_public,ECC_BYTES*2*8);
+  sha1(hash,cs->id_public,uECC_BYTES*2*8);
 
   // create line ephemeral key
-  ecc_make_key(cs->line_public, cs->line_private);
+  uECC_make_key(cs->line_public, cs->line_private);
 
   // alloc/copy in the public values (free'd by crypt_free)  
   c->part = malloc(SHA1_HASH_BYTES*2+1);
-  c->keylen = ECC_BYTES*2;
+  c->keylen = uECC_BYTES*2;
   c->key = malloc(c->keylen);
-  memcpy(c->key,cs->id_public,ECC_BYTES*2);
+  memcpy(c->key,cs->id_public,uECC_BYTES*2);
   util_hex(hash,SHA1_HASH_BYTES,(unsigned char*)c->part);
 
   return 0;
@@ -67,16 +67,16 @@ void crypt_free_1a(crypt_t c)
 
 int crypt_keygen_1a(packet_t p)
 {
-  char b64[ECC_BYTES*4];
-  uint8_t id_private[ECC_BYTES], id_public[ECC_BYTES*2];
+  char b64[uECC_BYTES*4];
+  uint8_t id_private[uECC_BYTES], id_public[uECC_BYTES*2];
 
   // create line ephemeral key
-  ecc_make_key(id_public, id_private);
+  uECC_make_key(id_public, id_private);
 
-  base64enc(b64,id_public,ECC_BYTES*2);
+  base64enc(b64,id_public,uECC_BYTES*2);
   packet_set_str(p,"1a",b64);
 
-  base64enc(b64,id_private,ECC_BYTES);
+  base64enc(b64,id_private,uECC_BYTES);
   packet_set_str(p,"1a_secret",b64);
 
   return 0;
@@ -88,12 +88,12 @@ int crypt_private_1a(crypt_t c, unsigned char *key, int len)
   
   if(!key || len <= 0) return 1;
 
-  if(len == ECC_BYTES)
+  if(len == uECC_BYTES)
   {
-    memcpy(cs->id_private,key,ECC_BYTES);
+    memcpy(cs->id_private,key,uECC_BYTES);
   }else{
     // try to base64 decode in case that's the incoming format
-    if(key[len] != 0 || base64_binlength((char*)key,0) != ECC_BYTES || base64dec(cs->id_private,(char*)key,0)) return -1;
+    if(key[len] != 0 || base64_binlength((char*)key,0) != uECC_BYTES || base64dec(cs->id_private,(char*)key,0)) return -1;
   }
 
   c->isprivate = 1;
@@ -150,17 +150,17 @@ packet_t crypt_delineize_1a(crypt_t c, packet_t p)
 // makes sure all the crypto line state is set up, and creates line keys if exist
 int crypt_line_1a(crypt_t c, packet_t inner)
 {
-  unsigned char line_public[ECC_BYTES*2], secret[ECC_BYTES], input[16+16+16], hash[SHA1_HASH_BYTES];
+  unsigned char line_public[uECC_BYTES*2], secret[uECC_BYTES], input[16+16+16], hash[SHA1_HASH_BYTES];
   char *hecc;
   crypt_1a_t cs;
   
   cs = (crypt_1a_t)c->cs;
   hecc = packet_get_str(inner,"ecc"); // it's where we stashed it
-  if(!hecc || strlen(hecc) != ECC_BYTES*4) return 1;
+  if(!hecc || strlen(hecc) != uECC_BYTES*4) return 1;
 
   // do the diffie hellman
-  util_unhex((unsigned char*)hecc,ECC_BYTES*4,line_public);
-  if(!ecdh_shared_secret(line_public, cs->line_private, secret)) return 1;
+  util_unhex((unsigned char*)hecc,uECC_BYTES*4,line_public);
+  if(!uECC_shared_secret(line_public, cs->line_private, secret)) return 1;
 
   // make line keys!
   memcpy(input,secret,16);
@@ -180,7 +180,7 @@ int crypt_line_1a(crypt_t c, packet_t inner)
 // create a new open packet
 packet_t crypt_openize_1a(crypt_t self, crypt_t c, packet_t inner)
 {
-  unsigned char secret[ECC_BYTES], iv[16], block[16];
+  unsigned char secret[uECC_BYTES], iv[16], block[16];
   packet_t open;
   aes_context ctx;
   int inner_len;
@@ -196,7 +196,7 @@ packet_t crypt_openize_1a(crypt_t self, crypt_t c, packet_t inner)
   memcpy(open->body+20, cs->id_public, 40);
 
   // get the shared secret to create the iv+key for the open aes
-  if(!ecdh_shared_secret(cs->id_public, cs->line_private, secret)) return packet_free(open);
+  if(!uECC_shared_secret(cs->id_public, cs->line_private, secret)) return packet_free(open);
   memset(iv,0,16);
   iv[15] = 1;
 
@@ -205,7 +205,7 @@ packet_t crypt_openize_1a(crypt_t self, crypt_t c, packet_t inner)
   aes_crypt_ctr(&ctx,inner_len,&off,iv,block,packet_raw(inner),open->body+20+40);
 
   // generate secret for hmac
-  if(!ecdh_shared_secret(cs->id_public, scs->line_private, secret)) return packet_free(open);
+  if(!uECC_shared_secret(cs->id_public, scs->line_private, secret)) return packet_free(open);
   hmac_sha1(open->body,secret,16*8,open->body+20,(40+inner_len)*8);
 
   return open;
@@ -213,7 +213,7 @@ packet_t crypt_openize_1a(crypt_t self, crypt_t c, packet_t inner)
 
 packet_t crypt_deopenize_1a(crypt_t self, packet_t open)
 {
-  unsigned char secret[ECC_BYTES], iv[16], block[16], b64[ECC_BYTES*2*2], hmac[HMAC_SHA1_BYTES];
+  unsigned char secret[uECC_BYTES], iv[16], block[16], b64[uECC_BYTES*2*2], hmac[HMAC_SHA1_BYTES];
   aes_context ctx;
   packet_t inner, tmp;
   size_t off = 0;
@@ -224,7 +224,7 @@ packet_t crypt_deopenize_1a(crypt_t self, packet_t open)
   packet_body(inner,NULL,open->body_len-(20+40));
 
   // get the shared secret to create the iv+key for the open aes
-  if(!ecdh_shared_secret(open->body+20, cs->id_private, secret)) return packet_free(inner);
+  if(!uECC_shared_secret(open->body+20, cs->id_private, secret)) return packet_free(inner);
   memset(iv,0,16);
   iv[15] = 1;
 
@@ -238,8 +238,8 @@ packet_t crypt_deopenize_1a(crypt_t self, packet_t open)
   inner = tmp;
 
   // generate secret for hmac
-  if(inner->body_len != ECC_BYTES*2) return packet_free(inner);
-  if(!ecdh_shared_secret(inner->body, cs->id_private, secret)) return packet_free(inner);
+  if(inner->body_len != uECC_BYTES*2) return packet_free(inner);
+  if(!uECC_shared_secret(inner->body, cs->id_private, secret)) return packet_free(inner);
 
   // verify
   hmac_sha1(hmac,secret,16*8,open->body+20,(open->body_len-20)*8);

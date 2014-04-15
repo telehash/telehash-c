@@ -3,7 +3,7 @@
 
 #include "./platform.h"
 #include <switch.h>
-#include <ecc.h>
+#include "./uECC.h"
 #include "./aes.h"
 #include "./sha256.h"
 #include "./sha1.h"
