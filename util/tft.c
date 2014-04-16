@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
   if(argc > 1) platform_debugging(1);
 
   crypt_init();
-  s = switch_new();
+  s = switch_new(0);
   seek_auto(s);
   sprintf(nick,"%d",getpid());
 

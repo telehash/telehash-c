@@ -7,13 +7,13 @@
 // a prime number for the internal hashtable used to track all active hashnames/lines
 #define MAXPRIME 4211
 
-switch_t switch_new()
+switch_t switch_new(uint32_t prime)
 {
   switch_t s = malloc(sizeof (struct switch_struct));
   memset(s, 0, sizeof(struct switch_struct));
   s->cap = 256; // default cap size
   s->window = 32; // default reliable window size
-  s->index = xht_new(MAXPRIME);
+  s->index = xht_new(prime?prime:MAXPRIME);
   s->parts = packet_new();
   return s;
 }
@@ -152,7 +152,7 @@ void switch_open(switch_t s, hn_t to, path_t direct)
   packet_set_str(inner,"to",to->hexname);
   packet_set(inner,"from",(char*)s->parts->json,s->parts->json_len);
   open = crypt_openize((crypt_t)xht_get(s->index,to->c->csidHex), to->c, inner);
-  DEBUG_PRINTF("opening to %d %s %hu %d %d %s",to,to->hexname,packet_len(open),xht_get(s->index,to->c->csidHex),to->c,to->c->csidHex);
+  DEBUG_PRINTF("opening to %s %hu %s",to->c->csidHex,packet_len(open),to->hexname);
   if(!open) return;
   open->to = to;
   if(direct) open->out = direct;

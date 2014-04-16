@@ -22,7 +22,7 @@ int main(void)
   struct	sockaddr_in sad, sa;
 
   crypt_init();
-  s = switch_new();
+  s = switch_new(0);
 
   switch_init(s,util_file2packet("id.json"));
   if(!s->id)

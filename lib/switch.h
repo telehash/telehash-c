@@ -24,7 +24,8 @@ typedef struct switch_struct
   void (*handler)(struct switch_struct *, hn_t); // called w/ a hn that has no key info
 } *switch_t;
 
-switch_t switch_new();
+// pass in a prime for the main index of hashnames+lines+channels, 0 to use default
+switch_t switch_new(uint32_t prime);
 void switch_free(switch_t s);
 
 // must be called to initialize to a hashname from json keys, return !0 if failed, free's keys

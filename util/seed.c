@@ -19,7 +19,7 @@ int main(void)
   int sock;
 
   crypt_init();
-  s = switch_new();
+  s = switch_new(0);
 
   if(util_loadjson(s) != 0 || (sock = util_server(0,1000)) <= 0)
   {
