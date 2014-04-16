@@ -1,4 +1,4 @@
-/* aes.h */
+/* aes128_enc.h */
 /*
  This file is part of the AVR-Crypto-Lib.
  Copyright (C) 2008  Daniel Otte (daniel.otte@rub.de)
@@ -17,23 +17,28 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 /**
- * \file     aes.h
+ * \file     aes128_enc.h
  * \email    daniel.otte@rub.de
  * \author   Daniel Otte
  * \date     2008-12-30
  * \license  GPLv3 or later
- *
+ * \ingroup  AES
  */
-#ifndef AES_H_
-#define AES_H_
 
-#include <stdint.h>
+#ifndef AES128_ENC_H_
+#define AES128_ENC_H_
 
 #include "aes_types.h"
-#include "aes128_enc.h"
-#include "aes128_dec.h"
 #include "aes_enc.h"
-#include "aes_dec.h"
-#include "aes_keyschedule.h"
 
-#endif
+/**
+ * \brief encrypt with 128 bit key.
+ *
+ * This function encrypts one block with the AES algorithm under control of
+ * a keyschedule produced from a 128 bit key.
+ * \param buffer pointer to the block to encrypt
+ * \param ctx    pointer to the key schedule
+ */
+void aes128_enc(void *buffer, aes128_ctx_t *ctx);
+
+#endif /* AES128_ENC_H_ */

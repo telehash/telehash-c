@@ -1,4 +1,5 @@
 #include "avr.h"
+#include "bcal_aes128.h"
 
 typedef struct crypt_1a_struct
 {
@@ -6,6 +7,15 @@ typedef struct crypt_1a_struct
   uint32_t seq;
   unsigned char keyOut[16], keyIn[16];
 } *crypt_1a_t;
+
+void aes_ctr(void *key, void *iv, void *in, void *out, uint32_t len)
+{
+  bcal_ctr_ctx_t ctx;
+  bcal_ctr_init(&aes128_desc, key, 128, NULL, &ctx);
+  bcal_ctr_encMsg(iv, in, len, &ctx);
+  bcal_ctr_free(&ctx);
+  memcpy(out,in,len);
+}
 
 int RNG(uint8_t *p_dest, unsigned p_size)
 {
@@ -103,7 +113,6 @@ int crypt_private_1a(crypt_t c, unsigned char *key, int len)
 packet_t crypt_lineize_1a(crypt_t c, packet_t p)
 {
   packet_t line;
-  aes_context ctx;
   unsigned char iv[16], block[16], hmac[20];
   size_t off = 0;
   crypt_1a_t cs = (crypt_1a_t)c->cs;
@@ -116,8 +125,9 @@ packet_t crypt_lineize_1a(crypt_t c, packet_t p)
   memcpy(iv+12,&(cs->seq),4);
   cs->seq++;
 
-  aes_setkey_enc(&ctx,cs->keyOut,128);
-  aes_crypt_ctr(&ctx,packet_len(p),&off,iv,block,packet_raw(p),line->body+16+4+4);
+//  aes_setkey_enc(&ctx,cs->keyOut,128);
+//  aes_crypt_ctr(&ctx,packet_len(p),&off,iv,block,packet_raw(p),line->body+16+4+4);
+  aes_ctr(cs->keyOut,iv,packet_raw(p),line->body+16+4+4,packet_len(p));
 
   hmac_sha1(hmac,cs->keyOut,16*8,line->body+16+4,(4+packet_len(p))*8);
   memcpy(line->body+16,hmac,4);
@@ -128,7 +138,6 @@ packet_t crypt_lineize_1a(crypt_t c, packet_t p)
 packet_t crypt_delineize_1a(crypt_t c, packet_t p)
 {
   packet_t line;
-  aes_context ctx;
   unsigned char block[16], iv[16], hmac[20];
   size_t off = 0;
   crypt_1a_t cs = (crypt_1a_t)c->cs;
@@ -136,8 +145,9 @@ packet_t crypt_delineize_1a(crypt_t c, packet_t p)
   memset(iv,0,16);
   memcpy(iv+12,p->body+16+4,4);
 
-  aes_setkey_enc(&ctx,cs->keyIn,128);
-  aes_crypt_ctr(&ctx,p->body_len-(16+4+4),&off,iv,block,p->body+16+4+4,p->body+16+4+4);
+//  aes_setkey_enc(&ctx,cs->keyIn,128);
+//  aes_crypt_ctr(&ctx,p->body_len-(16+4+4),&off,iv,block,p->body+16+4+4,p->body+16+4+4);
+  aes_ctr(cs->keyIn,iv,p->body+16+4+4,p->body+16+4+4,p->body_len-(16+4+4));
 
   hmac_sha1(hmac,cs->keyIn,16*8,p->body+16+4,(p->body_len-(16+4))*8);
   if(memcmp(hmac,p->body+16,4) != 0) return packet_free(p);
@@ -182,7 +192,6 @@ packet_t crypt_openize_1a(crypt_t self, crypt_t c, packet_t inner)
 {
   unsigned char secret[uECC_BYTES], iv[16], block[16];
   packet_t open;
-  aes_context ctx;
   int inner_len;
   size_t off = 0;
   crypt_1a_t cs = (crypt_1a_t)c->cs, scs = (crypt_1a_t)self->cs;
@@ -201,8 +210,9 @@ packet_t crypt_openize_1a(crypt_t self, crypt_t c, packet_t inner)
   iv[15] = 1;
 
   // encrypt the inner
-  aes_setkey_enc(&ctx,secret,128);
-  aes_crypt_ctr(&ctx,inner_len,&off,iv,block,packet_raw(inner),open->body+20+40);
+//  aes_setkey_enc(&ctx,secret,128);
+//  aes_crypt_ctr(&ctx,inner_len,&off,iv,block,packet_raw(inner),open->body+20+40);
+  aes_ctr(secret,iv,packet_raw(inner),open->body+20+40,inner_len);
 
   // generate secret for hmac
   if(!uECC_shared_secret(cs->id_public, scs->id_private, secret)) return packet_free(open);
@@ -214,7 +224,6 @@ packet_t crypt_openize_1a(crypt_t self, crypt_t c, packet_t inner)
 packet_t crypt_deopenize_1a(crypt_t self, packet_t open)
 {
   unsigned char secret[uECC_BYTES], iv[16], block[16], b64[uECC_BYTES*2*2], hmac[20];
-  aes_context ctx;
   packet_t inner, tmp;
   size_t off = 0;
   crypt_1a_t cs = (crypt_1a_t)self->cs;
@@ -229,8 +238,9 @@ packet_t crypt_deopenize_1a(crypt_t self, packet_t open)
   iv[15] = 1;
 
   // decrypt the inner
-  aes_setkey_enc(&ctx,secret,128); // tricky, must use _enc to decrypt here
-  aes_crypt_ctr(&ctx,inner->body_len,&off,iv,block,open->body+20+40,inner->body);
+//  aes_setkey_enc(&ctx,secret,128); // tricky, must use _enc to decrypt here
+//  aes_crypt_ctr(&ctx,inner->body_len,&off,iv,block,open->body+20+40,inner->body);
+  aes_ctr(secret,iv,open->body+20+40,inner->body,inner->body_len);
 
   // load inner packet
   if((tmp = packet_parse(inner->body,inner->body_len)) == NULL) return packet_free(inner);

@@ -17,7 +17,6 @@
  *   along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #ifndef BASE64_DEC_H_
 #define BASE64_DEC_H_
 

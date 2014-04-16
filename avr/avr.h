@@ -4,7 +4,7 @@
 #include "./platform.h"
 #include <switch.h>
 #include "./uECC.h"
-#include "./aes.h"
+#include "./bcal-ctr.h"
 #include "./sha256.h"
 #include "./sha1.h"
 #include "./hmac.h"

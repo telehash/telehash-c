@@ -1,4 +1,4 @@
-/* aes.h */
+/* aes_sbox.h */
 /*
  This file is part of the AVR-Crypto-Lib.
  Copyright (C) 2008  Daniel Otte (daniel.otte@rub.de)
@@ -17,23 +17,17 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 /**
- * \file     aes.h
+ * \file     aes_sbox.h
  * \email    daniel.otte@rub.de
- * \author   Daniel Otte
+ * \author   Daniel Otte 
  * \date     2008-12-30
  * \license  GPLv3 or later
- *
+ * 
  */
-#ifndef AES_H_
-#define AES_H_
-
+#ifndef AES_SBOX_H_
+#define AES_SBOX_H_
 #include <stdint.h>
 
-#include "aes_types.h"
-#include "aes128_enc.h"
-#include "aes128_dec.h"
-#include "aes_enc.h"
-#include "aes_dec.h"
-#include "aes_keyschedule.h"
+extern uint8_t aes_sbox[];
 
 #endif
