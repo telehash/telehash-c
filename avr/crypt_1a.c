@@ -1,5 +1,4 @@
 #include "avr.h"
-#include "bcal_aes128.h"
 
 typedef struct crypt_1a_struct
 {
@@ -11,10 +10,14 @@ typedef struct crypt_1a_struct
 void aes_ctr(void *key, void *iv, void *in, void *out, uint32_t len)
 {
   bcal_ctr_ctx_t ctx;
-  bcal_ctr_init(&aes128_desc, key, 128, NULL, &ctx);
-  bcal_ctr_encMsg(iv, in, len, &ctx);
-  bcal_ctr_free(&ctx);
+  DEBUG_PRINTF("aes_ctr of %d %d %d %d %d",sizeof(key),sizeof(iv),sizeof(in),sizeof(out),len);
+//  bcal_ctr_init(&aes128_desc, key, 128, NULL, &ctx);
+  DEBUG_PRINTF("init");
+//  bcal_ctr_encMsg(iv, in, len, &ctx);
+  DEBUG_PRINTF("enc");
+//  bcal_ctr_free(&ctx);
   memcpy(out,in,len);
+  DEBUG_PRINTF("ctr done");
 }
 
 int RNG(uint8_t *p_dest, unsigned p_size)
