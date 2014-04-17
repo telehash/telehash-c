@@ -180,12 +180,20 @@ packet_t crypt_openize_3a(crypt_t self, crypt_t c, packet_t inner)
   memset(iv,0,crypto_box_NONCEBYTES);
   iv[crypto_box_NONCEBYTES-1] = 1;
 
+  unsigned char buf[1024];
+  DEBUG_PRINTF("key %s",util_hex(cs->line_public,crypto_box_PUBLICKEYBYTES,buf));
+  DEBUG_PRINTF("secret %s",util_hex(secret,crypto_box_BEFORENMBYTES,buf));
+  DEBUG_PRINTF("iv %s",util_hex(iv,crypto_box_NONCEBYTES,buf));
+  DEBUG_PRINTF("inner %d %s",inner_len,util_hex(packet_raw(inner),inner_len,buf));
+
   // encrypt the inner
   crypto_secretbox(open->body+crypto_onetimeauth_BYTES+crypto_box_PUBLICKEYBYTES,
     packet_raw(inner),
     inner_len,
     iv,
     secret);
+
+  DEBUG_PRINTF("inner %s",util_hex(open->body+crypto_onetimeauth_BYTES+crypto_box_PUBLICKEYBYTES,inner_len,buf));
 
   // generate secret for hmac
   crypto_box_beforenm(secret, cs->id_public, scs->id_private);
