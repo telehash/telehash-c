@@ -101,15 +101,16 @@ packet_t crypt_lineize_3a(crypt_t c, packet_t p)
   crypt_3a_t cs = (crypt_3a_t)c->cs;
 
   line = packet_chain(p);
-  packet_body(line,NULL,16+crypto_secretbox_NONCEBYTES+packet_len(p));
+  packet_body(line,NULL,16+crypto_secretbox_NONCEBYTES+packet_len(p)+crypto_secretbox_MACBYTES);
   memcpy(line->body,c->lineIn,16);
+  randombytes(line->body+16,crypto_box_NONCEBYTES);
 
-  crypto_secretbox(line->body+16+crypto_secretbox_NONCEBYTES,
+  crypto_secretbox_easy(line->body+16+crypto_secretbox_NONCEBYTES,
     packet_raw(p),
     packet_len(p),
     line->body+16,
     cs->keyOut);
-
+  
   return line;
 }
 
@@ -118,13 +119,13 @@ packet_t crypt_delineize_3a(crypt_t c, packet_t p)
   packet_t line;
   crypt_3a_t cs = (crypt_3a_t)c->cs;
 
-  crypto_secretbox_open(p->body+16+crypto_secretbox_NONCEBYTES,
+  crypto_secretbox_open_easy(p->body+16+crypto_secretbox_NONCEBYTES,
     p->body+16+crypto_secretbox_NONCEBYTES,
     p->body_len-(16+crypto_secretbox_NONCEBYTES),
     p->body+16,
     cs->keyIn);
   
-  line = packet_parse(p->body+16+crypto_secretbox_NONCEBYTES, p->body_len-(16+crypto_secretbox_NONCEBYTES));
+  line = packet_parse(p->body+16+crypto_secretbox_NONCEBYTES, p->body_len-(16+crypto_secretbox_NONCEBYTES+crypto_secretbox_MACBYTES));
   packet_free(p);
   return line;
 }
@@ -170,7 +171,7 @@ packet_t crypt_openize_3a(crypt_t self, crypt_t c, packet_t inner)
   open = packet_chain(inner);
   packet_json(open,&(self->csid),1);
   inner_len = packet_len(inner);
-  packet_body(open,NULL,crypto_onetimeauth_BYTES+crypto_box_PUBLICKEYBYTES+inner_len);
+  packet_body(open,NULL,crypto_onetimeauth_BYTES+crypto_box_PUBLICKEYBYTES+inner_len+crypto_secretbox_MACBYTES);
 
   // copy in the line public key
   memcpy(open->body+crypto_onetimeauth_BYTES, cs->line_public, crypto_box_PUBLICKEYBYTES);
@@ -180,24 +181,16 @@ packet_t crypt_openize_3a(crypt_t self, crypt_t c, packet_t inner)
   memset(iv,0,crypto_box_NONCEBYTES);
   iv[crypto_box_NONCEBYTES-1] = 1;
 
-  unsigned char buf[1024];
-  DEBUG_PRINTF("key %s",util_hex(cs->line_public,crypto_box_PUBLICKEYBYTES,buf));
-  DEBUG_PRINTF("secret %s",util_hex(secret,crypto_box_BEFORENMBYTES,buf));
-  DEBUG_PRINTF("iv %s",util_hex(iv,crypto_box_NONCEBYTES,buf));
-  DEBUG_PRINTF("inner %d %s",inner_len,util_hex(packet_raw(inner),inner_len,buf));
-
   // encrypt the inner
-  crypto_secretbox(open->body+crypto_onetimeauth_BYTES+crypto_box_PUBLICKEYBYTES,
+  crypto_secretbox_easy(open->body+crypto_onetimeauth_BYTES+crypto_box_PUBLICKEYBYTES,
     packet_raw(inner),
     inner_len,
     iv,
     secret);
 
-  DEBUG_PRINTF("inner %s",util_hex(open->body+crypto_onetimeauth_BYTES+crypto_box_PUBLICKEYBYTES,inner_len,buf));
-
   // generate secret for hmac
   crypto_box_beforenm(secret, cs->id_public, scs->id_private);
-  crypto_onetimeauth(open->body,open->body+crypto_onetimeauth_BYTES,crypto_onetimeauth_BYTES+inner_len,secret);
+  crypto_onetimeauth(open->body,open->body+crypto_onetimeauth_BYTES,crypto_box_PUBLICKEYBYTES+inner_len+crypto_secretbox_MACBYTES,secret);
 
   return open;
 }
@@ -207,6 +200,10 @@ packet_t crypt_deopenize_3a(crypt_t self, packet_t open)
   unsigned char secret[crypto_box_BEFORENMBYTES], iv[crypto_box_NONCEBYTES], ecc[crypto_box_PUBLICKEYBYTES*2+1];
   packet_t inner, tmp;
   crypt_3a_t cs = (crypt_3a_t)self->cs;
+
+//  unsigned char buf[1024];
+//  DEBUG_PRINTF("iv %s",util_hex(iv,crypto_box_NONCEBYTES,buf));
+//  DEBUG_PRINTF("secret %s",util_hex(secret,crypto_box_BEFORENMBYTES,buf));
 
   if(open->body_len <= (crypto_onetimeauth_BYTES+crypto_box_PUBLICKEYBYTES)) return NULL;
   inner = packet_new();
@@ -218,14 +215,14 @@ packet_t crypt_deopenize_3a(crypt_t self, packet_t open)
   iv[crypto_box_NONCEBYTES-1] = 1;
 
   // decrypt the inner
-  crypto_secretbox_open(inner->body,
+  crypto_secretbox_open_easy(inner->body,
     open->body+crypto_onetimeauth_BYTES+crypto_box_PUBLICKEYBYTES,
     inner->body_len,
     iv,
     secret);
 
   // load inner packet
-  if((tmp = packet_parse(inner->body,inner->body_len)) == NULL) return packet_free(inner);
+  if((tmp = packet_parse(inner->body,inner->body_len-crypto_secretbox_MACBYTES)) == NULL) return packet_free(inner);
   packet_free(inner);
   inner = tmp;
 
