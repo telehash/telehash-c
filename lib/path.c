@@ -9,7 +9,7 @@
 
 path_t path_new(char *type)
 {
-  if(!strstr("ipv4 ipv6 relay bridge http", type)) return NULL;
+  if(!strstr("ipv4 ipv6 relay local http", type)) return NULL;
   path_t p = malloc(sizeof (struct path_struct));
   memset(p,0,sizeof (struct path_struct));
   memcpy(p->type,type,strlen(type)+1);
