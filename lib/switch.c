@@ -68,6 +68,59 @@ void switch_capwin(switch_t s, int cap, int window)
   s->window = window;
 }
 
+// generate a broadcast/handshake ping packet
+packet_t switch_ping(switch_t s)
+{
+  char *key, rand[8], trace[17];
+  int i = 0;
+  packet_t p = packet_new();
+  packet_set_str(p,"type","ping");
+  while((key = packet_get_istr(s->parts,i)))
+  {
+    i += 2;
+    if(strlen(key) != 2) continue;
+    packet_set(p,key,"true",4);
+  }
+  // get/gen token to validate pongs
+  if(!(key = xht_get(s->index,"ping")))
+  {
+    xht_store(s->index,"ping",4,util_hex(crypt_rand((unsigned char*)rand,8),8,(unsigned char*)trace),16);
+    key = trace;
+  }
+  packet_set_str(p,"trace",key);
+  return p;
+}
+
+// caller must ensure it's ok to send a pong, and is responsible for ping and in
+void switch_pong(switch_t s, packet_t ping, path_t in)
+{
+  char *key;
+  unsigned char hex[3], csid = 0, best = 0;
+  int i = 0;
+  packet_t p;
+  crypt_t c;
+
+  // check our parts for the best match  
+  while((key = packet_get_istr(s->parts,i)))
+  {
+    i += 2;
+    if(strlen(key) != 2) continue;
+    util_unhex((unsigned char*)key,2,(unsigned char*)&csid);
+    if(csid <= best) continue;
+    best = csid;
+    memcpy(hex,key,3);
+  }
+
+  if(!best || !(c = xht_get(s->index,(char*)hex))) return;
+  p = packet_new();
+  packet_set_str(p,"type","pong");
+  packet_set_str(p,"trace",packet_get_str(ping,"trace"));
+  packet_set(p,"from",(char*)s->parts->json,s->parts->json_len);
+  packet_body(p,c->key,c->keylen);
+  p->out = path_copy(in);
+  switch_sendingQ(s,p);
+}
+
 void switch_loop(switch_t s)
 {
   // give all channels a chance
@@ -198,12 +251,15 @@ void switch_receive(switch_t s, packet_t p, path_t in)
   char lineHex[33];
 
   if(!s || !p || !in) return;
+
+  // handle open packets
   if(p->json_len == 1)
   {
     util_hex(p->json,1,(unsigned char*)hex);
     c = xht_get(s->index,hex);
     if(!c) return (void)packet_free(p);
     inner = crypt_deopenize(c, p);
+    DEBUG_PRINTF("DEOPEN %d",inner);
     if(!inner) return (void)packet_free(p);
 
     from = hn_frompacket(s->index, inner);
@@ -224,6 +280,8 @@ void switch_receive(switch_t s, packet_t p, path_t in)
     }
     return;
   }
+
+  // handle line packets
   if(p->json_len == 0)
   {
     util_hex(p->body, 16, (unsigned char*)lineHex);
@@ -255,7 +313,25 @@ void switch_receive(switch_t s, packet_t p, path_t in)
       return;
     }
   }
-  
+
+  // handle valid pong responses, start handshake
+  DEBUG_PRINTF("pong check %d %d %d",util_cmp("pong",packet_get_str(p,"type")), util_cmp(xht_get(s->index,"ping"),packet_get_str(p,"trace")),hn_fromjson(s->index,p));
+  if(util_cmp("pong",packet_get_str(p,"type")) == 0 && util_cmp(xht_get(s->index,"ping"),packet_get_str(p,"trace")) == 0 && (from = hn_fromjson(s->index,p)) != NULL)
+  {
+    in = hn_path(from, in);
+    switch_open(s,from,in);
+    packet_free(p);
+    return;
+  }
+
+  // handle pings, respond if local only or dedicated seed
+  if(util_cmp("ping",packet_get_str(p,"type")) == 0 && (s->isSeed || path_local(in)))
+  {
+    switch_pong(s,p,in);
+    packet_free(p);
+    return;
+  }
+
   // nothing processed, clean up
   packet_free(p);
 }

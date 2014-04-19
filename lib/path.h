@@ -18,6 +18,7 @@ void path_free(path_t p);
 
 // create a new path from json
 path_t path_parse(unsigned char *json, int len);
+path_t path_copy(path_t p);
 
 // return json for a path
 unsigned char *path_json(path_t p);
@@ -37,5 +38,8 @@ int path_match(path_t p1, path_t p2);
 
 // tell if the path is alive (recently active), 1 = yes, 0 = no
 int path_alive(path_t p);
+
+// tell if path is local or public, 1 = local 0 = public
+int path_local(path_t p);
 
 #endif

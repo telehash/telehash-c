@@ -140,3 +140,16 @@ int path_alive(path_t p)
   if((now - p->atIn) < 60) return 1;
   return 0;
 }
+
+// tell if path is local or public, 1 = local 0 = public
+int path_local(path_t p)
+{
+  if(!p) return -1;
+  // TODO, determine public types/IP ranges
+  return 1;
+}
+
+path_t path_copy(path_t p)
+{
+  return path_parse(path_json(p),0);
+}
