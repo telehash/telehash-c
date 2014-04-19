@@ -83,18 +83,18 @@ hn_t hn_getparts(xht_t index, packet_t p)
   for(i=0;i<ids;i++)
   {
     len = 2;
-    rollup = realloc(rollup,ri+len);
+    if(!(rollup = util_reallocf(rollup,ri+len))) return NULL;
     memcpy(rollup+ri,csids+(i*2),len);
     crypt_hash(rollup,ri+len,hnbin);
     ri = 32;
-    rollup = realloc(rollup,ri);
+    if(!(rollup = util_reallocf(rollup,ri))) return NULL;
     memcpy(rollup,hnbin,ri);
 
     memcpy(hex,csids+(i*2),2);
     part = packet_get_str(p, hex);
     if(!part) continue; // garbage safety
     len = strlen(part);
-    rollup = realloc(rollup,ri+len);
+    if(!(rollup = util_reallocf(rollup,ri+len))) return NULL;
     memcpy(rollup+ri,part,len);
     crypt_hash(rollup,ri+len,hnbin);
     memcpy(rollup,hnbin,32);
@@ -186,13 +186,12 @@ path_t hn_path(hn_t hn, path_t p)
   {
     if(path_match(hn->paths[i], p)) ret = hn->paths[i];
   }
-  if(!ret)
+  if(!ret && (ret = path_copy(p)))
   {
     // add new path, i is the end of the list from above
-    hn->paths = realloc(hn->paths, (i+2) * (sizeof (path_t)));
-    hn->paths[i] = path_copy(p);
+    if(!(hn->paths = util_reallocf(hn->paths, (i+2) * (sizeof (path_t))))) return NULL;
+    hn->paths[i] = ret;
     hn->paths[i+1] = 0; // null term
-    ret = hn->paths[i];
   }
 
   // update state tracking

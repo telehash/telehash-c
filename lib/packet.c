@@ -99,7 +99,7 @@ packet_t packet_parse(unsigned char *raw, unsigned short len)
 
   // copy in and update pointers
   p = packet_new();
-  p->raw = realloc(p->raw,len);
+  if(!(p->raw = realloc(p->raw,len))) return packet_free(p);
   memcpy(p->raw,raw,len);
   p->json_len = jlen;
   p->json = p->raw+2;
@@ -127,10 +127,12 @@ unsigned short packet_len(packet_t p)
 int packet_json(packet_t p, unsigned char *json, unsigned short len)
 {
   uint16_t nlen;
+  void *ptr;
   if(!p) return 1;
   if(len >= 2 && js0n(json,len,p->js,JSONDENSITY)) return 1;
   // new space and update pointers
-  p->raw = realloc(p->raw,2+len+p->body_len);
+  if(!(ptr = realloc(p->raw,2+len+p->body_len))) return 1;
+  p->raw = (unsigned char *)ptr;
   p->json = p->raw+2;
   p->body = p->raw+(2+len);
   // move the body forward to make space
@@ -147,8 +149,10 @@ int packet_json(packet_t p, unsigned char *json, unsigned short len)
 
 void packet_body(packet_t p, unsigned char *body, unsigned short len)
 {
+  void *ptr;
   if(!p) return;
-  p->raw = realloc(p->raw,2+len+p->json_len);
+  if(!(ptr = realloc(p->raw,2+len+p->json_len))) return;
+  p->raw = (unsigned char *)ptr;
   p->json = p->raw+2;
   p->body = p->raw+(2+p->json_len);
   if(body) memcpy(p->body,body,len); // allows packet_body(p,NULL,100) to allocate space
@@ -157,8 +161,10 @@ void packet_body(packet_t p, unsigned char *body, unsigned short len)
 
 void packet_append(packet_t p, unsigned char *chunk, unsigned short len)
 {
+  void *ptr;
   if(!p || !chunk || !len) return;
-  p->raw = realloc(p->raw,2+len+p->body_len+p->json_len);
+  if(!(ptr = realloc(p->raw,2+len+p->body_len+p->json_len))) return;
+  p->raw = (unsigned char *)ptr;
   p->json = p->raw+2;
   p->body = p->raw+(2+p->json_len);
   memcpy(p->body+p->body_len,chunk,len);

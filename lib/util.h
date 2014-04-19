@@ -3,6 +3,7 @@
 
 #include "platform.h"
 #include "packet.h"
+#include <stdlib.h>
 
 // make sure out is 2*len + 1
 unsigned char *util_hex(unsigned char *in, int len, unsigned char *out);
@@ -20,5 +21,7 @@ char *util_murmur(const unsigned char* data, int len, char *hex);
 // portable sort
 void util_sort(void *base, int nel, int width, int (*comp)(void *, const void *, const void *), void *arg);
 
+// portable reallocf
+void *util_reallocf(void *ptr, size_t size);
 
 #endif

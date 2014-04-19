@@ -23,8 +23,10 @@ void bucket_free(bucket_t b)
 void bucket_add(bucket_t b, hn_t h)
 {
   int i;
+  void *ptr;
   for(i=0;b->hns[i];i++) if(b->hns[i] == h) return;
-  b->hns = realloc(b->hns, (i+2) * sizeof(hn_t));
+  if(!(ptr = realloc(b->hns, (i+2) * sizeof(hn_t)))) return;
+  b->hns = (hn_t*)ptr;
   b->hns[i] = h;
   b->hns[i+1] = NULL;
   b->count = i+1;

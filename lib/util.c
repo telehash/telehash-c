@@ -164,3 +164,12 @@ void util_sort(void *base, int nel, int width, int (*comp)(void *, const void *,
     } while (wgap);
   }
 }
+
+// portable reallocf
+void *util_reallocf(void *ptr, size_t size)
+{
+  void *ra = realloc(ptr,size);
+  if(ra) return ra;
+  free(ptr);
+  return NULL;
+}
