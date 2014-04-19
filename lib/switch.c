@@ -204,8 +204,8 @@ void switch_open(switch_t s, hn_t to, path_t direct)
   inner = packet_new();
   packet_set_str(inner,"to",to->hexname);
   packet_set(inner,"from",(char*)s->parts->json,s->parts->json_len);
-  open = crypt_openize((crypt_t)xht_get(s->index,to->c->csidHex), to->c, inner);
-  DEBUG_PRINTF("opening to %s %hu %s",to->c->csidHex,packet_len(open),to->hexname);
+  open = crypt_openize((crypt_t)xht_get(s->index,to->hexid), to->c, inner);
+  DEBUG_PRINTF("opening to %s %hu %s",to->hexid,packet_len(open),to->hexname);
   if(!open) return;
   open->to = to;
   if(direct) open->out = direct;
@@ -315,7 +315,6 @@ void switch_receive(switch_t s, packet_t p, path_t in)
   }
 
   // handle valid pong responses, start handshake
-  DEBUG_PRINTF("pong check %d %d %d",util_cmp("pong",packet_get_str(p,"type")), util_cmp(xht_get(s->index,"ping"),packet_get_str(p,"trace")),hn_fromjson(s->index,p));
   if(util_cmp("pong",packet_get_str(p,"type")) == 0 && util_cmp(xht_get(s->index,"ping"),packet_get_str(p,"trace")) == 0 && (from = hn_fromjson(s->index,p)) != NULL)
   {
     in = hn_path(from, in);
