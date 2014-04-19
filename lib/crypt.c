@@ -29,7 +29,7 @@ crypt_t crypt_new(char csid, unsigned char *key, int len)
   int err = 1;
 
   if(!csid || !key || !len) return NULL;
-  c = malloc(sizeof (struct crypt_struct));
+  if(!(c = malloc(sizeof (struct crypt_struct)))) return NULL;
   memset(c, 0, sizeof (struct crypt_struct));
   c->csid = csid;
   sprintf(c->csidHex,"%02x",csid);

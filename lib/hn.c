@@ -7,14 +7,15 @@
 #include "util.h"
 #include "chan.h"
 
-void hn_free(hn_t hn)
+hn_t hn_free(hn_t hn)
 {
-  if(!hn) return;
+  if(!hn) return NULL;
   if(hn->chans) xht_free(hn->chans);
   if(hn->c) crypt_free(hn->c);
   if(hn->parts) packet_free(hn->parts);
-  free(hn->paths);
+  if(hn->paths) free(hn->paths);
   free(hn);
+  return NULL;
 }
 
 hn_t hn_get(xht_t index, unsigned char *bin)
@@ -28,12 +29,12 @@ hn_t hn_get(xht_t index, unsigned char *bin)
   if(hn) return hn;
 
   // init new hashname container
-  hn = malloc(sizeof (struct hn_struct));
+  if(!(hn = malloc(sizeof (struct hn_struct)))) return NULL;
   memset(hn,0,sizeof (struct hn_struct));
   memcpy(hn->hashname, bin, 32);
   memcpy(hn->hexname, hex, 65);
   xht_set(index, (const char*)hn->hexname, (void*)hn);
-  hn->paths = malloc(sizeof (path_t));
+  if(!(hn->paths = malloc(sizeof (path_t)))) return hn_free(hn);
   hn->paths[0] = NULL;
   return hn;
 }

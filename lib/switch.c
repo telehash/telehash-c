@@ -9,12 +9,14 @@
 
 switch_t switch_new(uint32_t prime)
 {
-  switch_t s = malloc(sizeof (struct switch_struct));
+  switch_t s;
+  if(!(s = malloc(sizeof (struct switch_struct)))) return NULL;
   memset(s, 0, sizeof(struct switch_struct));
   s->cap = 256; // default cap size
   s->window = 32; // default reliable window size
   s->index = xht_new(prime?prime:MAXPRIME);
   s->parts = packet_new();
+  if(!s->index || !s->parts) return switch_free(s);
   return s;
 }
 
@@ -56,10 +58,14 @@ int switch_init(switch_t s, packet_t keys)
   return 0;
 }
 
-void switch_free(switch_t s)
+switch_t switch_free(switch_t s)
 {
+  if(!s) return NULL;
+  xht_free(s->index);
+  packet_free(s->parts);
   if(s->seeds) bucket_free(s->seeds);
   free(s);
+  return NULL;
 }
 
 void switch_capwin(switch_t s, int cap, int window)

@@ -10,7 +10,8 @@
 path_t path_new(char *type)
 {
   if(!strstr("ipv4 ipv6 relay local http", type)) return NULL;
-  path_t p = malloc(sizeof (struct path_struct));
+  path_t p;
+  if(!(p = malloc(sizeof (struct path_struct)))) return NULL;
   memset(p,0,sizeof (struct path_struct));
   memcpy(p->type,type,strlen(type)+1);
   return p;
@@ -47,7 +48,7 @@ char *path_id(path_t p, char *id)
 {
   if(!id) return p->id;
   if(p->id) free(p->id);
-  p->id = malloc(strlen(id)+1);
+  if(!(p->id = malloc(strlen(id)+1))) return NULL;
   memcpy(p->id,id,strlen(id)+1);
   return p->id;
 }
@@ -92,7 +93,7 @@ unsigned char *path_json(path_t p)
   if(p->ip) len += strlen(p->ip)+8+13;
   if(p->id) len += strlen(p->id)+8;
   len = len * 2; // double for any worst-case escaping
-  p->json = malloc(len);
+  if(!(p->json = malloc(len))) return NULL;
   json = (char*)p->json;
   memset(json,0,len);
   sprintf(json, "{\"type\":\"%s\"",p->type);

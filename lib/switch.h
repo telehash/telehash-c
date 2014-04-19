@@ -27,7 +27,7 @@ typedef struct switch_struct
 
 // pass in a prime for the main index of hashnames+lines+channels, 0 to use default
 switch_t switch_new(uint32_t prime);
-void switch_free(switch_t s);
+switch_t switch_free(switch_t s);
 
 // must be called to initialize to a hashname from json keys, return !0 if failed, free's keys
 int switch_init(switch_t s, packet_t keys);

@@ -12,9 +12,10 @@
 
 packet_t packet_new()
 {
-  packet_t p = malloc(sizeof (struct packet_struct));
+  packet_t p;
+  if(!(p = malloc(sizeof (struct packet_struct)))) return NULL;
   memset(p,0,sizeof (struct packet_struct));
-  p->raw = malloc(2);
+  if(!(p->raw = malloc(2))) return packet_free(p);
   memset(p->raw,0,2);
 //  DEBUG_PRINTF("packet +++ %d",p);
   return p;
@@ -70,7 +71,7 @@ packet_t packet_free(packet_t p)
   if(!p) return NULL;
   if(p->chain) packet_free(p->chain);
   if(p->jsoncp) free(p->jsoncp);
-  free(p->raw);
+  if(p->raw) free(p->raw);
   free(p);
 //  DEBUG_PRINTF("packet --- %d",p);
   return NULL;
@@ -183,7 +184,7 @@ void packet_set(packet_t p, char *key, char *val, int vlen)
   if(!vlen) vlen = strlen(val); // convenience
 
   // make space and copy
-  json = malloc(klen+vlen+p->json_len+4);
+  if(!(json = malloc(klen+vlen+p->json_len+4))) return;
   memcpy(json,p->json,p->json_len);
 
   // if it's already set, replace the value
@@ -234,9 +235,7 @@ void packet_set_printf(packet_t p, char *key, const char *format, ...)
   va_copy(cp, ap);
 
   len = vsnprintf(NULL, 0, format, cp);
-  val = malloc(len);
-
-  vsprintf(val, format, ap);
+  if((val = malloc(len))) vsprintf(val, format, ap);
   va_end(ap);
   va_end(cp);
 
@@ -256,7 +255,7 @@ void packet_set_str(packet_t p, char *key, char *val)
   char *escaped;
   int i, len, vlen = strlen(val);
   if(!p || !key || !val) return;
-  escaped = malloc(vlen*2+2); // enough space worst case
+  if(!(escaped = malloc(vlen*2+2))) return; // enough space worst case
   len = 0;
   escaped[len++] = '"';
   for(i=0;i<vlen;i++)
@@ -274,7 +273,7 @@ char *packet_j0g(packet_t p)
 {
   if(!p) return NULL;
   if(p->jsoncp) return p->jsoncp;
-  p->jsoncp = malloc(p->json_len+1);
+  if(!(p->jsoncp = malloc(p->json_len+1))) return NULL;
   memcpy(p->jsoncp,p->json,p->json_len);
   p->jsoncp[p->json_len] = 0;
   return p->jsoncp;
