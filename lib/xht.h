@@ -13,7 +13,7 @@ xht_t xht_new(int prime);
 void xht_set(xht_t h, const char *key, void *val);
 
 // ooh! unlike set where key/val is in caller's mem, here they are copied into xht_t and free'd when val is 0 or xht_free()
-void xht_store(xht_t h, const char *key, int klen, void *val, int vlen);
+void xht_store(xht_t h, const char *key, void *val, int vlen);
 
 // returns value of val if found, or NULL
 void *xht_get(xht_t h, const char *key);

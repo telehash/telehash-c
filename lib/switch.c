@@ -90,7 +90,7 @@ packet_t switch_ping(switch_t s)
   // get/gen token to validate pongs
   if(!(key = xht_get(s->index,"ping")))
   {
-    xht_store(s->index,"ping",4,util_hex(crypt_rand((unsigned char*)rand,8),8,(unsigned char*)trace),16);
+    xht_store(s->index,"ping",util_hex(crypt_rand((unsigned char*)rand,8),8,(unsigned char*)trace),17);
     key = trace;
   }
   packet_set_str(p,"trace",key);

@@ -85,6 +85,8 @@ void _xht_set(xht_t h, const char *key, void *val, char flag)
     if(n == 0)
     {
         n = (xhn)malloc(sizeof(struct xhn_struct));
+        if(!n) return;
+        memset(n,0,sizeof(struct xhn_struct));
         n->next = h->zen[i].next;
         h->zen[i].next = n;
     }
@@ -107,19 +109,24 @@ void xht_set(xht_t h, const char *key, void *val)
     _xht_set(h, key, val, 0);
 }
 
-void xht_store(xht_t h, const char *key, int klen, void *val, int vlen)
+void xht_store(xht_t h, const char *key, void *val, int vlen)
 {
     char *ckey, *cval;
+    int klen;
 
-    if(h == 0 || key == 0 || klen == 0)
-        return;
+    if(h == 0 || key == 0 || (klen = strlen(key)) == 0) return;
 
     ckey = (char*)malloc(klen+1);
+    if(!ckey) return;
     memcpy(ckey,key,klen);
     ckey[klen] = '\0';
-    cval = (void*)malloc(vlen+1);
+    cval = (void*)malloc(vlen);
+    if(!cval)
+    {
+      free(ckey);
+      return;
+    }
     memcpy(cval,val,vlen);
-    cval[vlen] = '\0'; /* convenience, in case it was a string too */
     _xht_set(h, ckey, cval, 1);
 }
 
