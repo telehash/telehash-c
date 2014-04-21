@@ -1,5 +1,4 @@
 #include "avr.h"
-#include "aes.h"
 
 typedef struct crypt_1a_struct
 {
@@ -7,21 +6,6 @@ typedef struct crypt_1a_struct
   uint32_t seq;
   unsigned char keyOut[16], keyIn[16];
 } *crypt_1a_t;
-
-/*
-void aes_ctr(void *key, void *iv, void *in, void *out, uint32_t len)
-{
-  bcal_ctr_ctx_t ctx;
-  DEBUG_PRINTF("aes_ctr of %d %d %d %d %d",sizeof(key),sizeof(iv),sizeof(in),sizeof(out),len);
-//  bcal_ctr_init(&aes128_desc, key, 128, NULL, &ctx);
-  DEBUG_PRINTF("init");
-//  bcal_ctr_encMsg(iv, in, len, &ctx);
-  DEBUG_PRINTF("enc");
-//  bcal_ctr_free(&ctx);
-  memcpy(out,in,len);
-  DEBUG_PRINTF("ctr done");
-}
-*/
 
 int RNG(uint8_t *p_dest, unsigned p_size)
 {
@@ -35,7 +19,6 @@ int RNG(uint8_t *p_dest, unsigned p_size)
 
 int crypt_init_1a()
 {
-  DEBUG_PRINTF("CS1a init");
   uECC_set_rng(&RNG);
   return 0;
 }
@@ -119,10 +102,8 @@ int crypt_private_1a(crypt_t c, unsigned char *key, int len)
 packet_t crypt_lineize_1a(crypt_t c, packet_t p)
 {
   packet_t line;
-  unsigned char iv[16], block[16], hmac[20];
-  size_t off = 0;
+  unsigned char iv[16], hmac[20];
   crypt_1a_t cs = (crypt_1a_t)c->cs;
-  aes_context ctx;
 
   line = packet_chain(p);
   packet_body(line,NULL,16+4+4+packet_len(p));
@@ -132,8 +113,7 @@ packet_t crypt_lineize_1a(crypt_t c, packet_t p)
   memcpy(iv+12,&(cs->seq),4);
   cs->seq++;
 
-  aes_setkey_enc(&ctx,cs->keyOut,128);
-  aes_crypt_ctr(&ctx,packet_len(p),&off,iv,block,packet_raw(p),line->body+16+4+4);
+  aes_128_ctr(cs->keyOut,packet_len(p),iv,packet_raw(p),line->body+16+4+4);
 
   hmac_sha1(hmac,cs->keyOut,16*8,line->body+16+4,(4+packet_len(p))*8);
   memcpy(line->body+16,hmac,4);
@@ -144,16 +124,13 @@ packet_t crypt_lineize_1a(crypt_t c, packet_t p)
 packet_t crypt_delineize_1a(crypt_t c, packet_t p)
 {
   packet_t line;
-  unsigned char block[16], iv[16], hmac[20];
-  size_t off = 0;
+  unsigned char iv[16], hmac[20];
   crypt_1a_t cs = (crypt_1a_t)c->cs;
-  aes_context ctx;
 
   memset(iv,0,16);
   memcpy(iv+12,p->body+16+4,4);
 
-  aes_setkey_enc(&ctx,cs->keyIn,128);
-  aes_crypt_ctr(&ctx,p->body_len-(16+4+4),&off,iv,block,p->body+16+4+4,p->body+16+4+4);
+  aes_128_ctr(cs->keyOut,p->body_len-(16+4+4),iv,p->body+16+4+4,p->body+16+4+4);
 
   hmac_sha1(hmac,cs->keyIn,16*8,p->body+16+4,(p->body_len-(16+4))*8);
   if(memcmp(hmac,p->body+16,4) != 0) return packet_free(p);
@@ -196,17 +173,15 @@ int crypt_line_1a(crypt_t c, packet_t inner)
 // create a new open packet
 packet_t crypt_openize_1a(crypt_t self, crypt_t c, packet_t inner)
 {
-  unsigned char secret[uECC_BYTES], iv[16], block[16];
+  unsigned char secret[uECC_BYTES], iv[16];
   packet_t open;
   int inner_len;
-  size_t off = 0;
   crypt_1a_t cs = (crypt_1a_t)c->cs, scs = (crypt_1a_t)self->cs;
-  aes_context ctx;
 
   open = packet_chain(inner);
   packet_json(open,&(self->csid),1);
   inner_len = packet_len(inner);
-  packet_body(open,NULL,20+40+inner_len);
+  if(!packet_body(open,NULL,20+40+inner_len)) return NULL;
 
   // copy in the line public key
   memcpy(open->body+20, cs->line_public, 40);
@@ -217,8 +192,7 @@ packet_t crypt_openize_1a(crypt_t self, crypt_t c, packet_t inner)
   iv[15] = 1;
 
   // encrypt the inner
-  aes_setkey_enc(&ctx,secret,128);
-  aes_crypt_ctr(&ctx,inner_len,&off,iv,block,packet_raw(inner),open->body+20+40);
+  aes_128_ctr(secret,inner_len,iv,packet_raw(inner),open->body+20+40);
 
   // generate secret for hmac
   if(!uECC_shared_secret(cs->id_public, scs->id_private, secret)) return packet_free(open);
@@ -229,11 +203,9 @@ packet_t crypt_openize_1a(crypt_t self, crypt_t c, packet_t inner)
 
 packet_t crypt_deopenize_1a(crypt_t self, packet_t open)
 {
-  unsigned char secret[uECC_BYTES], iv[16], block[16], b64[uECC_BYTES*2*2], hmac[20];
+  unsigned char secret[uECC_BYTES], iv[16], b64[uECC_BYTES*2*2], hmac[20];
   packet_t inner, tmp;
-  size_t off = 0;
   crypt_1a_t cs = (crypt_1a_t)self->cs;
-  aes_context ctx;
 
   if(open->body_len <= (20+40)) return NULL;
   inner = packet_new();
@@ -245,8 +217,7 @@ packet_t crypt_deopenize_1a(crypt_t self, packet_t open)
   iv[15] = 1;
 
   // decrypt the inner
-  aes_setkey_enc(&ctx,secret,128); // tricky, must use _enc to decrypt here
-  aes_crypt_ctr(&ctx,inner->body_len,&off,iv,block,open->body+20+40,inner->body);
+  aes_128_ctr(secret,inner->body_len,iv,open->body+20+40,inner->body);
 
   // load inner packet
   if((tmp = packet_parse(inner->body,inner->body_len)) == NULL) return packet_free(inner);
