@@ -3,6 +3,7 @@
 unsigned char *crypt_rand(unsigned char *s, int len)
 {
   unsigned char *x = s;
+//  DEBUG_PRINTF("RAND %lu %d",s,len);
   while(len-- > 0)
   {
     *x = (unsigned char)random();

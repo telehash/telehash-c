@@ -7,13 +7,9 @@ typedef struct crypt_1a_struct
   unsigned char keyOut[16], keyIn[16];
 } *crypt_1a_t;
 
-int RNG(uint8_t *p_dest, unsigned p_size)
+static int RNG(uint8_t *p_dest, unsigned p_size)
 {
-  while(p_size--)
-  {
-    *p_dest = (uint8_t)random();
-    p_dest++;
-  }
+  crypt_rand((unsigned char*)p_dest,(int)p_size);
   return 1;
 }
 
