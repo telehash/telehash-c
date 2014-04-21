@@ -49,7 +49,7 @@ char *packet_j0g(packet_t p);
 
 // set/store these in the current packet, !0 if error parsing json
 int packet_json(packet_t p, unsigned char *json, unsigned short len);
-void packet_body(packet_t p, unsigned char *body, unsigned short len);
+unsigned char *packet_body(packet_t p, unsigned char *body, unsigned short len);
 void packet_append(packet_t p, unsigned char *chunk, unsigned short len);
 
 // convenient json setters/getters

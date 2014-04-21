@@ -17,7 +17,6 @@ packet_t packet_new()
   memset(p,0,sizeof (struct packet_struct));
   if(!(p->raw = malloc(2))) return packet_free(p);
   memset(p->raw,0,2);
-//  DEBUG_PRINTF("packet +++ %d",p);
   return p;
 }
 
@@ -43,6 +42,7 @@ packet_t packet_unlink(packet_t parent)
 packet_t packet_link(packet_t parent, packet_t child)
 {
   if(!parent) parent = packet_new();
+  if(!parent) return NULL;
   if(parent->chain) packet_free(parent->chain);
   parent->chain = child;
   if(child && child->chain == parent) child->chain = NULL;
@@ -52,6 +52,7 @@ packet_t packet_link(packet_t parent, packet_t child)
 packet_t packet_chain(packet_t p)
 {
   packet_t np = packet_new();
+  if(!np) return NULL;
   np->chain = p;
   // copy in meta-pointers for convenience
   np->to = p->to;
@@ -148,16 +149,17 @@ int packet_json(packet_t p, unsigned char *json, unsigned short len)
   return 0;
 }
 
-void packet_body(packet_t p, unsigned char *body, unsigned short len)
+unsigned char *packet_body(packet_t p, unsigned char *body, unsigned short len)
 {
   void *ptr;
-  if(!p) return;
-  if(!(ptr = realloc(p->raw,2+len+p->json_len))) return;
+  if(!p) return NULL;
+  if(!(ptr = realloc(p->raw,2+len+p->json_len))) return NULL;
   p->raw = (unsigned char *)ptr;
   p->json = p->raw+2;
   p->body = p->raw+(2+p->json_len);
   if(body) memcpy(p->body,body,len); // allows packet_body(p,NULL,100) to allocate space
   p->body_len = len;
+  return p->body;
 }
 
 void packet_append(packet_t p, unsigned char *chunk, unsigned short len)

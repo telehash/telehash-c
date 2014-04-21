@@ -323,6 +323,7 @@ void switch_receive(switch_t s, packet_t p, path_t in)
   // handle valid pong responses, start handshake
   if(util_cmp("pong",packet_get_str(p,"type")) == 0 && util_cmp(xht_get(s->index,"ping"),packet_get_str(p,"trace")) == 0 && (from = hn_fromjson(s->index,p)) != NULL)
   {
+    DEBUG_PRINTF("pong from %s",from->hexname);
     in = hn_path(from, in);
     switch_open(s,from,in);
     packet_free(p);

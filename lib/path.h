@@ -6,7 +6,7 @@
 typedef struct path_struct
 {
   char type[12];
-  unsigned char *json;
+  char *json;
   char *id;
   char ip[46];
   uint16_t port;
@@ -17,11 +17,11 @@ path_t path_new(char *type);
 void path_free(path_t p);
 
 // create a new path from json
-path_t path_parse(unsigned char *json, int len);
+path_t path_parse(char *json, int len);
 path_t path_copy(path_t p);
 
 // return json for a path
-unsigned char *path_json(path_t p);
+char *path_json(path_t p);
 
 // these set and/or return path values
 char *path_id(path_t p, char *id);

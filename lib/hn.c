@@ -152,7 +152,7 @@ hn_t hn_fromjson(xht_t index, packet_t p)
   pp = packet_get_packets(p, "paths");
   while(pp)
   {
-    path = hn_path(hn, path_parse(pp->json, pp->json_len));
+    path = hn_path(hn, path_parse((char*)pp->json, pp->json_len));
     if(path) path->atIn = 0; // don't consider this path alive
     next = pp->next;
     packet_free(pp);

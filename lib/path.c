@@ -24,22 +24,22 @@ void path_free(path_t p)
   free(p);
 }
 
-path_t path_parse(unsigned char *json, int len)
+path_t path_parse(char *json, int len)
 {
   unsigned short js[64];
   path_t p;
   
   if(!json) return NULL;
-  if(!len) len = strlen((char*)json);
-  js0n(json, len, js, 64);
-  if(!j0g_val("type",(char*)json,js)) return NULL;
-  p = path_new(j0g_str("type",(char*)json,js));
+  if(!len) len = strlen(json);
+  js0n((unsigned char*)json, len, js, 64);
+  if(!j0g_val("type",json,js)) return NULL;
+  p = path_new(j0g_str("type",json,js));
 
   // just try to set all possible attributes
-  path_ip(p, j0g_str("ip",(char*)json,js));
-  path_port(p, (uint16_t)strtol(j0g_str("port",(char*)json,js),NULL,10));
-  path_id(p, j0g_str("id",(char*)json,js));
-  path_http(p, j0g_str("http",(char*)json,js));
+  path_ip(p, j0g_str("ip",json,js));
+  path_port(p, (uint16_t)strtol(j0g_str("port",json,js),NULL,10));
+  path_id(p, j0g_str("id",json,js));
+  path_http(p, j0g_str("http",json,js));
   
   return p;
 }
@@ -82,7 +82,7 @@ uint16_t path_port(path_t p, uint16_t port)
 }
 
 
-unsigned char *path_json(path_t p)
+char *path_json(path_t p)
 {
   int len;
   char *json;
@@ -94,12 +94,12 @@ unsigned char *path_json(path_t p)
   if(p->id) len += strlen(p->id)+8;
   len = len * 2; // double for any worst-case escaping
   if(!(p->json = malloc(len))) return NULL;
-  json = (char*)p->json;
+  json = p->json;
   memset(json,0,len);
-  sprintf(json, "{\"type\":\"%s\"",p->type);
+  sprintf(json, "{\"type\":%c%s%c",'"',p->type,'"');
   if(strstr("ipv4 ipv6", p->type))
   {
-    if(*p->ip) sprintf(json+strlen(json), ",\"ip\":\"%s\"", p->ip);
+    if(*p->ip) sprintf(json+strlen(json), ",\"ip\":%c%s%c",'"',p->ip,'"');
     if(p->port) sprintf(json+strlen(json), ",\"port\":%hu", p->port);
   }
   if(p->id)

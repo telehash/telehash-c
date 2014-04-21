@@ -3,15 +3,17 @@
 #include <stdint.h>
 #include "util.h"
 
-
 unsigned char *util_hex(unsigned char *in, int len, unsigned char *out)
 {
     int j;
     unsigned char *c = out;
+    static char *hex = "0123456789abcdef";
 
     for (j = 0; j < len; j++) {
-      sprintf((char*)c,"%02x", in[j]);
-      c += 2;
+      *c = hex[((in[j]&240)/16)];
+      c++;
+      *c = hex[in[j]&15];
+      c++;
     }
     *c = '\0';
     return out;
