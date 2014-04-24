@@ -134,8 +134,8 @@ int util_server(int port, int ms)
     perror("bind failed");
     return -1;
   }
-  tv.tv_sec = 0;
-  tv.tv_usec = ms*1000;
+  tv.tv_sec = ms/1000;
+  tv.tv_usec = (ms%1000)*1000;
   if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0)
   {
     perror("setsockopt");
