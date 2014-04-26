@@ -253,6 +253,7 @@ void switch_receive(switch_t s, packet_t p, path_t in)
   hn_t from;
   packet_t inner;
   crypt_t c;
+  chan_t chan;
   char hex[3];
   char lineHex[33];
 
@@ -296,25 +297,29 @@ void switch_receive(switch_t s, packet_t p, path_t in)
     {
       in = hn_path(from, in);
       p = crypt_delineize(from->c, p);
-      if(p)
+      if(!p)
       {
-        chan_t c = chan_in(s, from, p);
-        if(c)
-        {
-          // if new channel w/ seq, configure as reliable
-          if(c->state == CHAN_STARTING && packet_get_str(p,"seq")) chan_reliable(c, s->window);
-          return chan_receive(c, p);
-        }
-        // bounce it!
-        if(!packet_get_str(p,"err"))
-        {
-          packet_set_str(p,"err","unknown channel");
-          p->to = from;
-          p->out = in;
-          switch_send(s, p);          
-        }else{
-          packet_free(p);
-        }
+        DEBUG_PRINTF("invlaid line from %s %s",path_json(in),from->hexname);
+        return;
+      }
+      
+      // route to the channel
+      if((chan = chan_in(s, from, p)))
+      {
+        // if new channel w/ seq, configure as reliable
+        if(chan->state == CHAN_STARTING && packet_get_str(p,"seq")) chan_reliable(chan, s->window);
+        return chan_receive(chan, p);
+      }
+
+      // bounce it!
+      if(!packet_get_str(p,"err"))
+      {
+        packet_set_str(p,"err","unknown channel");
+        p->to = from;
+        p->out = in;
+        switch_send(s, p);          
+      }else{
+        packet_free(p);
       }
       return;
     }
