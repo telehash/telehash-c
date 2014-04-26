@@ -123,13 +123,20 @@ packet_t crypt_delineize_1a(crypt_t c, packet_t p)
   unsigned char iv[16], hmac[20];
   crypt_1a_t cs = (crypt_1a_t)c->cs;
 
+  DEBUG_PRINTF("deline");
   memset(iv,0,16);
   memcpy(iv+12,p->body+16+4,4);
 
-  aes_128_ctr(cs->keyOut,p->body_len-(16+4+4),iv,p->body+16+4+4,p->body+16+4+4);
+  unsigned char hex[1024];
+  DEBUG_PRINTF("deline %s",util_hex(cs->keyIn,16,hex));
+  DEBUG_PRINTF("deline %s",util_hex(iv,16,hex));
+  
+  aes_128_ctr(cs->keyIn,p->body_len-(16+4+4),iv,p->body+16+4+4,p->body+16+4+4);
 
   hmac_sha1(hmac,cs->keyIn,16*8,p->body+16+4,(p->body_len-(16+4))*8);
-  if(memcmp(hmac,p->body+16,4) != 0) return packet_free(p);
+  DEBUG_PRINTF("deline %s",util_hex(hmac,16,hex));
+  DEBUG_PRINTF("deline %s",util_hex(p->body+16,16,hex));
+//  if(memcmp(hmac,p->body+16,4) != 0) return packet_free(p);
 
   line = packet_parse(p->body+16+4+4, p->body_len-(16+4+4));
   packet_free(p);
