@@ -205,7 +205,7 @@ packet_t crypt_deopenize_1a(crypt_t self, packet_t open)
 
   if(open->body_len <= (20+40)) return NULL;
   inner = packet_new();
-  packet_body(inner,NULL,open->body_len-(20+40));
+  if(!packet_body(inner,NULL,open->body_len-(20+40))) return packet_free(inner);
 
   // get the shared secret to create the iv+key for the open aes
   if(!uECC_shared_secret(open->body+20, cs->id_private, secret)) return packet_free(inner);
