@@ -127,7 +127,7 @@ int main(int argc, char *argv[])
         packet_free(p);
       }
 
-      if(c->state == ENDED) chan_free(c);
+      if(c->state == CHAN_ENDED) chan_free(c);
     }
 
     if((len = fread(buf,1,255,stdin)))

@@ -26,7 +26,7 @@ void chan_reset(switch_t s, hn_t to)
 
 chan_t chan_reliable(chan_t c, int window)
 {
-  if(!c || !window || c->state != STARTING || c->reliable) return c;
+  if(!c || !window || c->state != CHAN_STARTING || c->reliable) return c;
   c->reliable = window;
   chan_seq_init(c);
   chan_miss_init(c);
@@ -62,7 +62,7 @@ chan_t chan_new(switch_t s, hn_t to, char *type, uint32_t id)
   memcpy(c->type,type,strlen(type)+1);
   c->s = s;
   c->to = to;
-  c->state = STARTING;
+  c->state = CHAN_STARTING;
   c->id = id;
   util_hex((unsigned char*)&(s->uid),4,(unsigned char*)c->uid); // switch-wide unique id
   s->uid++;
@@ -97,7 +97,7 @@ chan_t chan_end(chan_t c, packet_t p)
   DEBUG_PRINTF("channel end %d",c->id);
   if(p) packet_set(p,"end","true",4);
   // if(c->reliable) TODO set to ENDING, add timer for cleanup and then queue for free
-  c->state = ENDED;
+  c->state = CHAN_ENDED;
   chan_queue(c);
   return c;
 }
@@ -107,13 +107,13 @@ chan_t chan_fail(chan_t c, char *err)
 {
   packet_t e;
   DEBUG_PRINTF("channel fail %d %s",c->id,err);
-  if(err && c->state != ENDED && (e = chan_packet(c)))
+  if(err && c->state != CHAN_ENDED && (e = chan_packet(c)))
   {
     packet_set_str(e,"err",err);
     chan_send(c,e);
   }
   // no grace period for reliable
-  c->state = ENDED;
+  c->state = CHAN_ENDED;
   xht_set(c->to->chans,(char*)c->hexid,NULL);
   chan_queue(c);
   return c;
@@ -182,12 +182,12 @@ int chan_reply(chan_t c, packet_t note)
 packet_t chan_packet(chan_t c)
 {
   packet_t p;
-  if(!c || c->state == ENDED) return NULL;
+  if(!c || c->state == CHAN_ENDED) return NULL;
   p = c->reliable?chan_seq_packet(c):packet_new();
   if(!p) return NULL;
   p->to = c->to;
   if(path_alive(c->last)) p->out = c->last;
-  if(c->state == STARTING)
+  if(c->state == CHAN_STARTING)
   {
     packet_set_str(p,"type",c->type);
   }
@@ -239,10 +239,10 @@ void chan_receive(chan_t c, packet_t p)
 {
   if(!c || !p) return;
   DEBUG_PRINTF("channel in %d %.*s",c->id,p->json_len,p->json);
-  if(c->state == ENDED) return (void)packet_free(p);
-  if(c->state == STARTING) c->state = OPEN;
-  if(util_cmp(packet_get_str(p,"end"),"true") == 0) c->state = ENDING;
-  if(packet_get_str(p,"err")) c->state = ENDED;
+  if(c->state == CHAN_ENDED) return (void)packet_free(p);
+  if(c->state == CHAN_STARTING) c->state = CHAN_OPEN;
+  if(util_cmp(packet_get_str(p,"end"),"true") == 0) c->state = CHAN_ENDING;
+  if(packet_get_str(p,"err")) c->state = CHAN_ENDED;
 
   if(c->reliable)
   {

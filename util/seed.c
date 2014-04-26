@@ -51,7 +51,7 @@ int main(void)
         printf("unhandled channel packet %.*s\n", p->json_len, p->json);      
         packet_free(p);
       }
-      if(c->state == ENDED) chan_free(c);
+      if(c->state == CHAN_ENDED) chan_free(c);
     }
 
     util_sendall(s,sock);

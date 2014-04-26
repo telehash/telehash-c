@@ -302,7 +302,7 @@ void switch_receive(switch_t s, packet_t p, path_t in)
         if(c)
         {
           // if new channel w/ seq, configure as reliable
-          if(c->state == STARTING && packet_get_str(p,"seq")) chan_reliable(c, s->window);
+          if(c->state == CHAN_STARTING && packet_get_str(p,"seq")) chan_reliable(c, s->window);
           return chan_receive(c, p);
         }
         // bounce it!

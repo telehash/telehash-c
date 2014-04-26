@@ -3,6 +3,10 @@
 #include <stdint.h>
 #include "packet.h"
 
+#define CHAN_STARTING 1
+#define CHAN_OPEN 2
+#define CHAN_ENDING 3
+#define CHAN_ENDED 0
 
 typedef struct chan_struct
 {
@@ -12,7 +16,7 @@ typedef struct chan_struct
   struct hn_struct *to;
   char *type;
   int reliable;
-  enum {STARTING, OPEN, ENDING, ENDED} state;
+  uint8_t state;
   struct path_struct *last;
   struct chan_struct *next;
   packet_t in, inend, notes;

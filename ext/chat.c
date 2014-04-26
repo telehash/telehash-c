@@ -530,7 +530,7 @@ chat_t ext_chat(chan_t c)
   // optionally sends ack if needed
   chan_ack(c);
   
-  if(c->state == ENDING || c->state == ENDED)
+  if(c->state == CHAN_ENDING || c->state == CHAN_ENDED)
   {
     // if it's this channel in the index, zap it
     if(xht_get(r->chat->conn,c->to->hexname) == c) xht_set(r->chat->conn,c->to->hexname,NULL);
