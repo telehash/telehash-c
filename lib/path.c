@@ -37,7 +37,7 @@ path_t path_parse(char *json, int len)
 
   // just try to set all possible attributes
   path_ip(p, j0g_str("ip",json,js));
-  path_port(p, (uint16_t)strtol(j0g_str("port",json,js),NULL,10));
+  if(j0g_str("port",json,js)) path_port(p, (uint16_t)strtol(j0g_str("port",json,js),NULL,10));
   path_id(p, j0g_str("id",json,js));
   path_http(p, j0g_str("http",json,js));
   

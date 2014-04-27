@@ -97,6 +97,21 @@ void sha256_process( sha256_context *ctx, const unsigned char data[64] );
 void sha256( const unsigned char *input, size_t ilen,
            unsigned char output[32], int is224 );
 
+/**
+ * \brief          Output = HMAC-SHA-256( hmac key, input buffer )
+ *
+ * \param key      HMAC secret key
+ * \param keylen   length of the HMAC key
+ * \param input    buffer holding the  data
+ * \param ilen     length of the input data
+ * \param output   HMAC-SHA-224/256 result
+ * \param is224    0 = use SHA256, 1 = use SHA224
+ */
+void sha256_hmac( const unsigned char *key, size_t keylen,
+                  const unsigned char *input, size_t ilen,
+                  unsigned char output[32], int is224 );
+
+
 
 #ifdef __cplusplus
 }

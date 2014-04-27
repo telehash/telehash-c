@@ -2,7 +2,7 @@ CC=gcc
 CFLAGS+=-g -Wall -Wextra -Wno-unused-parameter
 INCLUDE+=-Iunix -Ilib -Iext
 JSON = ../js0n/js0n.c ../js0n/j0g.c -I../js0n
-CS1a = cs1a/aes.c cs1a/sha1.c cs1a/base64_dec.c cs1a/crypt_1a.c cs1a/uECC.c cs1a/sha256.c cs1a/base64_enc.c  cs1a/sha2_small_common.c
+CS1a = cs1a/aes.c cs1a/hmac.c cs1a/aes128.c cs1a/base64_dec.c cs1a/crypt_1a.c cs1a/uECC.c cs1a/sha256.c cs1a/base64_enc.c
 CS2a = -ltomcrypt -ltommath -DLTM_DESC -DCS_2a cs2a/crypt_libtom_*.c
 CS3a = -Ics1a -lsodium -DCS_3a cs3a/crypt_3a.c
 

@@ -317,3 +317,86 @@ void sha256( const unsigned char *input, size_t ilen,
     memset( &ctx, 0, sizeof( sha256_context ) );
 }
 
+/*
+ * SHA-256 HMAC context setup
+ */
+void sha256_hmac_starts( sha256_context *ctx, const unsigned char *key,
+                         size_t keylen, int is224 )
+{
+    size_t i;
+    unsigned char sum[32];
+
+    if( keylen > 64 )
+    {
+        sha256( key, keylen, sum, is224 );
+        keylen = ( is224 ) ? 28 : 32;
+        key = sum;
+    }
+
+    memset( ctx->ipad, 0x36, 64 );
+    memset( ctx->opad, 0x5C, 64 );
+
+    for( i = 0; i < keylen; i++ )
+    {
+        ctx->ipad[i] = (unsigned char)( ctx->ipad[i] ^ key[i] );
+        ctx->opad[i] = (unsigned char)( ctx->opad[i] ^ key[i] );
+    }
+
+    sha256_starts( ctx, is224 );
+    sha256_update( ctx, ctx->ipad, 64 );
+
+    memset( sum, 0, sizeof( sum ) );
+}
+
+/*
+ * SHA-256 HMAC process buffer
+ */
+void sha256_hmac_update( sha256_context *ctx, const unsigned char *input, size_t ilen )
+{
+    sha256_update( ctx, input, ilen );
+}
+
+/*
+ * SHA-256 HMAC final digest
+ */
+void sha256_hmac_finish( sha256_context *ctx, unsigned char output[32] )
+{
+    int is224, hlen;
+    unsigned char tmpbuf[32];
+
+    is224 = ctx->is224;
+    hlen = ( is224 == 0 ) ? 32 : 28;
+
+    sha256_finish( ctx, tmpbuf );
+    sha256_starts( ctx, is224 );
+    sha256_update( ctx, ctx->opad, 64 );
+    sha256_update( ctx, tmpbuf, hlen );
+    sha256_finish( ctx, output );
+
+    memset( tmpbuf, 0, sizeof( tmpbuf ) );
+}
+
+/*
+ * SHA-256 HMAC context reset
+ */
+void sha256_hmac_reset( sha256_context *ctx )
+{
+    sha256_starts( ctx, ctx->is224 );
+    sha256_update( ctx, ctx->ipad, 64 );
+}
+
+/*
+ * output = HMAC-SHA-256( hmac key, input buffer )
+ */
+void sha256_hmac( const unsigned char *key, size_t keylen,
+                  const unsigned char *input, size_t ilen,
+                  unsigned char output[32], int is224 )
+{
+    sha256_context ctx;
+
+    sha256_hmac_starts( &ctx, key, keylen, is224 );
+    sha256_hmac_update( &ctx, input, ilen );
+    sha256_hmac_finish( &ctx, output );
+
+    memset( &ctx, 0, sizeof( sha256_context ) );
+}
