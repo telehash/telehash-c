@@ -1,7 +1,7 @@
+/* Copyright 2014, Kenneth MacKay. Licensed under the BSD 2-clause license. */
+
 #ifndef _MICRO_ECC_H_
 #define _MICRO_ECC_H_
-
-#define uECC_CURVE uECC_secp160r1
 
 #include <stdint.h>
 
@@ -33,8 +33,9 @@ uECC_asm_fast  - Use GCC inline assembly optimized for maximum speed. */
 #define uECC_secp160r1 1
 #define uECC_secp192r1 2
 #define uECC_secp256r1 3
+#define uECC_secp256k1 4
 #ifndef uECC_CURVE
-    #define uECC_CURVE uECC_secp256r1
+    #define uECC_CURVE uECC_secp160r1
 #endif
 
 /* uECC_SQUARE_FUNC - If enabled (defined as nonzero), this will cause a specific function to be used for (scalar) squaring
@@ -47,6 +48,7 @@ uECC_asm_fast  - Use GCC inline assembly optimized for maximum speed. */
 #define uECC_size_1 20 /* secp160r1 */
 #define uECC_size_2 24 /* secp192r1 */
 #define uECC_size_3 32 /* secp256r1 */
+#define uECC_size_4 32 /* secp256k1 */
 
 #define uECC_BYTES uECC_CONCAT(uECC_size_, uECC_CURVE)
 
@@ -117,7 +119,7 @@ Inputs:
 Outputs:
     p_compressed - Will be filled in with the compressed public key.
 */
-void uECC_compress(uint8_t p_publicKey[uECC_BYTES*2], uint8_t p_compressed[uECC_BYTES+1]);
+void uECC_compress(const uint8_t p_publicKey[uECC_BYTES*2], uint8_t p_compressed[uECC_BYTES+1]);
 
 /* uECC_decompress() function.
 Decompress a compressed public key.
@@ -128,7 +130,7 @@ Inputs:
 Outputs:
     p_publicKey - Will be filled in with the decompressed public key.
 */
-void uECC_decompress(uint8_t p_compressed[uECC_BYTES+1], uint8_t p_publicKey[uECC_BYTES*2]);
+void uECC_decompress(const uint8_t p_compressed[uECC_BYTES+1], uint8_t p_publicKey[uECC_BYTES*2]);
 
 /* uECC_sign() function.
 Generate an ECDSA signature for a given hash value.
