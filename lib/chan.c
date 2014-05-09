@@ -12,16 +12,24 @@ void chan_hn(hn_t hn, chan_t c)
 
 void walkend(xht_t h, const char *key, void *val, void *arg)
 {
-  uint8_t base = *(uint8_t*)arg;
   chan_t c = (chan_t)val;
-  if(c->id % 2 != base % 2) chan_fail(c,NULL);
+  if(c->state == CHAN_OPEN) chan_fail(c,NULL);
 }
 void chan_reset(switch_t s, hn_t to)
 {
-  uint8_t base = (strncmp(s->id->hexname,to->hexname,64) > 0) ? 1 : 2;
-  if(!to->chanOut) to->chanOut = base;
-  // fail any existing chans from them
-  xht_walk(to->chans, &walkend, (void*)&base);
+  // fail any existing open channels
+  xht_walk(to->chans, &walkend, NULL);
+}
+
+void walktick(xht_t h, const char *key, void *val, void *arg)
+{
+  chan_t c = (chan_t)val;
+  // TODO check packet resend timers
+  if(c->tick) c->tick(c);
+}
+void chan_tick(switch_t s, hn_t hn)
+{
+  xht_walk(hn->chans, &walktick, NULL);
 }
 
 chan_t chan_reliable(chan_t c, int window)
@@ -48,7 +56,7 @@ chan_t chan_new(switch_t s, hn_t to, char *type, uint32_t id)
   if(!s || !to || !type) return NULL;
 
   // use new id if none given
-  if(!to->chanOut) chan_reset(s, to);
+  if(!to->chanOut) to->chanOut = (strncmp(s->id->hexname,to->hexname,64) > 0) ? 1 : 2;
   if(!id)
   {
     id = to->chanOut;
@@ -67,7 +75,12 @@ chan_t chan_new(switch_t s, hn_t to, char *type, uint32_t id)
   util_hex((unsigned char*)&(s->uid),4,(unsigned char*)c->uid); // switch-wide unique id
   s->uid++;
   util_hex((unsigned char*)&(c->id),4,(unsigned char*)c->hexid);
-  if(!to->chans) to->chans = xht_new(17);
+  // first one on this hashname
+  if(!to->chans)
+  {
+    to->chans = xht_new(17);
+    bucket_add(s->active, to);
+  }
   xht_set(to->chans,(char*)c->hexid,c);
   xht_set(s->index,(char*)c->uid,c);
   return c;
@@ -146,6 +159,7 @@ void chan_free(chan_t c)
     c->notes = p->next;
     packet_free(p);
   }
+  // TODO, if it's the last channel, bucket_rem(c->s->active, c);
   free(c->type);
   free(c);
 }

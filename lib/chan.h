@@ -22,7 +22,9 @@ typedef struct chan_struct
   packet_t in, inend, notes;
   void *arg; // used by app
   void *seq, *miss; // used by chan_seq/chan_miss
-  void (*handler)(struct chan_struct*); // auto-fire callback
+  // event callbacks for channel implementations
+  void (*handler)(struct chan_struct*); // handle incoming packets immediately/directly
+  void (*tick)(struct chan_struct*); // called approx every tick (1s)
 } *chan_t;
 
 // kind of a macro, just make a reliable channel of this type to this hashname
@@ -37,6 +39,9 @@ chan_t chan_reliable(chan_t c, int window);
 
 // resets channel state for a hashname
 void chan_reset(struct switch_struct *s, struct hn_struct *to);
+
+// gives all channels a chance to do background stuff
+void chan_tick(struct switch_struct *s, struct hn_struct *to);
 
 // returns existing or creates new and adds to from
 chan_t chan_in(struct switch_struct *s, struct hn_struct *from, packet_t p);

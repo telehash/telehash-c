@@ -14,11 +14,11 @@
 typedef struct switch_struct
 {
   hn_t id;
-  bucket_t seeds;
+  bucket_t seeds, active;
   packet_t out, last; // packets waiting to be delivered
   packet_t parts;
   chan_t chans; // channels waiting to be processed
-  uint32_t uid;
+  uint32_t uid, tick;
   int cap, window;
   uint8_t isSeed;
   xht_t index;
@@ -35,7 +35,7 @@ int switch_init(switch_t s, packet_t keys);
 // add hashname as a seed, will automatically trigger a query to it
 void switch_seed(switch_t s, hn_t hn);
 
-// should be called at least once a second, handles timers
+// this is already called implicitly by switch_sending, handles timers
 void switch_loop(switch_t s);
 
 // generate a broadcast/handshake ping packet, only send these locally

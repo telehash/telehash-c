@@ -16,6 +16,7 @@ switch_t switch_new(uint32_t prime)
   s->window = 32; // default reliable window size
   s->index = xht_new(prime?prime:MAXPRIME);
   s->parts = packet_new();
+  s->active = bucket_new();
   if(!s->index || !s->parts) return switch_free(s);
   return s;
 }
@@ -64,6 +65,7 @@ switch_t switch_free(switch_t s)
   xht_free(s->index);
   packet_free(s->parts);
   if(s->seeds) bucket_free(s->seeds);
+  bucket_free(s->active);
   free(s);
   return NULL;
 }
@@ -127,9 +129,21 @@ void switch_pong(switch_t s, packet_t ping, path_t in)
   switch_sendingQ(s,p);
 }
 
+// fire tick events no more than once a second
 void switch_loop(switch_t s)
 {
-  // give all channels a chance
+  hn_t hn;
+  int i = 0;
+  uint32_t now = platform_seconds();
+  if(s->tick == now) return;
+  s->tick = now;
+
+  // give all channels a tick
+  while((hn = bucket_get(s->active,i)))
+  {
+    i++;
+    chan_tick(s,hn);
+  }
 }
 
 void switch_seed(switch_t s, hn_t hn)
@@ -141,7 +155,10 @@ void switch_seed(switch_t s, hn_t hn)
 packet_t switch_sending(switch_t s)
 {
   packet_t p;
-  if(!s || !s->out) return NULL;
+  if(!s) return NULL;
+  // run a loop just in case to flush any outgoing
+  switch_loop(s);
+  if(!s->out) return NULL;
   p = s->out;
   s->out = p->next;
   if(!s->out) s->last = NULL;
