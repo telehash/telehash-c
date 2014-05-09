@@ -4,37 +4,48 @@
 #include <stdint.h>
 #include "packet.h"
 #include "util.h"
-  
+
 bucket_t bucket_new()
 {
   bucket_t b = malloc(sizeof (struct bucket_struct));
   memset(b,0,sizeof (struct bucket_struct));
-  b->hns = malloc(sizeof (hn_t));
-  b->hns[0] = NULL;
+  b->hns = NULL;
   return b;
 }
 
 void bucket_free(bucket_t b)
 {
-  free(b->hns);
+  if(!b) return;
+  if(b->hns) free(b->hns);
   free(b);
 }
 
-void bucket_add(bucket_t b, hn_t h)
+void bucket_add(bucket_t b, hn_t hn)
 {
   int i;
   void *ptr;
-  for(i=0;b->hns[i];i++) if(b->hns[i] == h) return;
-  if(!(ptr = realloc(b->hns, (i+2) * sizeof(hn_t)))) return;
+  if(!b || !hn) return;
+  for(i=0;i<b->count;i++) if(b->hns[i] == hn) return; // already here
+  // make more space
+  if(!(ptr = realloc(b->hns, (b->count+1) * sizeof(hn_t)))) return;
   b->hns = (hn_t*)ptr;
-  b->hns[i] = h;
-  b->hns[i+1] = NULL;
-  b->count = i+1;
+  b->hns[b->count] = hn;
+  b->count++;
+}
+
+void bucket_rem(bucket_t b, hn_t hn)
+{
+  int i, at = -1;
+  if(!b || !hn) return;
+  for(i=0;i<b->count;i++) if(b->hns[i] == hn) at = i;
+  if(at == -1) return;
+  b->count--;
+  memmove(b->hns+at,b->hns+(at+1),b->count-at);
 }
 
 hn_t bucket_get(bucket_t b, int index)
 {
-  if(index >= b->count) return NULL;
+  if(!b || index >= b->count) return NULL;
   return b->hns[index];
 }
 
