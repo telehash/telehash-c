@@ -283,7 +283,6 @@ void switch_receive(switch_t s, packet_t p, path_t in)
     c = xht_get(s->index,hex);
     if(!c) return (void)packet_free(p);
     inner = crypt_deopenize(c, p);
-    DEBUG_PRINTF("DEOPEN %d",inner);
     if(!inner) return (void)packet_free(p);
 
     from = hn_frompacket(s->index, inner);

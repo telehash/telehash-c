@@ -13,5 +13,6 @@
 #include "connect.h"
 #include "path.h"
 #include "peer.h"
+#include "sock.h"
 
 #endif
