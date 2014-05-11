@@ -58,6 +58,9 @@ void packet_set_str(packet_t p, char *key, char *val); // escapes value
 void packet_set_int(packet_t p, char *key, int val);
 void packet_set_printf(packet_t p, char *key, const char *format, ...);
 
+// copies keys from json into p
+void packet_set_json(packet_t p, packet_t json);
+
 // count of keys
 int packet_keys(packet_t p);
 

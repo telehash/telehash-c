@@ -36,6 +36,7 @@ int main(int argc, char *argv[])
   packet_t p, note;
   path_t in;
   chat_t chat;
+  sockc_t sc;
   int sock, len;
   char buf[256];
   const int fd = fileno(stdin);
@@ -107,6 +108,17 @@ int main(int argc, char *argv[])
         if(util_cmp(c->type,"seek") == 0) ext_link(c);
         if(util_cmp(c->type,"path") == 0) ext_path(c);
         if(util_cmp(c->type,"peer") == 0) ext_peer(c);
+        if(util_cmp(c->type,"sock") == 0 && (sc = ext_sock(c)))
+        {
+          if(sc->state == SOCKC_NEW) logg("SOCK NEW %s",c->to->hexname);
+          while(sc->readable)
+          {
+            logg("SOCK: %d %.*s",sc->readable,sc->readable,sc->readbuf);
+            sockc_write(sc,sc->readbuf,sc->readable);
+            sockc_readup(sc,sc->readable);
+          }
+          if(sc->state == SOCKC_CLOSED) logg("SOCK CLOSED %s",c->to->hexname);
+        }
         if(util_cmp(c->type,"chat") == 0 && ext_chat(c)) while((p = chat_pop(chat)))
         {
           if(util_cmp(packet_get_str(p,"type"),"state") == 0)

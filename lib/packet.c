@@ -390,3 +390,15 @@ int packet_cmp(packet_t a, packet_t b)
 
   return memcmp(a->body,b->body,a->body_len);
 }
+
+void packet_set_json(packet_t p, packet_t json)
+{
+  char *part;
+  int i = 0;
+
+  while((part = packet_get_istr(json,i)))
+  {
+    packet_set_str(p,part,packet_get_istr(json,i+1));
+    i += 2;
+  }
+}
