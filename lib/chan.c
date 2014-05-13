@@ -99,7 +99,8 @@ chan_t chan_in(switch_t s, hn_t from, packet_t p)
   if(c) return c;
 
   type = packet_get_str(p, "type");
-  if(!type || id % 2 == from->chanOut % 2) return NULL;
+  if(!type || (from->chanOut > 0 && id % 2 == from->chanOut % 2)) return NULL;
+
 
   return chan_new(s, from, type, id);
 }
