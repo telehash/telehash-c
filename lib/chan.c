@@ -61,6 +61,9 @@ chan_t chan_new(switch_t s, hn_t to, char *type, uint32_t id)
   {
     id = to->chanOut;
     to->chanOut += 2;
+  }else{
+    // externally given id can't be ours
+    if(id % 2 == to->chanOut % 2) return NULL;
   }
 
   DEBUG_PRINTF("channel new %d %s",id,type);
@@ -90,7 +93,7 @@ chan_t chan_in(switch_t s, hn_t from, packet_t p)
 {
   chan_t c;
   unsigned long id;
-  char hexid[9], *type;
+  char hexid[9];
   if(!from || !p) return NULL;
 
   id = strtol(packet_get_str(p,"c"), NULL, 10);
@@ -98,11 +101,7 @@ chan_t chan_in(switch_t s, hn_t from, packet_t p)
   c = xht_get(from->chans, hexid);
   if(c) return c;
 
-  type = packet_get_str(p, "type");
-  if(!type || (from->chanOut > 0 && id % 2 == from->chanOut % 2)) return NULL;
-
-
-  return chan_new(s, from, type, id);
+  return chan_new(s, from, packet_get_str(p, "type"), id);
 }
 
 // flags channel as ended, optionally adds end to packet
