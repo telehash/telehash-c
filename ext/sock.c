@@ -101,12 +101,9 @@ void sockc_close(sockc_t sc)
 // -1 on err, returns bytes read into buf up to len, sets open=1
 int sockc_read(sockc_t sc, uint8_t *buf, int len)
 {
-  if(sc->state == SOCKC_NEW) sc->state = SOCKC_OPEN;
   if(len > (int)sc->readable) len = (int)sc->readable;
-  sc->readable -= len;
   memcpy(buf,sc->readbuf,len);
-  memmove(sc->readbuf,sc->readbuf+len,sc->readable);
-  if(!(sc->readbuf = realloc(sc->readbuf,sc->readable))) sc->readable = 0;
+  sockc_readup(sc,(uint32_t)len);
   return len;
 }
 
@@ -149,7 +146,9 @@ int sockc_write(sockc_t sc, uint8_t *buf, int len)
   if(!writebuf) return -1;
   sc->writebuf = writebuf;
   memcpy(sc->writebuf+sc->writing,buf,len);
-  return -1;
+  sc->writing += len;
+  sc->c->tick = sockc_flush; // create packet(s) during tick flush
+  return len;
 }
 
 // advance the read buf, useful when accessing it directly for zero-copy
@@ -158,12 +157,7 @@ void sockc_readup(sockc_t sc, uint32_t len)
   if(!sc || !len) return;
   if(sc->state == SOCKC_NEW) sc->state = SOCKC_OPEN;
   if(len > sc->readable) len = sc->readable;
-  if(len == sc->readable)
-  {
-    free(sc->readbuf);
-    sc->readbuf = NULL;
-    return;
-  }
   sc->readable -= len;
   memmove(sc->readbuf,sc->readbuf+len,sc->readable);
+  if(!(sc->readbuf = realloc(sc->readbuf,sc->readable))) sc->readable = 0;
 }
