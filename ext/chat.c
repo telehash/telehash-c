@@ -491,10 +491,10 @@ chat_t ext_chat(chan_t c)
 
     // add to roster if given
     if(id) chat_add(chat,c->to->hexname,id);
-    packet_set_str(p,"roster",chat->rhash);
     
     // re-fetch roster if hashes don't match
     if(util_cmp(packet_get_str(p,"roster"),chat->rhash) != 0) chat_cache(chat,chat->origin->hexname,NULL);
+    packet_set_str(p,"roster",chat->rhash);
 
     chan_send(c,p);
   }
