@@ -536,9 +536,10 @@ chat_t ext_chat(chan_t c)
     if(xht_get(r->chat->conn,c->to->hexname) == c) xht_set(r->chat->conn,c->to->hexname,NULL);
     chatr_free(r);
     c->arg = NULL;
+    return NULL;
+  } else {
+    return r->chat->msgs ? r->chat : NULL;
   }
-
-  return r->chat->msgs ? r->chat : NULL;
 }
 
 packet_t chat_participant(chat_t chat, char *hn)
