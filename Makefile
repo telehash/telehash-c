@@ -23,7 +23,7 @@ ARCH = unix/platform.c cs1a/crypt_base.c $(JSON) $(CS1a) $(INCLUDE) $(LIBS)
 
 
 LIBS+=
-all: idgen ping seed tft
+all: idgen ping seed tft port
 
 test:
 	$(CC) $(CFLAGS) -o bin/test util/test.c lib/packet.c lib/crypt.c lib/util.c $(ARCH)
@@ -39,6 +39,9 @@ seed:
 
 tft:
 	$(CC) $(CFLAGS) -o bin/tft util/tft.c lib/*.c unix/util.c ext/*.c $(ARCH)
+
+port:
+	$(CC) $(CFLAGS) -o bin/port util/port.c lib/*.c unix/util.c ext/*.c $(ARCH)
  
 clean:
 	rm -f bin/*

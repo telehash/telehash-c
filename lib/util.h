@@ -9,6 +9,8 @@
 unsigned char *util_hex(unsigned char *in, int len, unsigned char *out);
 // out must be len/2
 unsigned char *util_unhex(unsigned char *in, int len, unsigned char *out);
+// hex string validator, NULL is invalid, else returns str
+char *util_ishex(char *str, int len);
 
 // safer string comparison (0 == same)
 int util_cmp(char *a, char *b);

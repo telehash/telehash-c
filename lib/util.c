@@ -44,6 +44,17 @@ unsigned char *util_unhex(unsigned char *in, int len, unsigned char *out)
   return out;
 }
 
+char *util_ishex(char *str, int len)
+{
+  int i;
+  for(i=0;i<len;i++)
+  {
+    if(!str[i]) return NULL;
+    if(str[i] == (char)hexcode((unsigned char)str[i])) return NULL;
+  }
+  return str;
+}
+
 int util_cmp(char *a, char *b)
 {
   if(!a || !b) return -1;
