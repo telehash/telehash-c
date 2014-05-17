@@ -327,16 +327,9 @@ void switch_receive(switch_t s, packet_t p, path_t in)
         return chan_receive(chan, p);
       }
 
-      // bounce it!
-      if(!packet_get_str(p,"err"))
-      {
-        packet_set_str(p,"err","unknown channel");
-        p->to = from;
-        p->out = in;
-        switch_send(s, p);          
-      }else{
-        packet_free(p);
-      }
+      // drop unknown!
+      DEBUG_PRINTF("dropping unknown channel packet %.*s",p->json_len,p->json);
+      packet_free(p);
       return;
     }
   }
