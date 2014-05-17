@@ -17,6 +17,7 @@ packet_t packet_new()
   memset(p,0,sizeof (struct packet_struct));
   if(!(p->raw = malloc(2))) return packet_free(p);
   memset(p->raw,0,2);
+//  DEBUG_PRINTF("packet +++ %d",p);
   return p;
 }
 
@@ -70,11 +71,11 @@ packet_t packet_linked(packet_t parent)
 packet_t packet_free(packet_t p)
 {
   if(!p) return NULL;
+//  DEBUG_PRINTF("packet --- %d",p);
   if(p->chain) packet_free(p->chain);
   if(p->jsoncp) free(p->jsoncp);
   if(p->raw) free(p->raw);
   free(p);
-//  DEBUG_PRINTF("packet --- %d",p);
   return NULL;
 }
 
