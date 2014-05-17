@@ -19,13 +19,20 @@ void chan_reset(switch_t s, hn_t to)
 {
   // fail any existing open channels
   xht_walk(to->chans, &walkend, NULL);
+  // reset max id tracking
+  to->chanMax = 0;
 }
 
 void walktick(xht_t h, const char *key, void *val, void *arg)
 {
   chan_t c = (chan_t)val;
-  // TODO check packet resend timers
   if(c->tick) c->tick(c);
+  if(c->tresend)
+  {
+    // TODO check packet resend timers
+  }
+  // latent cleanup/free
+  if(c->state == CHAN_ENDED && (c->tfree++) > 10) chan_free(c);
 }
 void chan_tick(switch_t s, hn_t hn)
 {
@@ -64,6 +71,8 @@ chan_t chan_new(switch_t s, hn_t to, char *type, uint32_t id)
   }else{
     // externally given id can't be ours
     if(id % 2 == to->chanOut % 2) return NULL;
+    // must be a newer id
+    if(id <= to->chanMax) return NULL;
   }
 
   DEBUG_PRINTF("channel new %d %s",id,type);
@@ -107,11 +116,15 @@ chan_t chan_in(switch_t s, hn_t from, packet_t p)
 // flags channel as ended, optionally adds end to packet
 chan_t chan_end(chan_t c, packet_t p)
 {
-  DEBUG_PRINTF("channel end %d",c->id);
-  if(p) packet_set(p,"end","true",4);
-  // if(c->reliable) TODO set to ENDING, add timer for cleanup and then queue for free
+  if(!c) return NULL;
+  DEBUG_PRINTF("channel end %d %d",c->id,c->state);
+  // notify stuff if in open state
+  if(c->state == CHAN_OPEN)
+  {
+    if(p) packet_set(p,"end","true",4);
+    chan_queue(c);
+  }
   c->state = CHAN_ENDED;
-  chan_queue(c);
   return c;
 }
 
@@ -135,8 +148,16 @@ chan_t chan_fail(chan_t c, char *err)
 void chan_free(chan_t c)
 {
   packet_t p;
-  // remove references
+  if(!c) return;
+  // if there's an arg set, we can't free and must notify channel handler
+  if(c->arg) return chan_queue(c);
+
   DEBUG_PRINTF("channel free %d",c->id);
+
+  // to prevent replay of this old id
+  if(c->id > c->to->chanMax) c->to->chanMax = c->id;
+
+  // remove references
   chan_dequeue(c);
   if(xht_get(c->to->chans,(char*)c->hexid) == c) xht_set(c->to->chans,(char*)c->hexid,NULL);
   xht_set(c->s->index,(char*)c->uid,NULL);
@@ -258,6 +279,7 @@ void chan_receive(chan_t c, packet_t p)
   if(util_cmp(packet_get_str(p,"end"),"true") == 0) c->state = CHAN_ENDING;
   if(packet_get_str(p,"err")) c->state = CHAN_ENDED;
 
+  // TODO, only queue so many packets if we haven't responded ever (to limit ignored unsupported channels)
   if(c->reliable)
   {
     chan_miss_check(c,p);

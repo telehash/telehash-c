@@ -17,10 +17,11 @@ typedef struct chan_struct
   char *type;
   int reliable;
   uint8_t state;
+  uint8_t tfree, tresend;
   struct path_struct *last;
   struct chan_struct *next;
   packet_t in, inend, notes;
-  void *arg; // used by app
+  void *arg; // used by extensions
   void *seq, *miss; // used by chan_seq/chan_miss
   // event callbacks for channel implementations
   void (*handler)(struct chan_struct*); // handle incoming packets immediately/directly
