@@ -7,20 +7,10 @@ sockc_t sockc_new(chan_t c)
   sc = malloc(sizeof(struct sockc_struct));
   memset(sc,0,sizeof (struct sockc_struct));
   sc->state = SOCKC_NEW;
+  sc->fd = -1; // for app usage
   sc->c = c;
   c->arg = (void*)sc;
   return sc;
-}
-
-sockc_t sockc_free(sockc_t sc)
-{
-  if(!sc) return NULL;
-  if(sc->readbuf) free(sc->readbuf);
-  if(sc->writebuf) free(sc->writebuf);
-  packet_free(sc->opts);
-  if(sc->c) sc->c->arg = NULL;
-  free(sc);
-  return NULL;
 }
 
 // process channel for new incoming sock channel
@@ -28,17 +18,16 @@ sockc_t ext_sock(chan_t c)
 {
   packet_t p;
   sockc_t sc = (sockc_t)c->arg;
-  
+
+  DEBUG_PRINTF("sockc active %d",sc);
   while((p = chan_pop(c)))
   {
     if(!sc)
     {
-      c->arg = sc = sockc_new(c);
+      sc = sockc_new(c);
       sc->opts = packet_new();
       packet_set_json(sc->opts,p);
     }
-
-    if(!c->state == CHAN_ENDING) sc->state = SOCKC_CLOSED;
     
     DEBUG_PRINTF("sock packet %d %d", sc->state, p->body_len);
 
@@ -47,63 +36,75 @@ sockc_t ext_sock(chan_t c)
     {
       if(!(sc->readbuf = realloc(sc->readbuf,sc->readable+p->body_len)))
       {
-        packet_free(p);
-        sockc_free(sc);
         chan_fail(c,"oom");
-        return NULL;
+      }else{
+        memcpy(sc->readbuf+sc->readable,p->body,p->body_len);
+        sc->readable += p->body_len;
       }
-      memcpy(sc->readbuf+sc->readable,p->body,p->body_len);
-      sc->readable += p->body_len;
     }
     packet_free(p);
   }
   
-  // optionally sends ack if needed
-  chan_ack(c);
-  
-  // when ended, disconnect (to allow reading still)
-  if(sc && c->s == CHAN_ENDED) sc->c = NULL;
-  
   return sc;
 }
 
-// create a sock channel to this hn, optional opts (ip, port), sets open=1
-sockc_t sockc_connect(switch_t s, hn_t hn, packet_t opts)
+void sockc_accept(sockc_t sc)
+{
+  if(!sc || sc->state != SOCKC_NEW) return;
+  sc->state = SOCKC_OPEN;
+  chan_ack(sc->c);
+}
+
+// create a sock channel to this hn, optional opts (ip, port)
+sockc_t sockc_connect(switch_t s, char *hn, packet_t opts)
 {
   packet_t p;
   sockc_t sc;
 
-  // TODO start channel
-  sc = sockc_new(chan_new(s, hn, "sock", 0));
+  sc = sockc_new(chan_start(s, hn, "sock"));
   if(!sc) return NULL;
   sc->state = SOCKC_OPEN;
   p = chan_packet(sc->c);
-  if(!p) return sockc_free(sc);
   packet_set_json(p,opts);
   packet_free(opts);
   chan_send(sc->c, p);
   return sc;
 }
 
-// tries to flush and end, cleans up, if not open it drops
-void sockc_close(sockc_t sc)
+// util to just send a closing signal
+void sockc_shutdown(sockc_t sc)
 {
-  packet_t p;
-  if(!sc || !sc->c || sc->state == SOCKC_CLOSED) return;
+  if(!sc || sc->state == SOCKC_CLOSED) return;
   sc->state = SOCKC_CLOSED;
-  if(sc->writing) return sockc_flush(sc->c); // will end it
-  p = chan_packet(sc->c);
-  if(!p) return (void)chan_fail(sc->c,"overflow");
-  chan_end(sc->c,p);
-  chan_send(sc->c,p);
+    // try to flush any data and send the end w/ it
+  sockc_flush(sc->c);
+  // hard fail the channel if we couldn't flush
+  if(sc->writing) chan_fail(sc->c,"overflow");
 }
 
-// -1 on err, returns bytes read into buf up to len, sets open=1
+// tries to flush and end, cleans up/frees sc
+sockc_t sockc_close(sockc_t sc)
+{
+  if(!sc) return NULL;
+  sockc_shutdown(sc);
+  // remove channel reference
+  sc->c->arg = NULL;
+  sc->c->tick = NULL;
+  sc->c = NULL;
+  if(sc->readbuf) free(sc->readbuf);
+  if(sc->writebuf) free(sc->writebuf);
+  packet_free(sc->opts);
+  free(sc);
+  return NULL;
+}
+
+// -1 on err, returns bytes read into buf up to len
 int sockc_read(sockc_t sc, uint8_t *buf, int len)
 {
+  if(!sc || sc->state != SOCKC_OPEN) return -1;
   if(len > (int)sc->readable) len = (int)sc->readable;
   memcpy(buf,sc->readbuf,len);
-  sockc_readup(sc,(uint32_t)len);
+  sockc_zread(sc,len);
   return len;
 }
 
@@ -112,13 +113,21 @@ uint8_t sockc_chunk(sockc_t sc)
 {
   packet_t p;
   uint32_t len;
-  if(!sc || !(len = sc->writing)) return 0;
+  if(!sc) return 0;
+  // if nothing to do, try sending an ack
+  if(!sc->writing && sc->state == SOCKC_OPEN)
+  {
+    chan_ack(sc->c);
+    return 0;
+  }
+  // we've got something to say
+  len = sc->writing;
   p = chan_packet(sc->c);
   if(!p) return 0;
   if(len > packet_space(p)) len = packet_space(p);
   packet_append(p,sc->writebuf,len);
   sc->writing -= len;
-  // optionally end with this packet if we're closed
+  // optionally end with the last packet if we're closed
   if(sc->state == SOCKC_CLOSED && !sc->writing) chan_end(sc->c,p);
   chan_send(sc->c,p);
   memmove(sc->writebuf,sc->writebuf+len,sc->writing);
@@ -128,19 +137,26 @@ uint8_t sockc_chunk(sockc_t sc)
 // flush current packet buffer out
 void sockc_flush(chan_t c)
 {
-  sockc_t sc = (sockc_t)c->arg;
-  if(!sc) return;
-  while(sockc_chunk(sc)); // send everything
+  sockc_t sc;
+  if(!c) return;
+  if(!(sc = (sockc_t)c->arg)) return;
+  // send anything waiting
+  while(sockc_chunk(sc));
   // come back again if there's more waiting
-  sc->c->tick = (sc->writing) ? sockc_flush : NULL;
+  sc->c->tick = (sc->state == SOCKC_OPEN && sc->writing) ? sockc_flush : NULL;
 }
 
 // -1 on err, returns len and will always buffer up to len 
 int sockc_write(sockc_t sc, uint8_t *buf, int len)
 {
   uint8_t *writebuf;
-  if(sc->state == SOCKC_NEW) sc->state = SOCKC_OPEN;
-  if(sc->state == SOCKC_CLOSED) return -1;
+  if(!sc) return -1;
+  // a way to send a closed signal
+  if(len < 0)
+  {
+    sockc_shutdown(sc);
+    return -1;
+  }
   
   writebuf = realloc(sc->writebuf,sc->writing+len);
   if(!writebuf) return -1;
@@ -151,13 +167,76 @@ int sockc_write(sockc_t sc, uint8_t *buf, int len)
   return len;
 }
 
-// advance the read buf, useful when accessing it directly for zero-copy
-void sockc_readup(sockc_t sc, uint32_t len)
+int sockc_zwrite(sockc_t sc, int len)
 {
-  if(!sc || !len) return;
-  if(sc->state == SOCKC_NEW) sc->state = SOCKC_OPEN;
-  if(len > sc->readable) len = sc->readable;
-  sc->readable -= len;
+  uint8_t *writebuf;
+  if(!sc) return 0;
+  
+  // create requested writeable space at the end
+  writebuf = realloc(sc->writebuf,sc->writing+len);
+  if(!writebuf) return 0;
+  sc->writebuf = writebuf;
+  sc->zwrite = sc->writebuf + sc->writing;
+  return len;
+}
+
+// advance the written after using zwrite
+int sockc_zwritten(sockc_t sc, int len)
+{
+  if(!sc) return 0;
+    // incoming error causes close/fail
+  if(len < 0)
+  {
+    sockc_shutdown(sc);
+    return 0;
+  }
+  sc->writing += len;
+  if(len) sc->c->tick = sockc_flush; // create packet(s) during tick flush
+  sc->zwrite = NULL;
+  return len;
+}
+
+// advance the read buf, useful when accessing it directly for zero-copy
+void sockc_zread(sockc_t sc, int len)
+{
+  if(!sc || len == 0) return;
+    // incoming error causes close/fail
+  if(len < 0)
+  {
+    len = sc->readable;
+    sc->state = SOCKC_CLOSED;
+  }
+  
+  // zero out given read buffer
+  if(len > (int)sc->readable) len = (int)sc->readable;
+  sc->readable -= (uint32_t)len;
   memmove(sc->readbuf,sc->readbuf+len,sc->readable);
   if(!(sc->readbuf = realloc(sc->readbuf,sc->readable))) sc->readable = 0;
+  
+  // more data to read yet
+  if(sc->readable) return; 
+  
+  // if the channel is ending and the data all read, the sock is now closed
+  if(sc->c->state != CHAN_OPEN) sc->state = SOCKC_CLOSED;
+
+  // always try to flush when done reading
+  sockc_flush(sc->c);
+}
+
+int sockc_available(sockc_t sc)
+{
+  if(!sc || sc->state != SOCKC_OPEN) return -1;
+  return (int)sc->readable;
+}
+
+uint8_t sockc_sread(sockc_t sc)
+{
+  // TODO
+  return 0;
+}
+
+uint8_t sockc_swrite(sockc_t sc, uint8_t byte)
+{
+  // TODO
+  return 0;
 }
