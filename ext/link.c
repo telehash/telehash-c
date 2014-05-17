@@ -73,8 +73,8 @@ void link_seed(switch_t s, int max)
   // TODO figure out if there's actually more capacity
 */
 
-// create/fetch/maintain a link to this hn
-chan_t link_hn(switch_t s, hn_t h)
+// create/fetch/maintain a link to this hn, fires note on UP and DOWN change events
+chan_t link_hn(switch_t s, hn_t h, packet_t note)
 {
   chan_t c;
   packet_t p;
@@ -82,6 +82,7 @@ chan_t link_hn(switch_t s, hn_t h)
   if(!s || !h) return NULL;
 
   c = chan_new(s, h, "link", 0);
+  c->arg = note;
   p = chan_packet(c);
   if(l->seeding) packet_set(p,"seed","true",4);
   chan_send(c, p);
@@ -98,6 +99,7 @@ void ext_link(chan_t c)
   }
   // always respond/ack
   chan_send(c,chan_packet(c));
+  // TODO handle note UP/DOWN change based on channel state
 }
 
 void ext_seek(chan_t c)

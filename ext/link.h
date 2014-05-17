@@ -14,7 +14,7 @@ void link_mesh(switch_t s, int max);
 // enable acting as a seed, defaults to 0, or set to max links (as a prime#!)
 void link_seed(switch_t s, int max);
 
-// create/maintain a link to this hn
-chan_t link_hn(switch_t s, hn_t h);
+// create/fetch/maintain a link to this hn, fires note with "link":"up" and "link":"down" change events
+chan_t link_hn(switch_t s, hn_t h, packet_t note);
 
 #endif
