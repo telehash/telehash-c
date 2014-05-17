@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
   chan_t c;
   path_t in;
   sockc_t sc, sock = NULL;
-  int udp, listener, port, mode, lin;
+  int udp, listener, port, mode, flag;
   char *hn;
   struct sockaddr_in sin;
 
@@ -88,6 +88,8 @@ int main(int argc, char *argv[])
       sin.sin_addr.s_addr = htonl(INADDR_ANY);
       sin.sin_port = htons(port);
       listener = socket(AF_INET, SOCK_STREAM, 0);
+      flag = 1;
+      setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof(int));
       if(bind(listener, (struct sockaddr *)&sin, sizeof(struct sockaddr)))
       {
         perror("bind failed");
@@ -132,35 +134,41 @@ int main(int argc, char *argv[])
           draino(sc->fd);
         }
 
-        // read/write any possible data
-        while(sc->fd >= 0 && sc->readable)
-        {
-          sockc_zread(sc,write(sc->fd,sc->readbuf,sc->readable));
-        }
-
         // only track the last active/open sockc in the main loop (we're just a testing utility)
         sock = (sc->state == SOCKC_OPEN)?sc:NULL;
-        // clean up any closed ones
-        if(sc->state == SOCKC_CLOSED)
-        {
-          if(port && sc->fd) close(sc->fd);
-          sockc_close(sc);
-        }
       }
     }
 
     util_sendall(s,udp);
     
-    if(mode == MODE_LISTEN && (lin = accept(listener, NULL, NULL)) >= 0)
+    if(mode == MODE_LISTEN && (flag = accept(listener, NULL, NULL)) >= 0)
     {
-      draino(lin);
+      draino(flag);
       if(sock) sockc_close(sock);
       sock = sockc_connect(s, hn, NULL);
-      sock->fd = lin;
+      sock->fd = flag;
     }
     
-    // check any active socket and fd and write out any data
-    if(sock && sock->fd >= 0) while(sockc_zwrite(sock,SBUF) && sockc_zwritten(sock,read(sock->fd,sock->zwrite,SBUF)));
+    // check any active socket and fd and read/write out any data
+    if(sock && sock->fd >= 0)
+    {
+      while(sock->readable)
+      {
+        flag = write(sock->fd,sock->readbuf,sock->readable);
+        if(flag < 0 && errno == EAGAIN) break;
+        sockc_zread(sc,flag); // closes if error
+      }
+      
+      while(sockc_zwrite(sock,SBUF) && sockc_zwritten(sock,read(sock->fd,sock->zwrite,SBUF)) > 0);
+
+      // clean up any closed ones
+      if(sock->state == SOCKC_CLOSED)
+      {
+        if(port && sock->fd) close(sock->fd); // only close sockets
+        sockc_close(sock);
+        sock = NULL;
+      }
+    }
   }
 
   perror("exiting");

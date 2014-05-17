@@ -76,6 +76,7 @@ sockc_t sockc_connect(switch_t s, char *hn, packet_t opts)
 void sockc_shutdown(sockc_t sc)
 {
   if(!sc || sc->state == SOCKC_CLOSED) return;
+  DEBUG_PRINTF("sockc shutdown %d",sc->c->id);
   sc->state = SOCKC_CLOSED;
     // try to flush any data and send the end w/ it
   sockc_flush(sc->c);
@@ -152,19 +153,15 @@ int sockc_write(sockc_t sc, uint8_t *buf, int len)
 {
   uint8_t *writebuf;
   if(!sc) return -1;
-  // a way to send a closed signal
-  if(len < 0)
-  {
-    sockc_shutdown(sc);
-    return -1;
-  }
-  
+  if(len <= 0) return len;
+
   writebuf = realloc(sc->writebuf,sc->writing+len);
   if(!writebuf) return -1;
   sc->writebuf = writebuf;
   memcpy(sc->writebuf+sc->writing,buf,len);
   sc->writing += len;
   sc->c->tick = sockc_flush; // create packet(s) during tick flush
+  
   return len;
 }
 
@@ -184,15 +181,12 @@ int sockc_zwrite(sockc_t sc, int len)
 // advance the written after using zwrite
 int sockc_zwritten(sockc_t sc, int len)
 {
-  if(!sc) return 0;
-    // incoming error causes close/fail
-  if(len < 0)
+  if(!sc) return -1;
+  if(len > 0)
   {
-    sockc_shutdown(sc);
-    return 0;
+    sc->writing += len;
+    sc->c->tick = sockc_flush; // create packet(s) during tick flush
   }
-  sc->writing += len;
-  if(len) sc->c->tick = sockc_flush; // create packet(s) during tick flush
   sc->zwrite = NULL;
   return len;
 }
@@ -204,8 +198,9 @@ void sockc_zread(sockc_t sc, int len)
     // incoming error causes close/fail
   if(len < 0)
   {
+    DEBUG_PRINTF("sockc read error %d",len);
     len = sc->readable;
-    sc->state = SOCKC_CLOSED;
+    sockc_shutdown(sc);
   }
   
   // zero out given read buffer
@@ -218,9 +213,9 @@ void sockc_zread(sockc_t sc, int len)
   if(sc->readable) return; 
   
   // if the channel is ending and the data all read, the sock is now closed
-  if(sc->c->state != CHAN_OPEN) sc->state = SOCKC_CLOSED;
+  if(sc->c->state != CHAN_OPEN) sockc_shutdown(sc);
 
-  // always try to flush when done reading
+  // always try to flush when done reading, sends ack
   sockc_flush(sc->c);
 }
 

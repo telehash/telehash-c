@@ -43,14 +43,14 @@ int sockc_write(sockc_t sock, uint8_t *buf, int len);
 // general flush outgoing buffer into a packet
 void sockc_flush(chan_t c);
 
-// advances readbuf by this len, for use when doing zero-copy reading directly from ->readbuf, -1 closes
+// advances readbuf by this len, for use when doing zero-copy reading directly from ->readbuf
 // sets SOCKC_CLOSED when channel ended
 void sockc_zread(sockc_t sc, int len);
 
 // creates zero-copy buffer space of requested len at sc->zwrite or returns 0
 int sockc_zwrite(sockc_t sc, int len);
 
-// must use after writing anything to ->zwrite, -1 closes, returns !0 if any written
+// must use after writing anything to ->zwrite, adds len to outgoing buffer and resets sc->zwrite, returns len
 int sockc_zwritten(sockc_t sc, int len);
 
 // serial-style single character interface
