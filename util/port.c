@@ -142,7 +142,7 @@ int main(int argc, char *argv[])
         if(sc->state == SOCKC_CLOSED)
         {
           if(port && sc->fd) close(sc->fd);
-          sockc_free(sc);
+          sockc_close(sc);
         }
       }
     }
