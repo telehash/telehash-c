@@ -34,6 +34,7 @@ void platform_debug(char * format, ...)
     if(!_debugging) return;
     va_start (args, format);
     vsnprintf (buffer, 256, format, args);
-    printf("%s\n", buffer);
+    fprintf(stderr,"%s\n", buffer);
+    fflush(stderr);
     va_end (args);
 }
