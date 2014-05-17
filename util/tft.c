@@ -110,12 +110,13 @@ int main(int argc, char *argv[])
         if(util_cmp(c->type,"peer") == 0) ext_peer(c);
         if(util_cmp(c->type,"sock") == 0 && (sc = ext_sock(c)))
         {
+          DEBUG_PRINTF("XXXX %d",sc);
           if(sc->state == SOCKC_NEW) logg("SOCK NEW %s",c->to->hexname);
+          sockc_accept(sc);
           while(sc->readable)
           {
             logg("SOCK: %d %.*s",sc->readable,sc->readable,sc->readbuf);
-            sockc_write(sc,sc->readbuf,sc->readable);
-            sockc_readup(sc,sc->readable);
+            sockc_zread(sc,sockc_write(sc,sc->readbuf,sc->readable));
           }
           if(sc->state == SOCKC_CLOSED) logg("SOCK CLOSED %s",c->to->hexname);
         }
@@ -139,7 +140,7 @@ int main(int argc, char *argv[])
         packet_free(p);
       }
 
-      if(c->state == CHAN_ENDED) chan_free(c);
+      DEBUG_PRINTF("channel state %d\n",c->state);
     }
 
     if((len = fread(buf,1,255,stdin)))
