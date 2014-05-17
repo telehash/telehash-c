@@ -50,6 +50,7 @@ int main(int argc, char *argv[])
   char *hn;
   struct sockaddr_in sin;
 
+  platform_debugging(1);
   crypt_init();
   s = switch_new(0);
 
@@ -67,7 +68,8 @@ int main(int argc, char *argv[])
     return 1;
   }
 
-  if((hn = util_ishex(argv[1],64)) && (port = getport(argv[2])) >= 0)
+  hn = argv[1];
+  if( (util_ishex(hn,64) || hn[0] == '+') && (port = getport(argv[2])) >= 0)
   {
     // incoming sock channels create new socket to port
     mode = MODE_TOPORT;
@@ -99,8 +101,8 @@ int main(int argc, char *argv[])
     return 1;
   }
 
-
-//  DEBUG_PRINTF("loaded hashname %s\n",s->id->hexname);
+  DEBUG_PRINTF("loaded hashname %s\n",s->id->hexname);
+  link_hn(s, bucket_get(s->seeds, 0), NULL);
 
   in = path_new("ipv4");
   while(util_readone(s, udp, in) == 0)
@@ -113,7 +115,7 @@ int main(int argc, char *argv[])
       if(util_cmp(c->type,"sock") == 0 && (sc = ext_sock(c)))
       {
         // connect new sock to given port
-        if(sc->state == SOCKC_NEW && mode == MODE_TOPORT && util_cmp(hn,c->to->hexname) == 0)
+        if(sc->state == SOCKC_NEW && mode == MODE_TOPORT && (hn[0] == '+' || util_cmp(hn,c->to->hexname) == 0))
         {
           sockc_accept(sc);
           if(port == 0)

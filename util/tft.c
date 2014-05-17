@@ -75,7 +75,7 @@ int main(int argc, char *argv[])
   printf("created chat %s %s %s\n",chat->id,packet_get_str(p,"id"),chat->rhash);
   printf("%s> ",nick);
 
-  link_hn(s, bucket_get(s->seeds, 0));
+  link_hn(s, bucket_get(s->seeds, 0), NULL);
   util_sendall(s,sock);
 
   // create an admin channel for notes
