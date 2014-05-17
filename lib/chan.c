@@ -273,7 +273,7 @@ void chan_dequeue(chan_t c)
 void chan_receive(chan_t c, packet_t p)
 {
   if(!c || !p) return;
-  DEBUG_PRINTF("channel in %d %.*s",c->id,p->json_len,p->json);
+  DEBUG_PRINTF("channel in %d %d %.*s",c->id,p->body_len,p->json_len,p->json);
   if(c->state == CHAN_ENDED) return (void)packet_free(p);
   if(c->state == CHAN_STARTING) c->state = CHAN_OPEN;
   if(util_cmp(packet_get_str(p,"end"),"true") == 0) c->state = CHAN_ENDING;

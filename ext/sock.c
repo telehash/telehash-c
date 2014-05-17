@@ -52,7 +52,8 @@ void sockc_accept(sockc_t sc)
 {
   if(!sc || sc->state != SOCKC_NEW) return;
   sc->state = SOCKC_OPEN;
-  chan_ack(sc->c);
+  // send an empty packet (no options) to accept
+  chan_send(sc->c,chan_packet(sc->c));
 }
 
 // create a sock channel to this hn, optional opts (ip, port)
@@ -115,7 +116,7 @@ uint8_t sockc_chunk(sockc_t sc)
   uint32_t len;
   if(!sc) return 0;
   // if nothing to do, try sending an ack
-  if(!sc->writing && sc->state == SOCKC_OPEN)
+  if(!sc->readable && !sc->writing && sc->state == SOCKC_OPEN)
   {
     chan_ack(sc->c);
     return 0;

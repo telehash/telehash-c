@@ -38,7 +38,13 @@ packet_t chan_seq_ack(chan_t c, packet_t p)
   if(!s->nextin) return p;
   if(!p && s->acked && s->acked == s->nextin-1) return NULL;
 
-  if(!p) p = chan_packet(c); // ack-only packet
+  if(!p)
+  {
+    if(!(p = packet_new())) return NULL;
+    p->to = c->to;
+    packet_set_int(p,"c",c->id);
+    DEBUG_PRINTF("making SEQ only");
+  }
   s->acked = s->nextin-1;
   packet_set_int(p,"ack",(int)s->acked);
 
