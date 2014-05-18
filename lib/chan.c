@@ -278,6 +278,7 @@ void chan_receive(chan_t c, packet_t p)
   if(c->state == CHAN_STARTING) c->state = CHAN_OPEN;
   if(util_cmp(packet_get_str(p,"end"),"true") == 0) c->state = CHAN_ENDING;
   if(packet_get_str(p,"err")) c->state = CHAN_ENDED;
+  c->trecv = c->s->tick;
 
   // TODO, only queue so many packets if we haven't responded ever (to limit ignored unsupported channels)
   if(c->reliable)
@@ -305,6 +306,7 @@ void chan_send(chan_t c, packet_t p)
   if(!p) return;
   if(!c) return (void)packet_free(p);
   DEBUG_PRINTF("channel out %d %.*s",c->id,p->json_len,p->json);
+  c->tsend = c->s->tick;
   if(c->reliable) p = packet_copy(p); // miss tracks the original p = chan_packet()
   switch_send(c->s,p);
 }

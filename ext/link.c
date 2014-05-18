@@ -1,5 +1,7 @@
 #include "ext.h"
 
+#define LINK_TPING 29
+#define LINK_TOUT 65
 
 typedef struct link_struct 
 {
@@ -73,6 +75,14 @@ void link_seed(switch_t s, int max)
   // TODO figure out if there's actually more capacity
 */
 
+// adds regular ping data and sends
+void link_ping(link_t l, chan_t c, packet_t p)
+{
+  if(!l || !c || !p) return;
+  if(l->seeding) packet_set(p,"seed","true",4);
+  chan_send(c, p);
+}
+
 // create/fetch/maintain a link to this hn, fires note on UP and DOWN change events
 chan_t link_hn(switch_t s, hn_t h, packet_t note)
 {
@@ -83,23 +93,47 @@ chan_t link_hn(switch_t s, hn_t h, packet_t note)
 
   c = chan_new(s, h, "link", 0);
   c->arg = note;
-  p = chan_packet(c);
-  if(l->seeding) packet_set(p,"seed","true",4);
-  chan_send(c, p);
+  link_ping(l, c, chan_packet(c));
   return c;
 }
 
 void ext_link(chan_t c)
 {
-  packet_t p;
+  packet_t p, note = (packet_t)c->arg;
   while((p = chan_pop(c)))
   {
     DEBUG_PRINTF("TODO link packet %.*s\n", p->json_len, p->json);      
     packet_free(p);
   }
-  // always respond/ack
-  chan_send(c,chan_packet(c));
-  // TODO handle note UP/DOWN change based on channel state
+  // respond/ack if we haven't recently
+  if(c->s->tick - c->tsend > (LINK_TPING/2)) link_ping(l);
+
+  if(c->state != CHAN_OPEN)
+  {
+    // TODO bucket eviction
+  }
+  
+  // if no note, nothing else to do
+  if(!note) return;
+
+  // handle note UP/DOWN change based on channel state
+  if(c->state == CHAN_OPEN)
+  {
+    if(util_cmp(packet_get_str(note,"link"),"up") != 0)
+    {
+      packet_set_str(note,"link","up");
+      // TODO send note
+    }
+  }else{
+    if(util_cmp(packet_get_str(note,"link"),"down") != 0)
+    {
+      packet_set_str(note,"link","down");
+      // TODO send note
+    }
+    c->arg = NULL;
+    link_hn(c->s,c->to,note);
+  }
+  
 }
 
 void ext_seek(chan_t c)

@@ -10,14 +10,15 @@
 
 typedef struct chan_struct
 {
-  uint32_t id;
-  unsigned char hexid[9], uid[9];
+  uint32_t id; // wire id (not unique)
+  uint32_t tsent, trecv; // tick value of last send, recv
+  unsigned char hexid[9], uid[9]; // uid is switch-wide unique
   struct switch_struct *s;
   struct hn_struct *to;
   char *type;
   int reliable;
   uint8_t state;
-  uint8_t tfree, tresend;
+  uint8_t tfree, tresend; // tick counts for thresholds
   struct path_struct *last;
   struct chan_struct *next;
   packet_t in, inend, notes;
