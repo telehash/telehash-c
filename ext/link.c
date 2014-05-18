@@ -87,7 +87,6 @@ void link_ping(link_t l, chan_t c, packet_t p)
 chan_t link_hn(switch_t s, hn_t h, packet_t note)
 {
   chan_t c;
-  packet_t p;
   link_t l = link_get(s);
   if(!s || !h) return NULL;
 
@@ -100,13 +99,15 @@ chan_t link_hn(switch_t s, hn_t h, packet_t note)
 void ext_link(chan_t c)
 {
   packet_t p, note = (packet_t)c->arg;
+  link_t l = link_get(c->s);
+
   while((p = chan_pop(c)))
   {
     DEBUG_PRINTF("TODO link packet %.*s\n", p->json_len, p->json);      
     packet_free(p);
   }
   // respond/ack if we haven't recently
-  if(c->s->tick - c->tsend > (LINK_TPING/2)) link_ping(l);
+  if(c->s->tick - c->tsent > (LINK_TPING/2)) link_ping(l, c, chan_packet(c));
 
   if(c->state != CHAN_OPEN)
   {

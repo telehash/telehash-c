@@ -306,7 +306,7 @@ void chan_send(chan_t c, packet_t p)
   if(!p) return;
   if(!c) return (void)packet_free(p);
   DEBUG_PRINTF("channel out %d %.*s",c->id,p->json_len,p->json);
-  c->tsend = c->s->tick;
+  c->tsent = c->s->tick;
   if(c->reliable) p = packet_copy(p); // miss tracks the original p = chan_packet()
   switch_send(c->s,p);
 }
