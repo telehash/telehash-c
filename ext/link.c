@@ -5,13 +5,11 @@
 
 typedef struct link_struct 
 {
-  // only used when meshing
   int meshing;
-  bucket_t meshed;
+  bucket_t links;
   // only used when seeding
   int seeding;
   bucket_t *buckets;
-  xht_t links;
 } *link_t;
 
 link_t link_new(switch_t s)
@@ -20,6 +18,7 @@ link_t link_new(switch_t s)
   l = malloc(sizeof (struct link_struct));
   memset(l,0,sizeof (struct link_struct));
   xht_set(s->index,"link",l);
+  l->links = bucket_new();
   return l;
 }
 
@@ -37,12 +36,8 @@ void link_free(switch_t s)
   if(l->seeding)
   {
     for(i=0;i<=255;i++) if(l->buckets[i]) bucket_free(l->buckets[i]);
-    xht_free(l->links);
   }
-  if(l->meshing)
-  {
-    bucket_free(l->meshed);
-  }
+  bucket_free(l->links);
   free(l);
 }
 
@@ -52,7 +47,6 @@ void link_mesh(switch_t s, int max)
   link_t l = link_get(s);
   l->meshing = max;
   if(!max) return;
-  if(!l->meshed) l->meshed = bucket_new();
   // TODO check s->seeds
 }
 
@@ -65,7 +59,6 @@ void link_seed(switch_t s, int max)
   // create all the buckets
   l->buckets = malloc(256 * sizeof(bucket_t));
   memset(l->buckets, 0, 256 * sizeof(bucket_t));
-  l->links = xht_new(max);
 }
 
 /*
@@ -83,15 +76,25 @@ void link_ping(link_t l, chan_t c, packet_t p)
   chan_send(c, p);
 }
 
-// create/fetch/maintain a link to this hn, fires note on UP and DOWN change events
-chan_t link_hn(switch_t s, hn_t h, packet_t note)
+// create/fetch/maintain a link to this hn, sends note on UP and DOWN change events
+chan_t link_hn(switch_t s, hn_t hn, packet_t note)
 {
   chan_t c;
   link_t l = link_get(s);
-  if(!s || !h) return NULL;
+  if(!s || !hn) return NULL;
+  
+  c = (chan_t)bucket_arg(l->links,hn);
+  if(c)
+  {
+    packet_free((packet_t)c->arg);
+  }else{
+    c = chan_new(s, hn, "link", 0);
+    bucket_set(l->links,hn,(void*)c);
+  }
 
-  c = chan_new(s, h, "link", 0);
   c->arg = note;
+  // TODO send see array
+  // TODO bridging signals
   link_ping(l, c, chan_packet(c));
   return c;
 }
@@ -111,7 +114,8 @@ void ext_link(chan_t c)
 
   if(c->state != CHAN_OPEN)
   {
-    // TODO bucket eviction
+    bucket_rem(l->links,c->to);
+    // TODO remove from seeding
   }
   
   // if no note, nothing else to do
@@ -132,6 +136,7 @@ void ext_link(chan_t c)
       // TODO send note
     }
     c->arg = NULL;
+    // keep trying to start over
     link_hn(c->s,c->to,note);
   }
   
