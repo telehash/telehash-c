@@ -89,6 +89,7 @@ chan_t link_hn(switch_t s, hn_t hn, packet_t note)
     packet_free((packet_t)c->arg);
   }else{
     c = chan_new(s, hn, "link", 0);
+    chan_timeout(c,60);
     bucket_set(l->links,hn,(void*)c);
   }
 
@@ -101,8 +102,23 @@ chan_t link_hn(switch_t s, hn_t hn, packet_t note)
 
 void ext_link(chan_t c)
 {
+  chan_t cur;
   packet_t p, note = (packet_t)c->arg;
   link_t l = link_get(c->s);
+
+  // check for existing links to update
+  cur = (chan_t)bucket_arg(l->links,c->to);
+  if(cur != c && !c->ended)
+  {
+    // move any note over to new one
+    if(cur)
+    {
+      c->arg = cur->arg;
+      cur->arg = NULL;
+      note = (packet_t)c->arg;
+    }
+    bucket_set(l->links,c->to,(void*)c);
+  }
 
   while((p = chan_pop(c)))
   {
@@ -112,7 +128,7 @@ void ext_link(chan_t c)
   // respond/ack if we haven't recently
   if(c->s->tick - c->tsent > (LINK_TPING/2)) link_ping(l, c, chan_packet(c));
 
-  if(c->state != CHAN_OPEN)
+  if(c->ended)
   {
     bucket_rem(l->links,c->to);
     // TODO remove from seeding
@@ -122,18 +138,18 @@ void ext_link(chan_t c)
   if(!note) return;
 
   // handle note UP/DOWN change based on channel state
-  if(c->state == CHAN_OPEN)
+  if(!c->ended)
   {
     if(util_cmp(packet_get_str(note,"link"),"up") != 0)
     {
       packet_set_str(note,"link","up");
-      // TODO send note
+      chan_reply(c,packet_copy(note));
     }
   }else{
     if(util_cmp(packet_get_str(note,"link"),"down") != 0)
     {
       packet_set_str(note,"link","down");
-      // TODO send note
+      chan_reply(c,packet_copy(note));
     }
     c->arg = NULL;
     // keep trying to start over

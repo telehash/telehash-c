@@ -131,7 +131,7 @@ uint8_t sockc_chunk(sockc_t sc)
   sc->writing -= len;
   // optionally end with the last packet if we're closed
   if(sc->state == SOCKC_CLOSED && !sc->writing) chan_end(sc->c,p);
-  chan_send(sc->c,p);
+  else chan_send(sc->c,p);
   memmove(sc->writebuf,sc->writebuf+len,sc->writing);
   return 1;
 }
@@ -213,7 +213,7 @@ void sockc_zread(sockc_t sc, int len)
   if(sc->readable) return; 
   
   // if the channel is ending and the data all read, the sock is now closed
-  if(sc->c->state != CHAN_OPEN) sockc_shutdown(sc);
+  if(sc->c->ended) sockc_shutdown(sc);
 
   // always try to flush when done reading, sends ack
   sockc_flush(sc->c);

@@ -30,8 +30,8 @@ hn_t hn_frompacket(xht_t index, struct packet_struct *p);
 // derive a hn from json format
 hn_t hn_fromjson(xht_t index, struct packet_struct *p);
 
-// return a matching path, or add it if none, updates ->last and path->
-path_t hn_path(hn_t hn, path_t p);
+// return a matching path, or add it if none, valid=1 updates hn->last and path->tin
+path_t hn_path(hn_t hn, path_t p, int flag);
 
 unsigned char hn_distance(hn_t a, hn_t b);
 

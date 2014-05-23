@@ -42,7 +42,7 @@ int main(void)
 
     while((c = switch_pop(s)))
     {
-      printf("channel active %d %s %s\n",c->state,c->hexid,c->to->hexname);
+      printf("channel active %d %s %s\n",c->ended,c->hexid,c->to->hexname);
       if(util_cmp(c->type,"connect") == 0) ext_connect(c);
       if(util_cmp(c->type,"link") == 0) ext_link(c);
       if(util_cmp(c->type,"path") == 0) ext_path(c);

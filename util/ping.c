@@ -121,7 +121,7 @@ int main(void)
     {
       if(c2 == c)
       {
-        printf("got pong state %d from %s see %s\n",c->state,c->to->hexname,packet_get_str(chan_pop(c),"see"));
+        printf("got pong state %d from %s see %s\n",c->ended,c->to->hexname,packet_get_str(chan_pop(c),"see"));
         return 0;
       }
       while((p = chan_pop(c)))

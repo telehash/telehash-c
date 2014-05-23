@@ -138,7 +138,7 @@ int path_alive(path_t p)
   unsigned long now;
   if(!p) return 0;
   now = platform_seconds();
-  if((now - p->atIn) < 60) return 1;
+  if((now - p->tin) < 30) return 1;
   return 0;
 }
 

@@ -10,7 +10,7 @@ typedef struct path_struct
   char *id;
   char ip[46];
   uint16_t port;
-  unsigned long atIn, atOut;
+  uint32_t tin, tout;
 } *path_t;
 
 path_t path_new(char *type);

@@ -198,7 +198,7 @@ void switch_sendingQ(switch_t s, packet_t p)
   }
 
   // update stats
-  p->out->atOut = platform_seconds();
+  p->out->tout = platform_seconds();
 
   // add to the end of the queue
   if(s->last)
@@ -292,7 +292,7 @@ void switch_receive(switch_t s, packet_t p, path_t in)
     DEBUG_PRINTF("line in %d %s %d %s",from->c->lined,from->hexname,from,from->c->lineHex);
     if(from->c->lined == 1) chan_reset(s, from);
     xht_set(s->index, (const char*)from->c->lineHex, (void*)from);
-    in = hn_path(from, in);
+    in = hn_path(from, in, 1);
     switch_open(s, from, in); // in case we need to send an open
     if(from->onopen)
     {
@@ -311,19 +311,19 @@ void switch_receive(switch_t s, packet_t p, path_t in)
     from = xht_get(s->index, lineHex);
     if(from)
     {
-      in = hn_path(from, in);
       p = crypt_delineize(from->c, p);
       if(!p)
       {
         DEBUG_PRINTF("invlaid line from %s %s",path_json(in),from->hexname);
         return;
       }
+      in = hn_path(from, in, 1);
       
       // route to the channel
       if((chan = chan_in(s, from, p)))
       {
         // if new channel w/ seq, configure as reliable
-        if(chan->state == CHAN_STARTING && packet_get_str(p,"seq")) chan_reliable(chan, s->window);
+        if(!chan->opened && packet_get_str(p,"seq")) chan_reliable(chan, s->window);
         return chan_receive(chan, p);
       }
 
@@ -338,7 +338,7 @@ void switch_receive(switch_t s, packet_t p, path_t in)
   if(util_cmp("pong",packet_get_str(p,"type")) == 0 && util_cmp(xht_get(s->index,"ping"),packet_get_str(p,"trace")) == 0 && (from = hn_fromjson(s->index,p)) != NULL)
   {
     DEBUG_PRINTF("pong from %s",from->hexname);
-    in = hn_path(from, in);
+    in = hn_path(from, in, 0);
     switch_open(s,from,in);
     packet_free(p);
     return;

@@ -3,21 +3,20 @@
 #include <stdint.h>
 #include "packet.h"
 
-#define CHAN_STARTING 1
-#define CHAN_OPEN 2
-#define CHAN_ENDING 3
-#define CHAN_ENDED 0
+// default channel inactivity timeout in seconds
+#define CHAN_TIMEOUT 10
 
 typedef struct chan_struct
 {
   uint32_t id; // wire id (not unique)
   uint32_t tsent, trecv; // tick value of last send, recv
+  uint32_t timeout; // seconds since last trecv to auto-err
   unsigned char hexid[9], uid[9]; // uid is switch-wide unique
   struct switch_struct *s;
   struct hn_struct *to;
   char *type;
   int reliable;
-  uint8_t state;
+  uint8_t opened, ended;
   uint8_t tfree, tresend; // tick counts for thresholds
   struct path_struct *last;
   struct chan_struct *next;
@@ -32,15 +31,23 @@ typedef struct chan_struct
 // kind of a macro, just make a reliable channel of this type to this hashname
 chan_t chan_start(struct switch_struct *s, char *hn, char *type);
 
-// new channel, pass id=0 to create an outgoing one
+// new channel, pass id=0 to create an outgoing one, is auto freed after timeout and ->arg == NULL
 chan_t chan_new(struct switch_struct *s, struct hn_struct *to, char *type, uint32_t id);
-void chan_free(chan_t c);
 
-// configures channel as a reliable one, must be in STARTING state, is max # of packets to buffer before backpressure
+// configures channel as a reliable one before any packets are sent, is max # of packets to buffer before backpressure
 chan_t chan_reliable(chan_t c, int window);
 
-// resets channel state for a hashname
+// resets channel state for a hashname (new line)
 void chan_reset(struct switch_struct *s, struct hn_struct *to);
+
+// set an in-activity timeout for the channel (no incoming), will generate incoming {"err":"timeout"} if not ended
+void chan_timeout(chan_t c, uint32_t seconds);
+
+// just a convenience to send an end:true packet (use this instead of chan_send())
+void chan_end(chan_t c, packet_t p);
+
+// sends an error packet immediately
+chan_t chan_fail(chan_t c, char *err);
 
 // gives all channels a chance to do background stuff
 void chan_tick(struct switch_struct *s, struct hn_struct *to);
@@ -53,12 +60,6 @@ packet_t chan_packet(chan_t c);
 
 // pop a packet from this channel to be processed, caller must free
 packet_t chan_pop(chan_t c);
-
-// flags channel as gracefully ended, optionally adds end to packet
-chan_t chan_end(chan_t c, packet_t p);
-
-// immediately fails/removes channel, if err tries to send message
-chan_t chan_fail(chan_t c, char *err);
 
 // get the next incoming note waiting to be handled
 packet_t chan_notes(chan_t c);

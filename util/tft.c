@@ -75,11 +75,12 @@ int main(int argc, char *argv[])
   printf("created chat %s %s %s\n",chat->id,packet_get_str(p,"id"),chat->rhash);
   printf("%s> ",nick);
 
-  link_hn(s, bucket_get(s->seeds, 0), NULL);
-  util_sendall(s,sock);
-
   // create an admin channel for notes
   admin = chan_new(s, s->id, ".admin", 0);
+
+  // link the first seed only
+  link_hn(s, bucket_get(s->seeds, 0), chan_note(admin,NULL));
+  util_sendall(s,sock);
 
   in = path_new("ipv4");
   while(util_readone(s, sock, in) == 0)
@@ -99,7 +100,7 @@ int main(int argc, char *argv[])
         continue;
       }
 
-      DEBUG_PRINTF("channel active %d %s %s\n",c->state,c->hexid,c->to->hexname);
+      DEBUG_PRINTF("channel active %d %s %s\n",c->ended,c->hexid,c->to->hexname);
       if(c->handler) c->handler(c);
       else {
         if(util_cmp(c->type,"connect") == 0) ext_connect(c);
@@ -140,7 +141,7 @@ int main(int argc, char *argv[])
         packet_free(p);
       }
 
-      DEBUG_PRINTF("channel state %d\n",c->state);
+      DEBUG_PRINTF("channel state %d\n",c->ended);
     }
 
     if((len = fread(buf,1,255,stdin)))

@@ -141,7 +141,7 @@ void ext_thtp(chan_t c)
   thtp_t t = thtp_get(c->s);
 
   // incoming note as an answer
-  if(c->state == CHAN_ENDING && (note = chan_notes(c)))
+  if((note = chan_notes(c)))
   {
     DEBUG_PRINTF("got note resp %.*s",note->json_len,note->json);
     thtp_send(c,packet_linked(note));
@@ -160,7 +160,7 @@ void ext_thtp(chan_t c)
       packet_free(p);
     }
     // for now we're processing whole-requests-at-once, to do streaming we can try parsing note->body for the headers anytime
-    if(!c->state == CHAN_ENDING) continue;
+    if(c->ended) continue;
 
     // parse the payload
     p = packet_parse(buf->body,buf->body_len);

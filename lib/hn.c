@@ -152,8 +152,7 @@ hn_t hn_fromjson(xht_t index, packet_t p)
   pp = packet_get_packets(p, "paths");
   while(pp)
   {
-    path = hn_path(hn, path_parse((char*)pp->json, pp->json_len));
-    if(path) path->atIn = 0; // don't consider this path alive
+    path = hn_path(hn, path_parse((char*)pp->json, pp->json_len), 0);
     next = pp->next;
     packet_free(pp);
     pp = next;
@@ -175,7 +174,7 @@ hn_t hn_fromjson(xht_t index, packet_t p)
   return (hn->c) ? hn : NULL;  
 }
 
-path_t hn_path(hn_t hn, path_t p)
+path_t hn_path(hn_t hn, path_t p, int valid)
 {
   path_t ret = NULL;
   int i;
@@ -196,10 +195,10 @@ path_t hn_path(hn_t hn, path_t p)
   }
 
   // update state tracking
-  if(ret)
+  if(ret && valid)
   {
     hn->last = ret;
-    ret->atIn = platform_seconds();    
+    ret->tin = platform_seconds();    
   }
 
   return ret;

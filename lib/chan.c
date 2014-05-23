@@ -4,36 +4,119 @@
 #include "util.h"
 #include "switch.h"
 
-// link c to hn
-void chan_hn(hn_t hn, chan_t c)
+// flags channel as ended either in or out
+void doend(chan_t c)
 {
-  if(!hn || !c) return;
+  if(!c || c->ended) return;
+  DEBUG_PRINTF("channel ended %d",c->id);
+  c->ended = 1;
 }
 
-void walkend(xht_t h, const char *key, void *val, void *arg)
+// immediately removes channel, creates/sends packet to app to notify
+void doerror(chan_t c, packet_t p, char *err)
 {
-  chan_t c = (chan_t)val;
-  if(c->state == CHAN_OPEN) chan_fail(c,NULL);
+  if(c->ended) return;
+  DEBUG_PRINTF("channel fail %d %s",c->id,err?err:packet_get_str(p,"err"));
+
+  // unregister for any more packets immediately
+  xht_set(c->to->chans,(char*)c->hexid,NULL);
+  if(c->id > c->to->chanMax) c->to->chanMax = c->id;
+
+  // convenience to generate error packet
+  if(!p)
+  {
+    if(!(p = packet_new())) return;
+    packet_set_str(p,"err",err?err:"unknown");
+    packet_set_int(p,"c",c->id);
+  }
+
+  // send error to app immediately, will doend() when processed
+  p->next = c->in;
+  c->in = p;
+  chan_queue(c);
+}
+
+void chan_free(chan_t c)
+{
+  packet_t p;
+  if(!c) return;
+
+  // if there's an arg set, we can't free and must notify channel handler
+  if(c->arg) return chan_queue(c);
+
+  DEBUG_PRINTF("channel free %d",c->id);
+
+  // unregister for packets (if registered)
+  if(xht_get(c->to->chans,(char*)c->hexid) == (void*)c)
+  {
+    xht_set(c->to->chans,(char*)c->hexid,NULL);
+    // to prevent replay of this old id
+    if(c->id > c->to->chanMax) c->to->chanMax = c->id;
+  }
+  xht_set(c->s->index,(char*)c->uid,NULL);
+
+  // remove references
+  chan_dequeue(c);
+  if(c->reliable)
+  {
+    chan_seq_free(c);
+    chan_miss_free(c);
+  }
+  while(c->in)
+  {
+    DEBUG_PRINTF("unused packets on channel %d",c->id);
+    p = c->in;
+    c->in = p->next;
+    packet_free(p);
+  }
+  while(c->notes)
+  {
+    DEBUG_PRINTF("unused notes on channel %d",c->id);
+    p = c->notes;
+    c->notes = p->next;
+    packet_free(p);
+  }
+  // TODO, if it's the last channel, bucket_rem(c->s->active, c);
+  free(c->type);
+  free(c);
+}
+
+void walkreset(xht_t h, const char *key, void *val, void *arg)
+{
+  doerror((chan_t)val,NULL,"reset");
 }
 void chan_reset(switch_t s, hn_t to)
 {
   // fail any existing open channels
-  xht_walk(to->chans, &walkend, NULL);
+  xht_walk(to->chans, &walkreset, NULL);
   // reset max id tracking
   to->chanMax = 0;
 }
 
 void walktick(xht_t h, const char *key, void *val, void *arg)
 {
+  uint32_t last;
   chan_t c = (chan_t)val;
+
+  // latent cleanup/free
+  if(c->ended && (c->tfree++) > c->timeout) return chan_free(c);
+
   if(c->tick) c->tick(c);
+
   if(c->tresend)
   {
     // TODO check packet resend timers
   }
-  // latent cleanup/free
-  if(c->state == CHAN_ENDED && (c->tfree++) > 10) chan_free(c);
+
+  // unreliable timeout, use last received unless none, then last sent
+  if(!c->reliable)
+  {
+    last = (c->trecv) ? c->trecv : c->tsent;
+    if(c->timeout && (c->s->tick - last) > c->timeout) doerror(c,NULL,"timeout");
+  }
+
 }
+
 void chan_tick(switch_t s, hn_t hn)
 {
   xht_walk(hn->chans, &walktick, NULL);
@@ -41,7 +124,7 @@ void chan_tick(switch_t s, hn_t hn)
 
 chan_t chan_reliable(chan_t c, int window)
 {
-  if(!c || !window || c->state != CHAN_STARTING || c->reliable) return c;
+  if(!c || !window || c->tsent || c->trecv || c->reliable) return c;
   c->reliable = window;
   chan_seq_init(c);
   chan_miss_init(c);
@@ -82,7 +165,7 @@ chan_t chan_new(switch_t s, hn_t to, char *type, uint32_t id)
   memcpy(c->type,type,strlen(type)+1);
   c->s = s;
   c->to = to;
-  c->state = CHAN_STARTING;
+  c->timeout = CHAN_TIMEOUT;
   c->id = id;
   util_hex((unsigned char*)&(s->uid),4,(unsigned char*)c->uid); // switch-wide unique id
   s->uid++;
@@ -98,6 +181,12 @@ chan_t chan_new(switch_t s, hn_t to, char *type, uint32_t id)
   return c;
 }
 
+void chan_timeout(chan_t c, uint32_t seconds)
+{
+  if(!c) return;
+  c->timeout = seconds;
+}
+
 chan_t chan_in(switch_t s, hn_t from, packet_t p)
 {
   chan_t c;
@@ -111,78 +200,6 @@ chan_t chan_in(switch_t s, hn_t from, packet_t p)
   if(c) return c;
 
   return chan_new(s, from, packet_get_str(p, "type"), id);
-}
-
-// flags channel as ended, optionally adds end to packet
-chan_t chan_end(chan_t c, packet_t p)
-{
-  if(!c) return NULL;
-  DEBUG_PRINTF("channel end %d %d",c->id,c->state);
-  // notify stuff if in open state
-  if(c->state == CHAN_OPEN)
-  {
-    if(p) packet_set(p,"end","true",4);
-    chan_queue(c);
-  }
-  c->state = CHAN_ENDED;
-  return c;
-}
-
-// immediately fails/removes channel, if err tries to send message
-chan_t chan_fail(chan_t c, char *err)
-{
-  packet_t e;
-  DEBUG_PRINTF("channel fail %d %s",c->id,err);
-  if(err && c->state != CHAN_ENDED && (e = chan_packet(c)))
-  {
-    packet_set_str(e,"err",err);
-    chan_send(c,e);
-  }
-  // no grace period for reliable
-  c->state = CHAN_ENDED;
-  xht_set(c->to->chans,(char*)c->hexid,NULL);
-  chan_queue(c);
-  return c;
-}
-
-void chan_free(chan_t c)
-{
-  packet_t p;
-  if(!c) return;
-  // if there's an arg set, we can't free and must notify channel handler
-  if(c->arg) return chan_queue(c);
-
-  DEBUG_PRINTF("channel free %d",c->id);
-
-  // to prevent replay of this old id
-  if(c->id > c->to->chanMax) c->to->chanMax = c->id;
-
-  // remove references
-  chan_dequeue(c);
-  if(xht_get(c->to->chans,(char*)c->hexid) == c) xht_set(c->to->chans,(char*)c->hexid,NULL);
-  xht_set(c->s->index,(char*)c->uid,NULL);
-  if(c->reliable)
-  {
-    chan_seq_free(c);
-    chan_miss_free(c);
-  }
-  while(c->in)
-  {
-    DEBUG_PRINTF("unused packets on channel %d",c->id);
-    p = c->in;
-    c->in = p->next;
-    packet_free(p);
-  }
-  while(c->notes)
-  {
-    DEBUG_PRINTF("unused notes on channel %d",c->id);
-    p = c->notes;
-    c->notes = p->next;
-    packet_free(p);
-  }
-  // TODO, if it's the last channel, bucket_rem(c->s->active, c);
-  free(c->type);
-  free(c);
 }
 
 // get the next incoming note waiting to be handled
@@ -217,12 +234,12 @@ int chan_reply(chan_t c, packet_t note)
 packet_t chan_packet(chan_t c)
 {
   packet_t p;
-  if(!c || c->state == CHAN_ENDED) return NULL;
+  if(!c) return NULL;
   p = c->reliable?chan_seq_packet(c):packet_new();
   if(!p) return NULL;
   p->to = c->to;
   if(path_alive(c->last)) p->out = c->last;
-  if(c->state == CHAN_STARTING)
+  if(!c->tsent && !c->trecv)
   {
     packet_set_str(p,"type",c->type);
   }
@@ -234,11 +251,16 @@ packet_t chan_pop(chan_t c)
 {
   packet_t p;
   if(!c) return NULL;
-  if(c->reliable) return chan_seq_pop(c);
-  if(!c->in) return NULL;
-  p = c->in;
-  c->in = p->next;
-  if(!c->in) c->inend = NULL;
+  // this allows errors to be processed immediately
+  if((p = c->in))
+  {
+    c->in = p->next;
+    if(!c->in) c->inend = NULL;    
+  }
+  if(!p && c->reliable) p = chan_seq_pop(c);
+
+  // change state as soon as an err/end is processed
+  if(packet_get_str(p,"err") || util_cmp(packet_get_str(p,"end"),"true") == 0) doend(c);
   return p;
 }
 
@@ -274,11 +296,12 @@ void chan_receive(chan_t c, packet_t p)
 {
   if(!c || !p) return;
   DEBUG_PRINTF("channel in %d %d %.*s",c->id,p->body_len,p->json_len,p->json);
-  if(c->state == CHAN_ENDED) return (void)packet_free(p);
-  if(c->state == CHAN_STARTING) c->state = CHAN_OPEN;
-  if(util_cmp(packet_get_str(p,"end"),"true") == 0) c->state = CHAN_ENDING;
-  if(packet_get_str(p,"err")) c->state = CHAN_ENDED;
   c->trecv = c->s->tick;
+  
+  // errors are immediate
+  if(packet_get_str(p,"err")) return doerror(c,p,NULL);
+
+  c->opened = 1;
 
   // TODO, only queue so many packets if we haven't responded ever (to limit ignored unsupported channels)
   if(c->reliable)
@@ -300,6 +323,29 @@ void chan_receive(chan_t c, packet_t p)
   chan_queue(c);
 }
 
+// convenience
+void chan_end(chan_t c, packet_t p)
+{
+  if(!c) return;
+  if(!p && !(p = chan_packet(c))) return;
+  packet_set(p,"end","true",4);
+  chan_send(c,p);
+}
+
+// send errors directly
+chan_t chan_fail(chan_t c, char *err)
+{
+  packet_t p;
+  if(!c) return NULL;
+  if(!(p = packet_new())) return c;
+  doend(c);
+  p->to = c->to;
+  packet_set_str(p,"err",err?err:"unknown");
+  packet_set_int(p,"c",c->id);
+  switch_send(c->s,p);
+  return c;
+}
+
 // smartly send based on what type of channel we are
 void chan_send(chan_t c, packet_t p)
 {
@@ -307,7 +353,8 @@ void chan_send(chan_t c, packet_t p)
   if(!c) return (void)packet_free(p);
   DEBUG_PRINTF("channel out %d %.*s",c->id,p->json_len,p->json);
   c->tsent = c->s->tick;
-  if(c->reliable) p = packet_copy(p); // miss tracks the original p = chan_packet()
+  if(c->reliable && packet_get_str(p,"seq")) p = packet_copy(p); // miss tracks the original p = chan_packet(), a sad hack
+  if(packet_get_str(p,"err") || util_cmp(packet_get_str(p,"end"),"true") == 0) doend(c);
   switch_send(c->s,p);
 }
 
