@@ -14,7 +14,7 @@ typedef struct hn_struct
   crypt_t c;
   path_t *paths, last;
   xht_t chans;
-  packet_t onopen, parts;
+  packet_t parts;
 } *hn_t;
 
 // fetch/create matching hn (binary or hex)

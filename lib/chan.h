@@ -18,7 +18,6 @@ typedef struct chan_struct
   int reliable;
   uint8_t opened, ended;
   uint8_t tfree, tresend; // tick counts for thresholds
-  struct path_struct *last;
   struct chan_struct *next;
   packet_t in, inend, notes;
   void *arg; // used by extensions
@@ -101,8 +100,8 @@ void chan_seq_free(chan_t c);
 // tracks packet for outgoing, eventually free's it, 0 ok or 1 for full/backpressure
 int chan_miss_track(chan_t c, uint32_t seq, packet_t p);
 
-// buffers packets to be able to re-send
-void chan_miss_send(chan_t c, packet_t p);
+// resends all waiting packets
+void chan_miss_resend(chan_t c);
 
 // looks at incoming miss/ack and resends or frees
 void chan_miss_check(chan_t c, packet_t p);

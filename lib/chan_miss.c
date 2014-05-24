@@ -71,6 +71,14 @@ void chan_miss_check(chan_t c, packet_t p)
   {
     ack = (uint32_t)strtol(id,NULL,10);
     offset = ack - m->nextack;
-    if(offset >= 0 && offset < c->reliable && m->out[offset]) switch_send(c->s,m->out[offset]);
+    if(offset >= 0 && offset < c->reliable && m->out[offset]) switch_send(c->s,packet_copy(m->out[offset]));
   }
+}
+
+// resends all
+void chan_miss_resend(chan_t c)
+{
+  int i;
+  miss_t m = (miss_t)c->miss;
+  for(i=0;i<c->reliable;i++) if(m->out[i]) switch_send(c->s,packet_copy(m->out[i]));
 }

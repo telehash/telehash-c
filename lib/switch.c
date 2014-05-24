@@ -17,6 +17,7 @@ switch_t switch_new(uint32_t prime)
   s->index = xht_new(prime?prime:MAXPRIME);
   s->parts = packet_new();
   s->active = bucket_new();
+  s->tick = platform_seconds();
   if(!s->index || !s->parts) return switch_free(s);
   return s;
 }
@@ -248,10 +249,6 @@ void switch_send(switch_t s, packet_t p)
   lined = crypt_lineize(p->to->c, p);
   if(lined) return switch_sendingQ(s, lined);
 
-  // queue most recent packet to be sent after opened
-  if(p->to->onopen) packet_free(p->to->onopen);
-  p->to->onopen = p;
-
   // no line, so generate open instead
   switch_open(s, p->to, NULL);
 }
@@ -290,17 +287,11 @@ void switch_receive(switch_t s, packet_t p, path_t in)
     
     // line is open!
     DEBUG_PRINTF("line in %d %s %d %s",from->c->lined,from->hexname,from,from->c->lineHex);
-    if(from->c->lined == 1) chan_reset(s, from);
     xht_set(s->index, (const char*)from->c->lineHex, (void*)from);
     in = hn_path(from, in, 1);
     switch_open(s, from, in); // in case we need to send an open
-    if(from->onopen)
-    {
-      packet_t last = from->onopen;
-      from->onopen = NULL;
-      last->out = in;
-      switch_send(s, last);
-    }
+    // this resends any opening channel packets
+    if(from->c->lined == 1) chan_reset(s, from);
     return;
   }
 

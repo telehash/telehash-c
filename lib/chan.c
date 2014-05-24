@@ -16,7 +16,7 @@ void doend(chan_t c)
 void doerror(chan_t c, packet_t p, char *err)
 {
   if(c->ended) return;
-  DEBUG_PRINTF("channel fail %d %s",c->id,err?err:packet_get_str(p,"err"));
+  DEBUG_PRINTF("channel fail %d %s %d %d %d",c->id,err?err:packet_get_str(p,"err"),c->timeout,c->tsent,c->trecv);
 
   // unregister for any more packets immediately
   xht_set(c->to->chans,(char*)c->hexid,NULL);
@@ -83,7 +83,12 @@ void chan_free(chan_t c)
 
 void walkreset(xht_t h, const char *key, void *val, void *arg)
 {
-  doerror((chan_t)val,NULL,"reset");
+  chan_t c = (chan_t)val;
+  if(!c) return;
+  if(c->opened) return doerror(c,NULL,"reset");
+  // flush any waiting packets
+  if(c->reliable) chan_miss_resend(c);
+  else switch_send(c->s,packet_copy(c->in));
 }
 void chan_reset(switch_t s, hn_t to)
 {
@@ -101,11 +106,16 @@ void walktick(xht_t h, const char *key, void *val, void *arg)
   // latent cleanup/free
   if(c->ended && (c->tfree++) > c->timeout) return chan_free(c);
 
+  // any channel can get tick event
   if(c->tick) c->tick(c);
 
+  // these are administrative/internal channels (to our own hashname)
+  if(c->to == c->s->id) return;
+
+  // do any auto-resend packet timers
   if(c->tresend)
   {
-    // TODO check packet resend timers
+    // TODO check packet resend timers, chan_miss_resend or c->in
   }
 
   // unreliable timeout, use last received unless none, then last sent
@@ -158,7 +168,7 @@ chan_t chan_new(switch_t s, hn_t to, char *type, uint32_t id)
     if(id <= to->chanMax) return NULL;
   }
 
-  DEBUG_PRINTF("channel new %d %s",id,type);
+  DEBUG_PRINTF("channel new %d %s %s",id,type,to->hexname);
   c = malloc(sizeof (struct chan_struct));
   memset(c,0,sizeof (struct chan_struct));
   c->type = malloc(strlen(type)+1);
@@ -238,7 +248,6 @@ packet_t chan_packet(chan_t c)
   p = c->reliable?chan_seq_packet(c):packet_new();
   if(!p) return NULL;
   p->to = c->to;
-  if(path_alive(c->last)) p->out = c->last;
   if(!c->tsent && !c->trecv)
   {
     packet_set_str(p,"type",c->type);
@@ -297,11 +306,19 @@ void chan_receive(chan_t c, packet_t p)
   if(!c || !p) return;
   DEBUG_PRINTF("channel in %d %d %.*s",c->id,p->body_len,p->json_len,p->json);
   c->trecv = c->s->tick;
+  DEBUG_PRINTF("recv %d",c);
   
   // errors are immediate
   if(packet_get_str(p,"err")) return doerror(c,p,NULL);
 
-  c->opened = 1;
+  if(!c->opened)
+  {
+    DEBUG_PRINTF("channel opened %d",c->id);
+    // remove any cached outgoing packet
+    packet_free(c->in);
+    c->in = NULL;
+    c->opened = 1;
+  }
 
   // TODO, only queue so many packets if we haven't responded ever (to limit ignored unsupported channels)
   if(c->reliable)
@@ -354,7 +371,9 @@ void chan_send(chan_t c, packet_t p)
   DEBUG_PRINTF("channel out %d %.*s",c->id,p->json_len,p->json);
   c->tsent = c->s->tick;
   if(c->reliable && packet_get_str(p,"seq")) p = packet_copy(p); // miss tracks the original p = chan_packet(), a sad hack
-  if(packet_get_str(p,"err") || util_cmp(packet_get_str(p,"end"),"true") == 0) doend(c);
+  if(packet_get_str(p,"err") || util_cmp(packet_get_str(p,"end"),"true") == 0) doend(c); // track sending error/end
+  else if(!c->reliable && !c->opened && !c->in) c->in = packet_copy(p); // if normal unreliable start packet, track for resends
+  
   switch_send(c->s,p);
 }
 
