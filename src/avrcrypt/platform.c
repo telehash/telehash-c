@@ -1,5 +1,5 @@
 #include <stdarg.h>
-#include "avr.h"
+#include "avrcrypt.h"
 
 unsigned long platform_seconds()
 {

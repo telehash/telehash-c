@@ -1,5 +1,5 @@
-#ifndef avr_h
-#define avr_h
+#ifndef avrcrypt_h
+#define avrcrypt_h
 
 #include "platform.h"
 #include <switch.h>

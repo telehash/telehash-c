@@ -1,6 +1,6 @@
 CC=gcc
 CFLAGS+=-g -Wall -Wextra -Wno-unused-parameter
-INCLUDE+=-Iunix -Ilib -Iext
+INCLUDE+=-Iunix -Isrc -Isrc/ext
 JSON = ../js0n/js0n.c ../js0n/j0g.c -I../js0n
 CS1a = cs1a/aes.c cs1a/hmac.c cs1a/aes128.c cs1a/base64_dec.c cs1a/crypt_1a.c cs1a/uECC.c cs1a/sha256.c cs1a/base64_enc.c
 CS2a = -ltomcrypt -ltommath -DLTM_DESC -DCS_2a cs2a/crypt_libtom_*.c
@@ -26,22 +26,22 @@ LIBS+=
 all: idgen ping seed tft port
 
 test:
-	$(CC) $(CFLAGS) -o bin/test util/test.c lib/packet.c lib/crypt.c lib/util.c $(ARCH)
+	$(CC) $(CFLAGS) -o bin/test util/test.c src/packet.c src/crypt.c src/util.c $(ARCH)
 
 idgen:
-	$(CC) $(CFLAGS) -o bin/idgen util/idgen.c lib/packet.c lib/crypt.c lib/util.c $(ARCH)
+	$(CC) $(CFLAGS) -o bin/idgen util/idgen.c src/packet.c src/crypt.c src/util.c $(ARCH)
 
 ping:
-	$(CC) $(CFLAGS) -o bin/ping util/ping.c lib/*.c unix/util.c $(ARCH)
+	$(CC) $(CFLAGS) -o bin/ping util/ping.c src/*.c unix/util.c $(ARCH)
 
 seed:
-	$(CC) $(CFLAGS) -o bin/seed util/seed.c lib/*.c unix/util.c ext/*.c $(ARCH)
+	$(CC) $(CFLAGS) -o bin/seed util/seed.c src/*.c unix/util.c src/ext/*.c $(ARCH)
 
 tft:
-	$(CC) $(CFLAGS) -o bin/tft util/tft.c lib/*.c unix/util.c ext/*.c $(ARCH)
+	$(CC) $(CFLAGS) -o bin/tft util/tft.c src/*.c unix/util.c src/ext/*.c $(ARCH)
 
 port:
-	$(CC) $(CFLAGS) -o bin/port util/port.c lib/*.c unix/util.c ext/*.c $(ARCH)
+	$(CC) $(CFLAGS) -o bin/port util/port.c src/*.c unix/util.c src/ext/*.c $(ARCH)
  
 clean:
 	rm -f bin/*

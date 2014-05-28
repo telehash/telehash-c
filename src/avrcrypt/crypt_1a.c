@@ -1,4 +1,4 @@
-#include "avr.h"
+#include "avrcrypt.h"
 
 typedef struct crypt_1a_struct
 {
