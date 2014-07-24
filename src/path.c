@@ -152,5 +152,7 @@ int path_local(path_t p)
 
 path_t path_copy(path_t p)
 {
-  return path_parse(path_json(p),0);
+  path_t p2 = path_parse(path_json(p),0);
+  p2->arg = p->arg;
+  return p2;
 }

@@ -11,6 +11,7 @@ typedef struct path_struct
   char ip[46];
   uint16_t port;
   uint32_t tin, tout;
+  void *arg; // for use by app/network transport
 } *path_t;
 
 path_t path_new(char *type);
