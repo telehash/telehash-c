@@ -41,7 +41,7 @@ uint8_t *e3x_token(e3x_t e);
 packet_t e3x_decrypt(e3x_t e, packet_t packet);
 packet_t e3x_encrypt(e3x_t e, packet_t packet);
 
-// pass in packets returned from e3x_self_receive, only receive handshakes that are trusted
+// pass in packets returned from e3x_self_receive, only receive handshakes that are trusted, if new handshake err any opened channels
 // returns:
 //  0 - dropped/invalid
 //  >0 - processed, a positive signal about the transport validity
@@ -79,6 +79,21 @@ packet_t e3x_packet(e3x_t e, uint32_t channel);
 // reliable packets are returned in receiving() once delivered (track w/ "seq" id)
 uint32_t e3x_send(packet_t packet);
 
+// DRAFT NOTES for lib reorg
+
+self_t self;
+  self_generate;
+  self_process; // pass null if none (timer)
+  self_next; // timer
+e3x_t exchange;
+  e3x_decrypt;
+  e3x_encrypt;
+  e3x_process; // returns channel id
+  e3x_sending(); // from channels, until null
+xchan_t chan;
+inner = xchan_process(p); // may return null, usu sets timer in self to wakeup
+inner = xchan_packet;
+xchan_send(p);
 
 //##############
 /* binding notes
