@@ -83,17 +83,19 @@ uint32_t e3x_send(packet_t packet);
 
 self_t self;
   self_generate;
-  self_process; // pass null if none (timer)
+  self_decrypt; // handshakes must have sender token verified, and close any existing channels if mismatch
+  self_encrypt(e3x_t);
+  self_verify(e3x_t);
   self_next; // timer
-e3x_t exchange;
-  e3x_decrypt;
-  e3x_encrypt;
-  e3x_process; // returns channel id
-  e3x_sending(); // from channels, until null
+  self_timer; // returns token+chan
+e3x_t exchange();
+  e3x_verify; // returns ok for valid/current handshake or channel packet
+  handshake = e3x_handshake(handshake); // pass in current, send any returned, call anytime to sync
+  e3x_encrypt; // from chan_packet
+  e3x_decrypt; // incoming channel
 xchan_t chan;
-inner = xchan_process(p); // may return null, usu sets timer in self to wakeup
-inner = xchan_packet;
-xchan_send(p);
+inner = xchan_receive(p); // may return null, usu sets timer in self to wakeup
+inner = xchan_send(p); // use e3x_encrypt and deliver when ready, must be called once for every receive
 
 //##############
 /* binding notes
