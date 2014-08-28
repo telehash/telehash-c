@@ -81,35 +81,39 @@ uint32_t e3x_send(packet_t packet);
 
 // DRAFT NOTES for lib reorg
 
-self_t self_new(pkt_t secrets); // _free
-pkt_t self_generate(); // pass in to self_new
-// handshakes must have sender token verified, and close any existing channels if mismatch
-pkt_t self_decrypt(self_t self, pkt_t message);
+end_t end_new(pkt_t secrets); // _free
+pkt_t end_generate(); // pass in to self_new
+// must be used w/ e3x_verify next, if handshake then also e3x_handshake (match contained key to x)
+pkt_t end_decrypt(end_t self, pkt_t message);
 
 // these must be pair'd w/ an exchange
-pkt_t self_encrypt(self_t self, pkt_t inner, e3x_t x);
-bool self_verify(self_t self, pkt_t message, e3x_t x); // any verify fail, always send a handshake
-pkt_t self_handshake(self_t self, e3x_t x, uint32_t seq); // send new handshake , stores seq in x to match
-
-// unified timer eventing
-uint32_t self_next(self_t self); // when to call self_events
-pkt_t self_events(self_t self); // has token and cid, look up and pass in to chan_receive
-void self_event(self_t self, pkt_t event, uint32_t next); // used internally to replace current event, unique per cid, 0 is delete
+pkt_t end_encrypt(end_t self, e3x_t x, uint32_t seq, pkt_t inner); // use to send handshakes
+bool end_verify(end_t self, e3x_t x, pkt_t message); // any verify fail, always send a handshake
 
 // exchange only
-e3x_t e3x_new(uint8_t csid, uint8_t *key); // _free
+e3x_t e3x_new(end_t self, pkt_t key); // _free, self is used
 uint32_t e3x_handshake(e3x_t x, pkt_t handshake); // updates exchange secrets if needed and resets channel id base, returns incoming seq if it's newer to signal new handshake response and any channel resends
-// returns ok for valid/current handshake or channel packet
 pkt_t e3x_encrypt(e3x_t x, pkt_t inner); // from chan_packet
 pkt_t e3x_decrypt(e3x_t x, pkt_t channel); // incoming channel, null if invalid (checks cid)
 uint8_t *e3x_token(e3x_t x); // to store/match
 uint32_t e3x_cid(e3x_t x); // get next avail outgoing channel id
 
-chan_t chan_new(self_t self, pkt_t open); // _free
+// simple timer eventing (for channels)
+events_t events_new();
+uint32_t events_next(events_t e); // when to call events()
+pkt_t events(events_t e); // has token and cid, look up and pass in to chan_receive
+void events_at(events_t e, pkt_t event, uint32_t at); // used internally to replace current event, unique per cid, 0 is delete
+
+// caller must manage lists of channels based on cid (per e3x)
+chan_t chan_new(pkt_t open); // _free, self is for eventing
+void chan_events(events_t e); // timers only work with this
 uint32_t chan_id(chan_t c); // convenience
-pkt_t chan_receive(chan_t c, pkt_t inner); // may return null until valid, usu sets event in self to wakeup, pass null until null
-pkt_t chan_send(chan_t c, pkt_t inner); // use e3x_encrypt and deliver when ready, must be called after every receive, pass null until null
-pkt_t chan_last(chant_t c);
+bool chan_receive(chan_t c, pkt_t inner); // may return null until valid, usu sets event to wakeup, bool if accepted
+pkt_t chan_receiving(chan_t c);
+bool chan_send(chan_t c, pkt_t inner); // adds to sending queue
+pkt_t chan_sending(chan_t c); // must be called after every send or receive, pass pkt to e3x_encrypt before sending
+pkt_t chan_open(chant_t c); // returns open (cached)
+uint8_t chan_state(chan_t c);
 
 //##############
 /* binding notes
