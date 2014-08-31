@@ -1,137 +1,102 @@
 #ifndef e3x_h
 #define e3x_h
 
-// defines packet_t
-// this includes generic buffer encoding/decoding to packets and json/body access
-#include "packet.h"
+// pkt_t is externally defined as the packet (json+binary) container
+
+// everything is prefixed with e3* to minimize symbol/naming conflicts
+
 
 //################################
 // local endpoint state management
 
-typedef struct e3x_self_struct *e3x_self_t;
+typedef struct e3self_struct *e3self_t;
 
 // load keys to create a new local endpoint
-e3x_self_t e3x_self_new(packet_t secrets);
-void e3x_self_free(e3x_self_t self);
+e3self_t e3self_new(pkt_t secrets);
+void e3self_free(e3self_t e); // any e3x's must have been free'd first
 
-// processes data coming from any network interface
-// packet has either a token or contains a handshake
-packet_t e3x_self_receive(e3x_self_t self, packet_t packet);
+// try to decrypt any message sent to us, returns the inner
+// must also be passed to verify to validate sender
+pkt_t e3self_decrypt(e3self_t e, pkt_t message);
 
 // generate new local secrets
-packet_t e3x_self_generate(void);
+pkt_t e3self_generate(void);
+
+// these require a self (local) and an exchange (remote) but are exchange independent
+pkt_t e3self_x_encrypt(e3self_t e, e3x_t x, pkt_t inner, uint32_t seq); // will safely set/increment seq if 0
+bool e3self_x_verify(e3self_t e, e3x_t x, pkt_t message); // any handshake verify fail (lower seq), always resend handshake
 
 
 //##################
-// a single exchange
+// a single exchange (a session w/ local endpoint and remote endpoint)
 
 typedef struct e3x_struct *e3x_t;
 
 // make a new exchange
 // packet must contain the keys or a handshake to exchange with
-e3x_t e3x_new(e3x_self_t self, packet_t with);
+e3x_t e3x_new(e3self_t e, pkt_t with, uint32_t seq); // seq must be higher than any previous x used with them
+void e3x_free(e3x_t x);
 
-// will error any active channels and then free any caches after
-void e3x_free(e3x_t e);
+// simple accessor utilities
+uint8_t *e3x_token(e3x_t x); // 16 bytes, unique to this exchange for matching/routing
+uint32_t e3x_seq(e3x_t x); // last used seq value
 
-// get the 16 byte unique id for this exchange
-uint8_t *e3x_token(e3x_t e);
+// returns the seq value for a handshake reply if needed
+// sets secrets/seq/cids to the given handshake if it's newer
+// always call chan_sync(c,true) after this on all open channels to signal them the exchange is active
+uint32_t e3x_sync(e3x_t x, pkt_t handshake);
 
-// simple encrypt/decrypt conversion of any packet for async messaging patterns
-packet_t e3x_decrypt(e3x_t e, packet_t packet);
-packet_t e3x_encrypt(e3x_t e, packet_t packet);
+// just a convenience, seq=0 means force new handshake (and call chan_sync(false)), or seq = e3x_seq() or e3x_sync()
+pkt_t e3x_handshake(e3x_t x, pkt_t inner, uint32_t seq);
 
-// pass in packets returned from e3x_self_receive, only receive handshakes that are trusted, if new handshake err any opened channels
-// returns:
-//  0 - dropped/invalid
-//  >0 - processed, a positive signal about the transport validity
-//  1 - call e3x_sending, packets waiting to be sent
-//  2 - call e3x_receiving, packets waiting to be received
-//  3 - call both
-uint8_t e3x_receive(e3x_t e, packet_t packet);
+// simple encrypt/decrypt conversion of any packet for channels
+pkt_t e3x_decrypt(e3x_t x, pkt_t packet); // goes to channel, validates cid
+pkt_t e3x_encrypt(e3x_t x, pkt_t inner); // comes from channel 
 
-// use when the network transport needs to be re-validated for an exchange
-// generates a handshake if there's any channels, will re-send and start to timeout channels if not confirmed
-packet_t e3x_keepalive(e3x_t e);
+// get next avail outgoing channel id
+uint32_t e3x_cid(e3x_t x);
 
-// get the next packet to deliver for this exchange (if any), when it returns null use e3x_sending_next
-packet_t e3x_sending(e3x_t e);
 
-// returns the number of milliseconds until e3x_sending needs to be called again, or 0 if not
-uint32_t e3x_sending_next(e3x_t e);
-
-// get the next packet received in this exchange, will always have a channel id included
-// when it returns null use e3x_receiving_next
-packet_t e3x_receiving(e3x_t e);
-
-// always returns the number of milliseconds until e3x_receiving needs to be called again, or 0 if not
-uint32_t e3x_receiving_next(e3x_t e);
-
-// create new reliable (1) or unreliable (2) channel, timeout is for start/acks/ends
-// returns the id unique to this exchange only
-uint32_t e3x_channel(e3x_t e, uint8_t kind, uint32_t timeout);
-
-// create a new packet to send to this channel
-packet_t e3x_packet(e3x_t e, uint32_t channel);
-
-// encrypts and shows up in sending(), queues and triggers handshake too, always call e3x_sending after
-// 0 if not delivered, else is # of packets waiting to be sent and/or ack'd in the queue
-// reliable packets are returned in receiving() once delivered (track w/ "seq" id)
-uint32_t e3x_send(packet_t packet);
-
-// DRAFT NOTES for lib reorg
-
-end_t end_new(pkt_t secrets); // _free
-pkt_t end_generate(); // pass in to self_new
-// must be used w/ e3x_verify next, if handshake then also e3x_handshake (match contained key to x)
-pkt_t end_decrypt(end_t self, pkt_t message);
-
-// these must be pair'd w/ an exchange
-pkt_t end_e3x_encrypt(end_t self, e3x_t x, pkt_t inner); // increments seq
-bool end_e3x_verify(end_t self, e3x_t x, pkt_t message); // any verify fail, always send a handshake
-
-// exchange only
-e3x_t e3x_new(end_t self, pkt_t key, uin32_t seq); // _free, self is used
-bool e3x_sync(e3x_t x, pkt_t handshake); // returns if is in sync, sets secrets/seq/cids to handshake, always call _handshake if false and chan_receive(c,null) on all open channels
-pkt_t e3x_handshake(e3x_t x); // returns current handshake after a sync, or generates new one 
-pkt_t e3x_encrypt(e3x_t x, pkt_t inner); // from chan_packet
-pkt_t e3x_decrypt(e3x_t x, pkt_t channel); // incoming channel, null if invalid (checks cid)
-uint8_t *e3x_token(e3x_t x); // to store/match
-uint32_t e3x_cid(e3x_t x); // get next avail outgoing channel id
-
+//##################
 // these are separate and entirely standalone as utilities that can be used optionally
 
 // simple timer eventing (for channels)
-events_t events_new();
-uint32_t events_next(events_t e); // when to call events()
-pkt_t events(events_t e); // has token and cid, look up and pass in to chan_receive
-void events_at(events_t e, pkt_t event, uint32_t at); // used internally to replace current event, unique per cid, 0 is delete
+e3ev_t e3ev_new();
+uint32_t e3ev_at(e3ev_t ev); // when to call e3ev_get()
+pkt_t e3ev_get(e3ev_t ev); // has token and cid, look up and pass in to chan_receive
+void e3ev_set(e3ev_t ev, pkt_t event, uint32_t at); // 0 is delete, event is unique per ->id
 
 // caller must manage lists of channels per e3x based on cid
-chan_t chan_new(pkt_t open); // _free, self is for eventing, open must be _receive or _send next
-void chan_events(events_t e); // timers only work with this
-bool chan_receive(chan_t c, pkt_t inner); // usually sets/updates event timer, bool if accepted/valid into receiving queue, null to signal sync required
-pkt_t chan_receiving(chan_t c); // null if nothing
-bool chan_send(chan_t c, pkt_t inner); // adds to sending queue
-pkt_t chan_sending(chan_t c); // must be called after every send or receive, pass pkt to e3x_encrypt before sending
+e3chan_t e3chan_new(pkt_t open); // open must be e3chan_receive or e3chan_send next yet
+void e3chan_free(e3chan_t c);
+void e3chan_ev(e3chan_t c, e3ev_t ev); // timers only work with this set
+
+// incoming packets
+bool e3chan_receive(e3chan_t c, pkt_t inner); // usually sets/updates event timer, bool if accepted/valid into receiving queue
+void e3chan_sync(e3chan_t c, bool sync); // false to force start timers (any new handshake), true to cancel and resend last packet (after any e3x_sync)
+pkt_t e3chan_receiving(e3chan_t c); // get next avail packet in order, null if nothing
+
+// outgoing packets
+pkt_t e3chan_packet(e3chan_t c);  // creates a packet w/ necessary json, just a convenience
+bool e3chan_send(e3chan_t c, pkt_t inner); // adds to sending queue, adds json if needed
+pkt_t e3chan_sending(e3chan_t c); // must be called after every send or receive, pass pkt to e3x_encrypt before sending
 
 // convenience functions
-uint32_t chan_id(chan_t c); // numeric of the open->cid
-pkt_t chan_open(chant_t c); // returns open (always cached)
-uint8_t chan_state(chan_t c); // OPENING, OPEN, or ENDED
+uint32_t e3chan_id(e3chan_t c); // numeric of the open->cid
+pkt_t e3chan_open(e3chan_t c); // returns the open packet (always cached)
+uint8_t e3chan_state(e3chan_t c); // E3CHAN_OPENING, E3CHAN_OPEN, or E3CHAN_ENDED
+uint32_t e3chan_size(e3chan_t c); // size (in bytes) of buffered data in or out
 
 //##############
 /* binding notes
 
 * app must have an index of the hashnames-to-exchange and tokens-to-exchange
-* uses e3x_self_receive first for all incoming to get the key to either index and find an exchange
-* uses a scheduler to know when to check any exchange
 * for each exchange, keep a list of active network transport sessions and potential transport paths
 * also keep a list of active channels per exchange to track state
 * one transport session may be delivering to multiple exchanges (not a 1:1 mapping)
-* unreliable transport sessions must signal to any exchange when they need a keepalive to be validated
-* sessions must signal when they are closed, which generates a keepalive to any other sessions
-* always use the most recently active session to deliver to for sending
+* unreliable transport sessions must trigger a new handshake for any exchange when they need to be re-validated
+* all transport sessions must signal when they are closed, which generates a new handshake to any other sessions
+* always use the most recently validated-active transport session to deliver to for sending
 
 */
 
