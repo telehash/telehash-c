@@ -1,13 +1,12 @@
 CC=gcc
 CFLAGS+=-g -Wall -Wextra -Wno-unused-parameter
-INCLUDE+=-Iunix -Isrc -Isrc/ext
-JSON = ../js0n/js0n.c ../js0n/j0g.c -I../js0n
-CS1a = cs1a/aes.c cs1a/hmac.c cs1a/aes128.c cs1a/base64_dec.c cs1a/crypt_1a.c cs1a/uECC.c cs1a/sha256.c cs1a/base64_enc.c
-CS2a = -ltomcrypt -ltommath -DLTM_DESC -DCS_2a cs2a/crypt_libtom_*.c
-CS3a = -Ics1a -lsodium -DCS_3a cs3a/crypt_3a.c
+INCLUDE+=-Iunix -Isrc -Isrc/ext -Ie3x
+CS1a = e3x/cs1a/aes.c e3x/cs1a/hmac.c e3x/cs1a/aes128.c e3x/cs1a/base64_dec.c e3x/cs1a/crypt_1a.c e3x/cs1a/uECC.c e3x/cs1a/sha256.c e3x/cs1a/base64_enc.c
+CS2a = -ltomcrypt -ltommath -DLTM_DESC -DCS_2a e3x/cs2a/crypt_libtom_*.c
+CS3a = -Ics1a -lsodium -DCS_3a e3x/cs3a/crypt_3a.c
 
 # this is CS1a only
-ARCH = unix/platform.c cs1a/crypt_base.c $(JSON) $(CS1a) $(INCLUDE) $(LIBS)
+ARCH = unix/platform.c e3x/cs1a/crypt_base.c $(JSON) $(CS1a) $(INCLUDE) $(LIBS)
 
 # this is CS3a only
 #ARCH = -DNOCS_1a unix/platform.c cs3a/crypt_base.c cs1a/base64*.c $(JSON) $(CS3a) $(INCLUDE) $(LIBS)
