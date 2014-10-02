@@ -1,8 +1,7 @@
-#include "chan.h"
 #include <string.h>
 #include <stdlib.h>
 #include "util.h"
-#include "switch.h"
+#include "e3x.h"
 
 // flags channel as ended either in or out
 void doend(chan_t c)
@@ -13,10 +12,10 @@ void doend(chan_t c)
 }
 
 // immediately removes channel, creates/sends packet to app to notify
-void doerror(chan_t c, packet_t p, char *err)
+void doerror(chan_t c, lob_t p, char *err)
 {
   if(c->ended) return;
-  DEBUG_PRINTF("channel fail %d %s %d %d %d",c->id,err?err:packet_get_str(p,"err"),c->timeout,c->tsent,c->trecv);
+  DEBUG_PRINTF("channel fail %d %s %d %d %d",c->id,err?err:lob_get_str(p,"err"),c->timeout,c->tsent,c->trecv);
 
   // unregister for any more packets immediately
   xht_set(c->to->chans,(char*)c->hexid,NULL);
@@ -25,9 +24,9 @@ void doerror(chan_t c, packet_t p, char *err)
   // convenience to generate error packet
   if(!p)
   {
-    if(!(p = packet_new())) return;
-    packet_set_str(p,"err",err?err:"unknown");
-    packet_set_int(p,"c",c->id);
+    if(!(p = lob_new())) return;
+    lob_set_str(p,"err",err?err:"unknown");
+    lob_set_int(p,"c",c->id);
   }
 
   // send error to app immediately, will doend() when processed
@@ -38,7 +37,7 @@ void doerror(chan_t c, packet_t p, char *err)
 
 void chan_free(chan_t c)
 {
-  packet_t p;
+  lob_t p;
   if(!c) return;
 
   // if there's an arg set, we can't free and must notify channel handler
@@ -67,14 +66,14 @@ void chan_free(chan_t c)
     DEBUG_PRINTF("unused packets on channel %d",c->id);
     p = c->in;
     c->in = p->next;
-    packet_free(p);
+    lob_free(p);
   }
   while(c->notes)
   {
     DEBUG_PRINTF("unused notes on channel %d",c->id);
     p = c->notes;
     c->notes = p->next;
-    packet_free(p);
+    lob_free(p);
   }
   // TODO, if it's the last channel, bucket_rem(c->s->active, c);
   free(c->type);
@@ -88,9 +87,9 @@ void walkreset(xht_t h, const char *key, void *val, void *arg)
   if(c->opened) return doerror(c,NULL,"reset");
   // flush any waiting packets
   if(c->reliable) chan_miss_resend(c);
-  else switch_send(c->s,packet_copy(c->in));
+  else switch_send(c->s,lob_copy(c->in));
 }
-void chan_reset(switch_t s, hn_t to)
+void chan_reset(switch_t s, hashname_t to)
 {
   // fail any existing open channels
   xht_walk(to->chans, &walkreset, NULL);
@@ -127,7 +126,7 @@ void walktick(xht_t h, const char *key, void *val, void *arg)
 
 }
 
-void chan_tick(switch_t s, hn_t hn)
+void chan_tick(switch_t s, hashname_t hn)
 {
   xht_walk(hn->chans, &walktick, NULL);
 }
@@ -146,11 +145,11 @@ chan_t chan_start(switch_t s, char *hn, char *type)
 {
   chan_t c;
   if(!s || !hn) return NULL;
-  c = chan_new(s, hn_gethex(s->index,hn), type, 0);
+  c = chan_new(s, hashname_gethex(s->index,hn), type, 0);
   return chan_reliable(c, s->window);
 }
 
-chan_t chan_new(switch_t s, hn_t to, char *type, uint32_t id)
+chan_t chan_new(switch_t s, hashname_t to, char *type, uint32_t id)
 {
   chan_t c;
   if(!s || !to || !type) return NULL;
@@ -197,25 +196,25 @@ void chan_timeout(chan_t c, uint32_t seconds)
   c->timeout = seconds;
 }
 
-chan_t chan_in(switch_t s, hn_t from, packet_t p)
+chan_t chan_in(switch_t s, hashname_t from, lob_t p)
 {
   chan_t c;
   unsigned long id;
   char hexid[9];
   if(!from || !p) return NULL;
 
-  id = strtol(packet_get_str(p,"c"), NULL, 10);
+  id = strtol(lob_get_str(p,"c"), NULL, 10);
   util_hex((unsigned char*)&id,4,(unsigned char*)hexid);
   c = xht_get(from->chans, hexid);
   if(c) return c;
 
-  return chan_new(s, from, packet_get_str(p, "type"), id);
+  return chan_new(s, from, lob_get_str(p, "type"), id);
 }
 
 // get the next incoming note waiting to be handled
-packet_t chan_notes(chan_t c)
+lob_t chan_notes(chan_t c)
 {
-  packet_t note;
+  lob_t note;
   if(!c) return NULL;
   note = c->notes;
   if(note) c->notes = note->next;
@@ -223,42 +222,42 @@ packet_t chan_notes(chan_t c)
 }
 
 // create a new note tied to this channel
-packet_t chan_note(chan_t c, packet_t note)
+lob_t chan_note(chan_t c, lob_t note)
 {
-  if(!note) note = packet_new();
-  packet_set_str(note,".from",(char*)c->uid);
+  if(!note) note = lob_new();
+  lob_set_str(note,".from",(char*)c->uid);
   return note;
 }
 
 // send this note back to the sender
-int chan_reply(chan_t c, packet_t note)
+int chan_reply(chan_t c, lob_t note)
 {
   char *from;
-  if(!c || !(from = packet_get_str(note,".from"))) return -1;
-  packet_set_str(note,".to",from);
-  packet_set_str(note,".from",(char*)c->uid);
+  if(!c || !(from = lob_get_str(note,".from"))) return -1;
+  lob_set_str(note,".to",from);
+  lob_set_str(note,".from",(char*)c->uid);
   return switch_note(c->s,note);
 }
 
 // create a packet ready to be sent for this channel
-packet_t chan_packet(chan_t c)
+lob_t chan_packet(chan_t c)
 {
-  packet_t p;
+  lob_t p;
   if(!c) return NULL;
-  p = c->reliable?chan_seq_packet(c):packet_new();
+  p = c->reliable?chan_seq_packet(c):lob_new();
   if(!p) return NULL;
   p->to = c->to;
   if(!c->tsent && !c->trecv)
   {
-    packet_set_str(p,"type",c->type);
+    lob_set_str(p,"type",c->type);
   }
-  packet_set_int(p,"c",c->id);
+  lob_set_int(p,"c",c->id);
   return p;
 }
 
-packet_t chan_pop(chan_t c)
+lob_t chan_pop(chan_t c)
 {
-  packet_t p;
+  lob_t p;
   if(!c) return NULL;
   // this allows errors to be processed immediately
   if((p = c->in))
@@ -269,7 +268,7 @@ packet_t chan_pop(chan_t c)
   if(!p && c->reliable) p = chan_seq_pop(c);
 
   // change state as soon as an err/end is processed
-  if(packet_get_str(p,"err") || util_cmp(packet_get_str(p,"end"),"true") == 0) doend(c);
+  if(lob_get_str(p,"err") || util_cmp(lob_get_str(p,"end"),"true") == 0) doend(c);
   return p;
 }
 
@@ -301,7 +300,7 @@ void chan_dequeue(chan_t c)
 }
 
 // internal, receives/processes incoming packet
-void chan_receive(chan_t c, packet_t p)
+void chan_receive(chan_t c, lob_t p)
 {
   if(!c || !p) return;
   DEBUG_PRINTF("channel in %d %d %.*s",c->id,p->body_len,p->json_len,p->json);
@@ -309,13 +308,13 @@ void chan_receive(chan_t c, packet_t p)
   DEBUG_PRINTF("recv %d",c);
   
   // errors are immediate
-  if(packet_get_str(p,"err")) return doerror(c,p,NULL);
+  if(lob_get_str(p,"err")) return doerror(c,p,NULL);
 
   if(!c->opened)
   {
     DEBUG_PRINTF("channel opened %d",c->id);
     // remove any cached outgoing packet
-    packet_free(c->in);
+    lob_free(c->in);
     c->in = NULL;
     c->opened = 1;
   }
@@ -341,38 +340,38 @@ void chan_receive(chan_t c, packet_t p)
 }
 
 // convenience
-void chan_end(chan_t c, packet_t p)
+void chan_end(chan_t c, lob_t p)
 {
   if(!c) return;
   if(!p && !(p = chan_packet(c))) return;
-  packet_set(p,"end","true",4);
+  lob_set(p,"end","true",4);
   chan_send(c,p);
 }
 
 // send errors directly
 chan_t chan_fail(chan_t c, char *err)
 {
-  packet_t p;
+  lob_t p;
   if(!c) return NULL;
-  if(!(p = packet_new())) return c;
+  if(!(p = lob_new())) return c;
   doend(c);
   p->to = c->to;
-  packet_set_str(p,"err",err?err:"unknown");
-  packet_set_int(p,"c",c->id);
+  lob_set_str(p,"err",err?err:"unknown");
+  lob_set_int(p,"c",c->id);
   switch_send(c->s,p);
   return c;
 }
 
 // smartly send based on what type of channel we are
-void chan_send(chan_t c, packet_t p)
+void chan_send(chan_t c, lob_t p)
 {
   if(!p) return;
-  if(!c) return (void)packet_free(p);
+  if(!c) return (void)lob_free(p);
   DEBUG_PRINTF("channel out %d %.*s",c->id,p->json_len,p->json);
   c->tsent = c->s->tick;
-  if(c->reliable && packet_get_str(p,"seq")) p = packet_copy(p); // miss tracks the original p = chan_packet(), a sad hack
-  if(packet_get_str(p,"err") || util_cmp(packet_get_str(p,"end"),"true") == 0) doend(c); // track sending error/end
-  else if(!c->reliable && !c->opened && !c->in) c->in = packet_copy(p); // if normal unreliable start packet, track for resends
+  if(c->reliable && lob_get_str(p,"seq")) p = lob_copy(p); // miss tracks the original p = chan_packet(), a sad hack
+  if(lob_get_str(p,"err") || util_cmp(lob_get_str(p,"end"),"true") == 0) doend(c); // track sending error/end
+  else if(!c->reliable && !c->opened && !c->in) c->in = lob_copy(p); // if normal unreliable start packet, track for resends
   
   switch_send(c->s,p);
 }
@@ -380,7 +379,7 @@ void chan_send(chan_t c, packet_t p)
 // optionally sends reliable channel ack-only if needed
 void chan_ack(chan_t c)
 {
-  packet_t p;
+  lob_t p;
   if(!c || !c->reliable) return;
   p = chan_seq_ack(c,NULL);
   if(!p) return;

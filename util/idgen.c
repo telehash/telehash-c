@@ -4,13 +4,13 @@
 #include <stdio.h>
 
 #include "crypt.h"
-#include "packet.h"
+#include "lob.h"
 
 #include "platform.h"
 
 int main(int argc, char *argv[])
 {
-  packet_t keys;
+  lob_t keys;
   FILE *fdout;
 
   if(argc > 2)
@@ -19,7 +19,7 @@ int main(int argc, char *argv[])
     return -1;
   }
   crypt_init();
-  keys = packet_new();
+  keys = lob_new();
 #ifdef CS_1a
   DEBUG_PRINTF(("*** Generating CS_1a keys ***"));
   crypt_keygen(0x1a,keys);

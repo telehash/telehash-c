@@ -2,7 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include "packet.h"
+#include "lob.h"
 #include "util.h"
 
 bucket_t bucket_new()
@@ -22,7 +22,7 @@ void bucket_free(bucket_t b)
   free(b);
 }
 
-void bucket_add(bucket_t b, hn_t hn)
+void bucket_add(bucket_t b, hashname_t hn)
 {
   void *ptr;
   if(!b || !hn) return;
@@ -35,13 +35,13 @@ void bucket_add(bucket_t b, hn_t hn)
     b->args = (void**)ptr;
     b->args[b->count] = NULL;
   }
-  if(!(ptr = realloc(b->hns, (b->count+1) * sizeof(hn_t)))) return;
-  b->hns = (hn_t*)ptr;
+  if(!(ptr = realloc(b->hns, (b->count+1) * sizeof(hashname_t)))) return;
+  b->hns = (hashname_t*)ptr;
   b->hns[b->count] = hn;
   b->count++;
 }
 
-void bucket_rem(bucket_t b, hn_t hn)
+void bucket_rem(bucket_t b, hashname_t hn)
 {
   int i, at = -1;
   if(!b || !hn) return;
@@ -52,13 +52,13 @@ void bucket_rem(bucket_t b, hn_t hn)
   if(b->args) memmove(b->args+at,b->args+(at+1),b->count-at);
 }
 
-hn_t bucket_get(bucket_t b, int index)
+hashname_t bucket_get(bucket_t b, int index)
 {
   if(!b || index >= b->count) return NULL;
   return b->hns[index];
 }
 
-int bucket_in(bucket_t b, hn_t hn)
+int bucket_in(bucket_t b, hashname_t hn)
 {
   int i;
   if(!b || !hn) return -1;
@@ -67,7 +67,7 @@ int bucket_in(bucket_t b, hn_t hn)
 }
 
 // these set and return an optional arg for the matching hashname
-void bucket_set(bucket_t b, hn_t hn, void *arg)
+void bucket_set(bucket_t b, hashname_t hn, void *arg)
 {
   int i;
   bucket_add(b,hn);
@@ -82,7 +82,7 @@ void bucket_set(bucket_t b, hn_t hn, void *arg)
   b->args[i] = arg;
 }
 
-void *bucket_arg(bucket_t b, hn_t hn)
+void *bucket_arg(bucket_t b, hashname_t hn)
 {
   int i = bucket_in(b,hn);
   if(i < 0 || !b->args) return NULL;

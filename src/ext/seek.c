@@ -3,9 +3,9 @@
 
 typedef struct seek_struct 
 {
-  hn_t id;
+  hashname_t id;
   int active;
-  packet_t note;
+  lob_t note;
 } *seek_t;
 
 typedef struct seeks_struct 
@@ -27,7 +27,7 @@ seeks_t seeks_get(switch_t s)
   return sks;
 }
 
-seek_t seek_get(switch_t s, hn_t id)
+seek_t seek_get(switch_t s, hashname_t id)
 {
   seek_t sk;
   seeks_t sks = seeks_get(s);
@@ -55,13 +55,13 @@ void peer_handler(chan_t c)
 }
 
 // csid may be address format
-void peer_send(switch_t s, hn_t to, char *address)
+void peer_send(switch_t s, hashname_t to, char *address)
 {
   char *csid, *ip = NULL, *port;
-  packet_t punch = NULL;
+  lob_t punch = NULL;
   crypt_t cs;
   chan_t c;
-  packet_t p;
+  lob_t p;
 
   if(!address) return;
   if(!(csid = strchr(address,','))) return;
@@ -79,15 +79,15 @@ void peer_send(switch_t s, hn_t to, char *address)
   c = chan_new(s, to, "peer", 0);
   c->handler = peer_handler;
   p = chan_packet(c);
-  packet_set_str(p,"peer",address);
-  packet_body(p,cs->key,cs->keylen);
+  lob_set_str(p,"peer",address);
+  lob_body(p,cs->key,cs->keylen);
 
   // send the nat punch packet if ip,port is given
   if(ip && (port = strchr(ip,',')))
   {
     *port = 0;
     port++;
-    punch = packet_new();
+    punch = lob_new();
     c->arg = punch->out = path_new("ipv4"); // free path w/ peer channel cleanup
     path_ip(punch->out,ip);
     path_port(punch->out,atoi(port));
@@ -102,38 +102,38 @@ void seek_handler(chan_t c)
   int i = 0;
   char *address;
   seek_t sk = (seek_t)c->arg;
-  packet_t see, p = chan_pop(c);
+  lob_t see, p = chan_pop(c);
   if(!sk || !p) return;
   DEBUG_PRINTF("seek response for %s of %.*s",sk->id->hexname,p->json_len,p->json);
 
   // process see array and end channel
-  see = packet_get_packet(p,"see");
-  while((address = packet_get_istr(see,i)))
+  see = lob_get_packet(p,"see");
+  while((address = lob_get_istr(see,i)))
   {
     i++;
     if(strncmp(address,sk->id->hexname,64) == 0) peer_send(c->s, c->to, address);
     // TODO maybe recurse others
   }
-  packet_free(see);
-  packet_free(p);
+  lob_free(see);
+  lob_free(p);
   // TODO sk->active-- and check to return note
 }
 
-void seek_send(switch_t s, seek_t sk, hn_t to)
+void seek_send(switch_t s, seek_t sk, hashname_t to)
 {
   chan_t c;
-  packet_t p;
+  lob_t p;
   sk->active++;
   c = chan_new(s, to, "seek", 0);
   c->handler = seek_handler;
   c->arg = sk;
   p = chan_packet(c);
-  packet_set_str(p,"seek",sk->id->hexname); // TODO make a prefix
+  lob_set_str(p,"seek",sk->id->hexname); // TODO make a prefix
   chan_send(c, p);
 }
 
 // create a seek to this hn and initiate connect
-void _seek_auto(switch_t s, hn_t hn)
+void _seek_auto(switch_t s, hashname_t hn)
 {
   seek_t sk = seek_get(s,hn);
   DEBUG_PRINTF("seek connecting %s",sk->id->hexname);
@@ -154,7 +154,7 @@ void seek_free(switch_t s)
 }
 
 // just call back note instead of auto-connect
-void seek_note(switch_t s, hn_t h, packet_t note)
+void seek_note(switch_t s, hashname_t h, lob_t note)
 {
   
 }

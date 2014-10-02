@@ -1,12 +1,10 @@
-#ifndef packet_h
-#define packet_h
-
-#include "path.h"
+#ifndef lob_h
+#define lob_h
 
 // the maximum index size of how many top level elements there are in the json (each keypair is 4)
 #define JSONDENSITY 64
 
-typedef struct packet_struct
+typedef struct lob_struct
 {
   unsigned char *raw;
   unsigned char *body;
@@ -14,67 +12,65 @@ typedef struct packet_struct
   unsigned char *json;
   unsigned short json_len;
   unsigned short js[JSONDENSITY];
-  struct packet_struct *next, *chain;
-  struct hn_struct *to, *from;
-  path_t out;
+  struct lob_struct *next, *chain;
   char *jsoncp; // internal editable copy of the json
-} *packet_t;
+} *lob_t;
 
 // these all allocate/free memory
-packet_t packet_new();
-packet_t packet_copy(packet_t p);
-packet_t packet_free(packet_t p); // returns NULL for convenience
+lob_t lob_new();
+lob_t lob_copy(lob_t p);
+lob_t lob_free(lob_t p); // returns NULL for convenience
 
 // creates a new parent packet chained to the given child one, so freeing the new packet also free's it
-packet_t packet_chain(packet_t child);
+lob_t lob_chain(lob_t child);
 // manually chain together two packets
-packet_t packet_link(packet_t parent, packet_t child);
+lob_t lob_link(lob_t parent, lob_t child);
 // return a linked child if any
-packet_t packet_linked(packet_t parent);
+lob_t lob_linked(lob_t parent);
 // returns child, unlinked
-packet_t packet_unlink(packet_t parent);
+lob_t lob_unlink(lob_t parent);
 
 // initialize json/body from raw, parses json
-packet_t packet_parse(unsigned char *raw, unsigned short len);
+lob_t lob_parse(unsigned char *raw, unsigned short len);
 
 // return raw info from stored json/body
-unsigned char *packet_raw(packet_t p);
-unsigned short packet_len(packet_t p);
+unsigned char *lob_raw(lob_t p);
+unsigned short lob_len(lob_t p);
 
 // return current packet capacity
-unsigned short packet_space(packet_t p);
+unsigned short lob_space(lob_t p);
 
 // return json pointer safe to use w j0g
-char *packet_j0g(packet_t p);
+char *lob_j0g(lob_t p);
 
 // set/store these in the current packet, !0 if error parsing json
-int packet_json(packet_t p, unsigned char *json, unsigned short len);
-unsigned char *packet_body(packet_t p, unsigned char *body, unsigned short len);
-void packet_append(packet_t p, unsigned char *chunk, unsigned short len);
+int lob_json(lob_t p, unsigned char *json, unsigned short len);
+unsigned char *lob_body(lob_t p, unsigned char *body, unsigned short len);
+void lob_append(lob_t p, unsigned char *chunk, unsigned short len);
 
 // convenient json setters/getters
-void packet_set(packet_t p, char *key, char *val, int vlen); // raw
-void packet_set_str(packet_t p, char *key, char *val); // escapes value
-void packet_set_int(packet_t p, char *key, int val);
-void packet_set_printf(packet_t p, char *key, const char *format, ...);
+void lob_set(lob_t p, char *key, char *val, int vlen); // raw
+void lob_set_str(lob_t p, char *key, char *val); // escapes value
+void lob_set_int(lob_t p, char *key, int val);
+void lob_set_printf(lob_t p, char *key, const char *format, ...);
 
 // copies keys from json into p
-void packet_set_json(packet_t p, packet_t json);
+void lob_set_json(lob_t p, lob_t json);
 
 // count of keys
-int packet_keys(packet_t p);
+int lob_keys(lob_t p);
 
 // alpha sorts the json keys in the packet
-void packet_sort(packet_t p);
+void lob_sort(lob_t p);
 
 // 0 to match, !0 if different, compares only top-level json and body
-int packet_cmp(packet_t a, packet_t b);
+int lob_cmp(lob_t a, lob_t b);
 
 // the return char* is invalidated with any _set* operation!
-char *packet_get_str(packet_t p, char *key);
-char *packet_get_istr(packet_t p, int i); // returns ["0","1","2","3"] or {"0":"1","2":"3"}
+char *lob_get_str(lob_t p, char *key);
+char *lob_get_istr(lob_t p, int i); // returns ["0","1","2","3"] or {"0":"1","2":"3"}
 
-packet_t packet_get_packet(packet_t p, char *key); // creates new packet from key:object value
-packet_t packet_get_packets(packet_t p, char *key); // list of packet->next from key:[object,object]
+lob_t lob_get_packet(lob_t p, char *key); // creates new packet from key:object value
+lob_t lob_get_packets(lob_t p, char *key); // list of packet->next from key:[object,object]
 
 #endif

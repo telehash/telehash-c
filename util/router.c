@@ -14,7 +14,7 @@ int main(void)
 {
   switch_t s;
   chan_t c;
-  packet_t p;
+  lob_t p;
   path_t in;
   int sock;
 
@@ -49,7 +49,7 @@ int main(void)
       while((p = chan_pop(c)))
       {
         printf("unhandled channel packet %.*s\n", p->json_len, p->json);      
-        packet_free(p);
+        lob_free(p);
       }
     }
 

@@ -1,20 +1,20 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "switch.h"
+#include "e3x.h"
 
 typedef struct seq_struct
 {
   uint32_t id, nextin, seen, acked;
-  packet_t *in;
+  lob_t *in;
 } *seq_t;
 
 void chan_seq_init(chan_t c)
 {
   seq_t s = malloc(sizeof (struct seq_struct));
   memset(s,0,sizeof (struct seq_struct));
-  s->in = malloc(sizeof (packet_t) * c->reliable);
-  memset(s->in,0,sizeof (packet_t) * c->reliable);
+  s->in = malloc(sizeof (lob_t) * c->reliable);
+  memset(s->in,0,sizeof (lob_t) * c->reliable);
   c->seq = (void*)s;
 }
 
@@ -22,13 +22,13 @@ void chan_seq_free(chan_t c)
 {
   int i;
   seq_t s = (seq_t)c->seq;
-  for(i=0;i<c->reliable;i++) packet_free(s->in[i]);
+  for(i=0;i<c->reliable;i++) lob_free(s->in[i]);
   free(s->in);
   free(s);
 }
 
 // add ack, miss to any packet
-packet_t chan_seq_ack(chan_t c, packet_t p)
+lob_t chan_seq_ack(chan_t c, lob_t p)
 {
   char *miss;
   int i,max;
@@ -40,13 +40,13 @@ packet_t chan_seq_ack(chan_t c, packet_t p)
 
   if(!p)
   {
-    if(!(p = packet_new())) return NULL;
+    if(!(p = lob_new())) return NULL;
     p->to = c->to;
-    packet_set_int(p,"c",c->id);
+    lob_set_int(p,"c",c->id);
     DEBUG_PRINTF("making SEQ only");
   }
   s->acked = s->nextin-1;
-  packet_set_int(p,"ack",(int)s->acked);
+  lob_set_int(p,"ack",(int)s->acked);
 
   // check if miss is not needed
   if(s->seen < s->nextin || s->in[0]) return p;
@@ -58,27 +58,27 @@ packet_t chan_seq_ack(chan_t c, packet_t p)
   for(i=0;i<max;i++) if(!s->in[i]) sprintf(miss+strlen(miss),"%d,",(int)s->nextin+i);
   if(miss[strlen(miss)-1] == ',') miss[strlen(miss)-1] = 0;
   memcpy(miss+strlen(miss),"]\0",2);
-  packet_set(p,"miss",miss,strlen(miss));
+  lob_set(p,"miss",miss,strlen(miss));
   free(miss);
   return p;
 }
 
 // new channel sequenced packet
-packet_t chan_seq_packet(chan_t c)
+lob_t chan_seq_packet(chan_t c)
 {
-  packet_t p = packet_new();
+  lob_t p = lob_new();
   seq_t s = (seq_t)c->seq;
   
   // make sure there's tracking space
   if(chan_miss_track(c,s->id,p)) return NULL;
 
   // set seq and add any acks
-  packet_set_int(p,"seq",(int)s->id++);
+  lob_set_int(p,"seq",(int)s->id++);
   return chan_seq_ack(c, p);
 }
 
 // buffers packets until they're in order
-int chan_seq_receive(chan_t c, packet_t p)
+int chan_seq_receive(chan_t c, lob_t p)
 {
   int offset;
   uint32_t id;
@@ -86,12 +86,12 @@ int chan_seq_receive(chan_t c, packet_t p)
   seq_t s = (seq_t)c->seq;
 
   // drop or cache incoming packet
-  seq = packet_get_str(p,"seq");
+  seq = lob_get_str(p,"seq");
   id = seq?(uint32_t)strtol(seq,NULL,10):0;
   offset = id - s->nextin;
   if(!seq || offset < 0 || offset >= c->reliable || s->in[offset])
   {
-    packet_free(p);
+    lob_free(p);
   }else{
     s->in[offset] = p;
   }
@@ -103,14 +103,14 @@ int chan_seq_receive(chan_t c, packet_t p)
 }
 
 // returns ordered packets for this channel, updates ack
-packet_t chan_seq_pop(chan_t c)
+lob_t chan_seq_pop(chan_t c)
 {
-  packet_t p;
+  lob_t p;
   seq_t s = (seq_t)c->seq;
   if(!s->in[0]) return NULL;
   // pop off the first, slide any others back, and return
   p = s->in[0];
-  memmove(s->in, s->in+1, (sizeof (packet_t)) * (c->reliable - 1));
+  memmove(s->in, s->in+1, (sizeof (lob_t)) * (c->reliable - 1));
   s->in[c->reliable-1] = 0;
   s->nextin++;
   return p;

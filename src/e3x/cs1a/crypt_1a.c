@@ -3,7 +3,7 @@
 #include <time.h>
 #include <sys/time.h>
 #include <unistd.h>
-#include "switch.h"
+#include "e3x.h"
 #include "uECC.h"
 #include "aes.h"
 #include "hmac.h"
@@ -89,7 +89,7 @@ void crypt_free_1a(crypt_t c)
   if(c->cs) free(c->cs);
 }
 
-int crypt_keygen_1a(packet_t p)
+int crypt_keygen_1a(lob_t p)
 {
   char b64[uECC_BYTES*4];
   uint8_t id_private[uECC_BYTES], id_public[uECC_BYTES*2];
@@ -98,10 +98,10 @@ int crypt_keygen_1a(packet_t p)
   uECC_make_key(id_public, id_private);
 
   base64enc(b64,id_public,uECC_BYTES*2);
-  packet_set_str(p,"1a",b64);
+  lob_set_str(p,"1a",b64);
 
   base64enc(b64,id_private,uECC_BYTES);
-  packet_set_str(p,"1a_secret",b64);
+  lob_set_str(p,"1a_secret",b64);
 
   return 0;
 }
@@ -124,31 +124,31 @@ int crypt_private_1a(crypt_t c, unsigned char *key, int len)
   return 0;
 }
 
-packet_t crypt_lineize_1a(crypt_t c, packet_t p)
+lob_t crypt_lineize_1a(crypt_t c, lob_t p)
 {
-  packet_t line;
+  lob_t line;
   unsigned char iv[16], hmac[32];
   crypt_1a_t cs = (crypt_1a_t)c->cs;
 
-  line = packet_chain(p);
-  packet_body(line,NULL,16+4+4+packet_len(p));
+  line = lob_chain(p);
+  lob_body(line,NULL,16+4+4+lob_len(p));
   memcpy(line->body,c->lineIn,16);
   memcpy(line->body+16+4,&(cs->seq),4);
   memset(iv,0,16);
   memcpy(iv+12,&(cs->seq),4);
   cs->seq++;
 
-  aes_128_ctr(cs->keyOut,packet_len(p),iv,packet_raw(p),line->body+16+4+4);
+  aes_128_ctr(cs->keyOut,lob_len(p),iv,lob_raw(p),line->body+16+4+4);
 
-  hmac_256(cs->keyOut,16,line->body+16+4,4+packet_len(p),hmac);
+  hmac_256(cs->keyOut,16,line->body+16+4,4+lob_len(p),hmac);
   fold3(hmac,line->body+16);
 
   return line;
 }
 
-packet_t crypt_delineize_1a(crypt_t c, packet_t p)
+lob_t crypt_delineize_1a(crypt_t c, lob_t p)
 {
-  packet_t line;
+  lob_t line;
   unsigned char iv[16], hmac[32];
   crypt_1a_t cs = (crypt_1a_t)c->cs;
 
@@ -157,24 +157,24 @@ packet_t crypt_delineize_1a(crypt_t c, packet_t p)
 
   hmac_256(cs->keyIn,16,p->body+16+4,p->body_len-(16+4),hmac);
   fold3(hmac,hmac);
-  if(memcmp(hmac,p->body+16,4) != 0) return packet_free(p);
+  if(memcmp(hmac,p->body+16,4) != 0) return lob_free(p);
 
   aes_128_ctr(cs->keyIn,p->body_len-(16+4+4),iv,p->body+16+4+4,p->body+16+4+4);
 
-  line = packet_parse(p->body+16+4+4, p->body_len-(16+4+4));
-  packet_free(p);
+  line = lob_parse(p->body+16+4+4, p->body_len-(16+4+4));
+  lob_free(p);
   return line;
 }
 
 // makes sure all the crypto line state is set up, and creates line keys if exist
-int crypt_line_1a(crypt_t c, packet_t inner)
+int crypt_line_1a(crypt_t c, lob_t inner)
 {
   unsigned char line_public[uECC_BYTES*2], secret[uECC_BYTES], input[uECC_BYTES+16+16], hash[32];
   char *hecc;
   crypt_1a_t cs;
   
   cs = (crypt_1a_t)c->cs;
-  hecc = packet_get_str(inner,"ecc"); // it's where we stashed it
+  hecc = lob_get_str(inner,"ecc"); // it's where we stashed it
   if(!hecc || strlen(hecc) != uECC_BYTES*4) return 1;
   crypt_rand((unsigned char*)&(cs->seq),4); // init seq to random start
 
@@ -198,51 +198,51 @@ int crypt_line_1a(crypt_t c, packet_t inner)
 }
 
 // create a new open packet
-packet_t crypt_openize_1a(crypt_t self, crypt_t c, packet_t inner)
+lob_t crypt_openize_1a(crypt_t self, crypt_t c, lob_t inner)
 {
   unsigned char secret[uECC_BYTES], iv[16], hash[32];
-  packet_t open;
+  lob_t open;
   int inner_len;
   crypt_1a_t cs = (crypt_1a_t)c->cs, scs = (crypt_1a_t)self->cs;
 
-  open = packet_chain(inner);
-  packet_json(open,&(self->csid),1);
-  inner_len = packet_len(inner);
-  if(!packet_body(open,NULL,4+40+inner_len)) return NULL;
+  open = lob_chain(inner);
+  lob_json(open,&(self->csid),1);
+  inner_len = lob_len(inner);
+  if(!lob_body(open,NULL,4+40+inner_len)) return NULL;
 
   // copy in the line public key
   memcpy(open->body+4, cs->line_public, 40);
 
   // get the shared secret to create the iv+key for the open aes
-  if(!uECC_shared_secret(cs->id_public, cs->line_private, secret)) return packet_free(open);
+  if(!uECC_shared_secret(cs->id_public, cs->line_private, secret)) return lob_free(open);
   crypt_hash(secret,uECC_BYTES,hash);
   fold1(hash,hash);
   memset(iv,0,16);
   iv[15] = 1;
 
   // encrypt the inner
-  aes_128_ctr(hash,inner_len,iv,packet_raw(inner),open->body+4+40);
+  aes_128_ctr(hash,inner_len,iv,lob_raw(inner),open->body+4+40);
 
   // generate secret for hmac
-  if(!uECC_shared_secret(cs->id_public, scs->id_private, secret)) return packet_free(open);
+  if(!uECC_shared_secret(cs->id_public, scs->id_private, secret)) return lob_free(open);
   hmac_256(secret,uECC_BYTES,open->body+4,40+inner_len,hash);
   fold3(hash,open->body);
 
   return open;
 }
 
-packet_t crypt_deopenize_1a(crypt_t self, packet_t open)
+lob_t crypt_deopenize_1a(crypt_t self, lob_t open)
 {
   unsigned char secret[uECC_BYTES], iv[16], b64[uECC_BYTES*2*2], hash[32];
-  packet_t inner, tmp;
+  lob_t inner, tmp;
   crypt_1a_t cs = (crypt_1a_t)self->cs;
 
   if(open->body_len <= (4+40)) return NULL;
-  inner = packet_new();
-  if(!packet_body(inner,NULL,open->body_len-(4+40))) return packet_free(inner);
+  inner = lob_new();
+  if(!lob_body(inner,NULL,open->body_len-(4+40))) return lob_free(inner);
 
   // get the shared secret to create the iv+key for the open aes
-  if(!uECC_shared_secret(open->body+4, cs->id_private, secret)) return packet_free(inner);
+  if(!uECC_shared_secret(open->body+4, cs->id_private, secret)) return lob_free(inner);
   crypt_hash(secret,uECC_BYTES,hash);
   fold1(hash,hash);
   memset(iv,0,16);
@@ -252,22 +252,22 @@ packet_t crypt_deopenize_1a(crypt_t self, packet_t open)
   aes_128_ctr(hash,inner->body_len,iv,open->body+4+40,inner->body);
 
   // load inner packet
-  if((tmp = packet_parse(inner->body,inner->body_len)) == NULL) return packet_free(inner);
-  packet_free(inner);
+  if((tmp = lob_parse(inner->body,inner->body_len)) == NULL) return lob_free(inner);
+  lob_free(inner);
   inner = tmp;
 
   // generate secret for hmac
-  if(inner->body_len != uECC_BYTES*2) return packet_free(inner);
-  if(!uECC_shared_secret(inner->body, cs->id_private, secret)) return packet_free(inner);
+  if(inner->body_len != uECC_BYTES*2) return lob_free(inner);
+  if(!uECC_shared_secret(inner->body, cs->id_private, secret)) return lob_free(inner);
 
   // verify
   hmac_256(secret,uECC_BYTES,open->body+4,open->body_len-4,hash);
   fold3(hash,hash);
-  if(memcmp(hash,open->body,4) != 0) return packet_free(inner);
+  if(memcmp(hash,open->body,4) != 0) return lob_free(inner);
 
   // stash the hex line key w/ the inner
   util_hex(open->body+4,40,b64);
-  packet_set_str(inner,"ecc",(char*)b64);
+  lob_set_str(inner,"ecc",(char*)b64);
 
   return inner;
 }

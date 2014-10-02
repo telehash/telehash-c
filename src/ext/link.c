@@ -62,22 +62,22 @@ void link_seed(switch_t s, int max)
 }
 
 /*
-  unsigned char bucket = hn_distance(s->id, hn);
+  unsigned char bucket = hashname_distance(s->id, hn);
   if(!s->buckets[bucket]) s->buckets[bucket] = bucket_new();
   bucket_add(s->buckets[bucket], hn);
   // TODO figure out if there's actually more capacity
 */
 
 // adds regular ping data and sends
-void link_ping(link_t l, chan_t c, packet_t p)
+void link_ping(link_t l, chan_t c, lob_t p)
 {
   if(!l || !c || !p) return;
-  if(l->seeding) packet_set(p,"seed","true",4);
+  if(l->seeding) lob_set(p,"seed","true",4);
   chan_send(c, p);
 }
 
 // create/fetch/maintain a link to this hn, sends note on UP and DOWN change events
-chan_t link_hn(switch_t s, hn_t hn, packet_t note)
+chan_t link_hn(switch_t s, hashname_t hn, lob_t note)
 {
   chan_t c;
   link_t l = link_get(s);
@@ -86,7 +86,7 @@ chan_t link_hn(switch_t s, hn_t hn, packet_t note)
   c = (chan_t)bucket_arg(l->links,hn);
   if(c)
   {
-    packet_free((packet_t)c->arg);
+    lob_free((lob_t)c->arg);
   }else{
     c = chan_new(s, hn, "link", 0);
     chan_timeout(c,60);
@@ -103,7 +103,7 @@ chan_t link_hn(switch_t s, hn_t hn, packet_t note)
 void ext_link(chan_t c)
 {
   chan_t cur;
-  packet_t p, note = (packet_t)c->arg;
+  lob_t p, note = (lob_t)c->arg;
   link_t l = link_get(c->s);
 
   // check for existing links to update
@@ -115,7 +115,7 @@ void ext_link(chan_t c)
     {
       c->arg = cur->arg;
       cur->arg = NULL;
-      note = (packet_t)c->arg;
+      note = (lob_t)c->arg;
     }
     bucket_set(l->links,c->to,(void*)c);
   }
@@ -123,7 +123,7 @@ void ext_link(chan_t c)
   while((p = chan_pop(c)))
   {
     DEBUG_PRINTF("TODO link packet %.*s\n", p->json_len, p->json);      
-    packet_free(p);
+    lob_free(p);
   }
   // respond/ack if we haven't recently
   if(c->s->tick - c->tsent > (LINK_TPING/2)) link_ping(l, c, chan_packet(c));
@@ -140,16 +140,16 @@ void ext_link(chan_t c)
   // handle note UP/DOWN change based on channel state
   if(!c->ended)
   {
-    if(util_cmp(packet_get_str(note,"link"),"up") != 0)
+    if(util_cmp(lob_get_str(note,"link"),"up") != 0)
     {
-      packet_set_str(note,"link","up");
-      chan_reply(c,packet_copy(note));
+      lob_set_str(note,"link","up");
+      chan_reply(c,lob_copy(note));
     }
   }else{
-    if(util_cmp(packet_get_str(note,"link"),"down") != 0)
+    if(util_cmp(lob_get_str(note,"link"),"down") != 0)
     {
-      packet_set_str(note,"link","down");
-      chan_reply(c,packet_copy(note));
+      lob_set_str(note,"link","down");
+      chan_reply(c,lob_copy(note));
     }
     c->arg = NULL;
     // keep trying to start over

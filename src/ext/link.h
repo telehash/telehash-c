@@ -15,6 +15,6 @@ void link_mesh(switch_t s, int max);
 void link_seed(switch_t s, int max);
 
 // create/fetch/maintain a link to this hn, fires note with "link":"up" and "link":"down" change events
-chan_t link_hn(switch_t s, hn_t h, packet_t note);
+chan_t link_hn(switch_t s, hashname_t h, lob_t note);
 
 #endif

@@ -1,4 +1,4 @@
-#include "packet.h"
+#include "lob.h"
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -6,80 +6,72 @@
 #include <stdarg.h>
 #include "js0n.h"
 #include "j0g.h"
-#include "hn.h"
-#include "platform.h"
-#include "util.h"
+#include "platform.h" // platform_short()
+#include "util.h" // util_sort()
 
-packet_t packet_new()
+lob_t lob_new()
 {
-  packet_t p;
-  if(!(p = malloc(sizeof (struct packet_struct)))) return NULL;
-  memset(p,0,sizeof (struct packet_struct));
-  if(!(p->raw = malloc(2))) return packet_free(p);
+  lob_t p;
+  if(!(p = malloc(sizeof (struct lob_struct)))) return NULL;
+  memset(p,0,sizeof (struct lob_struct));
+  if(!(p->raw = malloc(2))) return lob_free(p);
   memset(p->raw,0,2);
 //  DEBUG_PRINTF("packet +++ %d",p);
   return p;
 }
 
-packet_t packet_copy(packet_t p)
+lob_t lob_copy(lob_t p)
 {
-  packet_t np;
-  np = packet_parse(packet_raw(p), packet_len(p));
-  np->to = p->to;
-  np->from = p->from;
-  np->out = p->out;
+  lob_t np;
+  np = lob_parse(lob_raw(p), lob_len(p));
   return np;
 }
 
-packet_t packet_unlink(packet_t parent)
+lob_t lob_unlink(lob_t parent)
 {
-  packet_t child;
+  lob_t child;
   if(!parent) return NULL;
   child = parent->chain;
   parent->chain = NULL;
   return child;
 }
 
-packet_t packet_link(packet_t parent, packet_t child)
+lob_t lob_link(lob_t parent, lob_t child)
 {
-  if(!parent) parent = packet_new();
+  if(!parent) parent = lob_new();
   if(!parent) return NULL;
-  if(parent->chain) packet_free(parent->chain);
+  if(parent->chain) lob_free(parent->chain);
   parent->chain = child;
   if(child && child->chain == parent) child->chain = NULL;
   return parent;
 }
 
-packet_t packet_chain(packet_t p)
+lob_t lob_chain(lob_t p)
 {
-  packet_t np = packet_new();
+  lob_t np = lob_new();
   if(!np) return NULL;
   np->chain = p;
-  // copy in meta-pointers for convenience
-  np->to = p->to;
-  np->from = p->from;
-  np->out = p->out;
   return np;
 }
 
-packet_t packet_linked(packet_t parent)
+lob_t lob_linked(lob_t parent)
 {
   if(!parent) return NULL;
   return parent->chain;
 }
 
-packet_t packet_free(packet_t p)
+lob_t lob_free(lob_t p)
 {
   if(!p) return NULL;
 //  DEBUG_PRINTF("packet --- %d",p);
-  if(p->chain) packet_free(p->chain);
+  if(p->chain) lob_free(p->chain);
   if(p->jsoncp) free(p->jsoncp);
   if(p->raw) free(p->raw);
   free(p);
   return NULL;
 }
 
-unsigned short packet_space(packet_t p)
+unsigned short lob_space(lob_t p)
 {
   unsigned short len;
   if(!p) return 0;
@@ -89,9 +81,9 @@ unsigned short packet_space(packet_t p)
 }
 
 
-packet_t packet_parse(unsigned char *raw, unsigned short len)
+lob_t lob_parse(unsigned char *raw, unsigned short len)
 {
-  packet_t p;
+  lob_t p;
   uint16_t nlen, jlen;
 
   // make sure is at least size valid
@@ -101,8 +93,8 @@ packet_t packet_parse(unsigned char *raw, unsigned short len)
   if(jlen > len-2) return NULL;
 
   // copy in and update pointers
-  p = packet_new();
-  if(!(p->raw = realloc(p->raw,len))) return packet_free(p);
+  p = lob_new();
+  if(!(p->raw = realloc(p->raw,len))) return lob_free(p);
   memcpy(p->raw,raw,len);
   p->json_len = jlen;
   p->json = p->raw+2;
@@ -110,24 +102,24 @@ packet_t packet_parse(unsigned char *raw, unsigned short len)
   p->body = p->raw+(2+p->json_len);
   
   // parse json (if any) and validate
-  if(jlen >= 2 && js0n(p->json,p->json_len,p->js,JSONDENSITY)) return packet_free(p);
+  if(jlen >= 2 && js0n(p->json,p->json_len,p->js,JSONDENSITY)) return lob_free(p);
   
   return p;
 }
 
-unsigned char *packet_raw(packet_t p)
+unsigned char *lob_raw(lob_t p)
 {
   if(!p) return NULL;
   return p->raw;
 }
 
-unsigned short packet_len(packet_t p)
+unsigned short lob_len(lob_t p)
 {
   if(!p) return 0;
   return 2+p->json_len+p->body_len;
 }
 
-int packet_json(packet_t p, unsigned char *json, unsigned short len)
+int lob_json(lob_t p, unsigned char *json, unsigned short len)
 {
   uint16_t nlen;
   void *ptr;
@@ -150,7 +142,7 @@ int packet_json(packet_t p, unsigned char *json, unsigned short len)
   return 0;
 }
 
-unsigned char *packet_body(packet_t p, unsigned char *body, unsigned short len)
+unsigned char *lob_body(lob_t p, unsigned char *body, unsigned short len)
 {
   void *ptr;
   if(!p) return NULL;
@@ -158,12 +150,12 @@ unsigned char *packet_body(packet_t p, unsigned char *body, unsigned short len)
   p->raw = (unsigned char *)ptr;
   p->json = p->raw+2;
   p->body = p->raw+(2+p->json_len);
-  if(body) memcpy(p->body,body,len); // allows packet_body(p,NULL,100) to allocate space
+  if(body) memcpy(p->body,body,len); // allows lob_body(p,NULL,100) to allocate space
   p->body_len = len;
   return p->body;
 }
 
-void packet_append(packet_t p, unsigned char *chunk, unsigned short len)
+void lob_append(lob_t p, unsigned char *chunk, unsigned short len)
 {
   void *ptr;
   if(!p || !chunk || !len) return;
@@ -176,13 +168,13 @@ void packet_append(packet_t p, unsigned char *chunk, unsigned short len)
 }
 
 // TODO allow empty val to remove existing
-void packet_set(packet_t p, char *key, char *val, int vlen)
+void lob_set(lob_t p, char *key, char *val, int vlen)
 {
   unsigned char *json, *at, *eval;
   int existing, klen, len, evlen;
 
   if(!p || !key || !val) return;
-  if(p->json_len < 2) packet_json(p, (unsigned char*)"{}", 2);
+  if(p->json_len < 2) lob_json(p, (unsigned char*)"{}", 2);
   klen = strlen(key);
   if(!vlen) vlen = strlen(val); // convenience
 
@@ -222,11 +214,11 @@ void packet_set(packet_t p, char *key, char *val, int vlen)
     *at = '}'; at++;
     len = at - json;
   }
-  packet_json(p, json, len);
+  lob_json(p, json, len);
   free(json);
 }
 
-void packet_set_printf(packet_t p, char *key, const char *format, ...)
+void lob_set_printf(lob_t p, char *key, const char *format, ...)
 {
   va_list ap, cp;
   int len;
@@ -242,18 +234,18 @@ void packet_set_printf(packet_t p, char *key, const char *format, ...)
   va_end(ap);
   va_end(cp);
 
-  packet_set_str(p, key, val);
+  lob_set_str(p, key, val);
 }
 
-void packet_set_int(packet_t p, char *key, int val)
+void lob_set_int(lob_t p, char *key, int val)
 {
   char num[32];
   if(!p || !key) return;
   sprintf(num,"%d",val);
-  packet_set(p, key, num, 0);
+  lob_set(p, key, num, 0);
 }
 
-void packet_set_str(packet_t p, char *key, char *val)
+void lob_set_str(lob_t p, char *key, char *val)
 {
   char *escaped;
   int i, len, vlen = strlen(val);
@@ -267,12 +259,12 @@ void packet_set_str(packet_t p, char *key, char *val)
     escaped[len++]=val[i];
   }
   escaped[len++] = '"';
-  packet_set(p, key, escaped, len);
+  lob_set(p, key, escaped, len);
   free(escaped);
 }
 
 // internal to create/use a copy of the json
-char *packet_j0g(packet_t p)
+char *lob_j0g(lob_t p)
 {
   if(!p) return NULL;
   if(p->jsoncp) return p->jsoncp;
@@ -282,70 +274,70 @@ char *packet_j0g(packet_t p)
   return p->jsoncp;
 }
 
-char *packet_get_str(packet_t p, char *key)
+char *lob_get_str(lob_t p, char *key)
 {
   if(!p || !key) return NULL;
-  return j0g_str(key, packet_j0g(p), p->js);
+  return j0g_str(key, lob_j0g(p), p->js);
 }
 
 // returns ["0","1","2"] or {"0":"1","2":"3"}
-char *packet_get_istr(packet_t p, int i)
+char *lob_get_istr(lob_t p, int i)
 {
   int j;
   if(!p) return NULL;
   for(j=0;p->js[j];j+=2)
   {
     if(i*2 != j) continue;
-    return j0g_safe(j, packet_j0g(p), p->js);
+    return j0g_safe(j, lob_j0g(p), p->js);
   }
   return NULL;
 }
 
 // creates new packet from key:object
-packet_t packet_get_packet(packet_t p, char *key)
+lob_t lob_get_packet(lob_t p, char *key)
 {
-  packet_t pp;
+  lob_t pp;
   int val;
   if(!p || !key) return NULL;
 
   val = j0g_val(key,(char*)p->json,p->js);
   if(!val) return NULL;
 
-  pp = packet_new();
-  packet_json(pp, p->json+p->js[val], p->js[val+1]);
+  pp = lob_new();
+  lob_json(pp, p->json+p->js[val], p->js[val+1]);
   return pp;
 }
 
 // list of packet->next from key:[{},{}]
-packet_t packet_get_packets(packet_t p, char *key)
+lob_t lob_get_packets(lob_t p, char *key)
 {
   int i;
-  packet_t parr, pent, plast, pret = NULL;
+  lob_t parr, pent, plast, pret = NULL;
   if(!p || !key) return NULL;
 
-  parr = packet_get_packet(p, key);
+  parr = lob_get_packet(p, key);
   if(!parr || *parr->json != '[')
   {
-    packet_free(parr);
+    lob_free(parr);
     return NULL;
   }
 
   // parse each object in the array, link together
 	for(i=0;parr->js[i];i+=2)
 	{
-    pent = packet_new();
-    packet_json(pent, parr->json+parr->js[i], parr->js[i+1]);
+    pent = lob_new();
+    lob_json(pent, parr->json+parr->js[i], parr->js[i+1]);
     if(!pret) pret = pent;
     else plast->next = pent;
     plast = pent;
 	}
 
-  packet_free(parr);
+  lob_free(parr);
   return pret;
 }
 
 // count of keys
-int packet_keys(packet_t p)
+int lob_keys(lob_t p)
 {
   int i;
   if(!p || !p->js[0]) return 0;
@@ -366,40 +358,40 @@ int pkeycmp(void *s, const void *a, const void *b)
 }
 
 // alpha sort the keys
-void packet_sort(packet_t p)
+void lob_sort(lob_t p)
 {
-  int keys = packet_keys(p);
+  int keys = lob_keys(p);
   if(!keys) return;
   util_sort(p->js,keys,sizeof(unsigned short)*4,pkeycmp,p->json);
 }
 
-int packet_cmp(packet_t a, packet_t b)
+int lob_cmp(lob_t a, lob_t b)
 {
   int i = 0;
   char *str;
   if(!a || !b) return -1;
   if(a->body_len != b->body_len) return -1;
-  if(packet_keys(a) != packet_keys(b)) return -1;
+  if(lob_keys(a) != lob_keys(b)) return -1;
 
-  packet_sort(a);
-  packet_sort(b);
-  while((str = packet_get_istr(a,i)))
+  lob_sort(a);
+  lob_sort(b);
+  while((str = lob_get_istr(a,i)))
   {
-    if(strcmp(str,packet_get_istr(b,i)) != 0) return -1;
+    if(strcmp(str,lob_get_istr(b,i)) != 0) return -1;
     i++;
   }
 
   return memcmp(a->body,b->body,a->body_len);
 }
 
-void packet_set_json(packet_t p, packet_t json)
+void lob_set_json(lob_t p, lob_t json)
 {
   char *part;
   int i = 0;
 
-  while((part = packet_get_istr(json,i)))
+  while((part = lob_get_istr(json,i)))
   {
-    packet_set_str(p,part,packet_get_istr(json,i+1));
+    lob_set_str(p,part,lob_get_istr(json,i+1));
     i += 2;
   }
 }

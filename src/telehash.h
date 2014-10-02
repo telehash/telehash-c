@@ -1,8 +1,8 @@
 extern "C" {
 #include "switch.h"
-#include "hn.h"
+#include "hashname.h"
 #include "bucket.h"
-#include "packet.h"
+#include "lob.h"
 #include "xht.h"
 #include "chan.h"
 #include "util.h"

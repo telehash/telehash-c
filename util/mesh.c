@@ -33,7 +33,7 @@ int main(int argc, char *argv[])
 {
   switch_t s;
   chan_t c, admin;
-  packet_t p, note;
+  lob_t p, note;
   path_t in;
   chat_t chat;
   sockc_t sc;
@@ -51,11 +51,11 @@ int main(int argc, char *argv[])
   sprintf(nick,"%d",getpid());
 
   // make a dummy thtp response
-  p = packet_new();
-  packet_set_int(p,"status",200);
-  packet_body(p,(unsigned char*)"bar\n",4);
-  note = packet_new();
-  packet_link(note,p);
+  p = lob_new();
+  lob_set_int(p,"status",200);
+  lob_body(p,(unsigned char*)"bar\n",4);
+  note = lob_new();
+  lob_link(note,p);
   thtp_path(s,"/foo",note);
   
   if(util_loadjson(s) != 0 || (sock = util_server(0,100)) <= 0)
@@ -70,9 +70,9 @@ int main(int argc, char *argv[])
   chat = chat_get(s,"tft");
   chat_add(chat,"*","invite");
   p = chat_message(chat);
-  packet_set_str(p,"text",nick);
+  lob_set_str(p,"text",nick);
   chat_join(chat,p);
-  printf("created chat %s %s %s\n",chat->id,packet_get_str(p,"id"),chat->rhash);
+  printf("created chat %s %s %s\n",chat->id,lob_get_str(p,"id"),chat->rhash);
   printf("%s> ",nick);
 
   // create an admin channel for notes
@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
         while((p = chan_notes(c)))
         {
           printf("admin note %.*s\n",p->json_len,p->json);
-          packet_free(p);
+          lob_free(p);
         }
         continue;
       }
@@ -123,22 +123,22 @@ int main(int argc, char *argv[])
         }
         if(util_cmp(c->type,"chat") == 0 && ext_chat(c)) while((p = chat_pop(chat)))
         {
-          if(util_cmp(packet_get_str(p,"type"),"state") == 0)
+          if(util_cmp(lob_get_str(p,"type"),"state") == 0)
           {
-            logg("%s joined",packet_get_str(p,"text"));
+            logg("%s joined",lob_get_str(p,"text"));
           }
-          if(util_cmp(packet_get_str(p,"type"),"chat") == 0)
+          if(util_cmp(lob_get_str(p,"type"),"chat") == 0)
           {
-            logg("%s> %s",packet_get_str(chat_participant(chat,packet_get_str(p,"from")),"text"),packet_get_str(p,"text"));
+            logg("%s> %s",lob_get_str(chat_participant(chat,lob_get_str(p,"from")),"text"),lob_get_str(p,"text"));
           }
-          packet_free(p);
+          lob_free(p);
         }
       }
 
       while((p = chan_pop(c)))
       {
         printf("unhandled channel packet %.*s\n", p->json_len, p->json);      
-        packet_free(p);
+        lob_free(p);
       }
 
       DEBUG_PRINTF("channel state %d\n",c->ended);
@@ -151,7 +151,7 @@ int main(int argc, char *argv[])
       {
         snprintf(nick,16,"%s",buf+6);
         p = chat_message(chat);
-        packet_set_str(p,"text",nick);
+        lob_set_str(p,"text",nick);
         chat_join(chat,p);
         logg("");
       }else if(strcmp(buf,"/quit") == 0){
@@ -163,19 +163,19 @@ int main(int argc, char *argv[])
       }else if(strncmp(buf,"/get ",5) == 0){
         logg("get %s\n",buf+5);
         p = chan_note(admin,NULL);
-        packet_set_str(p,"uri",buf+5);
+        lob_set_str(p,"uri",buf+5);
         thtp_req(s,p);
       }else if(strncmp(buf,"/chat ",6) == 0){
         chat_free(chat);
         chat = chat_get(s,buf+6);
         p = chat_message(chat);
-        packet_set_str(p,"text",nick);
+        lob_set_str(p,"text",nick);
         chat_join(chat,p);
-        logg("joining chat %s %s %s\n",chat->id,packet_get_str(p,"id"),chat->rhash);
+        logg("joining chat %s %s %s\n",chat->id,lob_get_str(p,"id"),chat->rhash);
       }else if(strlen(buf)){
         // default send as message
         p = chat_message(chat);
-        packet_set_str(p,"text",buf);
+        lob_set_str(p,"text",buf);
         chat_send(chat,p);
         logg("");
       }else{

@@ -2,7 +2,7 @@
 #define util_h
 
 #include "platform.h"
-#include "packet.h"
+#include "lob.h"
 #include <stdlib.h>
 
 // make sure out is 2*len + 1

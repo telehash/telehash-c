@@ -3,10 +3,10 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-typedef struct xhn_struct
+typedef struct xhashname_struct
 {
     char flag;
-    struct xhn_struct *next;
+    struct xhashname_struct *next;
     const char *key;
     void *val;
 } *xhn;
@@ -56,13 +56,13 @@ xht_t xht_new(int prime)
     xnew = (xht_t)malloc(sizeof(struct xht_struct));
     if(!xnew) return NULL;
     xnew->prime = (uint32_t)prime;
-    xnew->zen = (xhn)malloc(sizeof(struct xhn_struct)*prime); /* array of xhn size of prime */
+    xnew->zen = (xhn)malloc(sizeof(struct xhashname_struct)*prime); /* array of xhn size of prime */
     if(!xnew->zen)
     {
       free(xnew);
       return NULL;
     }
-    memset(xnew->zen,0,sizeof(struct xhn_struct)*prime);
+    memset(xnew->zen,0,sizeof(struct xhashname_struct)*prime);
     return xnew;
 }
 
@@ -84,9 +84,9 @@ void _xht_set(xht_t h, const char *key, void *val, char flag)
     /* if none, make a new one, link into this index */
     if(n == 0)
     {
-        n = (xhn)malloc(sizeof(struct xhn_struct));
+        n = (xhn)malloc(sizeof(struct xhashname_struct));
         if(!n) return;
-        memset(n,0,sizeof(struct xhn_struct));
+        memset(n,0,sizeof(struct xhashname_struct));
         n->next = h->zen[i].next;
         h->zen[i].next = n;
     }

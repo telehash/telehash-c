@@ -70,7 +70,7 @@ void crypt_free(crypt_t c)
   free(c);
 }
 
-int crypt_keygen(char csid, packet_t p)
+int crypt_keygen(char csid, lob_t p)
 {
   if(!p) return 1;
 
@@ -107,7 +107,7 @@ int crypt_private(crypt_t c, unsigned char *key, int len)
   return 0;
 }
 
-packet_t crypt_lineize(crypt_t c, packet_t p)
+lob_t crypt_lineize(crypt_t c, lob_t p)
 {
   if(!c || !p || !c->lined) return NULL;
 #ifdef CS_1a
@@ -122,10 +122,10 @@ packet_t crypt_lineize(crypt_t c, packet_t p)
   return NULL;
 }
 
-packet_t crypt_delineize(crypt_t c, packet_t p)
+lob_t crypt_delineize(crypt_t c, lob_t p)
 {
   if(!c || !p) return NULL;
-  if(!c->lined) return packet_free(p);
+  if(!c->lined) return lob_free(p);
 #ifdef CS_1a
   if(c->csid == 0x1a) return crypt_delineize_1a(c,p);
 #endif
@@ -138,13 +138,13 @@ packet_t crypt_delineize(crypt_t c, packet_t p)
   return NULL;
 }
 
-packet_t crypt_openize(crypt_t self, crypt_t c, packet_t inner)
+lob_t crypt_openize(crypt_t self, crypt_t c, lob_t inner)
 {
   if(!c || !self || self->csid != c->csid) return NULL;
 
-  packet_set_str(inner,"line",(char*)c->lineHex);
-  packet_set_int(inner,"at",(int)c->atOut);
-  packet_body(inner,self->key,self->keylen);
+  lob_set_str(inner,"line",(char*)c->lineHex);
+  lob_set_int(inner,"at",(int)c->atOut);
+  lob_body(inner,self->key,self->keylen);
 
 #ifdef CS_1a
   if(c->csid == 0x1a) return crypt_openize_1a(self,c,inner);
@@ -159,9 +159,9 @@ packet_t crypt_openize(crypt_t self, crypt_t c, packet_t inner)
   return NULL;
 }
 
-packet_t crypt_deopenize(crypt_t self, packet_t open)
+lob_t crypt_deopenize(crypt_t self, lob_t open)
 {
-  packet_t ret = NULL;
+  lob_t ret = NULL;
   if(!open || !self) return NULL;
 
 #ifdef CS_1a
@@ -177,7 +177,7 @@ packet_t crypt_deopenize(crypt_t self, packet_t open)
   return NULL;
 }
 
-int crypt_line(crypt_t c, packet_t inner)
+int crypt_line(crypt_t c, lob_t inner)
 {
   int ret = 1;
   unsigned long at;
@@ -185,11 +185,11 @@ int crypt_line(crypt_t c, packet_t inner)
   unsigned char lineid[16];
 
   if(!inner) return ret;
-  if(!c) return packet_free(inner)||1;
+  if(!c) return lob_free(inner)||1;
 
-  at = strtol(packet_get_str(inner,"at"), NULL, 10);
-  hline = packet_get_str(inner,"line");
-  if(!hline || at <= 0 || at <= c->atIn || strlen(hline) != 32) return packet_free(inner)||1;
+  at = strtol(lob_get_str(inner,"at"), NULL, 10);
+  hline = lob_get_str(inner,"line");
+  if(!hline || at <= 0 || at <= c->atIn || strlen(hline) != 32) return lob_free(inner)||1;
   util_unhex((unsigned char*)hline,32,lineid);
   c->lined = (memcmp(lineid,c->lineIn,16) == 0)?2:1; // flag for line reset state
   memcpy(c->lineIn,lineid,16); // needed for crypt_line_*
@@ -206,6 +206,6 @@ int crypt_line(crypt_t c, packet_t inner)
   if(ret) return ret;
 
   c->atIn = at;
-  packet_free(inner);
+  lob_free(inner);
   return 0;
 }

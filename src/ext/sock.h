@@ -12,7 +12,7 @@ typedef struct sockc_struct
   uint8_t state;
   uint32_t readable, writing;
   uint8_t *readbuf, *writebuf, *zwrite;
-  packet_t opts;
+  lob_t opts;
   chan_t c;
   int fd; // convenience for app usage, initialized to -1
 } *sockc_t;
@@ -26,7 +26,7 @@ sockc_t ext_sock(chan_t c);
 void sockc_accept(sockc_t sc);
 
 // create a sock channel to this hn, optional opts (ip, port), sets state=SOCKC_OPEN
-sockc_t sockc_connect(switch_t s, char *hn, packet_t opts);
+sockc_t sockc_connect(switch_t s, char *hn, lob_t opts);
 
 // tries to flush and end, cleans up, sets SOCKC_CLOSED
 sockc_t sockc_close(sockc_t sock);

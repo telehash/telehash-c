@@ -1,26 +1,26 @@
-#include "hn.h"
+#include "hashname.h"
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include "packet.h"
+#include "lob.h"
 #include "crypt.h"
 #include "util.h"
 #include "chan.h"
 
-hn_t hn_free(hn_t hn)
+hashname_t hashname_free(hashname_t hn)
 {
   if(!hn) return NULL;
   if(hn->chans) xht_free(hn->chans);
   if(hn->c) crypt_free(hn->c);
-  if(hn->parts) packet_free(hn->parts);
+  if(hn->parts) lob_free(hn->parts);
   if(hn->paths) free(hn->paths);
   free(hn);
   return NULL;
 }
 
-hn_t hn_get(xht_t index, unsigned char *bin)
+hashname_t hashname_get(xht_t index, unsigned char *bin)
 {
-  hn_t hn;
+  hashname_t hn;
   unsigned char hex[65];
   
   if(!bin) return NULL;
@@ -29,24 +29,24 @@ hn_t hn_get(xht_t index, unsigned char *bin)
   if(hn) return hn;
 
   // init new hashname container
-  if(!(hn = malloc(sizeof (struct hn_struct)))) return NULL;
-  memset(hn,0,sizeof (struct hn_struct));
+  if(!(hn = malloc(sizeof (struct hashname_struct)))) return NULL;
+  memset(hn,0,sizeof (struct hashname_struct));
   memcpy(hn->hashname, bin, 32);
   memcpy(hn->hexname, hex, 65);
   xht_set(index, (const char*)hn->hexname, (void*)hn);
-  if(!(hn->paths = malloc(sizeof (path_t)))) return hn_free(hn);
+  if(!(hn->paths = malloc(sizeof (path_t)))) return hashname_free(hn);
   hn->paths[0] = NULL;
   return hn;
 }
 
-hn_t hn_gethex(xht_t index, char *hex)
+hashname_t hashname_gethex(xht_t index, char *hex)
 {
-  hn_t hn;
+  hashname_t hn;
   unsigned char bin[32];
   if(!hex || strlen(hex) < 64) return NULL;
   if((hn = xht_get(index,hex))) return hn;
   util_unhex((unsigned char*)hex,64,bin);
-  return hn_get(index,bin);
+  return hashname_get(index,bin);
 }
 
 int csidcmp(void *arg, const void *a, const void *b)
@@ -55,13 +55,13 @@ int csidcmp(void *arg, const void *a, const void *b)
   return *(char*)a - *(char*)b;
 }
 
-hn_t hn_getparts(xht_t index, packet_t p)
+hashname_t hashname_getparts(xht_t index, lob_t p)
 {
   char *part, csid, csids[16], hex[3]; // max parts of 8
   int i,ids,ri,len;
   unsigned char *rollup, hnbin[32];
   char best = 0;
-  hn_t hn;
+  hashname_t hn;
 
   if(!p) return NULL;
   hex[2] = 0;
@@ -92,7 +92,7 @@ hn_t hn_getparts(xht_t index, packet_t p)
     memcpy(rollup,hnbin,ri);
 
     memcpy(hex,csids+(i*2),2);
-    part = packet_get_str(p, hex);
+    part = lob_get_str(p, hex);
     if(!part) continue; // garbage safety
     len = strlen(part);
     if(!(rollup = util_reallocf(rollup,ri+len))) return NULL;
@@ -102,11 +102,11 @@ hn_t hn_getparts(xht_t index, packet_t p)
   }
   memcpy(hnbin,rollup,32);
   free(rollup);
-  hn = hn_get(index, hnbin);
+  hn = hashname_get(index, hnbin);
   if(!hn) return NULL;
 
   if(!hn->parts) hn->parts = p;
-  else packet_free(p);
+  else lob_free(p);
   
   hn->csid = best;
   util_hex((unsigned char*)&best,1,(unsigned char*)hn->hexid);
@@ -114,13 +114,13 @@ hn_t hn_getparts(xht_t index, packet_t p)
   return hn;
 }
 
-hn_t hn_frompacket(xht_t index, packet_t p)
+hashname_t hashname_frompacket(xht_t index, lob_t p)
 {
-  hn_t hn = NULL;
+  hashname_t hn = NULL;
   if(!p) return NULL;
   
   // get/gen the hashname
-  hn = hn_getparts(index, packet_get_packet(p, "from"));
+  hn = hashname_getparts(index, lob_get_packet(p, "from"));
   if(!hn) return NULL;
 
   // load key from packet body
@@ -133,28 +133,28 @@ hn_t hn_frompacket(xht_t index, packet_t p)
 }
 
 // derive a hn from json seed or connect format
-hn_t hn_fromjson(xht_t index, packet_t p)
+hashname_t hashname_fromjson(xht_t index, lob_t p)
 {
   char *key;
-  hn_t hn = NULL;
-  packet_t pp, next;
+  hashname_t hn = NULL;
+  lob_t pp, next;
   path_t path;
 
   if(!p) return NULL;
   
   // get/gen the hashname
-  pp = packet_get_packet(p,"from");
-  if(!pp) pp = packet_get_packet(p,"parts");
-  hn = hn_getparts(index, pp); // frees pp
+  pp = lob_get_packet(p,"from");
+  if(!pp) pp = lob_get_packet(p,"parts");
+  hn = hashname_getparts(index, pp); // frees pp
   if(!hn) return NULL;
 
   // if any paths are stored, associte them
-  pp = packet_get_packets(p, "paths");
+  pp = lob_get_packets(p, "paths");
   while(pp)
   {
-    path = hn_path(hn, path_parse((char*)pp->json, pp->json_len), 0);
+    path = hashname_path(hn, path_parse((char*)pp->json, pp->json_len), 0);
     next = pp->next;
-    packet_free(pp);
+    lob_free(pp);
     pp = next;
   }
 
@@ -165,16 +165,16 @@ hn_t hn_fromjson(xht_t index, packet_t p)
   {
     hn->c = crypt_new(hn->csid, p->body, p->body_len);
   }else{
-    pp = packet_get_packet(p, "keys");
-    key = packet_get_str(pp,hn->hexid);
+    pp = lob_get_packet(p, "keys");
+    key = lob_get_str(pp,hn->hexid);
     if(key) hn->c = crypt_new(hn->csid, (unsigned char*)key, strlen(key));
-    packet_free(pp);
+    lob_free(pp);
   }
   
   return (hn->c) ? hn : NULL;  
 }
 
-path_t hn_path(hn_t hn, path_t p, int valid)
+path_t hashname_path(hashname_t hn, path_t p, int valid)
 {
   path_t ret = NULL;
   int i;
@@ -204,7 +204,7 @@ path_t hn_path(hn_t hn, path_t p, int valid)
   return ret;
 }
 
-unsigned char hn_distance(hn_t a, hn_t b)
+unsigned char hashname_distance(hashname_t a, hashname_t b)
 {
   return 0;
 }

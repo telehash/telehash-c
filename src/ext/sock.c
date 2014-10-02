@@ -16,7 +16,7 @@ sockc_t sockc_new(chan_t c)
 // process channel for new incoming sock channel
 sockc_t ext_sock(chan_t c)
 {
-  packet_t p;
+  lob_t p;
   sockc_t sc = (sockc_t)c->arg;
 
   DEBUG_PRINTF("sockc active %d",sc);
@@ -25,8 +25,8 @@ sockc_t ext_sock(chan_t c)
     if(!sc)
     {
       sc = sockc_new(c);
-      sc->opts = packet_new();
-      packet_set_json(sc->opts,p);
+      sc->opts = lob_new();
+      lob_set_json(sc->opts,p);
     }
     
     DEBUG_PRINTF("sock packet %d %d", sc->state, p->body_len);
@@ -42,7 +42,7 @@ sockc_t ext_sock(chan_t c)
         sc->readable += p->body_len;
       }
     }
-    packet_free(p);
+    lob_free(p);
   }
   
   return sc;
@@ -57,17 +57,17 @@ void sockc_accept(sockc_t sc)
 }
 
 // create a sock channel to this hn, optional opts (ip, port)
-sockc_t sockc_connect(switch_t s, char *hn, packet_t opts)
+sockc_t sockc_connect(switch_t s, char *hn, lob_t opts)
 {
-  packet_t p;
+  lob_t p;
   sockc_t sc;
 
   sc = sockc_new(chan_start(s, hn, "sock"));
   if(!sc) return NULL;
   sc->state = SOCKC_OPEN;
   p = chan_packet(sc->c);
-  packet_set_json(p,opts);
-  packet_free(opts);
+  lob_set_json(p,opts);
+  lob_free(opts);
   chan_send(sc->c, p);
   return sc;
 }
@@ -95,7 +95,7 @@ sockc_t sockc_close(sockc_t sc)
   sc->c = NULL;
   if(sc->readbuf) free(sc->readbuf);
   if(sc->writebuf) free(sc->writebuf);
-  packet_free(sc->opts);
+  lob_free(sc->opts);
   free(sc);
   return NULL;
 }
@@ -113,7 +113,7 @@ int sockc_read(sockc_t sc, uint8_t *buf, int len)
 // send just one chunk
 uint8_t sockc_chunk(sockc_t sc)
 {
-  packet_t p;
+  lob_t p;
   uint32_t len;
   if(!sc) return 0;
   // if nothing to do, try sending an ack
@@ -126,8 +126,8 @@ uint8_t sockc_chunk(sockc_t sc)
   len = sc->writing;
   p = chan_packet(sc->c);
   if(!p) return 0;
-  if(len > packet_space(p)) len = packet_space(p);
-  packet_append(p,sc->writebuf,len);
+  if(len > lob_space(p)) len = lob_space(p);
+  lob_append(p,sc->writebuf,len);
   sc->writing -= len;
   // optionally end with the last packet if we're closed
   if(sc->state == SOCKC_CLOSED && !sc->writing) chan_end(sc->c,p);
