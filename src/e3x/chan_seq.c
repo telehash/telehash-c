@@ -1,7 +1,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "e3x.h"
+#include "chan.h"
 
 typedef struct seq_struct
 {
@@ -9,7 +9,7 @@ typedef struct seq_struct
   lob_t *in;
 } *seq_t;
 
-void chan_seq_init(chan_t c)
+void e3chan_seq_init(e3chan_t c)
 {
   seq_t s = malloc(sizeof (struct seq_struct));
   memset(s,0,sizeof (struct seq_struct));
@@ -18,7 +18,7 @@ void chan_seq_init(chan_t c)
   c->seq = (void*)s;
 }
 
-void chan_seq_free(chan_t c)
+void e3chan_seq_free(e3chan_t c)
 {
   int i;
   seq_t s = (seq_t)c->seq;
@@ -28,7 +28,7 @@ void chan_seq_free(chan_t c)
 }
 
 // add ack, miss to any packet
-lob_t chan_seq_ack(chan_t c, lob_t p)
+lob_t e3chan_seq_ack(e3chan_t c, lob_t p)
 {
   char *miss;
   int i,max;
@@ -64,21 +64,21 @@ lob_t chan_seq_ack(chan_t c, lob_t p)
 }
 
 // new channel sequenced packet
-lob_t chan_seq_packet(chan_t c)
+lob_t e3chan_seq_packet(e3chan_t c)
 {
   lob_t p = lob_new();
   seq_t s = (seq_t)c->seq;
   
   // make sure there's tracking space
-  if(chan_miss_track(c,s->id,p)) return NULL;
+  if(e3chan_miss_track(c,s->id,p)) return NULL;
 
   // set seq and add any acks
   lob_set_int(p,"seq",(int)s->id++);
-  return chan_seq_ack(c, p);
+  return e3chan_seq_ack(c, p);
 }
 
 // buffers packets until they're in order
-int chan_seq_receive(chan_t c, lob_t p)
+int e3chan_seq_receive(e3chan_t c, lob_t p)
 {
   int offset;
   uint32_t id;
@@ -103,7 +103,7 @@ int chan_seq_receive(chan_t c, lob_t p)
 }
 
 // returns ordered packets for this channel, updates ack
-lob_t chan_seq_pop(chan_t c)
+lob_t e3chan_seq_pop(e3chan_t c)
 {
   lob_t p;
   seq_t s = (seq_t)c->seq;

@@ -1,6 +1,6 @@
 #include <string.h>
 #include <stdlib.h>
-#include "e3x.h"
+#include "chan.h"
 
 typedef struct miss_struct
 {
@@ -8,7 +8,7 @@ typedef struct miss_struct
   lob_t *out;
 } *miss_t;
 
-void chan_miss_init(chan_t c)
+void e3chan_miss_init(e3chan_t c)
 {
   miss_t m = (miss_t)malloc(sizeof (struct miss_struct));
   memset(m,0,sizeof (struct miss_struct));
@@ -17,7 +17,7 @@ void chan_miss_init(chan_t c)
   c->miss = (void*)m;
 }
 
-void chan_miss_free(chan_t c)
+void e3chan_miss_free(e3chan_t c)
 {
   int i;
   miss_t m = (miss_t)c->miss;
@@ -27,7 +27,7 @@ void chan_miss_free(chan_t c)
 }
 
 // 1 when full, backpressure
-int chan_miss_track(chan_t c, uint32_t seq, lob_t p)
+int e3chan_miss_track(e3chan_t c, uint32_t seq, lob_t p)
 {
   miss_t m = (miss_t)c->miss;
   if(seq - m->nextack > (uint32_t)(c->reliable - 1))
@@ -40,7 +40,7 @@ int chan_miss_track(chan_t c, uint32_t seq, lob_t p)
 }
 
 // looks at incoming miss/ack and resends or frees
-void chan_miss_check(chan_t c, lob_t p)
+void e3chan_miss_check(e3chan_t c, lob_t p)
 {
   uint32_t ack;
   int offset, i;
@@ -76,7 +76,7 @@ void chan_miss_check(chan_t c, lob_t p)
 }
 
 // resends all
-void chan_miss_resend(chan_t c)
+void e3chan_miss_resend(e3chan_t c)
 {
   int i;
   miss_t m = (miss_t)c->miss;

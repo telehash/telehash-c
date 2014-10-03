@@ -4,6 +4,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include "e3x.h"
+#include "crypt.h"
 #include "uECC.h"
 #include "aes.h"
 #include "hmac.h"
