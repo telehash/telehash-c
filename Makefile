@@ -24,7 +24,7 @@ ARCH = unix/platform.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c  $(LIB) $
 # all
 #ARCH = unix/platform.c $(JSON) $(CS1a) $(CS2a) $(CS3a) $(INCLUDE) $(LIBS)
 
-TESTS = lib_base32
+TESTS = lib_base32 lib_lob
 
 all: test
 
@@ -44,6 +44,9 @@ test: $(TESTS)
 
 lib_base32:
 	$(CC) $(CFLAGS) -o test/lib_base32 test/lib_base32.c src/lib/base32.c $(INCLUDE)
+
+lib_lob:
+	$(CC) $(CFLAGS) -o test/lib_lob test/lib_lob.c src/lib/lob.c src/lib/base32.c $(INCLUDE)
 
 idgen:
 	$(CC) $(CFLAGS) -o bin/idgen util/idgen.c $(ARCH)

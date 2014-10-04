@@ -50,10 +50,11 @@ uint8_t *lob_body(lob_t p, uint8_t *body, uint16_t len);
 void lob_append(lob_t p, uint8_t *chunk, uint16_t len);
 
 // convenient json setters/getters
-void lob_set_raw(lob_t p, char *key, char *val, int vlen); // raw
-void lob_set(lob_t p, char *key, char *val); // escapes value
-void lob_set_int(lob_t p, char *key, int val);
-void lob_set_printf(lob_t p, char *key, const char *format, ...);
+void lob_set_raw(lob_t p, uint8_t *key, uint8_t val, uint16_t vlen); // raw
+void lob_set(lob_t p, uint8_t *key, uint8_t *val); // escapes value
+void lob_set_int(lob_t p, uint8_t *key, int val);
+void lob_set_printf(lob_t p, uint8_t *key, const uint8_t *format, ...);
+uint8_t lob_set_base32(lob_t p, uint8_t *key, uint8_t val, uint16_t vlen);
 
 // copies keys from json into p
 void lob_set_json(lob_t p, lob_t json);
@@ -67,11 +68,13 @@ void lob_sort(lob_t p);
 // 0 to match, !0 if different, compares only top-level json and body
 int lob_cmp(lob_t a, lob_t b);
 
-// the return char* is invalidated with any _set* operation!
-char *lob_get(lob_t p, char *key);
-char *lob_get_istr(lob_t p, int i); // returns ["0","1","2","3"] or {"0":"1","2":"3"}
+// the return uint8_t* is invalidated with any _set* operation!
+uint8_t *lob_get(lob_t p, uint8_t *key);
+uint8_t *lob_get_istr(lob_t p, uint8_t i); // returns ["0","1","2","3"] or {"0":"1","2":"3"}
 
-lob_t lob_get_packet(lob_t p, char *key); // creates new packet from key:object value
-lob_t lob_get_packets(lob_t p, char *key); // list of packet->next from key:[object,object]
+// returns new packets based on values
+lob_t lob_get_packet(lob_t p, uint8_t *key); // creates new packet from key:object value
+lob_t lob_get_packets(lob_t p, uint8_t *key); // list of packet->next from key:[object,object]
+lob_t lob_get_base32(lob_t p, uint8_t *key); // decoded binary is the return body
 
 #endif
