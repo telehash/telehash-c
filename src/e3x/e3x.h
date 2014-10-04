@@ -3,17 +3,32 @@
 
 #include "lob.h" // json+binary container
 
-// everything is prefixed with e3* to minimize symbol/naming conflicts
+// ##### e3x - end-to-end encrypted exchange #####
+//
+// * intended to be wrapped/embedded in other codebases
+// * includes some minimal crypto, but is primarily a wrapper around other crypto libraries
+// * tries to minimize the integration points to send and receive encrypted packets over any transport
+//
 
-typedef struct e3self_struct *e3self_t;
-typedef struct e3x_struct *e3x_t;
-typedef struct e3ev_struct *e3ev_t;
-typedef struct e3chan_struct *e3chan_t;
+// everything contains a '3_' to minimize any naming conflicts when used with other codebases
+typedef struct self3_struct *self3_t; // this endpoint
+typedef struct ex3_struct *ex3_t; // an exchange with another endpoint
+typedef struct chan3_struct *chan3_t; // channel management
+typedef struct ev3_struct *ev3_t; // event timer utility
+
+// generate a new local identity, secrets returned in the lob json and keys in the linked lob json
+lob_t e3x_generate(void);
+
+// use both a local endpoint and an exchange to encrypt a message
+lob_t e3x_message(self3_t self, ex3_t x, lob_t inner);
+
+// validate an incoming message as being from this exchange and to us
+uint8_t e3x_verify(e3self_t e, e3x_t x, lob_t message);
 
 //################################
 // local endpoint state management
 
-// load keys to create a new local endpoint
+// load secrets/keys to create a new local endpoint
 e3self_t e3self_new(lob_t secrets);
 void e3self_free(e3self_t e); // any e3x's must have been free'd first
 

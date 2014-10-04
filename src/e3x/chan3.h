@@ -3,27 +3,6 @@
 #include <stdint.h>
 #include "e3x.h"
 
-// default channel inactivity timeout in seconds
-#define CHAN_TIMEOUT 10
-
-struct e3chan_struct
-{
-  uint32_t id; // wire id (not unique)
-  uint32_t tsent, trecv; // tick value of last send, recv
-  uint32_t timeout; // seconds since last trecv to auto-err
-  unsigned char hexid[9], uid[9]; // uid is switch-wide unique
-  char *type;
-  int reliable;
-  uint8_t opened, ended;
-  uint8_t tfree, tresend; // tick counts for thresholds
-  struct e3chan_struct *next;
-  lob_t in, inend, notes;
-  void *arg; // used by extensions
-  void *seq, *miss; // used by e3chan_seq/e3chan_miss
-  // event callbacks for channel implementations
-  void (*handler)(struct e3chan_struct*); // handle incoming packets immediately/directly
-  void (*tick)(struct e3chan_struct*); // called approx every tick (1s)
-};
 
 
 

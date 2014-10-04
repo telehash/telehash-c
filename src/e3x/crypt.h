@@ -2,6 +2,18 @@
 #define crypt_h
 
 #include "lob.h"
+/*
+var local = new cs.Local(pair);
+var inner = local.decrypt(body);
+
+var remote = new cs.Remote(public_key_endpoint);
+var bool = remote.verify(local, body);
+var outer = remote.encrypt(local, inner);
+
+var ephemeral = new cs.Ephemeral(remote, body);
+var outer = ephemeral.encrypt(inner)
+ver inner = ephemeral.decrypt(outer)
+*/
 
 // by default enable CS1a as minimum support
 #ifdef NOCS_1a
@@ -9,15 +21,7 @@
 #define CS_1a
 #endif 
 
-typedef struct crypt_struct
-{
-  char csidHex[3], *part;
-  int isprivate, lined, keylen;
-  unsigned long atOut, atIn;
-  unsigned char lineOut[16], lineIn[16], lineHex[33];
-  unsigned char *key, csid;
-  void *cs; // for CS usage
-} *crypt_t;
+typedef struct crypt3_struct *crypt3_t;
 
 // these functions are all independent of CS, implemented in crypt.c
 
