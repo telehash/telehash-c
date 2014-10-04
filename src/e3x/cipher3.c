@@ -5,6 +5,27 @@
 #include "crypt.h"
 #include "util.h"
 
+uint8_t cipher3_init(lob_t options)
+{
+  cipher3_default = NULL;
+  memset(cipher3_sets, 0, CS_MAX * sizeof(cipher3_t));
+  
+  cipher3_sets[CS_1a] = cs1a_init(options);
+  if(cipher3_sets[CS_1a]) cipher3_default = cipher3_sets[CS_1a];
+  if(lob_get(options, "err")) return 1;
+
+  cipher3_sets[CS_2a] = cs2a_init(options);
+  if(cipher3_sets[CS_2a]) cipher3_default = cipher3_sets[CS_2a];
+  if(lob_get(options, "err")) return 1;
+
+  cipher3_sets[CS_3a] = cs3a_init(options);
+  if(cipher3_sets[CS_3a]) cipher3_default = cipher3_sets[CS_3a];
+  if(lob_get(options, "err")) return 1;
+
+  return 0;
+}
+
+/*
 int crypt_init()
 {
   int ret = 0;
@@ -209,3 +230,4 @@ int crypt_line(crypt_t c, lob_t inner)
   lob_free(inner);
   return 0;
 }
+*/
