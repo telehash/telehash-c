@@ -5,6 +5,9 @@
 #include "cipher3.h"
 #include "util.h"
 
+cipher3_t cipher3_sets[CS_MAX];
+cipher3_t cipher3_default = NULL;
+
 uint8_t cipher3_init(lob_t options)
 {
   cipher3_default = NULL;

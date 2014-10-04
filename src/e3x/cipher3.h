@@ -44,8 +44,8 @@ typedef struct cipher3_struct
 #define CS_3a 2
 #define CS_MAX 3
 
-cipher3_t cipher3_sets[CS_MAX]; // all created
-cipher3_t cipher3_default; // just one of them for the rand/hash utils
+extern cipher3_t cipher3_sets[]; // all created
+extern cipher3_t cipher3_default; // just one of them for the rand/hash utils
 
 // calls all cipher3_init_*'s to fill in cipher3_sets[]
 uint8_t cipher3_init(lob_t options);

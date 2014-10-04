@@ -1,5 +1,7 @@
 #include "e3x.h"
 #include "cipher3.h"
+#include "platform.h"
+#include <string.h>
 
 // any process-wide initialization
 uint8_t e3x_init(lob_t options)
@@ -38,4 +40,31 @@ lob_t e3x_generate(void)
   if(err) return lob_free(secrets);
   return secrets;
 }
+
+// random bytes, from a supported cipher set
+uint8_t *e3x_rand(uint8_t *bytes, uint32_t len)
+{
+  if(!bytes || !len) return bytes;
+  if(!cipher3_default)
+  {
+    DEBUG_PRINTF("e3x not initialized, no cipher_set");
+    memset(bytes,0,len);
+    return bytes;
+  }
+  return cipher3_default->rand(bytes, len);
+}
+
+// sha256 hashing, from one of the cipher sets
+uint8_t *e3x_hash(uint8_t *in, uint32_t len, uint8_t *out32)
+{
+  if(!in || !len || !out32) return out32;
+  if(!cipher3_default)
+  {
+    DEBUG_PRINTF("e3x not initialized, no cipher_set");
+    memset(out32,0,32);
+    return out32;
+  }
+  return cipher3_default->hash(in, len, out32);
+}
+
 

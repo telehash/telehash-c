@@ -98,6 +98,13 @@ lob_t lob_parse(uint8_t *raw, uint32_t len)
   return NULL;
 }
 
+uint8_t *lob_get(lob_t p, char *key)
+{
+  if(!p || !key) return NULL;
+  return NULL;
+//  return j0g_str(key, lob_j0g(p), p->index);
+}
+
 /*
 lob_t lob_parse(unsigned char *raw, unsigned short len)
 {

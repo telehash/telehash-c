@@ -2,6 +2,50 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include "e3x.h"
+
+// validate a str is a hashname
+uint8_t hashname_valid(uint8_t str)
+{
+  return 0;
+}
+
+// these all create a new hashname
+hashname_t hashname_str(uint8_t *str)
+{
+  return 0;
+}
+
+hashname_t hashname_bin(uint8_t *bin)
+{
+  return 0;
+}
+
+hashname_t hashname_keys(lob_t keys)
+{
+  return 0;
+}
+
+hashname_t hashname_key(lob_t packet)
+{
+  return 0;
+}
+
+void hashname_free(hashname_t hn)
+{
+
+}
+
+uint8_t hashname_id(lob_t a, lob_t b)
+{
+  return 0;
+}
+
+// packet-format w/ intermediate hashes in the json
+lob_t hashname_packet(uint8_t id, lob_t keys)
+{
+  return NULL;
+}
 
 /*
 hashname_t hashname_free(hashname_t hn)

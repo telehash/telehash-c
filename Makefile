@@ -24,7 +24,7 @@ ARCH = unix/platform.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c  $(LIB) $
 # all
 #ARCH = unix/platform.c $(JSON) $(CS1a) $(CS2a) $(CS3a) $(INCLUDE) $(LIBS)
 
-TESTS = lib_base32 lib_lob
+TESTS = lib_base32 lib_lob lib_hashname
 
 all: test
 
@@ -35,9 +35,10 @@ test: $(TESTS)
 		chmod 0755 ./test/$$test && \
 		echo "=====[ running $$test ]=====" && \
 		if ./test/$$test ; then \
-			echo "PASSED: $$test"; \
 			rm -f ./test/$$test; \
+			echo "PASSED: $$test"; \
 		else \
+			rm -f ./test/$$test; \
 			echo "FAILED: $$test"; exit 1; \
 		fi; \
 	done
@@ -47,6 +48,9 @@ lib_base32:
 
 lib_lob:
 	$(CC) $(CFLAGS) -o test/lib_lob test/lib_lob.c src/lib/lob.c src/lib/base32.c $(INCLUDE)
+
+lib_hashname:
+	$(CC) $(CFLAGS) -o test/lib_hashname test/lib_hashname.c $(ARCH)
 
 idgen:
 	$(CC) $(CFLAGS) -o bin/idgen util/idgen.c $(ARCH)

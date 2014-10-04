@@ -29,6 +29,12 @@ uint8_t *e3x_err(void);
 // generate a new local identity, secrets returned in the lob json and keys in the linked lob json
 lob_t e3x_generate(void);
 
+// random bytes, from a supported cipher set
+uint8_t *e3x_rand(uint8_t *bytes, uint32_t len);
+
+// sha256 hashing, from one of the cipher sets
+uint8_t *e3x_hash(uint8_t *in, uint32_t len, uint8_t *out32);
+
 
 //################################
 // local endpoint state management
