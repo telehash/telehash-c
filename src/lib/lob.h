@@ -1,6 +1,9 @@
 #ifndef lob_h
 #define lob_h
 
+#include <stdint.h>
+#include <stdlib.h>
+
 typedef struct lob_struct
 {
   uint8_t *raw;

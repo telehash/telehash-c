@@ -2,7 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdint.h>
-#include "crypt.h"
+#include "cipher3.h"
 #include "util.h"
 
 uint8_t cipher3_init(lob_t options)

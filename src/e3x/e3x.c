@@ -7,6 +7,7 @@ uint8_t e3x_init(lob_t options)
   uint8_t err;
   err = cipher3_init(options);
   if(err) return err;
+  return 0;
 }
 
 // just check every cipher set for any error string
@@ -19,6 +20,7 @@ uint8_t *e3x_err(void)
     if(cipher3_sets[i]) err = cipher3_sets[i]->err();
     if(err) return err;
   }
+  return NULL;
 }
 
 // generate all the keypairs

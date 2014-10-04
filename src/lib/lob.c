@@ -16,6 +16,7 @@ lob_t lob_new()
   memset(p,0,sizeof (struct lob_struct));
   if(!(p->raw = malloc(2))) return lob_free(p);
   memset(p->raw,0,2);
+  p->quota = 1440; // default MTU
 //  DEBUG_PRINTF("packet +++ %d",p);
   return p;
 }
@@ -65,7 +66,7 @@ lob_t lob_free(lob_t p)
   if(!p) return NULL;
 //  DEBUG_PRINTF("packet --- %d",p);
   if(p->chain) lob_free(p->chain);
-  if(p->jsoncp) free(p->jsoncp);
+  if(p->json) free(p->json);
   if(p->raw) free(p->raw);
   free(p);
   return NULL;
@@ -75,12 +76,24 @@ unsigned short lob_space(lob_t p)
 {
   unsigned short len;
   if(!p) return 0;
-  len = 2+p->json_len+p->body_len;
-  if(len > 1440) return 0;
-  return 1440-len;
+  len = lob_len(p);
+  if(len > p->quota) return 0;
+  return p->quota-len;
 }
 
+unsigned char *lob_raw(lob_t p)
+{
+  if(!p) return NULL;
+  return p->raw;
+}
 
+unsigned short lob_len(lob_t p)
+{
+  if(!p) return 0;
+  return 2+p->head_len+p->body_len;
+}
+
+/*
 lob_t lob_parse(unsigned char *raw, unsigned short len)
 {
   lob_t p;
@@ -107,17 +120,6 @@ lob_t lob_parse(unsigned char *raw, unsigned short len)
   return p;
 }
 
-unsigned char *lob_raw(lob_t p)
-{
-  if(!p) return NULL;
-  return p->raw;
-}
-
-unsigned short lob_len(lob_t p)
-{
-  if(!p) return 0;
-  return 2+p->json_len+p->body_len;
-}
 
 int lob_json(lob_t p, unsigned char *json, unsigned short len)
 {
@@ -395,3 +397,5 @@ void lob_set_json(lob_t p, lob_t json)
     i += 2;
   }
 }
+
+*/

@@ -3,31 +3,31 @@
 #include "util.h"
 #include "e3x.h"
 
-e3chan_t e3chan_new(lob_t open){return NULL;} // open must be e3chan_receive or e3chan_send next yet
-void e3chan_free(e3chan_t c){};
-void e3chan_ev(e3chan_t c, e3ev_t ev){}; // timers only work with this set
+channel3_t channel3_new(lob_t open){return NULL;} // open must be channel3_receive or channel3_send next yet
+void channel3_free(channel3_t c){};
+void channel3_ev(channel3_t c, event3_t ev){}; // timers only work with this set
 
 // incoming packets
-uint8_t e3chan_receive(e3chan_t c, lob_t inner){return 0;}; // usually sets/updates event timer, ret if accepted/valid into receiving queue
-void e3chan_sync(e3chan_t c, uint8_t sync){}; // false to force start timers (any new handshake), true to cancel and resend last packet (after any e3x_sync)
-lob_t e3chan_receiving(e3chan_t c){return NULL;}; // get next avail packet in order, null if nothing
+uint8_t channel3_receive(channel3_t c, lob_t inner){return 0;}; // usually sets/updates event timer, ret if accepted/valid into receiving queue
+void channel3_sync(channel3_t c, uint8_t sync){}; // false to force start timers (any new handshake), true to cancel and resend last packet (after any e3x_sync)
+lob_t channel3_receiving(channel3_t c){return NULL;}; // get next avail packet in order, null if nothing
 
 // outgoing packets
-lob_t e3chan_packet(e3chan_t c){return NULL;};  // creates a packet w/ necessary json, just a convenience
-uint8_t e3chan_send(e3chan_t c, lob_t inner){return 0;}; // adds to sending queue, adds json if needed
-lob_t e3chan_sending(e3chan_t c){return 0;}; // must be called after every send or receive, pass pkt to e3x_encrypt before sending
+lob_t channel3_packet(channel3_t c){return NULL;};  // creates a packet w/ necessary json, just a convenience
+uint8_t channel3_send(channel3_t c, lob_t inner){return 0;}; // adds to sending queue, adds json if needed
+lob_t channel3_sending(channel3_t c){return 0;}; // must be called after every send or receive, pass pkt to e3x_encrypt before sending
 
 // convenience functions
-uint32_t e3chan_id(e3chan_t c){return 0;}; // numeric of the open->cid
-lob_t e3chan_open(e3chan_t c){return NULL;}; // returns the open packet (always cached)
-uint8_t e3chan_state(e3chan_t c){return 0;}; // E3CHAN_OPENING, E3CHAN_OPEN, or E3CHAN_ENDED
-uint32_t e3chan_size(e3chan_t c){return 0;}; // size (in bytes) of buffered data in or out
+uint32_t channel3_id(channel3_t c){return 0;}; // numeric of the open->cid
+lob_t channel3_open(channel3_t c){return NULL;}; // returns the open packet (always cached)
+uint8_t channel3_state(channel3_t c){return 0;}; // E3CHAN_OPENING, E3CHAN_OPEN, or E3CHAN_ENDED
+uint32_t channel3_size(channel3_t c){return 0;}; // size (in bytes) of buffered data in or out
 
 /*
 // default channel inactivity timeout in seconds
 #define CHAN_TIMEOUT 10
 
-struct e3chan_struct
+struct channel3_struct
 {
   uint32_t id; // wire id (not unique)
   uint32_t tsent, trecv; // tick value of last send, recv
@@ -37,17 +37,17 @@ struct e3chan_struct
   int reliable;
   uint8_t opened, ended;
   uint8_t tfree, tresend; // tick counts for thresholds
-  struct e3chan_struct *next;
+  struct channel3_struct *next;
   lob_t in, inend, notes;
   void *arg; // used by extensions
-  void *seq, *miss; // used by e3chan_seq/e3chan_miss
+  void *seq, *miss; // used by channel3_seq/channel3_miss
   // event callbacks for channel implementations
-  void (*handler)(struct e3chan_struct*); // handle incoming packets immediately/directly
-  void (*tick)(struct e3chan_struct*); // called approx every tick (1s)
+  void (*handler)(struct channel3_struct*); // handle incoming packets immediately/directly
+  void (*tick)(struct channel3_struct*); // called approx every tick (1s)
 };
 
 // flags channel as ended either in or out
-void doend(e3chan_t c)
+void doend(channel3_t c)
 {
   if(!c || c->ended) return;
   DEBUG_PRINTF("channel ended %d",c->id);
@@ -55,7 +55,7 @@ void doend(e3chan_t c)
 }
 
 // immediately removes channel, creates/sends packet to app to notify
-void doerror(e3chan_t c, lob_t p, char *err)
+void doerror(channel3_t c, lob_t p, char *err)
 {
   if(c->ended) return;
   DEBUG_PRINTF("channel fail %d %s %d %d %d",c->id,err?err:lob_get_str(p,"err"),c->timeout,c->tsent,c->trecv);
@@ -75,16 +75,16 @@ void doerror(e3chan_t c, lob_t p, char *err)
   // send error to app immediately, will doend() when processed
   p->next = c->in;
   c->in = p;
-  e3chan_queue(c);
+  channel3_queue(c);
 }
 
-void e3chan_free(e3chan_t c)
+void channel3_free(channel3_t c)
 {
   lob_t p;
   if(!c) return;
 
   // if there's an arg set, we can't free and must notify channel handler
-  if(c->arg) return e3chan_queue(c);
+  if(c->arg) return channel3_queue(c);
 
   DEBUG_PRINTF("channel free %d",c->id);
 
@@ -98,11 +98,11 @@ void e3chan_free(e3chan_t c)
   xht_set(c->s->index,(char*)c->uid,NULL);
 
   // remove references
-  e3chan_dequeue(c);
+  channel3_dequeue(c);
   if(c->reliable)
   {
-    e3chan_seq_free(c);
-    e3chan_miss_free(c);
+    channel3_seq_free(c);
+    channel3_miss_free(c);
   }
   while(c->in)
   {
@@ -125,14 +125,14 @@ void e3chan_free(e3chan_t c)
 
 void walkreset(xht_t h, const char *key, void *val, void *arg)
 {
-  e3chan_t c = (e3chan_t)val;
+  channel3_t c = (channel3_t)val;
   if(!c) return;
   if(c->opened) return doerror(c,NULL,"reset");
   // flush any waiting packets
-  if(c->reliable) e3chan_miss_resend(c);
+  if(c->reliable) channel3_miss_resend(c);
   else switch_send(c->s,lob_copy(c->in));
 }
-void e3chan_reset(switch_t s, hashname_t to)
+void channel3_reset(switch_t s, hashname_t to)
 {
   // fail any existing open channels
   xht_walk(to->chans, &walkreset, NULL);
@@ -143,10 +143,10 @@ void e3chan_reset(switch_t s, hashname_t to)
 void walktick(xht_t h, const char *key, void *val, void *arg)
 {
   uint32_t last;
-  e3chan_t c = (e3chan_t)val;
+  channel3_t c = (channel3_t)val;
 
   // latent cleanup/free
-  if(c->ended && (c->tfree++) > c->timeout) return e3chan_free(c);
+  if(c->ended && (c->tfree++) > c->timeout) return channel3_free(c);
 
   // any channel can get tick event
   if(c->tick) c->tick(c);
@@ -157,7 +157,7 @@ void walktick(xht_t h, const char *key, void *val, void *arg)
   // do any auto-resend packet timers
   if(c->tresend)
   {
-    // TODO check packet resend timers, e3chan_miss_resend or c->in
+    // TODO check packet resend timers, channel3_miss_resend or c->in
   }
 
   // unreliable timeout, use last received unless none, then last sent
@@ -169,32 +169,32 @@ void walktick(xht_t h, const char *key, void *val, void *arg)
 
 }
 
-void e3chan_tick(switch_t s, hashname_t hn)
+void channel3_tick(switch_t s, hashname_t hn)
 {
   xht_walk(hn->chans, &walktick, NULL);
 }
 
-e3chan_t e3chan_reliable(e3chan_t c, int window)
+channel3_t channel3_reliable(channel3_t c, int window)
 {
   if(!c || !window || c->tsent || c->trecv || c->reliable) return c;
   c->reliable = window;
-  e3chan_seq_init(c);
-  e3chan_miss_init(c);
+  channel3_seq_init(c);
+  channel3_miss_init(c);
   return c;
 }
 
 // kind of a macro, just make a reliable channel of this type
-e3chan_t e3chan_start(switch_t s, char *hn, char *type)
+channel3_t channel3_start(switch_t s, char *hn, char *type)
 {
-  e3chan_t c;
+  channel3_t c;
   if(!s || !hn) return NULL;
-  c = e3chan_new(s, hashname_gethex(s->index,hn), type, 0);
-  return e3chan_reliable(c, s->window);
+  c = channel3_new(s, hashname_gethex(s->index,hn), type, 0);
+  return channel3_reliable(c, s->window);
 }
 
-e3chan_t e3chan_new(switch_t s, hashname_t to, char *type, uint32_t id)
+channel3_t channel3_new(switch_t s, hashname_t to, char *type, uint32_t id)
 {
-  e3chan_t c;
+  channel3_t c;
   if(!s || !to || !type) return NULL;
 
   // use new id if none given
@@ -211,8 +211,8 @@ e3chan_t e3chan_new(switch_t s, hashname_t to, char *type, uint32_t id)
   }
 
   DEBUG_PRINTF("channel new %d %s %s",id,type,to->hexname);
-  c = malloc(sizeof (struct e3chan_struct));
-  memset(c,0,sizeof (struct e3chan_struct));
+  c = malloc(sizeof (struct channel3_struct));
+  memset(c,0,sizeof (struct channel3_struct));
   c->type = malloc(strlen(type)+1);
   memcpy(c->type,type,strlen(type)+1);
   c->s = s;
@@ -233,15 +233,15 @@ e3chan_t e3chan_new(switch_t s, hashname_t to, char *type, uint32_t id)
   return c;
 }
 
-void e3chan_timeout(e3chan_t c, uint32_t seconds)
+void channel3_timeout(channel3_t c, uint32_t seconds)
 {
   if(!c) return;
   c->timeout = seconds;
 }
 
-e3chan_t e3chan_in(switch_t s, hashname_t from, lob_t p)
+channel3_t channel3_in(switch_t s, hashname_t from, lob_t p)
 {
-  e3chan_t c;
+  channel3_t c;
   unsigned long id;
   char hexid[9];
   if(!from || !p) return NULL;
@@ -251,11 +251,11 @@ e3chan_t e3chan_in(switch_t s, hashname_t from, lob_t p)
   c = xht_get(from->chans, hexid);
   if(c) return c;
 
-  return e3chan_new(s, from, lob_get_str(p, "type"), id);
+  return channel3_new(s, from, lob_get_str(p, "type"), id);
 }
 
 // get the next incoming note waiting to be handled
-lob_t e3chan_notes(e3chan_t c)
+lob_t channel3_notes(channel3_t c)
 {
   lob_t note;
   if(!c) return NULL;
@@ -265,7 +265,7 @@ lob_t e3chan_notes(e3chan_t c)
 }
 
 // create a new note tied to this channel
-lob_t e3chan_note(e3chan_t c, lob_t note)
+lob_t channel3_note(channel3_t c, lob_t note)
 {
   if(!note) note = lob_new();
   lob_set_str(note,".from",(char*)c->uid);
@@ -273,7 +273,7 @@ lob_t e3chan_note(e3chan_t c, lob_t note)
 }
 
 // send this note back to the sender
-int e3chan_reply(e3chan_t c, lob_t note)
+int channel3_reply(channel3_t c, lob_t note)
 {
   char *from;
   if(!c || !(from = lob_get_str(note,".from"))) return -1;
@@ -283,11 +283,11 @@ int e3chan_reply(e3chan_t c, lob_t note)
 }
 
 // create a packet ready to be sent for this channel
-lob_t e3chan_packet(e3chan_t c)
+lob_t channel3_packet(channel3_t c)
 {
   lob_t p;
   if(!c) return NULL;
-  p = c->reliable?e3chan_seq_packet(c):lob_new();
+  p = c->reliable?channel3_seq_packet(c):lob_new();
   if(!p) return NULL;
   p->to = c->to;
   if(!c->tsent && !c->trecv)
@@ -298,7 +298,7 @@ lob_t e3chan_packet(e3chan_t c)
   return p;
 }
 
-lob_t e3chan_pop(e3chan_t c)
+lob_t channel3_pop(channel3_t c)
 {
   lob_t p;
   if(!c) return NULL;
@@ -308,7 +308,7 @@ lob_t e3chan_pop(e3chan_t c)
     c->in = p->next;
     if(!c->in) c->inend = NULL;    
   }
-  if(!p && c->reliable) p = e3chan_seq_pop(c);
+  if(!p && c->reliable) p = channel3_seq_pop(c);
 
   // change state as soon as an err/end is processed
   if(lob_get_str(p,"err") || util_cmp(lob_get_str(p,"end"),"true") == 0) doend(c);
@@ -316,9 +316,9 @@ lob_t e3chan_pop(e3chan_t c)
 }
 
 // add to processing queue
-void e3chan_queue(e3chan_t c)
+void channel3_queue(channel3_t c)
 {
-  e3chan_t step;
+  channel3_t step;
   // add to switch queue
   step = c->s->chans;
   if(c->next || step == c) return;
@@ -328,9 +328,9 @@ void e3chan_queue(e3chan_t c)
 }
 
 // remove from processing queue
-void e3chan_dequeue(e3chan_t c)
+void channel3_dequeue(channel3_t c)
 {
-  e3chan_t step = c->s->chans;
+  channel3_t step = c->s->chans;
   if(step == c)
   {
     c->s->chans = c->next;
@@ -343,7 +343,7 @@ void e3chan_dequeue(e3chan_t c)
 }
 
 // internal, receives/processes incoming packet
-void e3chan_receive(e3chan_t c, lob_t p)
+void channel3_receive(channel3_t c, lob_t p)
 {
   if(!c || !p) return;
   DEBUG_PRINTF("channel in %d %d %.*s",c->id,p->body_len,p->json_len,p->json);
@@ -365,8 +365,8 @@ void e3chan_receive(e3chan_t c, lob_t p)
   // TODO, only queue so many packets if we haven't responded ever (to limit ignored unsupported channels)
   if(c->reliable)
   {
-    e3chan_miss_check(c,p);
-    if(!e3chan_seq_receive(c,p)) return; // queued, nothing to do
+    channel3_miss_check(c,p);
+    if(!channel3_seq_receive(c,p)) return; // queued, nothing to do
   }else{
     // add to the end of the raw packet queue
     if(c->inend)
@@ -379,20 +379,20 @@ void e3chan_receive(e3chan_t c, lob_t p)
   }
 
   // queue for processing
-  e3chan_queue(c);
+  channel3_queue(c);
 }
 
 // convenience
-void e3chan_end(e3chan_t c, lob_t p)
+void channel3_end(channel3_t c, lob_t p)
 {
   if(!c) return;
-  if(!p && !(p = e3chan_packet(c))) return;
+  if(!p && !(p = channel3_packet(c))) return;
   lob_set(p,"end","true",4);
-  e3chan_send(c,p);
+  channel3_send(c,p);
 }
 
 // send errors directly
-e3chan_t e3chan_fail(e3chan_t c, char *err)
+channel3_t channel3_fail(channel3_t c, char *err)
 {
   lob_t p;
   if(!c) return NULL;
@@ -406,13 +406,13 @@ e3chan_t e3chan_fail(e3chan_t c, char *err)
 }
 
 // smartly send based on what type of channel we are
-void e3chan_send(e3chan_t c, lob_t p)
+void channel3_send(channel3_t c, lob_t p)
 {
   if(!p) return;
   if(!c) return (void)lob_free(p);
   DEBUG_PRINTF("channel out %d %.*s",c->id,p->json_len,p->json);
   c->tsent = c->s->tick;
-  if(c->reliable && lob_get_str(p,"seq")) p = lob_copy(p); // miss tracks the original p = e3chan_packet(), a sad hack
+  if(c->reliable && lob_get_str(p,"seq")) p = lob_copy(p); // miss tracks the original p = channel3_packet(), a sad hack
   if(lob_get_str(p,"err") || util_cmp(lob_get_str(p,"end"),"true") == 0) doend(c); // track sending error/end
   else if(!c->reliable && !c->opened && !c->in) c->in = lob_copy(p); // if normal unreliable start packet, track for resends
   
@@ -420,11 +420,11 @@ void e3chan_send(e3chan_t c, lob_t p)
 }
 
 // optionally sends reliable channel ack-only if needed
-void e3chan_ack(e3chan_t c)
+void channel3_ack(channel3_t c)
 {
   lob_t p;
   if(!c || !c->reliable) return;
-  p = e3chan_seq_ack(c,NULL);
+  p = channel3_seq_ack(c,NULL);
   if(!p) return;
   DEBUG_PRINTF("channel ack %d %.*s",c->id,p->json_len,p->json);
   switch_send(c->s,p);
@@ -436,7 +436,7 @@ typedef struct seq_struct
   lob_t *in;
 } *seq_t;
 
-void e3chan_seq_init(e3chan_t c)
+void channel3_seq_init(channel3_t c)
 {
   seq_t s = malloc(sizeof (struct seq_struct));
   memset(s,0,sizeof (struct seq_struct));
@@ -445,7 +445,7 @@ void e3chan_seq_init(e3chan_t c)
   c->seq = (void*)s;
 }
 
-void e3chan_seq_free(e3chan_t c)
+void channel3_seq_free(channel3_t c)
 {
   int i;
   seq_t s = (seq_t)c->seq;
@@ -455,7 +455,7 @@ void e3chan_seq_free(e3chan_t c)
 }
 
 // add ack, miss to any packet
-lob_t e3chan_seq_ack(e3chan_t c, lob_t p)
+lob_t channel3_seq_ack(channel3_t c, lob_t p)
 {
   char *miss;
   int i,max;
@@ -491,21 +491,21 @@ lob_t e3chan_seq_ack(e3chan_t c, lob_t p)
 }
 
 // new channel sequenced packet
-lob_t e3chan_seq_packet(e3chan_t c)
+lob_t channel3_seq_packet(channel3_t c)
 {
   lob_t p = lob_new();
   seq_t s = (seq_t)c->seq;
   
   // make sure there's tracking space
-  if(e3chan_miss_track(c,s->id,p)) return NULL;
+  if(channel3_miss_track(c,s->id,p)) return NULL;
 
   // set seq and add any acks
   lob_set_int(p,"seq",(int)s->id++);
-  return e3chan_seq_ack(c, p);
+  return channel3_seq_ack(c, p);
 }
 
 // buffers packets until they're in order
-int e3chan_seq_receive(e3chan_t c, lob_t p)
+int channel3_seq_receive(channel3_t c, lob_t p)
 {
   int offset;
   uint32_t id;
@@ -530,7 +530,7 @@ int e3chan_seq_receive(e3chan_t c, lob_t p)
 }
 
 // returns ordered packets for this channel, updates ack
-lob_t e3chan_seq_pop(e3chan_t c)
+lob_t channel3_seq_pop(channel3_t c)
 {
   lob_t p;
   seq_t s = (seq_t)c->seq;
@@ -549,7 +549,7 @@ typedef struct miss_struct
   lob_t *out;
 } *miss_t;
 
-void e3chan_miss_init(e3chan_t c)
+void channel3_miss_init(channel3_t c)
 {
   miss_t m = (miss_t)malloc(sizeof (struct miss_struct));
   memset(m,0,sizeof (struct miss_struct));
@@ -558,7 +558,7 @@ void e3chan_miss_init(e3chan_t c)
   c->miss = (void*)m;
 }
 
-void e3chan_miss_free(e3chan_t c)
+void channel3_miss_free(channel3_t c)
 {
   int i;
   miss_t m = (miss_t)c->miss;
@@ -568,7 +568,7 @@ void e3chan_miss_free(e3chan_t c)
 }
 
 // 1 when full, backpressure
-int e3chan_miss_track(e3chan_t c, uint32_t seq, lob_t p)
+int channel3_miss_track(channel3_t c, uint32_t seq, lob_t p)
 {
   miss_t m = (miss_t)c->miss;
   if(seq - m->nextack > (uint32_t)(c->reliable - 1))
@@ -581,7 +581,7 @@ int e3chan_miss_track(e3chan_t c, uint32_t seq, lob_t p)
 }
 
 // looks at incoming miss/ack and resends or frees
-void e3chan_miss_check(e3chan_t c, lob_t p)
+void channel3_miss_check(channel3_t c, lob_t p)
 {
   uint32_t ack;
   int offset, i;
@@ -617,7 +617,7 @@ void e3chan_miss_check(e3chan_t c, lob_t p)
 }
 
 // resends all
-void e3chan_miss_resend(e3chan_t c)
+void channel3_miss_resend(channel3_t c)
 {
   int i;
   miss_t m = (miss_t)c->miss;

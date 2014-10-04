@@ -2,11 +2,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include "lob.h"
-#include "crypt.h"
-#include "util.h"
-#include "chan.h"
 
+/*
 hashname_t hashname_free(hashname_t hn)
 {
   if(!hn) return NULL;
@@ -209,3 +206,4 @@ unsigned char hashname_distance(hashname_t a, hashname_t b)
   return 0;
 }
 
+*/

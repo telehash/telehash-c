@@ -3,14 +3,14 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#include "crypt.h"
+#include "e3x.h"
 #include "lob.h"
 
 #include "platform.h"
 
 int main(int argc, char *argv[])
 {
-  lob_t keys;
+  lob_t keys, options;
   FILE *fdout;
 
   if(argc > 2)
@@ -18,20 +18,21 @@ int main(int argc, char *argv[])
     printf("Usage: idgen [idfile.json]\n");
     return -1;
   }
-  crypt_init();
-  keys = lob_new();
-#ifdef CS_1a
-  DEBUG_PRINTF(("*** Generating CS_1a keys ***"));
-  crypt_keygen(0x1a,keys);
-#endif
-#ifdef CS_2a
- DEBUG_PRINTF(("*** Generating CS_2a keys ***"));
-  crypt_keygen(0x2a,keys);
-#endif
-#ifdef CS_3a
- DEBUG_PRINTF(("*** Generating CS_3a keys ***"));
-  crypt_keygen(0x3a,keys);
-#endif
+
+  options = lob_new();
+  if(!e3x_init(options))
+  {
+    printf("e3x init failed: %s\n",lob_get(options,"err"));
+    return -1;
+  }
+
+  DEBUG_PRINTF("*** generating keys ***");
+  keys = e3x_generate();
+  if(!keys)
+  {
+    printf("keygen failed: %s\n",e3x_err());
+    return -1;
+  }
 
   if(argc==1) {
     fdout = fopen("id.json","wb");
@@ -44,7 +45,7 @@ int main(int argc, char *argv[])
 	printf("Error opening file\n");
 	return 1;
   }
-  fwrite(keys->json,1,keys->json_len,fdout);
+  fwrite(keys->head,1,keys->head_len,fdout);
   fclose(fdout);
   return 0;
 }

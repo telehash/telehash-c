@@ -1,6 +1,7 @@
 #ifndef hashname_h
 #define hashname_h
 
+/*
 #include "crypt.h"
 #include "path.h"
 #include "xht.h"
@@ -34,5 +35,7 @@ hashname_t hashname_fromjson(xht_t index, struct lob_struct *p);
 path_t hashname_path(hashname_t hn, path_t p, int flag);
 
 unsigned char hashname_distance(hashname_t a, hashname_t b);
+
+*/
 
 #endif
