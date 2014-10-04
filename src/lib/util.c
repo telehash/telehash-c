@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include "util.h"
 
 unsigned char *util_hex(unsigned char *in, int len, unsigned char *out)

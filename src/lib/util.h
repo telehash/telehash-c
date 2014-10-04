@@ -1,10 +1,6 @@
 #ifndef util_h
 #define util_h
 
-#include "platform.h"
-#include "lob.h"
-#include <stdlib.h>
-
 // make sure out is 2*len + 1
 unsigned char *util_hex(unsigned char *in, int len, unsigned char *out);
 // out must be len/2

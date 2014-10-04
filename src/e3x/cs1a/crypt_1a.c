@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include "e3x.h"
 #include "crypt.h"
+#include "util.h"
 #include "uECC.h"
 #include "aes.h"
 #include "hmac.h"
