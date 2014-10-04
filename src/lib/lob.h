@@ -32,11 +32,11 @@ lob_t lob_linked(lob_t parent);
 lob_t lob_unlink(lob_t parent);
 
 // initialize head/body from raw, parses json
-lob_t lob_parse(uint8_t *raw, uint16_t len);
+lob_t lob_parse(uint8_t *raw, uint32_t len);
 
 // return full encoded packet
 uint8_t *lob_raw(lob_t p);
-uint16_t lob_len(lob_t p);
+uint32_t lob_len(lob_t p);
 
 // return current packet capacity based on quota
 uint16_t lob_space(lob_t p);

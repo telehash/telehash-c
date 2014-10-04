@@ -72,25 +72,30 @@ lob_t lob_free(lob_t p)
   return NULL;
 }
 
-unsigned short lob_space(lob_t p)
+uint16_t lob_space(lob_t p)
 {
-  unsigned short len;
+  uint16_t len;
   if(!p) return 0;
   len = lob_len(p);
   if(len > p->quota) return 0;
   return p->quota-len;
 }
 
-unsigned char *lob_raw(lob_t p)
+uint8_t *lob_raw(lob_t p)
 {
   if(!p) return NULL;
   return p->raw;
 }
 
-unsigned short lob_len(lob_t p)
+uint32_t lob_len(lob_t p)
 {
   if(!p) return 0;
   return 2+p->head_len+p->body_len;
+}
+
+lob_t lob_parse(uint8_t *raw, uint32_t len)
+{
+  return NULL;
 }
 
 /*
