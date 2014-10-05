@@ -16,5 +16,5 @@ void platform_debug(char * format, ...);
 #define DEBUG_PRINTF platform_debug
 #endif
 
-  
+
 #endif
