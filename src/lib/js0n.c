@@ -1,11 +1,12 @@
 // by jeremie miller - 2010
 // public domain, contributions/improvements welcome via github at https://github.com/quartzjer/js0n
 
-// gcc started warning for the init syntax used here, is not helpful so don't generate the spam
+// gcc started warning for the init syntax used here, is not helpful so don't generate the spam, supressing the warning is really inconsistently supported across versions
 #if defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6))
 #pragma GCC diagnostic push
 #endif
 #pragma GCC diagnostic ignored "-Wunknown-pragmas"
+#pragma GCC diagnostic ignored "-Wpragmas"
 #pragma GCC diagnostic ignored "-Winitializer-overrides"
 #pragma GCC diagnostic ignored "-Woverride-init"
 
