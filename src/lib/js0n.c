@@ -2,8 +2,12 @@
 // public domain, contributions/improvements welcome via github at https://github.com/quartzjer/js0n
 
 // gcc started warning for the init syntax used here, is not helpful so don't generate the spam
+#if defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6))
 #pragma GCC diagnostic push
+#endif
+#pragma GCC diagnostic ignored "-Wunknown-pragmas"
 #pragma GCC diagnostic ignored "-Winitializer-overrides"
+#pragma GCC diagnostic ignored "-Woverride-init"
 
 // opportunity to further optimize would be having different jump tables for higher depths
 #define PUSH(i) if(depth == 1) prev = *out++ = ((cur+i) - js)
@@ -131,4 +135,6 @@ int js0n(const unsigned char *js, unsigned int len, unsigned short *out, unsigne
 
 }
 
+#if defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6))
 #pragma GCC diagnostic pop
+#endif
