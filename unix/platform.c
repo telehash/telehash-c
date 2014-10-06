@@ -15,7 +15,12 @@ unsigned short platform_short(unsigned short x)
   return ntohs(x);
 }
 
+#ifdef DEBUG
+int _debugging = 1;
+#else
 int _debugging = 0;
+#endif
+
 void platform_debugging(int enabled)
 {
   if(enabled < 0)

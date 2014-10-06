@@ -1,3 +1,7 @@
-// pass it a raw json string and length, and it will tag all the key/value offsets in the out argument (size it same as js to be safe)
-// returns 0 if successful, >0 if not
-int js0n(const unsigned char *js, unsigned int len, unsigned short *out, unsigned int olen);
+// key = string to match or null
+// klen = key length (or 0), or if null key then len is the array offset value
+// json = json object or array
+// jlen = length of json
+// vlen = where to store return value length
+// returns pointer to value and sets len to value length, or 0 if not found or any error
+char *js0n(char *key, int klen, char *json, int jlen, int *vlen);

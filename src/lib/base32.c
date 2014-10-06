@@ -13,7 +13,7 @@
 #include <string.h>
 
 #define BASE32_LOOKUP_MAX 43
-static char *base32Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+static char *base32Chars = "abcdefghijklmnopqrstuvwxyz234567";
 static unsigned char base32Lookup[BASE32_LOOKUP_MAX][2] =
 {
     { '0', 0xFF },

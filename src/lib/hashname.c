@@ -2,23 +2,39 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include "e3x.h"
+#include "base32.h"
+#include "platform.h"
+#include "util.h"
 
-// validate a str is a hashname
-uint8_t hashname_valid(uint8_t str)
+// validate a str is a base32 hashname
+uint8_t hashname_valid(uint8_t *str)
 {
-  return 0;
+  static uint8_t buf[32];
+  if(!str) return 0;
+  if(strlen((char*)str) != 52) return 0;
+  if(base32_decode_into((char*)str,52,buf) != 32) return 0;
+  return 1;
+}
+
+// bin must be 32 bytes
+hashname_t hashname_bin(uint8_t *bin)
+{
+  hashname_t hn;
+  if(!(hn = malloc(sizeof (struct hashname_struct)))) return NULL;
+  memset(hn,0,sizeof (struct hashname_struct));
+  if(bin) memcpy(hn->bin, bin, 32);
+  return hn;
 }
 
 // these all create a new hashname
 hashname_t hashname_str(uint8_t *str)
 {
-  return 0;
-}
-
-hashname_t hashname_bin(uint8_t *bin)
-{
-  return 0;
+  hashname_t hn;
+  if(!hashname_valid(str)) return NULL;
+  hn = hashname_bin(NULL);
+  base32_decode_into((char*)str,52,hn->bin);
+  base32_encode_into(hn->bin,32,(char*)hn->hashname);
+  return hn;
 }
 
 hashname_t hashname_keys(lob_t keys)
