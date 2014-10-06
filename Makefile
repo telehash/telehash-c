@@ -10,7 +10,7 @@ CS2a = -ltomcrypt -ltommath -DLTM_DESC -DCS_2a src/e3x/cs2a/crypt_libtom_*.c
 CS3a = -Ics1a -lsodium -DCS_3a src/e3x/cs3a/crypt_3a.c
 
 # this is CS1a only
-ARCH = unix/platform.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c  $(LIB) $(E3X) $(CS1a) $(INCLUDE) $(LIBS)
+UNIX1a = unix/platform.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c  $(LIB) $(E3X) $(CS1a) $(INCLUDE) $(LIBS)
 
 # this is CS3a only
 #ARCH = -DNOCS_1a unix/platform.c cs3a/crypt_base.c cs1a/base64*.c $(JSON) $(CS3a) $(INCLUDE) $(LIBS)
@@ -24,7 +24,7 @@ ARCH = unix/platform.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c  $(LIB) $
 # all
 #ARCH = unix/platform.c $(JSON) $(CS1a) $(CS2a) $(CS3a) $(INCLUDE) $(LIBS)
 
-TESTS = lib_base32 lib_lob lib_hashname lib_murmur lib_util
+TESTS = lib_base32 lib_lob lib_hashname lib_murmur lib_util e3x_core e3x_cs1a
 
 all: test
 
@@ -52,13 +52,19 @@ lib_lob:
 	$(CC) $(CFLAGS) -o test/lib_lob test/lib_lob.c src/lib/lob.c src/lib/base32.c $(INCLUDE)
 
 lib_hashname:
-	$(CC) $(CFLAGS) -o test/lib_hashname test/lib_hashname.c $(ARCH)
+	$(CC) $(CFLAGS) -o test/lib_hashname test/lib_hashname.c $(UNIX1a)
 
 lib_murmur:
 	$(CC) $(CFLAGS) -o test/lib_murmur test/lib_murmur.c src/lib/murmur.c $(INCLUDE)
 
 lib_util:
 	$(CC) $(CFLAGS) -o test/lib_util test/lib_util.c src/lib/util.c $(INCLUDE)
+
+e3x_core:
+	$(CC) $(CFLAGS) -o test/e3x_core test/e3x_core.c unix/platform.c src/e3x/cs1a_disabled.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c $(LIB) $(E3X) $(INCLUDE)
+
+e3x_cs1a:
+	$(CC) $(CFLAGS) -o test/e3x_cs1a test/e3x_cs1a.c $(UNIX1a)
 
 idgen:
 	$(CC) $(CFLAGS) -o bin/idgen util/idgen.c $(ARCH)

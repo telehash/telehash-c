@@ -16,13 +16,13 @@ uint8_t e3x_init(lob_t options)
 uint8_t *e3x_err(void)
 {
   uint8_t i;
-  uint8_t *err;
+  uint8_t *err = NULL;
   for(i=0; i<CS_MAX; i++)
   {
     if(cipher3_sets[i]) err = cipher3_sets[i]->err();
     if(err) return err;
   }
-  return NULL;
+  return err;
 }
 
 // generate all the keypairs

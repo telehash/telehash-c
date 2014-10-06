@@ -5,6 +5,7 @@
 
 #include "sha256.h"
 #include "cipher3.h"
+#include "platform.h"
 
 uint8_t *cs1a_rand(uint8_t *s, uint32_t len);
 uint8_t *cs1a_hash(uint8_t *input, uint32_t len, uint8_t *output);
