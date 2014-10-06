@@ -7,13 +7,20 @@
 #include "cipher3.h"
 #include "platform.h"
 
+// cs1a local ones
+#include "uECC.h"
+#include "aes.h"
+#include "hmac.h"
+
 uint8_t *cs1a_rand(uint8_t *s, uint32_t len);
 uint8_t *cs1a_hash(uint8_t *input, uint32_t len, uint8_t *output);
 uint8_t *cs1a_err(void);
+uint8_t cs1a_generate(lob_t keys, lob_t secrets);
 
 cipher3_t cs1a_init(lob_t options)
 {
   cipher3_t ret = malloc(sizeof(struct cipher3_struct));
+  memset(ret,0,sizeof (struct cipher3_struct));
   ret->rand = cs1a_rand;
   ret->hash = cs1a_hash;
   ret->err = cs1a_err;
@@ -42,6 +49,17 @@ uint8_t *cs1a_hash(uint8_t *input, uint32_t len, uint8_t *output)
 
 uint8_t *cs1a_err(void)
 {
+  return 0;
+}
+
+uint8_t cs1a_generate(lob_t keys, lob_t secrets)
+{
+  uint8_t id_private[uECC_BYTES], id_public[uECC_BYTES*2];
+
+  if(!uECC_make_key(id_public, id_private)) return 1;
+  lob_set_base32(keys,"1a",id_public,uECC_BYTES*2);
+  lob_set_base32(secrets,"1a",id_private,uECC_BYTES);
+
   return 0;
 }
 

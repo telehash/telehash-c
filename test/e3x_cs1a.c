@@ -15,6 +15,12 @@ int main(int argc, char **argv)
   util_hex(e3x_hash((uint8_t*)"foo",3,buf),32,hex);
   fail_unless(strcmp(hex,"2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae") == 0);
 
+  lob_t id = e3x_generate();
+  fail_unless(id);
+  fail_unless(lob_get(id,"1a"));
+  fail_unless(lob_linked(id));
+  fail_unless(lob_get(lob_linked(id),"1a"));
+
   return 0;
 }
 

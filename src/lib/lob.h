@@ -40,9 +40,6 @@ uint32_t lob_len(lob_t p);
 // return current packet capacity based on quota
 uint16_t lob_space(lob_t p);
 
-// return json pointer safe to use w j0g
-char *lob_j0g(lob_t p);
-
 // set/store these in the current packet, !0 if error parsing json
 int lob_json(lob_t p, uint8_t *json, uint16_t len);
 uint8_t *lob_body(lob_t p, uint8_t *body, uint16_t len);
@@ -50,10 +47,10 @@ void lob_append(lob_t p, uint8_t *chunk, uint16_t len);
 
 // convenient json setters/getters
 void lob_set_raw(lob_t p, char *key, uint8_t val, uint16_t vlen); // raw
-void lob_set(lob_t p, char *key, uint8_t *val); // escapes value
+void lob_set(lob_t p, char *key, char *val); // escapes value
 void lob_set_int(lob_t p, char *key, int val);
 void lob_set_printf(lob_t p, char *key, const char *format, ...);
-uint8_t lob_set_base32(lob_t p, char *key, uint8_t val, uint16_t vlen);
+void lob_set_base32(lob_t p, char *key, uint8_t *val, uint16_t vlen);
 
 // copies keys from json into p
 void lob_set_json(lob_t p, lob_t json);

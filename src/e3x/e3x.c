@@ -19,7 +19,7 @@ uint8_t *e3x_err(void)
   uint8_t *err = NULL;
   for(i=0; i<CS_MAX; i++)
   {
-    if(cipher3_sets[i]) err = cipher3_sets[i]->err();
+    if(cipher3_sets[i] && cipher3_sets[i]->err) err = cipher3_sets[i]->err();
     if(err) return err;
   }
   return err;
@@ -34,7 +34,7 @@ lob_t e3x_generate(void)
   secrets = lob_chain(keys);
   for(i=0; i<CS_MAX; i++)
   {
-    if(err || !cipher3_sets[i]) continue;
+    if(err || !cipher3_sets[i] || !cipher3_sets[i]->generate) continue;
     err = cipher3_sets[i]->generate(keys, secrets);
   }
   if(err) return lob_free(secrets);

@@ -104,6 +104,11 @@ uint8_t *lob_get(lob_t p, char *key)
 //  return j0g_str(key, lob_j0g(p), p->index);
 }
 
+void lob_set_base32(lob_t p, char *key, uint8_t *val, uint16_t vlen)
+{
+  return;
+}
+
 /*
 lob_t lob_parse(unsigned char *raw, unsigned short len)
 {
