@@ -24,7 +24,7 @@ ARCH = unix/platform.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c  $(LIB) $
 # all
 #ARCH = unix/platform.c $(JSON) $(CS1a) $(CS2a) $(CS3a) $(INCLUDE) $(LIBS)
 
-TESTS = lib_base32 lib_lob lib_hashname
+TESTS = lib_base32 lib_lob lib_hashname lib_murmur lib_util
 
 all: test
 
@@ -43,6 +43,8 @@ test: $(TESTS)
 		fi; \
 	done
 
+# my make zen is not high enough right now, is yours?
+
 lib_base32:
 	$(CC) $(CFLAGS) -o test/lib_base32 test/lib_base32.c src/lib/base32.c $(INCLUDE)
 
@@ -51,6 +53,12 @@ lib_lob:
 
 lib_hashname:
 	$(CC) $(CFLAGS) -o test/lib_hashname test/lib_hashname.c $(ARCH)
+
+lib_murmur:
+	$(CC) $(CFLAGS) -o test/lib_murmur test/lib_murmur.c src/lib/murmur.c $(INCLUDE)
+
+lib_util:
+	$(CC) $(CFLAGS) -o test/lib_util test/lib_util.c src/lib/util.c $(INCLUDE)
 
 idgen:
 	$(CC) $(CFLAGS) -o bin/idgen util/idgen.c $(ARCH)

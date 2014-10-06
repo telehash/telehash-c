@@ -12,7 +12,6 @@ typedef struct lob_struct
   uint8_t *head;
   uint16_t head_len;
   struct lob_struct *next, *chain;
-  uint16_t *index; // js0n parse output
   uint8_t *json; // internal editable copy of the json
   uint16_t quota; // defaults to 1440
 } *lob_t;
