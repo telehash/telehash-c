@@ -11,7 +11,6 @@
 //
 
 // everything contains a '3' to minimize any naming conflicts when used with other codebases
-typedef struct self3_struct *self3_t; // this endpoint
 typedef struct exchange3_struct *exchange3_t; // an exchange with another endpoint
 typedef struct channel3_struct *channel3_t; // standalone channel packet management, buffering and ordering
 typedef struct event3_struct *event3_t; // standalone event timer utility
@@ -39,12 +38,7 @@ uint8_t *e3x_hash(uint8_t *in, uint32_t len, uint8_t *out32);
 //################################
 // local endpoint state management
 
-// load secrets/keys to create a new local endpoint
-self3_t self3_new(lob_t secrets);
-void self3_free(self3_t e); // any exchanges must have been free'd first
-
-// try to decrypt any message sent to us, returns the inner
-lob_t self3_decrypt(self3_t e, lob_t message);
+#include "self3.h"
 
 
 //##################

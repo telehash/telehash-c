@@ -24,7 +24,7 @@ UNIX1a = unix/platform.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c  $(LIB)
 # all
 #ARCH = unix/platform.c $(JSON) $(CS1a) $(CS2a) $(CS3a) $(INCLUDE) $(LIBS)
 
-TESTS = lib_base32 lib_lob lib_hashname lib_murmur lib_util e3x_core e3x_cs1a
+TESTS = lib_base32 lib_lob lib_hashname lib_murmur lib_util e3x_core e3x_cs1a e3x_self3
 
 all: test
 
@@ -65,6 +65,9 @@ e3x_core:
 
 e3x_cs1a:
 	$(CC) $(CFLAGS) -o test/e3x_cs1a test/e3x_cs1a.c $(UNIX1a)
+
+e3x_self3:
+	$(CC) $(CFLAGS) -o test/e3x_self3 test/e3x_self3.c $(UNIX1a)
 
 idgen:
 	$(CC) $(CFLAGS) -o bin/idgen util/idgen.c $(ARCH)
