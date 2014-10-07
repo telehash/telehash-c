@@ -12,7 +12,7 @@ typedef struct lob_struct
   uint8_t *head;
   uint16_t head_len;
   struct lob_struct *next, *chain;
-  char *json; // internal editable copy of the json
+  char *cache; // internal editable copy of the json
   uint16_t quota; // defaults to 1440
 } *lob_t;
 
@@ -40,13 +40,13 @@ uint32_t lob_len(lob_t p);
 // return current packet capacity based on quota
 uint16_t lob_space(lob_t p);
 
-// set/store these in the current packet, !0 if error parsing json
-int lob_json(lob_t p, uint8_t *json, uint16_t len);
-uint8_t *lob_body(lob_t p, uint8_t *body, uint16_t len);
-void lob_append(lob_t p, uint8_t *chunk, uint16_t len);
+// set/store these in the current packet
+uint8_t *lob_head(lob_t p, uint8_t *head, uint16_t len);
+uint8_t *lob_body(lob_t p, uint8_t *body, uint32_t len);
+void lob_append(lob_t p, uint8_t *chunk, uint32_t len);
 
 // convenient json setters/getters
-void lob_set_raw(lob_t p, char *key, uint8_t val, uint16_t vlen); // raw
+void lob_set_raw(lob_t p, char *key, char *val, uint16_t vlen); // raw
 void lob_set(lob_t p, char *key, char *val); // escapes value
 void lob_set_int(lob_t p, char *key, int val);
 void lob_set_printf(lob_t p, char *key, const char *format, ...);
