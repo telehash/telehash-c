@@ -121,7 +121,7 @@ lob_t lob_parse(uint8_t *raw, uint32_t len)
   return p;
 }
 
-uint8_t *lob_get(lob_t p, char *key)
+char *lob_get(lob_t p, char *key)
 {
   if(!p || !key) return NULL;
   return NULL;
