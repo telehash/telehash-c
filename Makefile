@@ -49,7 +49,7 @@ lib_base32:
 	$(CC) $(CFLAGS) -o test/lib_base32 test/lib_base32.c src/lib/base32.c $(INCLUDE)
 
 lib_lob:
-	$(CC) $(CFLAGS) -o test/lib_lob test/lib_lob.c src/lib/lob.c src/lib/base32.c $(INCLUDE)
+	$(CC) $(CFLAGS) -o test/lib_lob test/lib_lob.c $(UNIX1a)
 
 lib_hashname:
 	$(CC) $(CFLAGS) -o test/lib_hashname test/lib_hashname.c $(UNIX1a)

@@ -94,7 +94,31 @@ uint32_t lob_len(lob_t p)
 
 lob_t lob_parse(uint8_t *raw, uint32_t len)
 {
-  return NULL;
+  lob_t p;
+  uint16_t nlen, hlen;
+  int jtest;
+
+  // make sure is at least size valid
+  if(!raw || len < 2) return NULL;
+  memcpy(&nlen,raw,2);
+  hlen = platform_short(nlen);
+  if(hlen > len-2) return NULL;
+
+  // copy in and update pointers
+  p = lob_new();
+  if(!(p->raw = realloc(p->raw,len))) return lob_free(p);
+  memcpy(p->raw,raw,len);
+  p->head_len = hlen;
+  p->head = p->raw+2;
+  p->body_len = len-(2+p->head_len);
+  p->body = p->raw+(2+p->head_len);
+
+  // validate any json
+  jtest = 0;
+  if(p->head_len >= 2) js0n("\0",1,(char*)p->head,p->head_len,&jtest);
+  if(jtest) return lob_free(p);
+
+  return p;
 }
 
 uint8_t *lob_get(lob_t p, char *key)
