@@ -121,11 +121,51 @@ lob_t lob_parse(uint8_t *raw, uint32_t len)
   return p;
 }
 
+// unescape any json string in place
+char *unescape(lob_t p, char *start, int len)
+{
+  char *str, *cursor;
+
+  if(!p || !start || len <= 0) return NULL;
+
+  // make a copy if we haven't yet
+  if(!p->json)
+  {
+    if(!(p->json = malloc(p->head_len))) return NULL;
+    memcpy(p->json,p->head,p->head_len);
+  }
+  
+  // switch pointer to the json copy 
+  start = p->json + (start - (char*)p->head);
+
+  // terminate it
+  start[len] = 0;
+
+  // unescape it in place in the copy
+  for(cursor=str=start; *cursor; cursor++,str++)
+  {
+    if(*cursor == '\\' && *(cursor+1) == 'n')
+    {
+      *str = '\n';
+      cursor++;
+    }else if(*cursor == '\\' && *(cursor+1) == '"'){
+      *str = '"';
+      cursor++;
+    }else{
+      *str = *cursor;
+    }
+  }
+  *str = *cursor; // copy null terminator too
+  return start;
+}
+
 char *lob_get(lob_t p, char *key)
 {
-  if(!p || !key) return NULL;
-  return NULL;
-//  return j0g_str(key, lob_j0g(p), p->index);
+  char *val;
+  int len = 0;
+  if(!p || !key || p->head_len < 5) return NULL;
+  val = js0n(key,0,(char*)p->head,p->head_len,&len);
+  return unescape(p,val,len);
 }
 
 void lob_set_base32(lob_t p, char *key, uint8_t *val, uint16_t vlen)

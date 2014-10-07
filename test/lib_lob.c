@@ -16,8 +16,8 @@ int main(int argc, char **argv)
   fail_unless(lob_len(packet));
   fail_unless(packet->head_len == 29);
   fail_unless(packet->body_len == 11);
-//  fail_unless(util_cmp(lob_get(packet,"type"),"test") == 0);
-//  fail_unless(util_cmp(lob_get(packet,"foo"),"[\"bar\"]") == 0);
+  fail_unless(util_cmp(lob_get(packet,"type"),"test") == 0);
+  fail_unless(util_cmp(lob_get(packet,"foo"),"[\"bar\"]") == 0);
 
   return 0;
 }
