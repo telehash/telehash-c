@@ -7,6 +7,7 @@
 #include "js0n.h"
 #include "platform.h" // platform_short()
 #include "util.h" // util_sort()
+#include "base32.h"
 
 lob_t lob_new()
 {
@@ -264,8 +265,15 @@ void lob_set(lob_t p, char *key, char *val)
   free(escaped);
 }
 
-void lob_set_base32(lob_t p, char *key, uint8_t *val, uint16_t vlen)
+void lob_set_base32(lob_t p, char *key, uint8_t *bin, uint16_t blen)
 {
+  char *val;
+  if(!p || !key || !bin || !blen) return;
+  uint16_t vlen = base32_encode_length(blen);
+  if(!(val = malloc(vlen))) return;
+  base32_encode_into(bin, blen, val);
+  DEBUG_PRINTF("setb32 %s",val);
+  lob_set_raw(p,key,val,vlen-1);
   return;
 }
 
