@@ -272,7 +272,6 @@ void lob_set_base32(lob_t p, char *key, uint8_t *bin, uint16_t blen)
   uint16_t vlen = base32_encode_length(blen);
   if(!(val = malloc(vlen))) return;
   base32_encode_into(bin, blen, val);
-  DEBUG_PRINTF("setb32 %s",val);
   lob_set_raw(p,key,val,vlen-1);
   return;
 }

@@ -2,6 +2,9 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <time.h>
+#include <sys/time.h>
+#include <unistd.h>
 
 #include "sha256.h"
 #include "cipher3.h"
@@ -17,14 +20,33 @@ uint8_t *cs1a_hash(uint8_t *input, uint32_t len, uint8_t *output);
 uint8_t *cs1a_err(void);
 uint8_t cs1a_generate(lob_t keys, lob_t secrets);
 
+static int RNG(uint8_t *p_dest, unsigned p_size)
+{
+  cs1a_rand(p_dest,p_size);
+  return 1;
+}
+
 cipher3_t cs1a_init(lob_t options)
 {
+  struct timeval tv;
+  unsigned int seed;
   cipher3_t ret = malloc(sizeof(struct cipher3_struct));
+  if(!ret) return NULL;
   memset(ret,0,sizeof (struct cipher3_struct));
+
+  // normal init stuff
+  gettimeofday(&tv, NULL);
+  seed = (getpid() << 16) ^ tv.tv_sec ^ tv.tv_usec;
+  srandom(seed); // srandomdev() is not universal
+  uECC_set_rng(&RNG);
+
+  // configure our callbacks
   ret->rand = cs1a_rand;
   ret->hash = cs1a_hash;
   ret->err = cs1a_err;
+  ret->generate = cs1a_generate;
   // TODO
+
   return ret;
 }
 
