@@ -7,15 +7,15 @@ unsigned long platform_seconds();
 unsigned short platform_short(unsigned short x);
 
 // -1 toggles debug, 0 disable, 1 enable
-void platform_debugging(int enabled);
+void platform_logging(int enabled);
 
-// returns NULL for convenient return debugging
-void *platform_debug(char * format, ...);
+// returns NULL for convenient return logging
+void *platform_log(const char *file, int line, const char *function, const char * format, ...);
 
-#ifdef NODEBUG
-#define DEBUG_PRINTF(...) NULL
+#ifdef NOLOG
+#define LOG(...) NULL
 #else
-#define DEBUG_PRINTF platform_debug
+#define LOG(fmt, ...) platform_log(__FILE__, __LINE__, __func__, fmt, ## __VA_ARGS__)
 #endif
 
 

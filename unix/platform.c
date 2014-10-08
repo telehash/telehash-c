@@ -16,30 +16,30 @@ unsigned short platform_short(unsigned short x)
 }
 
 #ifdef DEBUG
-int _debugging = 1;
+int _logging = 1;
 #else
-int _debugging = 0;
+int _logging = 0;
 #endif
 
-void platform_debugging(int enabled)
+void platform_logging(int enabled)
 {
   if(enabled < 0)
   {
-    _debugging ^= 1;
+    _logging ^= 1;
   }else{
-    _debugging = enabled;    
+    _logging = enabled;    
   }
-  DEBUG_PRINTF("debug output enabled");
+  LOG("log output enabled");
 }
 
-void *platform_debug(char * format, ...)
+void *platform_log(const char *file, int line, const char *function, const char * format, ...)
 {
   char buffer[256];
   va_list args;
-  if(!_debugging) return NULL;
+  if(!_logging) return NULL;
   va_start (args, format);
   vsnprintf (buffer, 256, format, args);
-  fprintf(stderr,"%s\n", buffer);
+  fprintf(stderr,"%s:%d %s() %s\n", file, line, function, buffer);
   fflush(stderr);
   va_end (args);
   return NULL;

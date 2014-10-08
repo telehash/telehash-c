@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "self3.h"
+#include "platform.h"
 
 // load secrets/keys to create a new local endpoint
 self3_t self3_new(lob_t secrets)
@@ -21,6 +22,7 @@ self3_t self3_new(lob_t secrets)
     self->locals[i] = cipher3_sets[i]->local_new(keys, secrets);
   }
 
+  LOG("self created");
   return self;
 }
 
@@ -45,10 +47,10 @@ void self3_free(self3_t self)
 lob_t self3_decrypt(self3_t self, lob_t message)
 {
   cipher3_t cs;
-  if(!self || !message) return NULL;
-  if(message->head_len != 1) return NULL;
+  if(!self || !message) return LOG("bad args");
+  if(message->head_len != 1) return LOG("invalid message");
   cs = cipher3_set(message->head[0],NULL);
-  if(!cs) return NULL;
+  if(!cs) return LOG("no cipherset %2x",message->head[0]);
   return cs->local_decrypt(self->locals[cs->id],message);
 }
 
