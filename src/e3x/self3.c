@@ -6,27 +6,49 @@
 // load secrets/keys to create a new local endpoint
 self3_t self3_new(lob_t secrets)
 {
+  uint8_t i;
   self3_t self;
-  if(!secrets) return NULL;
+  lob_t keys = lob_linked(secrets);
+  if(!keys) return NULL;
 
   if(!(self = malloc(sizeof (struct self3_struct)))) return NULL;
   memset(self,0,sizeof (struct self3_struct));
-  // TODO make locals
+
+  // give each cset a chance to make a local
+  for(i=0; i<CS_MAX; i++)
+  {
+    if(!cipher3_sets[i] || !cipher3_sets[i]->local_new) continue;
+    self->locals[i] = cipher3_sets[i]->local_new(keys, secrets);
+  }
+
   return self;
 }
 
 // any exchanges must have been free'd first
 void self3_free(self3_t self)
 {
+  uint8_t i;
   if(!self) return;
-  // TODO free locals
+
+  // free any locals created
+  for(i=0; i<CS_MAX; i++)
+  {
+    if(!self->locals[i]) continue;
+    cipher3_sets[i]->local_free(self->locals[i]);
+  }
+
   free(self);
   return;
 }
 
 // try to decrypt any message sent to us, returns the inner
-lob_t self3_decrypt(self3_t e, lob_t message)
+lob_t self3_decrypt(self3_t self, lob_t message)
 {
-  return NULL;
+  cipher3_t cs;
+  if(!self || !message) return NULL;
+  if(message->head_len != 1) return NULL;
+  cs = cipher3_set(message->head[0],NULL);
+  if(!cs) return NULL;
+  return cs->local_decrypt(self->locals[cs->id],message);
 }
 

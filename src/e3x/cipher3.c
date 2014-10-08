@@ -28,6 +28,20 @@ uint8_t cipher3_init(lob_t options)
   return 0;
 }
 
+cipher3_t cipher3_set(uint8_t csid, char *hex)
+{
+  uint8_t i;
+
+  for(i=0; i<CS_MAX; i++)
+  {
+    if(!cipher3_sets[i]) continue;
+    if(cipher3_sets[i]->csid == csid) return cipher3_sets[i];
+    if(hex && strcasecmp(cipher3_sets[i]->hex,hex) == 0) return cipher3_sets[i];
+  }
+
+  return NULL;
+}
+
 /*
 int crypt_init()
 {

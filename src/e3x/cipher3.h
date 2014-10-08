@@ -11,6 +11,9 @@
 // this is the overall holder for each cipher set, function pointers to cs specific implementations
 typedef struct cipher3_struct
 {
+  uint8_t id, csid;
+  char hex[3];
+
   // these are common functions each one needs to support
   uint8_t *(*rand)(uint8_t *bytes, uint32_t len); // write len random bytes, returns bytes as well for convenience
   uint8_t *(*hash)(uint8_t *in, uint32_t len, uint8_t *out32); // sha256's the in, out32 must be [32] from caller
@@ -20,7 +23,7 @@ typedef struct cipher3_struct
   uint8_t (*generate)(lob_t keys, lob_t secrets);
 
   // our local identity
-  local_t (*local_new)(lob_t pair);
+  local_t (*local_new)(lob_t keys, lob_t secrets);
   void (*local_free)(local_t local);
   lob_t (*local_decrypt)(local_t local, lob_t outer);
   
@@ -49,6 +52,9 @@ extern cipher3_t cipher3_default; // just one of them for the rand/hash utils
 
 // calls all cipher3_init_*'s to fill in cipher3_sets[]
 uint8_t cipher3_init(lob_t options);
+
+// return by id or hex
+cipher3_t cipher3_set(uint8_t csid, char *hex);
 
 // init functions for each
 cipher3_t cs1a_init(lob_t options);

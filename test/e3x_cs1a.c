@@ -7,6 +7,12 @@ int main(int argc, char **argv)
   lob_t opts = lob_new();
   fail_unless(e3x_init(opts) == 0);
   fail_unless(!e3x_err());
+
+  cipher3_t cs = cipher3_set(0x1a,NULL);
+  fail_unless(cs);
+  cs = cipher3_set(0,"1a");
+  fail_unless(cs);
+  fail_unless(cs->id == CS_1a);
   
   uint8_t buf[32];
   fail_unless(e3x_rand(buf,32));

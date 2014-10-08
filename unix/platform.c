@@ -32,14 +32,15 @@ void platform_debugging(int enabled)
   DEBUG_PRINTF("debug output enabled");
 }
 
-void platform_debug(char * format, ...)
+void *platform_debug(char * format, ...)
 {
-    char buffer[256];
-    va_list args;
-    if(!_debugging) return;
-    va_start (args, format);
-    vsnprintf (buffer, 256, format, args);
-    fprintf(stderr,"%s\n", buffer);
-    fflush(stderr);
-    va_end (args);
+  char buffer[256];
+  va_list args;
+  if(!_debugging) return NULL;
+  va_start (args, format);
+  vsnprintf (buffer, 256, format, args);
+  fprintf(stderr,"%s\n", buffer);
+  fflush(stderr);
+  va_end (args);
+  return NULL;
 }

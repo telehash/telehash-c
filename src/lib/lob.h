@@ -73,4 +73,7 @@ lob_t lob_get_packet(lob_t p, char *key); // creates new packet from key:object 
 lob_t lob_get_packets(lob_t p, char *key); // list of packet->next from key:[object,object]
 lob_t lob_get_base32(lob_t p, char *key); // decoded binary is the return body
 
+// TODO, this would be handy, js syntax to get a json value
+// char *lob_eval(lob_t p, "foo.bar[0]['zzz']");
+
 #endif

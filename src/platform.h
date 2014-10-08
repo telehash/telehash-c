@@ -8,10 +8,12 @@ unsigned short platform_short(unsigned short x);
 
 // -1 toggles debug, 0 disable, 1 enable
 void platform_debugging(int enabled);
-void platform_debug(char * format, ...);
+
+// returns NULL for convenient return debugging
+void *platform_debug(char * format, ...);
 
 #ifdef NODEBUG
-#define DEBUG_PRINTF(...)
+#define DEBUG_PRINTF(...) NULL
 #else
 #define DEBUG_PRINTF platform_debug
 #endif
