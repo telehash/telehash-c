@@ -26,6 +26,9 @@ int main(int argc, char **argv)
   fail_unless(lob_get(id,"1a"));
   fail_unless(lob_linked(id));
   fail_unless(lob_get(lob_linked(id),"1a"));
+  
+  local_t local = cs->local_new(id,lob_linked(id));
+  fail_unless(local);
 
   return 0;
 }

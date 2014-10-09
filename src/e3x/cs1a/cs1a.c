@@ -15,31 +15,51 @@
 #include "aes.h"
 #include "hmac.h"
 
+// undefine the void* aliases so we can define them locally
+#undef local_t
+#undef remote_t
+#undef ephemeral_t
+
+typedef struct local_struct
+{
+  uint8_t id_private[uECC_BYTES], id_public[uECC_BYTES *2];
+} *local_t;
+
+typedef struct remote_struct
+{
+  uint8_t line_private[uECC_BYTES], line_public[uECC_BYTES *2];
+} *remote_t;
+
+typedef struct ephemeral_struct
+{
+  unsigned char keyOut[16], keyIn[16];
+} *ephemeral_t;
+
 // these are all the locally implemented handlers defined in cipher3.h
 
-uint8_t *cs1a_rand(uint8_t *s, uint32_t len);
-uint8_t *cs1a_hash(uint8_t *input, uint32_t len, uint8_t *output);
-uint8_t *cs1a_err(void);
-uint8_t cs1a_generate(lob_t keys, lob_t secrets);
+static uint8_t *cipher_rand(uint8_t *s, uint32_t len);
+static uint8_t *cipher_hash(uint8_t *input, uint32_t len, uint8_t *output);
+static uint8_t *cipher_err(void);
+static uint8_t cipher_generate(lob_t keys, lob_t secrets);
 
-local_t cs1a_local_new(lob_t keys, lob_t secrets);
-void cs1a_local_free(local_t local);
-lob_t cs1a_local_decrypt(local_t local, lob_t outer);
+static local_t local_new(lob_t keys, lob_t secrets);
+static void local_free(local_t local);
+static lob_t local_decrypt(local_t local, lob_t outer);
 
-remote_t cs1a_remote_new(lob_t key);
-void cs1a_remote_free(remote_t remote);
-uint8_t cs1a_remote_verify(remote_t remote, local_t local, lob_t outer);
-lob_t cs1a_remote_encrypt(remote_t remote, local_t local, lob_t inner);
+static remote_t remote_new(lob_t key);
+static void remote_free(remote_t remote);
+static uint8_t remote_verify(remote_t remote, local_t local, lob_t outer);
+static lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner);
 
-ephemeral_t cs1a_ephemeral_new(remote_t remote, lob_t outer, lob_t inner);
-void cs1a_ephemeral_free(ephemeral_t ephemeral);
-lob_t cs1a_ephemeral_encrypt(ephemeral_t ephemeral, lob_t inner);
-lob_t cs1a_ephemeral_decrypt(ephemeral_t ephemeral, lob_t outer);
+static ephemeral_t ephemeral_new(remote_t remote, lob_t outer, lob_t inner);
+static void ephemeral_free(ephemeral_t ephemeral);
+static lob_t ephemeral_encrypt(ephemeral_t ephemeral, lob_t inner);
+static lob_t ephemeral_decrypt(ephemeral_t ephemeral, lob_t outer);
 
 
 static int RNG(uint8_t *p_dest, unsigned p_size)
 {
-  cs1a_rand(p_dest,p_size);
+  cipher_rand(p_dest,p_size);
   return 1;
 }
 
@@ -63,26 +83,28 @@ cipher3_t cs1a_init(lob_t options)
   uECC_set_rng(&RNG);
 
   // configure our callbacks
-  ret->rand = cs1a_rand;
-  ret->hash = cs1a_hash;
-  ret->err = cs1a_err;
-  ret->generate = cs1a_generate;
-  ret->local_new = cs1a_local_new;
-  ret->local_free = cs1a_local_free;
-  ret->local_decrypt = cs1a_local_decrypt;
-  ret->remote_new = cs1a_remote_new;
-  ret->remote_free = cs1a_remote_free;
-  ret->remote_verify = cs1a_remote_verify;
-  ret->remote_encrypt = cs1a_remote_encrypt;
-  ret->ephemeral_new = cs1a_ephemeral_new;
-  ret->ephemeral_free = cs1a_ephemeral_free;
-  ret->ephemeral_encrypt = cs1a_ephemeral_encrypt;
-  ret->ephemeral_decrypt = cs1a_ephemeral_decrypt;
+  ret->rand = cipher_rand;
+  ret->hash = cipher_hash;
+  ret->err = cipher_err;
+  ret->generate = cipher_generate;
+
+  // need to cast these to map our struct types to voids
+  ret->local_new = (void *(*)(lob_t, lob_t))local_new;
+  ret->local_free = (void (*)(void *))local_free;
+  ret->local_decrypt = (lob_t (*)(void *, lob_t))local_decrypt;
+  ret->remote_new = (void *(*)(lob_t))remote_new;
+  ret->remote_free = (void (*)(void *))remote_free;
+  ret->remote_verify = (uint8_t (*)(void *, void *, lob_t))remote_verify;
+  ret->remote_encrypt = (lob_t (*)(void *, void *, lob_t))remote_encrypt;
+  ret->ephemeral_new = (void *(*)(void *, lob_t, lob_t))ephemeral_new;
+  ret->ephemeral_free = (void (*)(void *))ephemeral_free;
+  ret->ephemeral_encrypt = (lob_t (*)(void *, lob_t))ephemeral_encrypt;
+  ret->ephemeral_decrypt = (lob_t (*)(void *, lob_t))ephemeral_decrypt;
 
   return ret;
 }
 
-uint8_t *cs1a_rand(uint8_t *s, uint32_t len)
+uint8_t *cipher_rand(uint8_t *s, uint32_t len)
 {
 
  uint8_t *x = s;
@@ -95,18 +117,18 @@ uint8_t *cs1a_rand(uint8_t *s, uint32_t len)
   return s;
 }
 
-uint8_t *cs1a_hash(uint8_t *input, uint32_t len, uint8_t *output)
+uint8_t *cipher_hash(uint8_t *input, uint32_t len, uint8_t *output)
 {
   sha256(input,len,output,0);
   return output;
 }
 
-uint8_t *cs1a_err(void)
+uint8_t *cipher_err(void)
 {
   return 0;
 }
 
-uint8_t cs1a_generate(lob_t keys, lob_t secrets)
+uint8_t cipher_generate(lob_t keys, lob_t secrets)
 {
   uint8_t id_private[uECC_BYTES], id_public[uECC_BYTES*2];
 
@@ -117,57 +139,60 @@ uint8_t cs1a_generate(lob_t keys, lob_t secrets)
   return 0;
 }
 
-local_t cs1a_local_new(lob_t keys, lob_t secrets)
+local_t local_new(lob_t keys, lob_t secrets)
 {
-  return NULL;
+  local_t local;
+  if(!(local = malloc(sizeof(struct local_struct)))) return NULL;
+  memset(local,0,sizeof (struct local_struct));
+  return local;
 }
 
-void cs1a_local_free(local_t local)
+void local_free(local_t local)
 {
   return;
 }
 
-lob_t cs1a_local_decrypt(local_t local, lob_t outer)
+lob_t local_decrypt(local_t local, lob_t outer)
 {
   return NULL;
 }
 
-remote_t cs1a_remote_new(lob_t key)
+remote_t remote_new(lob_t key)
 {
   return NULL;
 }
 
-void cs1a_remote_free(remote_t remote)
+void remote_free(remote_t remote)
 {
   
 }
 
-uint8_t cs1a_remote_verify(remote_t remote, local_t local, lob_t outer)
+uint8_t remote_verify(remote_t remote, local_t local, lob_t outer)
 {
   return 1;
 }
 
-lob_t cs1a_remote_encrypt(remote_t remote, local_t local, lob_t inner)
+lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
 {
   return NULL;
 }
 
-ephemeral_t cs1a_ephemeral_new(remote_t remote, lob_t outer, lob_t inner)
+ephemeral_t ephemeral_new(remote_t remote, lob_t outer, lob_t inner)
 {
   return NULL;
 }
 
-void cs1a_ephemeral_free(ephemeral_t ephemeral)
+void ephemeral_free(ephemeral_t ephemeral)
 {
 
 }
 
-lob_t cs1a_ephemeral_encrypt(ephemeral_t ephemeral, lob_t inner)
+lob_t ephemeral_encrypt(ephemeral_t ephemeral, lob_t inner)
 {
   return NULL;
 }
 
-lob_t cs1a_ephemeral_decrypt(ephemeral_t ephemeral, lob_t outer)
+lob_t ephemeral_decrypt(ephemeral_t ephemeral, lob_t outer)
 {
   return NULL;
 }
