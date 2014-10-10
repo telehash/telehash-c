@@ -393,7 +393,7 @@ lob_t lob_get_base32(lob_t p, char *key)
 
   ret = lob_new();
   // make space to decode into the body
-  lob_body(ret,NULL,base32_decode_length(len));
+  if(!lob_body(ret,NULL,base32_decode_length(len))) return lob_free(ret);
   // if the decoding wasn't successful, fail
   if(base32_decode_into(val,len,ret->body) != (int)ret->body_len) return lob_free(ret);
   return ret;

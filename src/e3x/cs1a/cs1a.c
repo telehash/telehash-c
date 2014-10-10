@@ -8,6 +8,7 @@
 
 #include "sha256.h"
 #include "cipher3.h"
+#include "e3x.h"
 #include "platform.h"
 
 // cs1a local ones
@@ -142,6 +143,20 @@ uint8_t cipher_generate(lob_t keys, lob_t secrets)
   return 0;
 }
 
+static void fold1(uint8_t in[32], uint8_t out[16])
+{
+  uint8_t i;
+  for(i=0;i<16;i++) out[i] = in[i] ^ in[i+16];
+}
+
+static void fold3(uint8_t in[32], uint8_t out[4])
+{
+  uint8_t i, buf[16];
+  for(i=0;i<16;i++) buf[i] = in[i] ^ in[i+16];
+  for(i=0;i<8;i++) buf[i] ^= buf[i+8];
+  for(i=0;i<4;i++) out[i] = buf[i] ^ buf[i+4];
+}
+
 local_t local_new(lob_t keys, lob_t secrets)
 {
   local_t local;
@@ -170,7 +185,33 @@ void local_free(local_t local)
 
 lob_t local_decrypt(local_t local, lob_t outer)
 {
-  return NULL;
+  uint8_t key[uECC_BYTES*2], shared[uECC_BYTES], iv[16], hash[32];
+  lob_t inner, tmp;
+
+//  * `KEY` - 21 bytes, the sender's ephemeral exchange public key in compressed format
+//  * `IV` - 4 bytes, a random but unique value determined by the sender
+//  * `INNER` - (minimum 21+2 bytes) the AES-128-CTR encrypted inner packet ciphertext
+//  * `HMAC` - 4 bytes, the calculated HMAC of all of the previous KEY+INNER bytes
+
+  if(outer->body_len <= (21+4+23+4)) return NULL;
+  tmp = lob_new();
+  if(!lob_body(tmp,NULL,outer->body_len-(4+21+4))) return lob_free(tmp);
+
+  // get the shared secret to create the iv+key for the open aes
+  uECC_decompress(outer->body,key);
+  if(!uECC_shared_secret(key, local->secret, shared)) return lob_free(tmp);
+  e3x_hash(shared,uECC_BYTES,hash);
+  fold1(hash,hash);
+  memset(iv,0,16);
+  memcpy(iv,outer->body+21,4);
+
+  // decrypt the inner
+  aes_128_ctr(hash,tmp->body_len,iv,outer->body+4+21,tmp->body);
+
+  // load inner packet
+  inner = lob_parse(tmp->body,tmp->body_len);
+  lob_free(tmp);
+  return inner;
 }
 
 remote_t remote_new(lob_t key)
@@ -196,7 +237,25 @@ void remote_free(remote_t remote)
 
 uint8_t remote_verify(remote_t remote, local_t local, lob_t outer)
 {
-  return 1;
+  uint8_t shared[uECC_BYTES+4], hash[32];
+
+  if(!remote || !local || !outer) return 1;
+  if(outer->head_len != 1 || outer->head[0] != 0x1a) return 2;
+
+  // generate the key for the hmac, combining the shared secret and IV
+  if(!uECC_shared_secret(remote->key, local->secret, shared)) return 3;
+  memcpy(shared+uECC_BYTES,outer->body+21,4);
+
+  // verify
+  hmac_256(shared,uECC_BYTES+4,outer->body,outer->body_len-4,hash);
+  fold3(hash,hash);
+  if(memcmp(hash,outer->body+(outer->body_len-4),4) != 0)
+  {
+    LOG("hmac failed");
+    return 4;
+  }
+
+  return 0;
 }
 
 lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
