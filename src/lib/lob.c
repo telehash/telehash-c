@@ -380,6 +380,25 @@ lob_t lob_get_packets(lob_t p, char *key)
   return pret;
 }
 
+// creates new packet w/ a body of the decoded base32 key value
+lob_t lob_get_base32(lob_t p, char *key)
+{
+  lob_t ret;
+  char *val;
+  int len = 0;
+  if(!p || !key) return NULL;
+
+  val = js0n(key,0,(char*)p->head,p->head_len,&len);
+  if(!val) return NULL;
+
+  ret = lob_new();
+  // make space to decode into the body
+  lob_body(ret,NULL,base32_decode_length(len));
+  // if the decoding wasn't successful, fail
+  if(base32_decode_into(val,len,ret->body) != (int)ret->body_len) return lob_free(ret);
+  return ret;
+}
+
 /*
 // count of keys
 int lob_keys(lob_t p)

@@ -21,14 +21,18 @@ int main(int argc, char **argv)
   util_hex(e3x_hash((uint8_t*)"foo",3,buf),32,hex);
   fail_unless(strcmp(hex,"2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae") == 0);
 
-  lob_t id = e3x_generate();
-  fail_unless(id);
-  fail_unless(lob_get(id,"1a"));
-  fail_unless(lob_linked(id));
-  fail_unless(lob_get(lob_linked(id),"1a"));
+  lob_t secrets = e3x_generate();
+  fail_unless(secrets);
+  fail_unless(lob_get(secrets,"1a"));
+  lob_t keys = lob_linked(secrets);
+  fail_unless(keys);
+  fail_unless(lob_get(keys,"1a"));
   
-  local_t local = cs->local_new(id,lob_linked(id));
+  local_t local = cs->local_new(keys,secrets);
   fail_unless(local);
+
+  remote_t remote = cs->remote_new(lob_get_base32(keys,"1a"));
+  fail_unless(remote);
 
   return 0;
 }
