@@ -55,7 +55,7 @@ static void remote_free(remote_t remote);
 static uint8_t remote_verify(remote_t remote, local_t local, lob_t outer);
 static lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner);
 
-static ephemeral_t ephemeral_new(remote_t remote, lob_t outer, lob_t inner);
+static ephemeral_t ephemeral_new(remote_t remote, lob_t outer);
 static void ephemeral_free(ephemeral_t ephemeral);
 static lob_t ephemeral_encrypt(ephemeral_t ephemeral, lob_t inner);
 static lob_t ephemeral_decrypt(ephemeral_t ephemeral, lob_t outer);
@@ -100,7 +100,7 @@ cipher3_t cs1a_init(lob_t options)
   ret->remote_free = (void (*)(void *))remote_free;
   ret->remote_verify = (uint8_t (*)(void *, void *, lob_t))remote_verify;
   ret->remote_encrypt = (lob_t (*)(void *, void *, lob_t))remote_encrypt;
-  ret->ephemeral_new = (void *(*)(void *, lob_t, lob_t))ephemeral_new;
+  ret->ephemeral_new = (void *(*)(void *, lob_t))ephemeral_new;
   ret->ephemeral_free = (void (*)(void *))ephemeral_free;
   ret->ephemeral_encrypt = (lob_t (*)(void *, lob_t))ephemeral_encrypt;
   ret->ephemeral_decrypt = (lob_t (*)(void *, lob_t))ephemeral_decrypt;
@@ -302,9 +302,36 @@ lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
   return outer;
 }
 
-ephemeral_t ephemeral_new(remote_t remote, lob_t outer, lob_t inner)
+ephemeral_t ephemeral_new(remote_t remote, lob_t outer)
 {
-  return NULL;
+  uint8_t ekey[uECC_BYTES*2], shared[uECC_BYTES+((uECC_BYTES+1)*2)], hash[32];
+  ephemeral_t ephem;
+
+  if(!remote) return NULL;
+  if(!outer || outer->body_len < (uECC_BYTES+1)) return LOG("invalid outer");
+
+  if(!(ephem = malloc(sizeof(struct ephemeral_struct)))) return NULL;
+  memset(ephem,0,sizeof (struct ephemeral_struct));
+
+  // generate a random seq starting point for channel IV's
+  e3x_rand((uint8_t*)&(ephem->seq),4);
+
+  // decompress the exchange key and get the shared secret
+  uECC_decompress(outer->body,ekey);
+  if(!uECC_shared_secret(ekey, remote->esecret, shared)) return LOG("ECDH failed");
+
+  // combine inputs to create the digest
+  memcpy(shared+uECC_BYTES,remote->ecomp,uECC_BYTES+1);
+  memcpy(shared+uECC_BYTES+uECC_BYTES+1,outer->body,uECC_BYTES+1);
+  e3x_hash(shared,uECC_BYTES+((uECC_BYTES+1)*2),hash);
+  fold1(hash,ephem->enckey);
+
+  memcpy(shared+uECC_BYTES,outer->body,uECC_BYTES+1);
+  memcpy(shared+uECC_BYTES+uECC_BYTES+1,remote->ecomp,uECC_BYTES+1);
+  e3x_hash(shared,uECC_BYTES+((uECC_BYTES+1)*2),hash);
+  fold1(hash,ephem->deckey);
+
+  return ephem;
 }
 
 void ephemeral_free(ephemeral_t ephemeral)

@@ -34,7 +34,7 @@ typedef struct cipher3_struct
   lob_t (*remote_encrypt)(remote_t remote, local_t local, lob_t inner);
   
   // an active session to a remote for channel packets
-  ephemeral_t (*ephemeral_new)(remote_t remote, lob_t outer, lob_t inner);
+  ephemeral_t (*ephemeral_new)(remote_t remote, lob_t outer);
   void (*ephemeral_free)(ephemeral_t ephemeral);
   lob_t (*ephemeral_encrypt)(ephemeral_t ephemeral, lob_t inner);
   lob_t (*ephemeral_decrypt)(ephemeral_t ephemeral, lob_t outer);

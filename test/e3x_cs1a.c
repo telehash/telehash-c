@@ -62,6 +62,9 @@ int main(int argc, char **argv)
   fail_unless(lob_get_int(innerAB,"a") == 42);
   fail_unless(cs->remote_verify(remoteA,localB,outerAB) == 0);
 
+  ephemeral_t ephem = cs->ephemeral_new(remoteA,outerAB);
+  fail_unless(ephem);
+
   return 0;
 }
 
