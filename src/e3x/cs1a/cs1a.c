@@ -243,9 +243,6 @@ void remote_free(remote_t remote)
   free(remote);
 }
 
-#include "platform.h"
-#include "util.h"
-
 uint8_t remote_verify(remote_t remote, local_t local, lob_t outer)
 {
   uint8_t shared[uECC_BYTES+4], hash[32];
@@ -256,10 +253,6 @@ uint8_t remote_verify(remote_t remote, local_t local, lob_t outer)
   // generate the key for the hmac, combining the shared secret and IV
   if(!uECC_shared_secret(remote->key, local->secret, shared)) return 3;
   memcpy(shared+uECC_BYTES,outer->body+21,4);
-
-  char hex[128];
-  util_hex(shared,21+4,hex);
-  LOG("SHARED %s",hex);
 
   // verify
   hmac_256(shared,uECC_BYTES+4,outer->body,outer->body_len-4,hash);
@@ -302,10 +295,6 @@ lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
   // generate secret for hmac
   if(!uECC_shared_secret(remote->key, local->secret, shared)) return lob_free(outer);
   memcpy(shared+uECC_BYTES,outer->body+21,4); // use the IV too
-
-  char hex[128];
-  util_hex(shared,21+4,hex);
-  LOG("SHARED %s",hex);
 
   hmac_256(shared,uECC_BYTES+4,outer->body,21+4+inner_len,hash);
   fold3(hash,outer->body+21+4+inner_len); // write into last 4 bytes

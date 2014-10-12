@@ -60,7 +60,7 @@ int main(int argc, char **argv)
   lob_t innerAB = cs->local_decrypt(localB,outerAB);
   fail_unless(innerAB);
   fail_unless(lob_get_int(innerAB,"a") == 42);
-  fail_unless(cs->remote_verify(remoteA,localB,outerAB));
+  fail_unless(cs->remote_verify(remoteA,localB,outerAB) == 0);
 
   return 0;
 }
