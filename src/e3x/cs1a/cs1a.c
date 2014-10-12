@@ -30,6 +30,7 @@ typedef struct remote_struct
 {
   uint8_t key[uECC_BYTES *2];
   uint8_t esecret[uECC_BYTES], ekey[uECC_BYTES *2], ecomp[uECC_BYTES+1];
+  uint32_t seq;
 } *remote_t;
 
 typedef struct ephemeral_struct
@@ -160,9 +161,13 @@ static void fold3(uint8_t in[32], uint8_t out[4])
 local_t local_new(lob_t keys, lob_t secrets)
 {
   local_t local;
-  lob_t key = lob_get_base32(keys,"1a");
-  lob_t secret = lob_get_base32(secrets,"1a");
+  lob_t key, secret;
+
+  if(!keys) keys = lob_linked(secrets); // for convenience
+  key = lob_get_base32(keys,"1a");
   if(!key || key->body_len != uECC_BYTES+1) return LOG("invalid key %d != %d",(key)?key->body_len:0,uECC_BYTES+1);
+
+  secret = lob_get_base32(secrets,"1a");
   if(!secret || secret->body_len != uECC_BYTES) return LOG("invalid secret");
   
   if(!(local = malloc(sizeof(struct local_struct)))) return NULL;
@@ -193,7 +198,7 @@ lob_t local_decrypt(local_t local, lob_t outer)
 //  * `INNER` - (minimum 21+2 bytes) the AES-128-CTR encrypted inner packet ciphertext
 //  * `HMAC` - 4 bytes, the calculated HMAC of all of the previous KEY+INNER bytes
 
-  if(outer->body_len <= (21+4+23+4)) return NULL;
+  if(outer->body_len <= (21+4+0+4)) return NULL;
   tmp = lob_new();
   if(!lob_body(tmp,NULL,outer->body_len-(4+21+4))) return lob_free(tmp);
 
@@ -227,6 +232,9 @@ remote_t remote_new(lob_t key)
   uECC_make_key(remote->ekey, remote->esecret);
   uECC_compress(remote->ekey, remote->ecomp);
 
+  // generate a random seq starting point for message IV's
+  e3x_rand((uint8_t*)&(remote->seq),4);
+  
   return remote;
 }
 
@@ -234,6 +242,9 @@ void remote_free(remote_t remote)
 {
   free(remote);
 }
+
+#include "platform.h"
+#include "util.h"
 
 uint8_t remote_verify(remote_t remote, local_t local, lob_t outer)
 {
@@ -245,6 +256,10 @@ uint8_t remote_verify(remote_t remote, local_t local, lob_t outer)
   // generate the key for the hmac, combining the shared secret and IV
   if(!uECC_shared_secret(remote->key, local->secret, shared)) return 3;
   memcpy(shared+uECC_BYTES,outer->body+21,4);
+
+  char hex[128];
+  util_hex(shared,21+4,hex);
+  LOG("SHARED %s",hex);
 
   // verify
   hmac_256(shared,uECC_BYTES+4,outer->body,outer->body_len-4,hash);
@@ -260,7 +275,42 @@ uint8_t remote_verify(remote_t remote, local_t local, lob_t outer)
 
 lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
 {
-  return NULL;
+  uint8_t shared[uECC_BYTES+4], iv[16], hash[32], csid = 0x1a;
+  lob_t outer;
+  uint32_t inner_len;
+
+  outer = lob_new();
+  lob_head(outer,&csid,1);
+  inner_len = lob_len(inner);
+  if(!lob_body(outer,NULL,21+4+inner_len+4)) return lob_free(outer);
+
+  // copy in the ephemeral public key
+  memcpy(outer->body, remote->ecomp, uECC_BYTES+1);
+
+  // get the shared secret to create the iv+key for the open aes
+  if(!uECC_shared_secret(remote->key, remote->esecret, shared)) return lob_free(outer);
+  e3x_hash(shared,uECC_BYTES,hash);
+  fold1(hash,hash);
+  memset(iv,0,16);
+  memcpy(iv,&(remote->seq),4);
+  remote->seq++; // increment seq after every use
+  memcpy(outer->body+21,iv,4); // send along the used IV
+
+  // encrypt the inner into the outer
+  aes_128_ctr(hash,inner_len,iv,lob_raw(inner),outer->body+21+4);
+
+  // generate secret for hmac
+  if(!uECC_shared_secret(remote->key, local->secret, shared)) return lob_free(outer);
+  memcpy(shared+uECC_BYTES,outer->body+21,4); // use the IV too
+
+  char hex[128];
+  util_hex(shared,21+4,hex);
+  LOG("SHARED %s",hex);
+
+  hmac_256(shared,uECC_BYTES+4,outer->body,21+4+inner_len,hash);
+  fold3(hash,outer->body+21+4+inner_len); // write into last 4 bytes
+
+  return outer;
 }
 
 ephemeral_t ephemeral_new(remote_t remote, lob_t outer, lob_t inner)
