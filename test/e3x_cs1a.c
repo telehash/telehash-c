@@ -62,8 +62,23 @@ int main(int argc, char **argv)
   fail_unless(lob_get_int(innerAB,"a") == 42);
   fail_unless(cs->remote_verify(remoteA,localB,outerAB) == 0);
 
-  ephemeral_t ephem = cs->ephemeral_new(remoteA,outerAB);
-  fail_unless(ephem);
+  ephemeral_t ephemBA = cs->ephemeral_new(remoteA,outerAB);
+  fail_unless(ephemBA);
+  
+  lob_t channelBA = lob_new();
+  lob_set(channelBA,"type","foo");
+  lob_t couterBA = cs->ephemeral_encrypt(ephemBA,channelBA);
+  fail_unless(couterBA);
+  fail_unless(lob_len(couterBA) == 42);
+
+  lob_t outerBA = cs->remote_encrypt(remoteA,localB,messageAB);
+  fail_unless(outerBA);
+  ephemeral_t ephemAB = cs->ephemeral_new(remoteB,outerBA);
+  fail_unless(ephemAB);
+
+  lob_t cinnerAB = cs->ephemeral_decrypt(ephemAB,couterBA);
+  fail_unless(cinnerAB);
+  fail_unless(util_cmp(lob_get(cinnerAB,"type"),"foo") == 0);
 
   return 0;
 }
