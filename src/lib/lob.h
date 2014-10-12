@@ -66,6 +66,7 @@ int lob_cmp(lob_t a, lob_t b);
 
 // the return uint8_t* is invalidated with any _set* operation!
 char *lob_get(lob_t p, char *key);
+int lob_get_int(lob_t p, char *key);
 char *lob_get_index(lob_t p, uint32_t i); // returns ["0","1","2","3"]
 
 // returns new packets based on values

@@ -324,6 +324,13 @@ char *lob_get(lob_t p, char *key)
   return unescape(p,val,len);
 }
 
+int lob_get_int(lob_t p, char *key)
+{
+  char *val = lob_get(p,key);
+  if(!val) return 0;
+  return (int)strtol(val,NULL,10);
+}
+
 // returns ["0","1","2"] 
 char *lob_get_index(lob_t p, uint32_t i)
 {
