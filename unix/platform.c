@@ -1,7 +1,10 @@
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <time.h>
+#include <sys/time.h>
 #include <arpa/inet.h>
+#include <unistd.h>
 
 #include "platform.h"
 
@@ -13,6 +16,23 @@ unsigned long platform_seconds()
 unsigned short platform_short(unsigned short x)
 {
   return ntohs(x);
+}
+
+void platform_random_init(void)
+{
+  struct timeval tv;
+  unsigned int seed;
+
+  // TODO ifdef for srandomdev when avail
+  gettimeofday(&tv, NULL);
+  seed = (getpid() << 16) ^ tv.tv_sec ^ tv.tv_usec;
+  srandom(seed);
+}
+
+long platform_random(void)
+{
+  // TODO, use ifdef for arc4random
+  return random();
 }
 
 #ifdef DEBUG

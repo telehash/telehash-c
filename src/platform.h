@@ -6,6 +6,10 @@ unsigned long platform_seconds();
 
 unsigned short platform_short(unsigned short x);
 
+// use the platform's best RNG
+void platform_random_init(void);
+long platform_random(void);
+
 // -1 toggles debug, 0 disable, 1 enable
 void platform_logging(int enabled);
 

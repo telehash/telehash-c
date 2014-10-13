@@ -2,9 +2,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdint.h>
-#include <time.h>
-#include <sys/time.h>
-#include <unistd.h>
 
 #include "sha256.h"
 #include "cipher3.h"
@@ -41,7 +38,6 @@ typedef struct ephemeral_struct
 
 // these are all the locally implemented handlers defined in cipher3.h
 
-static uint8_t *cipher_rand(uint8_t *s, uint32_t len);
 static uint8_t *cipher_hash(uint8_t *input, uint32_t len, uint8_t *output);
 static uint8_t *cipher_err(void);
 static uint8_t cipher_generate(lob_t keys, lob_t secrets);
@@ -63,14 +59,12 @@ static lob_t ephemeral_decrypt(ephemeral_t ephemeral, lob_t outer);
 
 static int RNG(uint8_t *p_dest, unsigned p_size)
 {
-  cipher_rand(p_dest,p_size);
+  e3x_rand(p_dest,p_size);
   return 1;
 }
 
 cipher3_t cs1a_init(lob_t options)
 {
-  struct timeval tv;
-  unsigned int seed;
   cipher3_t ret = malloc(sizeof(struct cipher3_struct));
   if(!ret) return NULL;
   memset(ret,0,sizeof (struct cipher3_struct));
@@ -81,13 +75,9 @@ cipher3_t cs1a_init(lob_t options)
   memcpy(ret->hex,"1a",3);
 
   // normal init stuff
-  gettimeofday(&tv, NULL);
-  seed = (getpid() << 16) ^ tv.tv_sec ^ tv.tv_usec;
-  srandom(seed); // srandomdev() is not universal
   uECC_set_rng(&RNG);
 
-  // configure our callbacks
-  ret->rand = cipher_rand;
+  // configure our callbacks (no RNG, default to platform's)
   ret->hash = cipher_hash;
   ret->err = cipher_err;
   ret->generate = cipher_generate;
@@ -106,19 +96,6 @@ cipher3_t cs1a_init(lob_t options)
   ret->ephemeral_decrypt = (lob_t (*)(void *, lob_t))ephemeral_decrypt;
 
   return ret;
-}
-
-uint8_t *cipher_rand(uint8_t *s, uint32_t len)
-{
-
- uint8_t *x = s;
- 
-  while(len-- > 0)
-  {
-    *x = (uint8_t)random();
-    x++;
-  }
-  return s;
 }
 
 uint8_t *cipher_hash(uint8_t *input, uint32_t len, uint8_t *output)

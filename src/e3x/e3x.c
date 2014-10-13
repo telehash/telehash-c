@@ -7,6 +7,7 @@
 uint8_t e3x_init(lob_t options)
 {
   uint8_t err;
+  platform_random_init();
   err = cipher3_init(options);
   if(err) return err;
   return 0;
@@ -44,14 +45,17 @@ lob_t e3x_generate(void)
 // random bytes, from a supported cipher set
 uint8_t *e3x_rand(uint8_t *bytes, uint32_t len)
 {
+  uint8_t *x = bytes;
   if(!bytes || !len) return bytes;
-  if(!cipher3_default)
+  if(cipher3_default && cipher3_default->rand) return cipher3_default->rand(bytes, len);
+
+  // crypto lib didn't provide one, use platform's RNG
+  while(len-- > 0)
   {
-    LOG("e3x not initialized, no cipher_set");
-    memset(bytes,0,len);
-    return bytes;
+    *x = (uint8_t)platform_random();
+    x++;
   }
-  return cipher3_default->rand(bytes, len);
+  return bytes;
 }
 
 // sha256 hashing, from one of the cipher sets
