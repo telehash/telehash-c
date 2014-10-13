@@ -1,20 +1,20 @@
-#include "bucket.h"
+#include "links.h"
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include "lob.h"
 #include "util.h"
 
-bucket_t bucket_new()
+links_t links_new()
 {
-  bucket_t b = malloc(sizeof (struct bucket_struct));
-  memset(b,0,sizeof (struct bucket_struct));
+  links_t b = malloc(sizeof (struct links_struct));
+  memset(b,0,sizeof (struct links_struct));
   b->hns = NULL;
   b->args = NULL;
   return b;
 }
 
-void bucket_free(bucket_t b)
+void links_free(links_t b)
 {
   if(!b) return;
   if(b->hns) free(b->hns);
@@ -22,12 +22,12 @@ void bucket_free(bucket_t b)
   free(b);
 }
 
-void bucket_add(bucket_t b, hashname_t hn)
+void links_add(links_t b, hashname_t hn)
 {
   void *ptr;
   if(!b || !hn) return;
   // already here?
-  if(bucket_in(b,hn) >= 0) return;
+  if(links_in(b,hn) >= 0) return;
   // make more space, args too if any
   if(b->args)
   {
@@ -41,7 +41,7 @@ void bucket_add(bucket_t b, hashname_t hn)
   b->count++;
 }
 
-void bucket_rem(bucket_t b, hashname_t hn)
+void links_rem(links_t b, hashname_t hn)
 {
   int i, at = -1;
   if(!b || !hn) return;
@@ -52,13 +52,13 @@ void bucket_rem(bucket_t b, hashname_t hn)
   if(b->args) memmove(b->args+at,b->args+(at+1),b->count-at);
 }
 
-hashname_t bucket_get(bucket_t b, int index)
+hashname_t links_get(links_t b, int index)
 {
   if(!b || index >= b->count) return NULL;
   return b->hns[index];
 }
 
-int bucket_in(bucket_t b, hashname_t hn)
+int links_in(links_t b, hashname_t hn)
 {
   int i;
   if(!b || !hn) return -1;
@@ -67,11 +67,11 @@ int bucket_in(bucket_t b, hashname_t hn)
 }
 
 // these set and return an optional arg for the matching hashname
-void bucket_set(bucket_t b, hashname_t hn, void *arg)
+void links_set(links_t b, hashname_t hn, void *arg)
 {
   int i;
-  bucket_add(b,hn);
-  i = bucket_in(b,hn);
+  links_add(b,hn);
+  i = links_in(b,hn);
   if(i < 0) return;
   if(!b->args)
   {
@@ -82,9 +82,9 @@ void bucket_set(bucket_t b, hashname_t hn, void *arg)
   b->args[i] = arg;
 }
 
-void *bucket_arg(bucket_t b, hashname_t hn)
+void *links_arg(links_t b, hashname_t hn)
 {
-  int i = bucket_in(b,hn);
+  int i = links_in(b,hn);
   if(i < 0 || !b->args) return NULL;
   return b->args[i];
 }

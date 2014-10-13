@@ -1,4 +1,4 @@
-#include "switch.h"
+#include "mesh.h"
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -7,22 +7,22 @@
 // a prime number for the internal hashtable used to track all active hashnames/lines
 #define MAXPRIME 4211
 
-switch_t switch_new(uint32_t prime)
+mesh_t mesh_new(uint32_t prime)
 {
-  switch_t s;
-  if(!(s = malloc(sizeof (struct switch_struct)))) return NULL;
-  memset(s, 0, sizeof(struct switch_struct));
+  mesh_t s;
+  if(!(s = malloc(sizeof (struct mesh_struct)))) return NULL;
+  memset(s, 0, sizeof(struct mesh_struct));
   s->cap = 256; // default cap size
   s->window = 32; // default reliable window size
   s->index = xht_new(prime?prime:MAXPRIME);
   s->parts = lob_new();
   s->active = bucket_new();
   s->tick = platform_seconds();
-  if(!s->index || !s->parts) return switch_free(s);
+  if(!s->index || !s->parts) return mesh_free(s);
   return s;
 }
 
-int switch_init(switch_t s, lob_t keys)
+int mesh_init(mesh_t s, lob_t keys)
 {
   int i = 0, err = 0;
   char *key, secret[10], csid, *pk, *sk;
@@ -60,7 +60,7 @@ int switch_init(switch_t s, lob_t keys)
   return 0;
 }
 
-switch_t switch_free(switch_t s)
+mesh_t mesh_free(mesh_t s)
 {
   if(!s) return NULL;
   xht_free(s->index);
@@ -71,14 +71,14 @@ switch_t switch_free(switch_t s)
   return NULL;
 }
 
-void switch_capwin(switch_t s, int cap, int window)
+void mesh_capwin(mesh_t s, int cap, int window)
 {
   s->cap = cap;
   s->window = window;
 }
 
 // generate a broadcast/handshake ping packet
-lob_t switch_ping(switch_t s)
+lob_t mesh_ping(mesh_t s)
 {
   char *key, rand[8], trace[17];
   int i = 0;
@@ -101,7 +101,7 @@ lob_t switch_ping(switch_t s)
 }
 
 // caller must ensure it's ok to send a pong, and is responsible for ping and in
-void switch_pong(switch_t s, lob_t ping, path_t in)
+void mesh_pong(mesh_t s, lob_t ping, path_t in)
 {
   char *key;
   unsigned char hex[3], csid = 0, best = 0;
@@ -127,11 +127,11 @@ void switch_pong(switch_t s, lob_t ping, path_t in)
   lob_set(p,"from",(char*)s->parts->json,s->parts->json_len);
   lob_body(p,c->key,c->keylen);
   p->out = path_copy(in);
-  switch_sendingQ(s,p);
+  mesh_sendingQ(s,p);
 }
 
 // fire tick events no more than once a second
-void switch_loop(switch_t s)
+void mesh_loop(mesh_t s)
 {
   hashname_t hn;
   int i = 0;
@@ -147,18 +147,18 @@ void switch_loop(switch_t s)
   }
 }
 
-void switch_seed(switch_t s, hashname_t hn)
+void mesh_seed(mesh_t s, hashname_t hn)
 {
   if(!s->seeds) s->seeds = bucket_new();
   bucket_add(s->seeds, hn);
 }
 
-lob_t switch_sending(switch_t s)
+lob_t mesh_sending(mesh_t s)
 {
   lob_t p;
   if(!s) return NULL;
   // run a loop just in case to flush any outgoing
-  switch_loop(s);
+  mesh_loop(s);
   if(!s->out) return NULL;
   p = s->out;
   s->out = p->next;
@@ -167,7 +167,7 @@ lob_t switch_sending(switch_t s)
 }
 
 // internally adds to sending queue
-void switch_sendingQ(switch_t s, lob_t p)
+void mesh_sendingQ(mesh_t s, lob_t p)
 {
   lob_t dup;
   if(!p) return;
@@ -191,7 +191,7 @@ void switch_sendingQ(switch_t s, lob_t p)
       {
         dup = lob_copy(p);
         dup->out = p->to->paths[i];
-        switch_sendingQ(s, dup);
+        mesh_sendingQ(s, dup);
       }
       lob_free(p);
       return;   
@@ -212,7 +212,7 @@ void switch_sendingQ(switch_t s, lob_t p)
 }
 
 // tries to send an open if we haven't
-void switch_open(switch_t s, hashname_t to, path_t direct)
+void mesh_open(mesh_t s, hashname_t to, path_t direct)
 {
   lob_t open, inner;
 
@@ -233,10 +233,10 @@ void switch_open(switch_t s, hashname_t to, path_t direct)
   if(!open) return;
   open->to = to;
   if(direct) open->out = direct;
-  switch_sendingQ(s, open);
+  mesh_sendingQ(s, open);
 }
 
-void switch_send(switch_t s, lob_t p)
+void mesh_send(mesh_t s, lob_t p)
 {
   lob_t lined;
 
@@ -247,13 +247,13 @@ void switch_send(switch_t s, lob_t p)
 
   // encrypt the packet to the line, chains together
   lined = crypt_lineize(p->to->c, p);
-  if(lined) return switch_sendingQ(s, lined);
+  if(lined) return mesh_sendingQ(s, lined);
 
   // no line, so generate open instead
-  switch_open(s, p->to, NULL);
+  mesh_open(s, p->to, NULL);
 }
 
-chan_t switch_pop(switch_t s)
+chan_t mesh_pop(mesh_t s)
 {
   chan_t c;
   if(!s->chans) return NULL;
@@ -262,7 +262,7 @@ chan_t switch_pop(switch_t s)
   return c;
 }
 
-void switch_receive(switch_t s, lob_t p, path_t in)
+void mesh_receive(mesh_t s, lob_t p, path_t in)
 {
   hashname_t from;
   lob_t inner;
@@ -289,7 +289,7 @@ void switch_receive(switch_t s, lob_t p, path_t in)
     DEBUG_PRINTF("line in %d %s %d %s",from->c->lined,from->hexname,from,from->c->lineHex);
     xht_set(s->index, (const char*)from->c->lineHex, (void*)from);
     in = hashname_path(from, in, 1);
-    switch_open(s, from, in); // in case we need to send an open
+    mesh_open(s, from, in); // in case we need to send an open
     // this resends any opening channel packets
     if(from->c->lined == 1) chan_reset(s, from);
     return;
@@ -330,7 +330,7 @@ void switch_receive(switch_t s, lob_t p, path_t in)
   {
     DEBUG_PRINTF("pong from %s",from->hexname);
     in = hashname_path(from, in, 0);
-    switch_open(s,from,in);
+    mesh_open(s,from,in);
     lob_free(p);
     return;
   }
@@ -338,7 +338,7 @@ void switch_receive(switch_t s, lob_t p, path_t in)
   // handle pings, respond if local only or dedicated seed
   if(util_cmp("ping",lob_get_str(p,"type")) == 0 && (s->isSeed || path_local(in)))
   {
-    switch_pong(s,p,in);
+    mesh_pong(s,p,in);
     lob_free(p);
     return;
   }
@@ -348,7 +348,7 @@ void switch_receive(switch_t s, lob_t p, path_t in)
 }
 
 // sends a note packet to it's channel if it can, !0 for error
-int switch_note(switch_t s, lob_t note)
+int mesh_note(mesh_t s, lob_t note)
 {
   chan_t c;
   lob_t notes;
