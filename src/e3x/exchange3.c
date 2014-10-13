@@ -5,16 +5,40 @@
 #include "platform.h"
 
 // make a new exchange
-// packet must contain the keys or a handshake to exchange with
-exchange3_t exchange3_new(self3_t e, lob_t with, uint32_t at)
+// packet must contain the raw key in the body
+exchange3_t exchange3_new(self3_t self, uint8_t csid, lob_t key, uint32_t at)
 {
+  uint8_t i;
   exchange3_t x;
+  remote_t remote;
+  cipher3_t cs = NULL;
+
+  if(!self || !csid || !key || !key->body_len) return LOG("bad args");
+
+  // find matching csid
+  for(i=0; i<CS_MAX; i++)
+  {
+    if(cipher3_sets[i]->csid != csid) continue;
+    if(!self->locals[i]) continue;
+    cs = cipher3_sets[i];
+    break;
+  }
+
+  if(!cs) return LOG("unsupported csid %x",csid);
+  remote = cs->remote_new(key);
+  if(!remote) return LOG("failed to create %x remote %s",csid,cs->err());
 
   if(!(x = malloc(sizeof (struct exchange3_struct)))) return NULL;
   memset(x,0,sizeof (struct exchange3_struct));
 
-  // TODO create remote
-
+  x->csid = csid;
+  x->remote = remote;
+  x->cs = cs;
+  x->self = self;
+  // TODO add token fetch to remote
+  // TODO figure out even/odd, and fix at
+  x->at = at;
+  
   return x;
 }
 
@@ -23,21 +47,6 @@ void exchange3_free(exchange3_t x)
   if(!x) return;
   x->cs->remote_free(x->remote);
   free(x);
-}
-
-// simple accessor utilities
-uint8_t *exchange3_token(exchange3_t x)
-{
-  if(!x) return NULL;
-  return x->token;
-}
-
-// last used at value
-uint32_t exchange3_at(exchange3_t x)
-{
-  if(!x) return 0;
-  return x->at;
-  return 0;
 }
 
 // these require a self (local) and an exchange (remote) but are exchange independent

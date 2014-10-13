@@ -8,19 +8,18 @@
 typedef struct exchange3_struct
 {
   cipher3_t cs;
+  self3_t self;
+  uint8_t csid;
+  char hex[3];
   remote_t remote;
-  uint8_t token[16];
+  uint8_t *token;
   uint32_t at;
 } *exchange3_t;
 
 // make a new exchange
-// packet must contain the keys or a handshake to exchange with
-exchange3_t exchange3_new(self3_t e, lob_t with, uint32_t at); // seq must be higher than any previous x used with them
+// packet must contain the raw key in the body
+exchange3_t exchange3_new(self3_t self, uint8_t csid, lob_t key, uint32_t at);
 void exchange3_free(exchange3_t x);
-
-// simple accessor utilities
-uint8_t *exchange3_token(exchange3_t x); // 16 bytes, unique to this exchange for matching/routing
-uint32_t exchange3_at(exchange3_t x); // last used at value
 
 // these require a self (local) and an exchange (remote) but are exchange independent
 lob_t exchange3_message(exchange3_t x, lob_t inner, uint32_t seq); // will safely set/increment seq if 0

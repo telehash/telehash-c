@@ -21,6 +21,8 @@ self3_t self3_new(lob_t secrets)
     if(!cipher3_sets[i] || !cipher3_sets[i]->local_new) continue;
     self->locals[i] = cipher3_sets[i]->local_new(keys, secrets);
   }
+  
+  self->keys = lob_copy(keys);
 
   LOG("self created");
   return self;
@@ -39,6 +41,7 @@ void self3_free(self3_t self)
     cipher3_sets[i]->local_free(self->locals[i]);
   }
 
+  lob_free(self->keys);
   free(self);
   return;
 }
