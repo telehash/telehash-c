@@ -28,7 +28,7 @@ typedef struct cipher3_struct
   lob_t (*local_decrypt)(local_t local, lob_t outer);
   
   // a remote endpoint identity
-  remote_t (*remote_new)(lob_t key);
+  remote_t (*remote_new)(lob_t key, uint8_t *token);
   void (*remote_free)(remote_t remote);
   uint8_t (*remote_verify)(remote_t remote, local_t local, lob_t outer);
   lob_t (*remote_encrypt)(remote_t remote, local_t local, lob_t inner);

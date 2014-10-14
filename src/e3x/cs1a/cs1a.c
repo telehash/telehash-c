@@ -46,7 +46,7 @@ static local_t local_new(lob_t keys, lob_t secrets);
 static void local_free(local_t local);
 static lob_t local_decrypt(local_t local, lob_t outer);
 
-static remote_t remote_new(lob_t key);
+static remote_t remote_new(lob_t key, uint8_t *token);
 static void remote_free(remote_t remote);
 static uint8_t remote_verify(remote_t remote, local_t local, lob_t outer);
 static lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner);
@@ -86,7 +86,7 @@ cipher3_t cs1a_init(lob_t options)
   ret->local_new = (void *(*)(lob_t, lob_t))local_new;
   ret->local_free = (void (*)(void *))local_free;
   ret->local_decrypt = (lob_t (*)(void *, lob_t))local_decrypt;
-  ret->remote_new = (void *(*)(lob_t))remote_new;
+  ret->remote_new = (void *(*)(lob_t, uint8_t *))remote_new;
   ret->remote_free = (void (*)(void *))remote_free;
   ret->remote_verify = (uint8_t (*)(void *, void *, lob_t))remote_verify;
   ret->remote_encrypt = (lob_t (*)(void *, void *, lob_t))remote_encrypt;
@@ -196,7 +196,7 @@ lob_t local_decrypt(local_t local, lob_t outer)
   return inner;
 }
 
-remote_t remote_new(lob_t key)
+remote_t remote_new(lob_t key, uint8_t *token)
 {
   remote_t remote;
   if(!key || key->body_len != uECC_BYTES+1) return LOG("invalid key %d != %d",(key)?key->body_len:0,uECC_BYTES+1);
@@ -208,6 +208,7 @@ remote_t remote_new(lob_t key)
   uECC_decompress(key->body,remote->key);
   uECC_make_key(remote->ekey, remote->esecret);
   uECC_compress(remote->ekey, remote->ecomp);
+  if(token) memcpy(token,remote->ecomp,16);
 
   // generate a random seq starting point for message IV's
   e3x_rand((uint8_t*)&(remote->seq),4);

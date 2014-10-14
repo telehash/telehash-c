@@ -39,14 +39,14 @@ int main(int argc, char **argv)
   local_t localA = cs->local_new(keys,secrets);
   fail_unless(localA);
 
-  remote_t remoteA = cs->remote_new(lob_get_base32(keys,"1a"));
+  remote_t remoteA = cs->remote_new(lob_get_base32(keys,"1a"), NULL);
   fail_unless(remoteA);
 
   // create another to start testing real packets
   lob_t secretsB = e3x_generate();
   local_t localB = cs->local_new(NULL,secretsB);
   fail_unless(localB);
-  remote_t remoteB = cs->remote_new(lob_get_base32(lob_linked(secretsB),"1a"));
+  remote_t remoteB = cs->remote_new(lob_get_base32(lob_linked(secretsB),"1a"), NULL);
   fail_unless(remoteB);
 
   // generate a message

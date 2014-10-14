@@ -8,7 +8,7 @@
 // packet must contain the raw key in the body
 exchange3_t exchange3_new(self3_t self, uint8_t csid, lob_t key, uint32_t at)
 {
-  uint8_t i;
+  uint8_t i, token[16];
   exchange3_t x;
   remote_t remote;
   cipher3_t cs = NULL;
@@ -25,7 +25,7 @@ exchange3_t exchange3_new(self3_t self, uint8_t csid, lob_t key, uint32_t at)
   }
 
   if(!cs) return LOG("unsupported csid %x",csid);
-  remote = cs->remote_new(key);
+  remote = cs->remote_new(key, token);
   if(!remote) return LOG("failed to create %x remote %s",csid,cs->err());
 
   if(!(x = malloc(sizeof (struct exchange3_struct)))) return NULL;
