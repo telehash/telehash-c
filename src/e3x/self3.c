@@ -7,7 +7,7 @@
 // load secrets/keys to create a new local endpoint
 self3_t self3_new(lob_t secrets)
 {
-  uint8_t i;
+  uint8_t i, ok = 0;
   self3_t self;
   lob_t keys = lob_linked(secrets);
   if(!keys) return NULL;
@@ -24,6 +24,13 @@ self3_t self3_new(lob_t secrets)
     // make a copy of the binary and encoded keys
     self->keys[i] = lob_get_base32(keys, cipher3_sets[i]->hex);
     lob_set(self->keys[i],"key",lob_get(keys,cipher3_sets[i]->hex));
+    ok++;
+  }
+
+  if(!ok)
+  {
+    self3_free(self);
+    return LOG("self failed for %.*s",keys->head_len,keys->head);
   }
 
   LOG("self created");

@@ -145,7 +145,7 @@ local_t local_new(lob_t keys, lob_t secrets)
   if(!key || key->body_len != uECC_BYTES+1) return LOG("invalid key %d != %d",(key)?key->body_len:0,uECC_BYTES+1);
 
   secret = lob_get_base32(secrets,"1a");
-  if(!secret || secret->body_len != uECC_BYTES) return LOG("invalid secret");
+  if(!secret || secret->body_len != uECC_BYTES) return LOG("invalid secret len %d",(secret)?secret->body_len:0);
   
   if(!(local = malloc(sizeof(struct local_struct)))) return NULL;
   memset(local,0,sizeof (struct local_struct));
