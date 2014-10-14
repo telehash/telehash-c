@@ -61,6 +61,7 @@ void exchange3_free(exchange3_t x)
 {
   if(!x) return;
   x->cs->remote_free(x->remote);
+  x->cs->ephemeral_free(x->ephem);
   free(x);
 }
 
@@ -81,28 +82,70 @@ uint8_t exchange3_verify(exchange3_t x, lob_t outer)
 
 // returns the seq value for a handshake reply if needed
 // sets secrets/seq/cids to the given handshake if it's newer
-// always call chan_sync(c,true) after this on all open channels to signal them the exchange is active
-uint32_t exchange3_sync(exchange3_t x, lob_t handshake)
+// always call chan_sync(c,true||false) after this on all open channels to signal them
+uint32_t exchange3_sync(exchange3_t x, lob_t outer, lob_t inner)
 {
+  if(!x || !outer || !inner) return 0;
+  // create/update ephem
+  // return in sync
   return 0;
 }
 
-// just a convenience, seq=0 means force new handshake (and call chan_sync(false)), or seq = exchange3_seq() or exchange3_sync()
-lob_t exchange3_handshake(exchange3_t x, lob_t inner, uint32_t at)
+// just a convenience, at=0 means force new handshake (and chan_sync(false)), or pass at from exchange3_sync()
+lob_t exchange3_handshake(exchange3_t x, uint32_t at)
 {
-  return NULL;
+  lob_t inner, key;
+  uint8_t i;
+  if(!x) return LOG("invalid args");
+
+  // no at, force us out of sync
+  if(!at)
+  {
+    x->at += 2;
+    at = x->at;
+  }
+
+  // create new handshake inner from all supported csets
+  inner = lob_new();
+  lob_set_int(inner,"at",at);
+  
+  // loop through all ciphersets for any keys
+  for(i=0; i<CS_MAX; i++)
+  {
+    if(!(key = x->self->keys[i])) continue;
+    // this csid's key is the body, rest is intermediate in json
+    if(cipher3_sets[i] == x->cs)
+    {
+      lob_body(inner,key->body,key->body_len);
+    }else{
+      lob_set(inner,cipher3_sets[i]->hex,lob_get(key,"hash"));
+    }
+  }
+
+  return exchange3_message(x, inner);
 }
 
 // simple encrypt/decrypt conversion of any packet for channels
 lob_t exchange3_receive(exchange3_t x, lob_t outer)
 {
-  return NULL;
+  lob_t inner;
+  if(!x || !outer) return LOG("invalid args");
+  if(!x->ephem) return LOG("no handshake");
+  inner = x->cs->ephemeral_decrypt(x->ephem,outer);
+  if(!inner) return LOG("decryption failed %s",x->cs->err());
+  // TODO validate channel packet / cid
+  return inner;
 }
 
 // comes from channel 
 lob_t exchange3_send(exchange3_t x, lob_t inner)
 {
-  return NULL;
+  lob_t outer;
+  if(!x || !inner) return LOG("invalid args");
+  if(!x->ephem) return LOG("no handshake");
+  outer = x->cs->ephemeral_encrypt(x->ephem,inner);
+  if(!outer) return LOG("encryption failed %s",x->cs->err());
+  return outer;
 }
 
 // get next avail outgoing channel id

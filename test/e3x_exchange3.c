@@ -43,6 +43,13 @@ int main(int argc, char **argv)
   fail_unless(xBA);
   fail_unless(exchange3_verify(xBA,msgAB) == 0);
 
+  // generate handshake
+  lob_t hsAB = exchange3_handshake(xAB, 1);
+  fail_unless(hsAB);
+  fail_unless(hsAB->head_len == 1);
+  fail_unless(hsAB->head[0] == 0x1a);
+  fail_unless(hsAB->body_len == 60);
+
   return 0;
 }
 

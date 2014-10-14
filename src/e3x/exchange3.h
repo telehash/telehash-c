@@ -7,11 +7,12 @@
 
 typedef struct exchange3_struct
 {
-  cipher3_t cs;
+  cipher3_t cs; // convenience
   self3_t self;
   uint8_t csid, order;
   char hex[3];
   remote_t remote;
+  ephemeral_t ephem;
   uint8_t token[16];
   uint32_t at, cid;
 } *exchange3_t;
@@ -28,10 +29,10 @@ uint8_t exchange3_verify(exchange3_t x, lob_t outer);
 // returns the seq value for a handshake reply if needed
 // sets secrets/seq/cids to the given handshake if it's newer
 // always call chan_sync(c,true) after this on all open channels to signal them the exchange is active
-uint32_t exchange3_sync(exchange3_t x, lob_t handshake);
+uint32_t exchange3_sync(exchange3_t x, lob_t outer, lob_t inner);
 
-// just a convenience, seq=0 means force new handshake (and call chan_sync(false)), or seq = exchange3_seq() or exchange3_sync()
-lob_t exchange3_handshake(exchange3_t x, lob_t inner, uint32_t at);
+// just a convenience, at=0 means force new handshake, or pass at from exchange3_sync()
+lob_t exchange3_handshake(exchange3_t x, uint32_t at);
 
 // simple encrypt/decrypt conversion of any packet for channels
 lob_t exchange3_receive(exchange3_t x, lob_t outer); // goes to channel, validates cid

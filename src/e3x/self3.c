@@ -3,11 +3,12 @@
 #include <string.h>
 #include "self3.h"
 #include "platform.h"
+#include "e3x.h"
 
 // load secrets/keys to create a new local endpoint
 self3_t self3_new(lob_t secrets)
 {
-  uint8_t i, ok = 0;
+  uint8_t i, ok = 0, hash[32];
   self3_t self;
   lob_t keys = lob_linked(secrets);
   if(!keys) return NULL;
@@ -24,6 +25,9 @@ self3_t self3_new(lob_t secrets)
     // make a copy of the binary and encoded keys
     self->keys[i] = lob_get_base32(keys, cipher3_sets[i]->hex);
     lob_set(self->keys[i],"key",lob_get(keys,cipher3_sets[i]->hex));
+    // make a hash for the intermediate form for hashnames
+    e3x_hash(self->keys[i]->body,self->keys[i]->body_len,hash);
+    lob_set_base32(self->keys[i],"hash",hash,32);
     ok++;
   }
 
