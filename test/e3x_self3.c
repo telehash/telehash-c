@@ -10,6 +10,9 @@ int main(int argc, char **argv)
 
   self3_t self = self3_new(id);
   fail_unless(self);
+  fail_unless(self->locals[CS_1a]);
+  fail_unless(self->keys[CS_1a]);
+  fail_unless(self->keys[CS_1a]->body_len);
 
   return 0;
 }

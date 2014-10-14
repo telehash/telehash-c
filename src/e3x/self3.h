@@ -5,7 +5,7 @@
 
 typedef struct self3_struct
 {
-  lob_t keys;
+  lob_t keys[CS_MAX];
   local_t locals[CS_MAX];
 } *self3_t;
 

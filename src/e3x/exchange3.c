@@ -35,9 +35,24 @@ exchange3_t exchange3_new(self3_t self, uint8_t csid, lob_t key, uint32_t at)
   x->remote = remote;
   x->cs = cs;
   x->self = self;
-  // TODO add token fetch to remote
-  // TODO figure out even/odd, and fix at
+  memcpy(x->token,token,16);
+  
+  // determine order, if we sort first, we're even
+  for(i = 0; i < key->body_len; i++)
+  {
+    if(key->body[i] == self->keys[cs->id]->body[i]) continue;
+    x->order = (key->body[i] > self->keys[cs->id]->body[i]) ? 2 : 1;
+  }
+  x->cid = x->order;
+
+  // make sure at matches order
   x->at = at;
+  if(x->order == 2)
+  {
+    if(at % 2 != 0) x->at++;
+  }else{
+    if(at % 2 == 0) x->at++;
+  }
   
   return x;
 }
@@ -50,16 +65,18 @@ void exchange3_free(exchange3_t x)
 }
 
 // these require a self (local) and an exchange (remote) but are exchange independent
-// will safely set/increment seq if 0
-lob_t exchange3_message(exchange3_t x, lob_t inner, uint32_t at)
+// will safely set/increment at if 0
+lob_t exchange3_message(exchange3_t x, lob_t inner)
 {
-  return NULL;
+  if(!x || !inner) return LOG("bad args");
+  return x->cs->remote_encrypt(x->remote,x->self->locals[x->cs->id],inner);
 }
 
 // any handshake verify fail (lower seq), always resend handshake
-uint8_t exchange3_verify(exchange3_t x, lob_t message)
+uint8_t exchange3_verify(exchange3_t x, lob_t outer)
 {
-  return 0;
+  if(!x || !outer) return 1;
+  return x->cs->remote_verify(x->remote,x->self->locals[x->cs->id],outer);
 }
 
 // returns the seq value for a handshake reply if needed
@@ -71,14 +88,13 @@ uint32_t exchange3_sync(exchange3_t x, lob_t handshake)
 }
 
 // just a convenience, seq=0 means force new handshake (and call chan_sync(false)), or seq = exchange3_seq() or exchange3_sync()
-lob_t exchange3_handshake(exchange3_t x, lob_t inner, uint32_t seq)
+lob_t exchange3_handshake(exchange3_t x, lob_t inner, uint32_t at)
 {
   return NULL;
 }
 
 // simple encrypt/decrypt conversion of any packet for channels
-// goes to channel, validates cid
-lob_t exchange3_receive(exchange3_t x, lob_t packet)
+lob_t exchange3_receive(exchange3_t x, lob_t outer)
 {
   return NULL;
 }
@@ -92,6 +108,7 @@ lob_t exchange3_send(exchange3_t x, lob_t inner)
 // get next avail outgoing channel id
 uint32_t exchange3_cid(exchange3_t x)
 {
-  return 0;
+  if(!x) return 0;
+  return x->cid++;
 }
 

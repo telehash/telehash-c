@@ -9,11 +9,11 @@ typedef struct exchange3_struct
 {
   cipher3_t cs;
   self3_t self;
-  uint8_t csid;
+  uint8_t csid, order;
   char hex[3];
   remote_t remote;
-  uint8_t *token;
-  uint32_t at;
+  uint8_t token[16];
+  uint32_t at, cid;
 } *exchange3_t;
 
 // make a new exchange
@@ -22,8 +22,8 @@ exchange3_t exchange3_new(self3_t self, uint8_t csid, lob_t key, uint32_t at);
 void exchange3_free(exchange3_t x);
 
 // these require a self (local) and an exchange (remote) but are exchange independent
-lob_t exchange3_message(exchange3_t x, lob_t inner, uint32_t seq); // will safely set/increment seq if 0
-uint8_t exchange3_verify(exchange3_t x, lob_t message); // any handshake verify fail (lower seq), always resend handshake
+lob_t exchange3_message(exchange3_t x, lob_t inner);
+uint8_t exchange3_verify(exchange3_t x, lob_t outer);
 
 // returns the seq value for a handshake reply if needed
 // sets secrets/seq/cids to the given handshake if it's newer
@@ -31,10 +31,10 @@ uint8_t exchange3_verify(exchange3_t x, lob_t message); // any handshake verify 
 uint32_t exchange3_sync(exchange3_t x, lob_t handshake);
 
 // just a convenience, seq=0 means force new handshake (and call chan_sync(false)), or seq = exchange3_seq() or exchange3_sync()
-lob_t exchange3_handshake(exchange3_t x, lob_t inner, uint32_t seq);
+lob_t exchange3_handshake(exchange3_t x, lob_t inner, uint32_t at);
 
 // simple encrypt/decrypt conversion of any packet for channels
-lob_t exchange3_receive(exchange3_t x, lob_t packet); // goes to channel, validates cid
+lob_t exchange3_receive(exchange3_t x, lob_t outer); // goes to channel, validates cid
 lob_t exchange3_send(exchange3_t x, lob_t inner); // comes from channel 
 
 // get next avail outgoing channel id

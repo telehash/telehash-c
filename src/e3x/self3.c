@@ -20,9 +20,11 @@ self3_t self3_new(lob_t secrets)
   {
     if(!cipher3_sets[i] || !cipher3_sets[i]->local_new) continue;
     self->locals[i] = cipher3_sets[i]->local_new(keys, secrets);
+    if(!self->locals[i]) continue;
+    // make a copy of the binary and encoded keys
+    self->keys[i] = lob_get_base32(keys, cipher3_sets[i]->hex);
+    lob_set(self->keys[i],"key",lob_get(keys,cipher3_sets[i]->hex));
   }
-  
-  self->keys = lob_copy(keys);
 
   LOG("self created");
   return self;
@@ -39,9 +41,9 @@ void self3_free(self3_t self)
   {
     if(!self->locals[i]) continue;
     cipher3_sets[i]->local_free(self->locals[i]);
+    lob_free(self->keys[i]);
   }
 
-  lob_free(self->keys);
   free(self);
   return;
 }
