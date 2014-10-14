@@ -9,6 +9,7 @@ int main(int argc, char **argv)
   // create A
   lob_t idA = e3x_generate();
   fail_unless(idA);
+  printf("idA key %.*s secret %.*s\n",lob_linked(idA)->head_len,lob_linked(idA)->head,idA->head_len,idA->head);
   self3_t selfA = self3_new(idA);
   fail_unless(selfA);
   lob_t keyA = lob_get_base32(lob_linked(idA),"1a");

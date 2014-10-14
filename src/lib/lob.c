@@ -269,10 +269,12 @@ void lob_set_base32(lob_t p, char *key, uint8_t *bin, uint16_t blen)
 {
   char *val;
   if(!p || !key || !bin || !blen) return;
-  uint16_t vlen = base32_encode_length(blen);
-  if(!(val = malloc(vlen))) return;
-  base32_encode_into(bin, blen, val);
-  lob_set_raw(p,key,val,vlen-1);
+  uint16_t vlen = base32_encode_length(blen)-1; // remove the auto-added \0 space
+  if(!(val = malloc(vlen+2))) return; // include surrounding quotes
+  val[0] = '"';
+  base32_encode_into(bin, blen, val+1);
+  val[vlen+1] = '"';
+  lob_set_raw(p,key,val,vlen+2);
   return;
 }
 
@@ -402,7 +404,7 @@ lob_t lob_get_base32(lob_t p, char *key)
   // make space to decode into the body
   if(!lob_body(ret,NULL,base32_decode_length(len))) return lob_free(ret);
   // if the decoding wasn't successful, fail
-  if(base32_decode_into(val,len,ret->body) != (int)ret->body_len) return lob_free(ret);
+  if(base32_decode_into(val,len,ret->body) < (int)ret->body_len) return lob_free(ret);
   return ret;
 }
 
