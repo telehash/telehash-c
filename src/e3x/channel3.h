@@ -1,9 +1,30 @@
-#ifndef e3chan_h
-#define e3chan_h
+#ifndef channel3_h
+#define channel3_h
 #include <stdint.h>
 #include "e3x.h"
 
+typedef struct channel3_struct *channel3_t; // standalone channel packet management, buffering and ordering
 
+// caller must manage lists of channels per exchange3 based on cid
+channel3_t channel3_new(lob_t open); // open must be channel3_receive or channel3_send next yet
+void channel3_free(channel3_t c);
+void channel3_ev(channel3_t c, event3_t ev); // timers only work with this set
+
+// incoming packets
+uint8_t channel3_receive(channel3_t c, lob_t inner); // usually sets/updates event timer, ret if accepted/valid into receiving queue
+void channel3_sync(channel3_t c, uint8_t sync); // false to force start timers (any new handshake), true to cancel and resend last packet (after any exchange3_sync)
+lob_t channel3_receiving(channel3_t c); // get next avail packet in order, null if nothing
+
+// outgoing packets
+lob_t channel3_packet(channel3_t c);  // creates a packet w/ necessary json, just a convenience
+uint8_t channel3_send(channel3_t c, lob_t inner); // adds to sending queue, adds json if needed
+lob_t channel3_sending(channel3_t c); // must be called after every send or receive, pass pkt to exchange3_encrypt before sending
+
+// convenience functions
+uint32_t channel3_id(channel3_t c); // numeric of the open->cid
+lob_t channel3_open(channel3_t c); // returns the open packet (always cached)
+uint8_t channel3_state(channel3_t c); // E3CHAN_OPENING, E3CHAN_OPEN, or E3CHAN_ENDED
+uint32_t channel3_size(channel3_t c); // size (in bytes) of buffered data in or out
 
 
 /*
@@ -62,7 +83,6 @@ void e3chan_ack(e3chan_t c);
 // add/remove from switch processing queue
 void e3chan_queue(e3chan_t c);
 void e3chan_dequeue(e3chan_t c);
-*/
 
 // just add ack/miss
 lob_t e3chan_seq_ack(e3chan_t c, lob_t p);
@@ -90,5 +110,7 @@ void e3chan_miss_check(e3chan_t c, lob_t p);
 
 void e3chan_miss_init(e3chan_t c);
 void e3chan_miss_free(e3chan_t c);
+*/
+
 
 #endif

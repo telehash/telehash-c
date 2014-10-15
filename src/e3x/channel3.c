@@ -3,6 +3,12 @@
 #include "util.h"
 #include "e3x.h"
 
+// internal only structure, always use accessors
+struct channel3_struct
+{
+    
+};
+
 channel3_t channel3_new(lob_t open){return NULL;} // open must be channel3_receive or channel3_send next yet
 void channel3_free(channel3_t c){};
 void channel3_ev(channel3_t c, event3_t ev){}; // timers only work with this set
