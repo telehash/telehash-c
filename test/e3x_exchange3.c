@@ -44,11 +44,32 @@ int main(int argc, char **argv)
   fail_unless(exchange3_verify(xBA,msgAB) == 0);
 
   // generate handshake
-  lob_t hsAB = exchange3_handshake(xAB, 1);
+  lob_t hsAB = exchange3_handshake(xAB, 3);
   fail_unless(hsAB);
   fail_unless(hsAB->head_len == 1);
   fail_unless(hsAB->head[0] == 0x1a);
   fail_unless(hsAB->body_len == 60);
+
+  // sync w/ handshake both ways
+  lob_t inAB = self3_decrypt(selfB,hsAB);
+  fail_unless(inAB);
+  int sync = exchange3_sync(xBA,hsAB,inAB);
+  fail_unless(sync);
+  lob_t hsBA = exchange3_handshake(xBA, sync);
+  lob_t inBA = self3_decrypt(selfA,hsBA);
+  fail_unless(inBA);
+  sync = exchange3_sync(xAB,hsBA,inBA);
+  fail_unless(sync);
+  
+  // send/receive channel packet
+  lob_t chanAB = lob_new();
+  lob_set_int(chanAB,"c",exchange3_cid(xAB));
+  lob_t coutAB = exchange3_send(xAB,chanAB);
+  fail_unless(coutAB);
+  fail_unless(coutAB->body_len == 33);
+  lob_t cinAB = exchange3_receive(xBA,coutAB);
+  fail_unless(cinAB);
+  fail_unless(lob_get_int(cinAB,"c") == lob_get_int(chanAB,"c"));
 
   return 0;
 }

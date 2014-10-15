@@ -85,10 +85,29 @@ uint8_t exchange3_verify(exchange3_t x, lob_t outer)
 // always call chan_sync(c,true||false) after this on all open channels to signal them
 uint32_t exchange3_sync(exchange3_t x, lob_t outer, lob_t inner)
 {
-  if(!x || !outer || !inner) return 0;
-  // create/update ephem
-  // return in sync
-  return 0;
+  uint32_t at;
+  ephemeral_t ephem;
+  if(!x || !outer || !inner) return x->at;
+  if(outer->body_len < 16) return x->at;
+  
+  // if the inner at is older than ours, send ours
+  at = lob_get_int(inner,"at");
+  if(at < x->at) return x->at;
+
+  // if the incoming handshake's key is different, create a new ephemeral
+  if(memcmp(outer->body,x->etoken,16) != 0)
+  {
+    ephem = x->cs->ephemeral_new(x->remote,outer);
+    if(!ephem)
+    {
+      LOG("ephemeral creation failed %s",x->cs->err());
+      return 0;
+    }
+    x->cs->ephemeral_free(x->ephem);
+    x->ephem = ephem;
+  }
+
+  return at;
 }
 
 // just a convenience, at=0 means force new handshake (and chan_sync(false)), or pass at from exchange3_sync()

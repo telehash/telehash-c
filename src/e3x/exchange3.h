@@ -13,7 +13,7 @@ typedef struct exchange3_struct
   char hex[3];
   remote_t remote;
   ephemeral_t ephem;
-  uint8_t token[16];
+  uint8_t token[16], etoken[16];
   uint32_t at, cid;
 } *exchange3_t;
 
