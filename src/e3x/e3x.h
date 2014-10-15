@@ -12,7 +12,6 @@
 //
 
 typedef struct channel3_struct *channel3_t; // standalone channel packet management, buffering and ordering
-typedef struct event3_struct *event3_t; // standalone event timer utility
 
 
 // ###########################
@@ -44,6 +43,11 @@ uint8_t *e3x_hash(uint8_t *in, uint32_t len, uint8_t *out32);
 
 #include "exchange3.h"
 
+//############################################
+// standalone timer event utility for channels
+
+#include "event3.h"
+
 //##################################################
 // standalone channel packet buffer/ordering utility
 
@@ -68,15 +72,6 @@ lob_t channel3_open(channel3_t c); // returns the open packet (always cached)
 uint8_t channel3_state(channel3_t c); // E3CHAN_OPENING, E3CHAN_OPEN, or E3CHAN_ENDED
 uint32_t channel3_size(channel3_t c); // size (in bytes) of buffered data in or out
 
-
-//############################################
-// standalone timer event utility for channels
-
-// simple timer eventing (for channels)
-event3_t event3_new();
-uint32_t event3_at(event3_t ev); // when to call event3_get()
-lob_t event3_get(event3_t ev); // has token and cid, look up and pass in to chan_receive
-void event3_set(event3_t ev, lob_t event, uint32_t at); // 0 is delete, event is unique per ->id
 
 
 //##############

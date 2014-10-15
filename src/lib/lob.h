@@ -13,7 +13,7 @@ typedef struct lob_struct
   uint16_t head_len;
   struct lob_struct *next, *chain;
   char *cache; // internal editable copy of the json
-  uint16_t quota; // defaults to 1440
+  uint32_t quota; // defaults to 1440
 } *lob_t;
 
 // these all allocate/free memory
@@ -38,7 +38,7 @@ uint8_t *lob_raw(lob_t p);
 uint32_t lob_len(lob_t p);
 
 // return current packet capacity based on quota
-uint16_t lob_space(lob_t p);
+uint32_t lob_space(lob_t p);
 
 // set/store these in the current packet
 uint8_t *lob_head(lob_t p, uint8_t *head, uint16_t len);

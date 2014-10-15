@@ -72,9 +72,9 @@ lob_t lob_free(lob_t p)
   return NULL;
 }
 
-uint16_t lob_space(lob_t p)
+uint32_t lob_space(lob_t p)
 {
-  uint16_t len;
+  uint32_t len;
   if(!p) return 0;
   len = lob_len(p);
   if(len > p->quota) return 0;
