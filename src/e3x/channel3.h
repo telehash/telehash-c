@@ -8,7 +8,9 @@ typedef struct channel3_struct *channel3_t; // standalone channel packet managem
 // caller must manage lists of channels per exchange3 based on cid
 channel3_t channel3_new(lob_t open); // open must be channel3_receive or channel3_send next yet
 void channel3_free(channel3_t c);
-void channel3_ev(channel3_t c, event3_t ev); // timers only work with this set
+
+// sets new timeout, or returns current time left if 0
+uint32_t channel3_timeout(channel3_t c, event3_t ev, uint32_t timeout);
 
 // incoming packets
 uint8_t channel3_receive(channel3_t c, lob_t inner); // usually sets/updates event timer, ret if accepted/valid into receiving queue
@@ -21,9 +23,13 @@ uint8_t channel3_send(channel3_t c, lob_t inner); // adds to sending queue, adds
 lob_t channel3_sending(channel3_t c); // must be called after every send or receive, pass pkt to exchange3_encrypt before sending
 
 // convenience functions
+char *channel3_uid(channel3_t c);
 uint32_t channel3_id(channel3_t c); // numeric of the open->cid
 lob_t channel3_open(channel3_t c); // returns the open packet (always cached)
-uint8_t channel3_state(channel3_t c); // E3CHAN_OPENING, E3CHAN_OPEN, or E3CHAN_ENDED
+
+enum channel3_states { ENDED, OPENING, OPEN };
+enum channel3_states channel3_state(channel3_t c);
+
 uint32_t channel3_size(channel3_t c); // size (in bytes) of buffered data in or out
 
 
