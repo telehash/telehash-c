@@ -2,15 +2,54 @@
 #include <stdlib.h>
 #include "util.h"
 #include "e3x.h"
+#include "platform.h"
 
 // internal only structure, always use accessors
 struct channel3_struct
 {
-    
+  uint32_t id; // wire id (not unique)
+  lob_t open; // initial open cached
+  uint32_t tsent, trecv; // last send, recv
+  uint32_t timeout; // seconds since last trecv to auto-err
+  char uid[9]; // uid is switch-wide unique
+  char *type;
+  uint8_t reliable;
+  uint8_t state;
+  lob_t in, inend, notes;
+  void *arg; // used by extensions
+  void *seq, *miss; // used by channel3_seq/channel3_miss
+  // event callbacks for channel implementations
+  void (*handler)(struct channel3_struct*); // handle incoming packets immediately/directly
 };
 
-channel3_t channel3_new(lob_t open){return NULL;} // open must be channel3_receive or channel3_send next yet
-void channel3_free(channel3_t c){};
+// open must be channel3_receive or channel3_send next yet
+channel3_t channel3_new(lob_t open)
+{
+  uint32_t id;
+  char *type;
+  channel3_t c;
+
+  if(!open) return LOG("open packet required");
+  id = (uint32_t)lob_get_int(open,"c");
+  if(!id) return LOG("invalid channel id");
+  type = lob_get(open,"type");
+  if(!type) return LOG("missing channel type");
+
+  LOG("channel new %d %s",id,type);
+  c = malloc(sizeof (struct channel3_struct));
+  memset(c,0,sizeof (struct channel3_struct));
+  c->open = lob_copy(open);
+  c->id = id;
+  c->type = lob_get(c->open,"type");
+  return c;
+}
+
+void channel3_free(channel3_t c)
+{
+  if(!c) return;
+  free(c);
+};
+
 void channel3_ev(channel3_t c, event3_t ev){}; // timers only work with this set
 
 // incoming packets
