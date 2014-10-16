@@ -18,6 +18,10 @@ event3_t event3_new(uint32_t prime)
   memset(ev,0,sizeof (struct event3_struct));
   
   if(prime) ev->ids = xht_new(prime);
+  
+  // leave a blank at the start
+  ev->events = lob_new();
+  ev->events->quota = 0;
 
   return ev;
 }
@@ -42,28 +46,63 @@ void event3_free(event3_t ev)
 // the next lowest at value, or 0 if none
 uint32_t event3_at(event3_t ev)
 {
-  if(!ev || !ev->events) return 0;
-  return ev->events->quota;
+  if(!ev || !ev->events->next) return 0;
+  return ev->events->next->quota;
 }
 
 // remove and return the lowest lob packet below the given at
 lob_t event3_get(event3_t ev, uint32_t at)
 {
-  lob_t next;
-  if(!ev || !ev->events || !at) return NULL;
-  if(ev->events->quota > at) return NULL;
-  next = ev->events;
-  ev->events = next->next;
-  next->next = next->chain = NULL;
-  if(ev->events) ev->events->chain = NULL;
-  return next;
+  lob_t ret;
+  if(!ev || !ev->events->next || !at) return NULL;
+  ret = ev->events->next;
+  
+  // if it's not up yet
+  if(ret->quota > at) return NULL;
+  
+  // repair the links
+  ev->events->next = ret->next;
+  if(ret->next) ret->next->chain = ev->events;
+  
+  // isolate the one we're returning
+  ret->next = ret->chain = NULL;
+  return ret;
 }
 
 // 0 is delete, event is unique per id
 void event3_set(event3_t ev, lob_t event, char *id, uint32_t at)
 {
-  // save at to event->quota
-  // use event->chain as previous for linked list
-  // if no ev->ids ignore id
+  lob_t existing;
+  if(!ev) return;
+  if(event) event->quota = at;
+
+  // if given an id, and there's a different existing lob, free it
+  if(id)
+  {
+    existing = xht_get(ev->ids,id);
+    if(existing && existing != event)
+    {
+      // unlink in place
+      if(existing->next) existing->next->chain = existing->chain;
+      existing->chain->next = existing->next;
+      lob_free(existing);
+    }
+  }
+
+  // save new one if requested
+  if(event && at)
+  {
+    // save id ref if requested
+    if(id) xht_set(ev->ids,id,(void*)event);
+    
+    // place in sorted linked list
+    existing = ev->events;
+    while(existing->next && existing->next->quota < at) existing = existing->next;
+    event->next = existing->next;
+    event->next->chain = event;
+    existing->next = event;
+    event->chain = existing;
+  }
+  
 }
 
