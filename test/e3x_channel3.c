@@ -30,6 +30,21 @@ int main(int argc, char **argv)
   event3_t ev = event3_new(1);
   fail_unless(channel3_timeout(chan,ev,1) == 1);
 
+  // receive packets
+  lob_t incoming = lob_new();
+  lob_set_int(incoming,"test",42);
+  fail_unless(channel3_receive(chan,incoming) == 0);
+  fail_unless(lob_get_int(channel3_receiving(chan),"test") == 42);
+  fail_unless(channel3_receiving(chan) == NULL);
+
+  // send packets
+  lob_t outgoing = channel3_packet(chan);
+  fail_unless(lob_get_int(outgoing,"c") == 1);
+  lob_set_int(outgoing,"test",42);
+  fail_unless(channel3_send(chan,outgoing) == 0);
+  fail_unless(lob_get_int(channel3_sending(chan),"test") == 42);
+  fail_unless(channel3_sending(chan) == NULL);
+  
   return 0;
 }
 

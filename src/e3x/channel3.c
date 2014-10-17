@@ -65,11 +65,25 @@ channel3_t channel3_new(lob_t open)
 
 void channel3_free(channel3_t c)
 {
+  lob_t tmp;
   if(!c) return;
   // cancel timeouts
   channel3_timeout(c,NULL,0);
   // free cached packet
   lob_free(c->open);
+  // free any other queued packets
+  while(c->in)
+  {
+    tmp = c->in;
+    c->in = tmp->next;
+    lob_free(tmp);
+  }
+  while(c->out)
+  {
+    tmp = c->out;
+    c->out = tmp->next;
+    lob_free(tmp);
+  }
   free(c);
 };
 
@@ -134,19 +148,39 @@ enum channel3_states channel3_state(channel3_t c)
 // usually sets/updates event timer, ret if accepted/valid into receiving queue
 uint8_t channel3_receive(channel3_t c, lob_t inner)
 {
+  lob_t end;
+  if(!c || !inner) return 1;
+  if(!c->in)
+  {
+    c->in = inner;
+    return 0;
+  }
+
+  // TODO reliability
+
+  end = c->in;
+  while(!end->next) end = end->next;
+  end->next = inner;
+
   return 0;
 }
 
 // false to force start timers (any new handshake), true to cancel and resend last packet (after any e3x_sync)
 void channel3_sync(channel3_t c, uint8_t sync)
 {
-  
+  if(!c) return;
+  LOG("%s sync %d TODO",c->uid,sync);
 }
 
 // get next avail packet in order, null if nothing
 lob_t channel3_receiving(channel3_t c)
 {
-  return NULL;
+  lob_t ret;
+  if(!c || !c->in) return NULL;
+  // TODO reliability
+  ret = c->in;
+  c->in = ret->next;
+  return ret;
 }
 
 // outgoing packets
@@ -154,19 +188,47 @@ lob_t channel3_receiving(channel3_t c)
 // creates a packet w/ necessary json, just a convenience
 lob_t channel3_packet(channel3_t c)
 {
-  return NULL;
+  lob_t ret;
+  if(!c) return NULL;
+  
+  ret = lob_new();
+  lob_set_int(ret,"c",c->id);
+  // TODO reliability
+  return ret;
 }
 
 // adds to sending queue, adds json if needed
 uint8_t channel3_send(channel3_t c, lob_t inner)
 {
+  lob_t end;
+  if(!c || !inner) return 1;
+  
+  if(!lob_get_int(inner,"c")) lob_set_int(inner,"c",c->id);
+
+  // TODO reliability
+
+  if(!c->out)
+  {
+    c->out = inner;
+    return 0;
+  }
+
+  end = c->out;
+  while(!end->next) end = end->next;
+  end->next = inner;
+
   return 0;
 }
 
 // must be called after every send or receive, pass pkt to e3x_encrypt before sending
 lob_t channel3_sending(channel3_t c)
 {
-  return 0;
+  lob_t ret;
+  if(!c || !c->out) return NULL;
+  // TODO reliability
+  ret = c->out;
+  c->out = ret->next;
+  return ret;
 }
 
 // size (in bytes) of buffered data in or out
