@@ -9,7 +9,7 @@ links_t links_new()
 {
   links_t b = malloc(sizeof (struct links_struct));
   memset(b,0,sizeof (struct links_struct));
-  b->hns = NULL;
+  b->links = NULL;
   b->args = NULL;
   return b;
 }
@@ -17,11 +17,12 @@ links_t links_new()
 void links_free(links_t b)
 {
   if(!b) return;
-  if(b->hns) free(b->hns);
+  if(b->links) free(b->links);
   if(b->args) free(b->args);
   free(b);
 }
 
+/*
 void links_add(links_t b, hashname_t hn)
 {
   void *ptr;
@@ -89,3 +90,4 @@ void *links_arg(links_t b, hashname_t hn)
   return b->args[i];
 }
 
+*/

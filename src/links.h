@@ -1,32 +1,32 @@
 #ifndef links_h
 #define links_h
 
-#include "hashname.h"
+#include "link.h"
 
-// simple array of hashname management
+// simple array of links management
 
 typedef struct links_struct
 {
   int count;
-  hashname_t *hns;
+  link_t *links;
   void **args;
 } *links_t;
 
 links_t links_new();
 void links_free(links_t b);
 
-// adds/removes hashname
-void links_add(links_t b, hashname_t h);
-void links_rem(links_t b, hashname_t h);
+// adds/removes link
+void links_add(links_t b, link_t link);
+void links_rem(links_t b, link_t link);
 
-// returns index position if in the bucket, otherwise -1
-int links_in(links_t b, hashname_t h);
+// returns index position if in the list, otherwise -1
+int links_in(links_t b, link_t link);
 
-// these set and return an optional arg for the matching hashname
-void links_set(links_t b, hashname_t h, void *arg);
-void *links_arg(links_t b, hashname_t h);
+// these set and return an optional arg for the matching link
+void links_set(links_t b, link_t link, void *arg);
+void *links_arg(links_t b, link_t link);
 
 // simple array index function
-hashname_t links_get(links_t b, int index);
+link_t links_get(links_t b, int index);
 
 #endif

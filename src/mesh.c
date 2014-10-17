@@ -12,16 +12,28 @@ mesh_t mesh_new(uint32_t prime)
   mesh_t s;
   if(!(s = malloc(sizeof (struct mesh_struct)))) return NULL;
   memset(s, 0, sizeof(struct mesh_struct));
-  s->cap = 256; // default cap size
-  s->window = 32; // default reliable window size
+//  s->cap = 256; // default cap size
+//  s->window = 32; // default reliable window size
   s->index = xht_new(prime?prime:MAXPRIME);
-  s->parts = lob_new();
-  s->active = bucket_new();
-  s->tick = platform_seconds();
-  if(!s->index || !s->parts) return mesh_free(s);
+//  s->parts = lob_new();
+//  s->active = bucket_new();
+//  s->tick = platform_seconds();
+  if(!s->index) return mesh_free(s);
   return s;
 }
 
+mesh_t mesh_free(mesh_t s)
+{
+  if(!s) return NULL;
+  xht_free(s->index);
+//  lob_free(s->parts);
+//  if(s->seeds) bucket_free(s->seeds);
+//  bucket_free(s->active);
+  free(s);
+  return NULL;
+}
+
+/*
 int mesh_init(mesh_t s, lob_t keys)
 {
   int i = 0, err = 0;
@@ -60,16 +72,6 @@ int mesh_init(mesh_t s, lob_t keys)
   return 0;
 }
 
-mesh_t mesh_free(mesh_t s)
-{
-  if(!s) return NULL;
-  xht_free(s->index);
-  lob_free(s->parts);
-  if(s->seeds) bucket_free(s->seeds);
-  bucket_free(s->active);
-  free(s);
-  return NULL;
-}
 
 void mesh_capwin(mesh_t s, int cap, int window)
 {
@@ -363,3 +365,4 @@ int mesh_note(mesh_t s, lob_t note)
   return 0;
 
 }
+*/

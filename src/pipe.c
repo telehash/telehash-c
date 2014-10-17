@@ -1,50 +1,49 @@
-#include "path.h"
+#include "pipe.h"
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
-#include "js0n.h"
-#include "j0g.h"
 #include "util.h"
 
-path_t path_new(char *type)
+/*
+pipe_t pipe_new(char *type)
 {
   if(!strstr("ipv4 ipv6 relay local http", type)) return NULL;
-  path_t p;
-  if(!(p = malloc(sizeof (struct path_struct)))) return NULL;
-  memset(p,0,sizeof (struct path_struct));
+  pipe_t p;
+  if(!(p = malloc(sizeof (struct pipe_struct)))) return NULL;
+  memset(p,0,sizeof (struct pipe_struct));
   memcpy(p->type,type,strlen(type)+1);
   return p;
 }
 
-void path_free(path_t p)
+void pipe_free(pipe_t p)
 {
   if(p->id) free(p->id);
   if(p->json) free(p->json);
   free(p);
 }
 
-path_t path_parse(char *json, int len)
+pipe_t pipe_parse(char *json, int len)
 {
   unsigned short js[64];
-  path_t p;
+  pipe_t p;
   
   if(!json) return NULL;
   if(!len) len = strlen(json);
   js0n((unsigned char*)json, len, js, 64);
   if(!j0g_val("type",json,js)) return NULL;
-  p = path_new(j0g_str("type",json,js));
+  p = pipe_new(j0g_str("type",json,js));
 
   // just try to set all possible attributes
-  path_ip(p, j0g_str("ip",json,js));
-  if(j0g_str("port",json,js)) path_port(p, (uint16_t)strtol(j0g_str("port",json,js),NULL,10));
-  path_id(p, j0g_str("id",json,js));
-  path_http(p, j0g_str("http",json,js));
+  pipe_ip(p, j0g_str("ip",json,js));
+  if(j0g_str("port",json,js)) pipe_port(p, (uint16_t)strtol(j0g_str("port",json,js),NULL,10));
+  pipe_id(p, j0g_str("id",json,js));
+  pipe_http(p, j0g_str("http",json,js));
   
   return p;
 }
 
-char *path_id(path_t p, char *id)
+char *pipe_id(pipe_t p, char *id)
 {
   if(!id) return p->id;
   if(p->id) free(p->id);
@@ -54,12 +53,12 @@ char *path_id(path_t p, char *id)
 }
 
 // overloads our .id for the http value
-char *path_http(path_t p, char *http)
+char *pipe_http(pipe_t p, char *http)
 {
-  return path_id(p,http);
+  return pipe_id(p,http);
 }
 
-char *path_ip(path_t p, char *ip)
+char *pipe_ip(pipe_t p, char *ip)
 {
   if(!ip) return p->ip;
   if(strlen(ip) > 45) return NULL;
@@ -67,7 +66,7 @@ char *path_ip(path_t p, char *ip)
   return p->ip;
 }
 
-char *path_ip4(path_t p, uint32_t ip)
+char *pipe_ip4(pipe_t p, uint32_t ip)
 {
   uint8_t *ip4 = (uint8_t*)&ip;
   if(!ip) return p->ip;
@@ -75,14 +74,14 @@ char *path_ip4(path_t p, uint32_t ip)
   return p->ip;
 }
 
-uint16_t path_port(path_t p, uint16_t port)
+uint16_t pipe_port(pipe_t p, uint16_t port)
 {
   if(port) p->port = port;
   return p->port;
 }
 
 
-char *path_json(path_t p)
+char *pipe_json(pipe_t p)
 {
   int len;
   char *json;
@@ -119,7 +118,7 @@ char *path_json(path_t p)
   return p->json;
 }
 
-int path_match(path_t p1, path_t p2)
+int pipe_match(pipe_t p1, pipe_t p2)
 {
   if(!p1 || !p2) return 0;
   if(p1 == p2) return 1;
@@ -133,7 +132,7 @@ int path_match(path_t p1, path_t p2)
   return 0;
 }
 
-int path_alive(path_t p)
+int pipe_alive(pipe_t p)
 {
   unsigned long now;
   if(!p) return 0;
@@ -142,17 +141,18 @@ int path_alive(path_t p)
   return 0;
 }
 
-// tell if path is local or public, 1 = local 0 = public
-int path_local(path_t p)
+// tell if pipe is local or public, 1 = local 0 = public
+int pipe_local(pipe_t p)
 {
   if(!p) return -1;
   // TODO, determine public types/IP ranges
   return 1;
 }
 
-path_t path_copy(path_t p)
+pipe_t pipe_copy(pipe_t p)
 {
-  path_t p2 = path_parse(path_json(p),0);
+  pipe_t p2 = pipe_parse(pipe_json(p),0);
   p2->arg = p->arg;
   return p2;
 }
+*/

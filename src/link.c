@@ -4,6 +4,7 @@
 #include "util.h"
 #include "mesh.h"
 
+/*
 // flags channel as ended either in or out
 void doend(link_t c)
 {
@@ -387,3 +388,5 @@ void link_ack(link_t c)
   DEBUG_PRINTF("channel ack %d %.*s",c->id,p->json_len,p->json);
   switch_send(c->s,p);
 }
+
+*/

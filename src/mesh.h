@@ -2,33 +2,32 @@
 #define mesh_h
 
 #include "hashname.h"
-#include "bucket.h"
 #include "lob.h"
 #include "xht.h"
-#include "chan.h"
+#include "link.h"
+#include "links.h"
 #include "util.h"
 #include "platform.h"
-#include "crypt.h"
-#include "path.h"
 
 typedef struct mesh_struct
 {
   hashname_t id;
-  bucket_t seeds, active;
+//  bucket_t seeds, active;
   lob_t out, last; // packets waiting to be delivered
   lob_t parts;
-  chan_t chans; // channels waiting to be processed
+//  chan_t chans; // channels waiting to be processed
   uint32_t uid, tick;
   int cap, window;
-  uint8_t isSeed;
+//  uint8_t isSeed;
   xht_t index;
-  void (*handler)(struct mesh_struct *, hashname_t); // called w/ a hn that has no key info
+//  void (*handler)(struct mesh_struct *, hashname_t); // called w/ a hn that has no key info
 } *mesh_t;
 
 // pass in a prime for the main index of hashnames+lines+channels, 0 to use default
 mesh_t mesh_new(uint32_t prime);
 mesh_t mesh_free(mesh_t s);
 
+/*
 // must be called to initialize to a hashname from json keys, return !0 if failed, free's keys
 int mesh_init(mesh_t s, lob_t keys);
 
@@ -63,5 +62,6 @@ void mesh_open(mesh_t s, hashname_t to, path_t direct);
 
 // sends a note packet to it's channel if it can, !0 for error
 int mesh_note(mesh_t s, lob_t note);
+*/
 
 #endif

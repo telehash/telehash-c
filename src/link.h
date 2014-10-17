@@ -1,7 +1,14 @@
 #ifndef link_h
 #define link_h
 #include <stdint.h>
+#include "e3x.h"
 
+typedef struct link_struct
+{
+  channel3_t chan;
+} *link_t;
+
+/*
 // default channel inactivity timeout in seconds
 #define CHAN_TIMEOUT 10
 
@@ -107,5 +114,6 @@ void link_miss_check(link_t c, packet_t p);
 
 void link_miss_init(link_t c);
 void link_miss_free(link_t c);
+*/
 
 #endif
