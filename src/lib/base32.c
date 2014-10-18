@@ -118,8 +118,8 @@ int base32_decode_into(const char *base32Buffer, unsigned int base32BufLen, void
     unsigned char  word;
     unsigned char *buffer = _buffer;
 
-    memset(buffer, 0, base32_decode_length(base32BufLen));
-    max = strlen(base32Buffer);
+    max = base32BufLen ? base32BufLen : strlen(base32Buffer);
+    memset(buffer, 0, base32_decode_length(max));
     for(i = 0, index = 0, offset = 0; i < max; i++)
     {
         lookup = toupper(base32Buffer[i]) - '0';

@@ -8,7 +8,7 @@ int main(int argc, char **argv)
   lob_t secrets = mesh_generate(mesh);
   fail_unless(secrets);
   fail_unless(mesh->self);
-  fail_unless(mesh->id);
+//  fail_unless(mesh->id);
   
   uint8_t dummy[32];
   link_t link = link_new(mesh,hashname_new(dummy));

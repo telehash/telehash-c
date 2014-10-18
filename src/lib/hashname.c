@@ -5,6 +5,7 @@
 #include "base32.h"
 #include "platform.h"
 #include "util.h"
+#include "e3x.h" // for sha256 e3x_hash()
 
 // how many csids can be used to make a hashname
 #define MAX_CSIDS 8
@@ -44,70 +45,62 @@ hashname_t hashname_str(char *str)
   return hn;
 }
 
-// create hashname from intermediate values
+// create hashname from intermediate values as hex/base32 key/value pairs
 hashname_t hashname_im(lob_t im)
 {
+  int i, start;
+  uint8_t hash[64];
+  char *key, *value;
   hashname_t hn = NULL;
   if(!im) return LOG("invalid args");
 
+  // get in sorted order
   lob_sort(im);
 
-  return hn;
-
-  /*
-  for(ids=i=0;ids<MAX_CSIDS && p->js[i];i+=4)
+  // loop through all keys rolling up
+  for(i=0;(key = lob_get_index(im,i));i+=2)
   {
-    if(p->js[i+1] != 2) continue; // csid must be 2 char only
-    memcpy(hex,p->json+p->js[i],2);
-    memcpy(csids+(ids*2),hex,2);
-    util_unhex((unsigned char*)hex,2,(unsigned char*)&csid);
-    ids++;
+    value = lob_get_index(im,i+1);
+    if(strlen(key) != 2 || !value) continue; // skip non-csid keys
+    if(strlen(value) != 52) return LOG("invalid value %s",key,value);
+    util_unhex(key,2,hash+32);
+    start = (i == 0) ? 32 : 0; // only first one excludes previous rollup
+    e3x_hash(hash+start,(32-start)+1,hash); // hash in place
+    base32_decode_into(value,52,hash+32);
+    e3x_hash(hash,64,hash);
   }
+  if(!i || i % 2 != 0) return LOG("invalid keys %d",i);
   
-  if(!best) return NULL; // we must match at least one
-  util_sort(csids,ids,2,csidcmp,NULL);
-
-  rollup = NULL;
-  ri = 0;
-  for(i=0;i<ids;i++)
-  {
-    len = 2;
-    if(!(rollup = util_reallocf(rollup,ri+len))) return NULL;
-    memcpy(rollup+ri,csids+(i*2),len);
-    crypt_hash(rollup,ri+len,hnbin);
-    ri = 32;
-    if(!(rollup = util_reallocf(rollup,ri))) return NULL;
-    memcpy(rollup,hnbin,ri);
-
-    memcpy(hex,csids+(i*2),2);
-    part = lob_get_str(p, hex);
-    if(!part) continue; // garbage safety
-    len = strlen(part);
-    if(!(rollup = util_reallocf(rollup,ri+len))) return NULL;
-    memcpy(rollup+ri,part,len);
-    crypt_hash(rollup,ri+len,hnbin);
-    memcpy(rollup,hnbin,32);
-  }
-  memcpy(hnbin,rollup,32);
-  free(rollup);
-  hn = hashname_get(index, hnbin);
-  if(!hn) return NULL;
-
-  if(!hn->parts) hn->parts = p;
-  else lob_free(p);
-  
-  hn->csid = best;
-  util_hex((unsigned char*)&best,1,(unsigned char*)hn->hexid);
-
+  hn = hashname_new(hash);
   return hn;
-  */
 }
 
 hashname_t hashname_keys(lob_t keys)
 {
+  int i,len;
+  uint8_t *buf;
+  char *key, *value;
   hashname_t hn;
-  hn = hashname_new(NULL);
-  LOG("TODO HASHNAME");
+  lob_t im;
+
+  if(!keys) return LOG("bad args");
+
+  // loop through all keys and create intermediates
+  im = lob_new();
+  for(i=0;(key = lob_get_index(keys,i));i+=2)
+  {
+    value = lob_get_index(im,i+1);
+    if(strlen(key) != 2 || !value) continue; // skip non-csid keys
+    len = base32_decode_length(strlen(value));
+    buf = realloc(buf,len);
+    if(!buf) return (hashname_t)lob_free(im);
+    base32_decode_into(value,strlen(value),buf);
+    lob_set_base32(im,key,buf,len);
+  }
+  free(buf);
+
+  hn = hashname_im(im);
+  lob_free(im);
   return hn;
 }
 

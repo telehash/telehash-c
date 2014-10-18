@@ -22,6 +22,7 @@ void hashname_free(hashname_t hn);
 hashname_t hashname_str(char *str); // from a string
 hashname_t hashname_keys(lob_t keys);
 hashname_t hashname_key(lob_t packet);
+hashname_t hashname_im(lob_t im); // from intermediate key/value pairs
 
 // utilities related to hashnames
 uint8_t hashname_id(lob_t a, lob_t b); // best matching id (single byte)
