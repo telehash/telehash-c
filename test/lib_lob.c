@@ -31,6 +31,9 @@ int main(int argc, char **argv)
   fail_unless(bin);
   fail_unless(bin->body_len == len);
 
+  lob_set(packet,"key","value");
+  fail_unless(lob_keys(packet) == 2);
+
   return 0;
 }
 

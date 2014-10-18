@@ -398,17 +398,17 @@ lob_t lob_get_base32(lob_t p, char *key)
   return ret;
 }
 
-/*
 // count of keys
 int lob_keys(lob_t p)
 {
-  int i;
-  if(!p || !p->js[0]) return 0;
-  for(i=0;p->js[i];i+=2);
-  i = i/2; // i is start,len pairs
+  int i, len = 0;
+  if(!p) return 0;
+  for(i=0;js0n(NULL,i,(char*)p->head,p->head_len,&len);i++);
   if(i % 2) return 0; // must be even number for key:val pairs
   return i/2;
 }
+
+/*
 
 int pkeycmp(void *s, const void *a, const void *b)
 {
