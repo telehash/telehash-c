@@ -64,6 +64,12 @@ int util_cmp(char *a, char *b)
   return memcmp(a,b,strlen(a));
 }
 
+// default alpha sort
+int _util_sort_alpha(void *arg, const void *a, const void *b)
+{
+  return util_cmp((char*)a,(char*)b);
+}
+
 // from http://git.uclibc.org/uClibc/tree/libc/stdlib/stdlib.c?id=515d54433138596e81267237542bd9168b8cc787#n789
 /* This code is derived from a public domain shell sort routine by
  * Ray Gardner and found in Bob Stout's snippets collection. */
@@ -72,6 +78,9 @@ void util_sort(void *base, int nel, int width, int (*comp)(void *, const void *,
 {
   int wgap, i, j, k;
   char tmp;
+
+  // added this for default alpha sort
+  if(!comp) comp = _util_sort_alpha;
 
   if ((nel > 1) && (width > 0)) {
     wgap = 0;
