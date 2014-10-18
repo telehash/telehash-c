@@ -34,6 +34,16 @@ int main(int argc, char **argv)
   lob_set(packet,"key","value");
   fail_unless(lob_keys(packet) == 2);
 
+  lob_set(packet,"zz","value");
+  lob_set(packet,"a","value");
+  lob_set(packet,"z","value");
+  lob_sort(packet);
+  fail_unless(util_cmp(lob_get_index(packet,0),"32") == 0);
+  fail_unless(util_cmp(lob_get_index(packet,2),"a") == 0);
+  fail_unless(util_cmp(lob_get_index(packet,4),"key") == 0);
+  fail_unless(util_cmp(lob_get_index(packet,6),"z") == 0);
+  fail_unless(util_cmp(lob_get_index(packet,8),"zz") == 0);
+
   return 0;
 }
 

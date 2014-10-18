@@ -67,7 +67,11 @@ int util_cmp(char *a, char *b)
 // default alpha sort
 int _util_sort_alpha(void *arg, const void *a, const void *b)
 {
-  return util_cmp((char*)a,(char*)b);
+  char *aa = *(char**)a;
+  char *bb = *(char**)b;
+  if(!aa) return -1;
+  if(!bb) return 1;
+  return strcmp(aa,bb);
 }
 
 // from http://git.uclibc.org/uClibc/tree/libc/stdlib/stdlib.c?id=515d54433138596e81267237542bd9168b8cc787#n789
