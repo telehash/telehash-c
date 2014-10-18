@@ -63,7 +63,7 @@ void lob_set_json(lob_t p, lob_t json);
 // count of keys
 int lob_keys(lob_t p);
 
-// alpha sorts the json keys in the packet
+// alpha-sorts the json keys
 void lob_sort(lob_t p);
 
 // 0 to match, !0 if different, compares only top-level json and body

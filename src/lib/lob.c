@@ -242,6 +242,7 @@ void lob_set(lob_t p, char *key, char *val)
   char *escaped;
   int i, len, vlen = strlen(val);
   if(!p || !key || !val) return;
+  // TODO escape key too
   if(!(escaped = malloc(vlen*2+2))) return; // enough space worst case
   len = 0;
   escaped[len++] = '"';
@@ -406,6 +407,38 @@ int lob_keys(lob_t p)
   for(i=0;js0n(NULL,i,(char*)p->head,p->head_len,&len);i++);
   if(i % 2) return 0; // must be even number for key:val pairs
   return i/2;
+}
+
+void lob_sort(lob_t p)
+{
+  int i, len;
+  char **keys;
+  lob_t tmp;
+
+  if(!p) return;
+  len = lob_keys(p);
+  if(!len) return;
+
+  // create array of keys to sort
+  keys = malloc(len*sizeof(char*));
+  for(i=0;i<len;i++)
+  {
+    keys[i] = lob_get_index(p,i*2);
+  }
+
+  // use default alpha sort
+  util_sort(keys,len,sizeof(char*),NULL,NULL);
+
+  // create the sorted json
+  tmp = lob_new();
+  for(i=0;i<len;i++)
+  {
+    lob_set(tmp,keys[i],lob_get(p,keys[i]));
+  }
+
+  // replace json in original packet
+  lob_head(p,tmp->head,tmp->head_len);
+  lob_free(tmp);
 }
 
 /*
