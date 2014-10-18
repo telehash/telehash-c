@@ -10,6 +10,10 @@
 mesh_t mesh_new(uint32_t prime)
 {
   mesh_t s;
+  
+  // make sure we've initialized
+  if(e3x_init(NULL)) return LOG("e3x init failed");
+
   if(!(s = malloc(sizeof (struct mesh_struct)))) return NULL;
   memset(s, 0, sizeof(struct mesh_struct));
 //  s->cap = 256; // default cap size
@@ -22,15 +26,35 @@ mesh_t mesh_new(uint32_t prime)
   return s;
 }
 
-mesh_t mesh_free(mesh_t s)
+mesh_t mesh_free(mesh_t mesh)
 {
-  if(!s) return NULL;
-  xht_free(s->index);
-//  lob_free(s->parts);
-//  if(s->seeds) bucket_free(s->seeds);
-//  bucket_free(s->active);
-  free(s);
+  if(!mesh) return NULL;
+  xht_free(mesh->index);
+  lob_free(mesh->keys);
+  self3_free(mesh->self);
+  free(mesh);
   return NULL;
+}
+
+// must be called to initialize to a hashname from keys/secrets, return !0 if failed
+int mesh_load(mesh_t mesh, lob_t secrets, lob_t keys)
+{
+  if(!mesh || !secrets || !keys) return 1;
+  if(!(mesh->self = self3_new(secrets, keys))) return 2;
+  mesh->keys = lob_copy(keys);
+  mesh->id = hashname_keys(mesh->keys);
+  return 0;
+}
+
+// creates a new mesh identity, returns secrets
+lob_t mesh_generate(mesh_t mesh)
+{
+  lob_t secrets;
+  if(!mesh || mesh->self) return LOG("invalid mesh");
+  secrets = e3x_generate();
+  if(!secrets) return LOG("failed to generate %s",e3x_err());
+  if(mesh_load(mesh, secrets, lob_linked(secrets))) return lob_free(secrets);
+  return secrets;
 }
 
 /*

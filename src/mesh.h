@@ -16,6 +16,8 @@ typedef struct mesh_struct *mesh_t;
 struct mesh_struct
 {
   hashname_t id;
+  lob_t keys;
+  self3_t self;
 //  bucket_t seeds, active;
   lob_t out, last; // packets waiting to be delivered
   lob_t parts;
@@ -27,13 +29,17 @@ struct mesh_struct
 //  void (*handler)(struct mesh_struct *, hashname_t); // called w/ a hn that has no key info
 };
 
-// pass in a prime for the main index of hashnames+lines+channels, 0 to use default
+// pass in a prime for the main index of hashnames+links+channels, 0 to use compiled default
 mesh_t mesh_new(uint32_t prime);
 mesh_t mesh_free(mesh_t s);
 
+// must be called to initialize to a hashname from keys/secrets, return !0 if failed
+int mesh_load(mesh_t s, lob_t secrets, lob_t keys);
+
+// creates a new mesh identity, returns secrets
+lob_t mesh_generate(mesh_t s);
+
 /*
-// must be called to initialize to a hashname from json keys, return !0 if failed, free's keys
-int mesh_init(mesh_t s, lob_t keys);
 
 // add hashname as a seed, will automatically trigger a query to it
 void mesh_seed(mesh_t s, hashname_t hn);
