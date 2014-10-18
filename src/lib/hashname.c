@@ -7,33 +7,37 @@
 #include "util.h"
 
 // validate a str is a base32 hashname
-uint8_t hashname_valid(uint8_t *str)
+uint8_t hashname_valid(char *str)
 {
   static uint8_t buf[32];
   if(!str) return 0;
-  if(strlen((char*)str) != 52) return 0;
-  if(base32_decode_into((char*)str,52,buf) != 32) return 0;
+  if(strlen(str) != 52) return 0;
+  if(base32_decode_into(str,52,buf) != 32) return 0;
   return 1;
 }
 
 // bin must be 32 bytes
-hashname_t hashname_bin(uint8_t *bin)
+hashname_t hashname_new(uint8_t *bin)
 {
   hashname_t hn;
   if(!(hn = malloc(sizeof (struct hashname_struct)))) return NULL;
   memset(hn,0,sizeof (struct hashname_struct));
-  if(bin) memcpy(hn->bin, bin, 32);
+  if(bin)
+  {
+    memcpy(hn->bin, bin, 32);
+    base32_encode_into(hn->bin,32,hn->hashname);
+  }
   return hn;
 }
 
 // these all create a new hashname
-hashname_t hashname_str(uint8_t *str)
+hashname_t hashname_str(char *str)
 {
   hashname_t hn;
   if(!hashname_valid(str)) return NULL;
-  hn = hashname_bin(NULL);
-  base32_decode_into((char*)str,52,hn->bin);
-  base32_encode_into(hn->bin,32,(char*)hn->hashname);
+  hn = hashname_new(NULL);
+  base32_decode_into(str,52,hn->bin);
+  base32_encode_into(hn->bin,32,hn->hashname);
   return hn;
 }
 

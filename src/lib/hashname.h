@@ -7,19 +7,19 @@
 // public struct
 typedef struct hashname_struct
 {
-  uint8_t hashname[53];
+  char hashname[53];
   uint8_t bin[32];
 } *hashname_t;
 
 // validate a str is a hashname
-uint8_t hashname_valid(uint8_t *str);
+uint8_t hashname_valid(char *str);
 
 // bin must be 32 bytes
 hashname_t hashname_new(uint8_t *bin);
 void hashname_free(hashname_t hn);
 
 // these all create a new hashname
-hashname_t hashname_str(uint8_t *str); // from a string
+hashname_t hashname_str(char *str); // from a string
 hashname_t hashname_keys(lob_t keys);
 hashname_t hashname_key(lob_t packet);
 
