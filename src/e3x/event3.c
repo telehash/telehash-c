@@ -21,7 +21,7 @@ event3_t event3_new(uint32_t prime)
   
   // leave a blank at the start
   ev->events = lob_new();
-  ev->events->quota = 0;
+  ev->events->id = 0;
 
   return ev;
 }
@@ -47,7 +47,7 @@ void event3_free(event3_t ev)
 uint32_t event3_at(event3_t ev)
 {
   if(!ev || !ev->events->next) return 0;
-  return ev->events->next->quota;
+  return ev->events->next->id;
 }
 
 // remove and return the lowest lob packet below the given at
@@ -58,14 +58,14 @@ lob_t event3_get(event3_t ev, uint32_t at)
   ret = ev->events->next;
   
   // if it's not up yet
-  if(ret->quota > at) return NULL;
+  if(ret->id > at) return NULL;
   
   // repair the links
   ev->events->next = ret->next;
-  if(ret->next) ret->next->chain = ev->events;
+  if(ret->next) ret->next->prev = ev->events;
   
   // isolate the one we're returning
-  ret->next = ret->chain = NULL;
+  ret->next = ret->prev = NULL;
   return ret;
 }
 
@@ -74,7 +74,7 @@ void event3_set(event3_t ev, lob_t event, char *id, uint32_t at)
 {
   lob_t existing;
   if(!ev) return;
-  if(event) event->quota = at;
+  if(event) event->id = at;
 
   // if given an id, and there's a different existing lob, free it
   if(id)
@@ -83,8 +83,8 @@ void event3_set(event3_t ev, lob_t event, char *id, uint32_t at)
     if(existing && existing != event)
     {
       // unlink in place
-      if(existing->next) existing->next->chain = existing->chain;
-      existing->chain->next = existing->next;
+      if(existing->next) existing->next->prev = existing->prev;
+      existing->prev->next = existing->next;
       lob_free(existing);
     }
   }
@@ -97,11 +97,11 @@ void event3_set(event3_t ev, lob_t event, char *id, uint32_t at)
     
     // place in sorted linked list
     existing = ev->events;
-    while(existing->next && existing->next->quota < at) existing = existing->next;
+    while(existing->next && existing->next->id < at) existing = existing->next;
     event->next = existing->next;
-    event->next->chain = event;
+    event->next->prev = event;
     existing->next = event;
-    event->chain = existing;
+    event->prev = existing;
   }
   
 }

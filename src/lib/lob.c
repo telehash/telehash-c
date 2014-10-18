@@ -16,7 +16,6 @@ lob_t lob_new()
   memset(p,0,sizeof (struct lob_struct));
   if(!(p->raw = malloc(2))) return lob_free(p);
   memset(p->raw,0,2);
-  p->quota = 1440; // default MTU
 //  DEBUG_PRINTF("packet +++ %d",p);
   return p;
 }
@@ -70,15 +69,6 @@ lob_t lob_free(lob_t p)
   if(p->raw) free(p->raw);
   free(p);
   return NULL;
-}
-
-uint32_t lob_space(lob_t p)
-{
-  uint32_t len;
-  if(!p) return 0;
-  len = lob_len(p);
-  if(len > p->quota) return 0;
-  return p->quota-len;
 }
 
 uint8_t *lob_raw(lob_t p)

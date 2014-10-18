@@ -6,14 +6,22 @@
 
 typedef struct lob_struct
 {
+  // these are public but managed by accessors
   uint8_t *raw;
   uint8_t *body;
   uint32_t body_len;
   uint8_t *head;
   uint16_t head_len;
-  struct lob_struct *next, *chain;
-  char *cache; // internal editable copy of the json
-  uint32_t quota; // defaults to 1440
+  
+  // these are all for external use only
+  struct lob_struct *next, *prev;
+  uint32_t id;
+  void *arg;
+
+  // these are internal/private
+  struct lob_struct *chain;
+  char *cache; // edited copy of the json head
+
 } *lob_t;
 
 // these all allocate/free memory
@@ -36,9 +44,6 @@ lob_t lob_parse(uint8_t *raw, uint32_t len);
 // return full encoded packet
 uint8_t *lob_raw(lob_t p);
 uint32_t lob_len(lob_t p);
-
-// return current packet capacity based on quota
-uint32_t lob_space(lob_t p);
 
 // set/store these in the current packet
 uint8_t *lob_head(lob_t p, uint8_t *head, uint16_t len);
