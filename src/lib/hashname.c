@@ -6,6 +6,9 @@
 #include "platform.h"
 #include "util.h"
 
+// how many csids can be used to make a hashname
+#define MAX_CSIDS 8
+
 // validate a str is a base32 hashname
 uint8_t hashname_valid(char *str)
 {
@@ -41,9 +44,71 @@ hashname_t hashname_str(char *str)
   return hn;
 }
 
+// create hashname from intermediate values
+hashname_t hashname_im(lob_t im)
+{
+  hashname_t hn = NULL;
+  if(!im) return LOG("invalid args");
+
+  lob_sort(im);
+
+  return hn;
+
+  /*
+  for(ids=i=0;ids<MAX_CSIDS && p->js[i];i+=4)
+  {
+    if(p->js[i+1] != 2) continue; // csid must be 2 char only
+    memcpy(hex,p->json+p->js[i],2);
+    memcpy(csids+(ids*2),hex,2);
+    util_unhex((unsigned char*)hex,2,(unsigned char*)&csid);
+    ids++;
+  }
+  
+  if(!best) return NULL; // we must match at least one
+  util_sort(csids,ids,2,csidcmp,NULL);
+
+  rollup = NULL;
+  ri = 0;
+  for(i=0;i<ids;i++)
+  {
+    len = 2;
+    if(!(rollup = util_reallocf(rollup,ri+len))) return NULL;
+    memcpy(rollup+ri,csids+(i*2),len);
+    crypt_hash(rollup,ri+len,hnbin);
+    ri = 32;
+    if(!(rollup = util_reallocf(rollup,ri))) return NULL;
+    memcpy(rollup,hnbin,ri);
+
+    memcpy(hex,csids+(i*2),2);
+    part = lob_get_str(p, hex);
+    if(!part) continue; // garbage safety
+    len = strlen(part);
+    if(!(rollup = util_reallocf(rollup,ri+len))) return NULL;
+    memcpy(rollup+ri,part,len);
+    crypt_hash(rollup,ri+len,hnbin);
+    memcpy(rollup,hnbin,32);
+  }
+  memcpy(hnbin,rollup,32);
+  free(rollup);
+  hn = hashname_get(index, hnbin);
+  if(!hn) return NULL;
+
+  if(!hn->parts) hn->parts = p;
+  else lob_free(p);
+  
+  hn->csid = best;
+  util_hex((unsigned char*)&best,1,(unsigned char*)hn->hexid);
+
+  return hn;
+  */
+}
+
 hashname_t hashname_keys(lob_t keys)
 {
-  return 0;
+  hashname_t hn;
+  hn = hashname_new(NULL);
+  LOG("TODO HASHNAME");
+  return hn;
 }
 
 hashname_t hashname_key(lob_t packet)
@@ -53,7 +118,8 @@ hashname_t hashname_key(lob_t packet)
 
 void hashname_free(hashname_t hn)
 {
-
+  if(!hn) return;
+  free(hn);
 }
 
 uint8_t hashname_id(lob_t a, lob_t b)

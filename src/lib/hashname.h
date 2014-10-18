@@ -14,7 +14,7 @@ typedef struct hashname_struct
 // validate a str is a hashname
 uint8_t hashname_valid(char *str);
 
-// bin must be 32 bytes
+// bin must be 32 bytes if given
 hashname_t hashname_new(uint8_t *bin);
 void hashname_free(hashname_t hn);
 
