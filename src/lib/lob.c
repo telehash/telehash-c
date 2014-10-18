@@ -439,27 +439,9 @@ void lob_sort(lob_t p)
   // replace json in original packet
   lob_head(p,tmp->head,tmp->head_len);
   lob_free(tmp);
+  free(keys);
 }
 
-/*
-
-int pkeycmp(void *s, const void *a, const void *b)
-{
-  unsigned short *aa = (unsigned short *)a;
-  unsigned short *bb = (unsigned short *)b;
-  char *str = s;
-  unsigned short len = aa[1];
-  if(bb[1] < aa[1]) len = bb[1]; // take shortest
-  return strncmp(str+aa[0],str+bb[0],len);
-}
-
-// alpha sort the keys
-void lob_sort(lob_t p)
-{
-  int keys = lob_keys(p);
-  if(!keys) return;
-  util_sort(p->js,keys,sizeof(unsigned short)*4,pkeycmp,p->head);
-}
 
 int lob_cmp(lob_t a, lob_t b)
 {
@@ -471,15 +453,14 @@ int lob_cmp(lob_t a, lob_t b)
 
   lob_sort(a);
   lob_sort(b);
-  while((str = lob_get_istr(a,i)))
+  while((str = lob_get_index(a,i)))
   {
-    if(strcmp(str,lob_get_istr(b,i)) != 0) return -1;
+    if(util_cmp(str,lob_get_index(b,i)) != 0) return -1;
     i++;
   }
 
   return memcmp(a->body,b->body,a->body_len);
 }
-*/
 
 void lob_set_json(lob_t p, lob_t json)
 {

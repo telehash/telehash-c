@@ -34,6 +34,7 @@ int main(int argc, char **argv)
   lob_set(packet,"key","value");
   fail_unless(lob_keys(packet) == 2);
 
+  // test sorting
   lob_set(packet,"zz","value");
   lob_set(packet,"a","value");
   lob_set(packet,"z","value");
@@ -43,6 +44,16 @@ int main(int argc, char **argv)
   fail_unless(util_cmp(lob_get_index(packet,4),"key") == 0);
   fail_unless(util_cmp(lob_get_index(packet,6),"z") == 0);
   fail_unless(util_cmp(lob_get_index(packet,8),"zz") == 0);
+  lob_free(packet);
+  
+  // minimal comparison test
+  lob_t a = lob_new();
+  lob_set(a,"foo","bar");
+  lob_t b = lob_new();
+  lob_set(b,"foo","bar");
+  fail_unless(lob_cmp(a,b) == 0);
+  lob_set(b,"bar","foo");
+  fail_unless(lob_cmp(a,b) != 0);
 
   return 0;
 }
