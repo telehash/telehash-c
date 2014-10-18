@@ -1,7 +1,20 @@
 #ifndef pipe_h
 #define pipe_h
-
 #include <stdint.h>
+#include "lob.h"
+
+typedef struct pipe_struct
+{
+  char *type;
+  char *id;
+  lob_t path;
+  lob_t notify;
+  void *arg; // for use by app/network transport
+} *pipe_t;
+
+pipe_t pipe_new(char *type);
+void pipe_free(pipe_t p);
+
 /*
 typedef struct pipe_struct
 {

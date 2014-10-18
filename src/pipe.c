@@ -1,11 +1,39 @@
-#include "pipe.h"
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
 #include "util.h"
+#include "platform.h"
+#include "pipe.h"
+
+pipe_t pipe_new(char *type)
+{
+  pipe_t p;
+  if(!type) return LOG("no type");
+
+  if(!(p = malloc(sizeof (struct pipe_struct)))) return NULL;
+  memset(p,0,sizeof (struct pipe_struct));
+  p->type = strdup(type);
+  return p;
+}
+
+void pipe_free(pipe_t p)
+{
+  free(p->type);
+  if(p->id) free(p->id);
+  if(p->path) lob_free(p->path);
+  if(p->notify) LOG("pipe free'd leaking notifications");
+  free(p);
+}
 
 /*
+
+* pipes are created by transports (often when given a path)
+* should always return the same pipe for the same path
+* links keep a list of 'seens', track state of each pipe
+* pipes have a list of lobs, one for every active listener
+* pipes send the lobs for keepalive, set err for close, must be processed then free'd
+
 pipe_t pipe_new(char *type)
 {
   if(!strstr("ipv4 ipv6 relay local http", type)) return NULL;

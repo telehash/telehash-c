@@ -4,6 +4,41 @@
 #include "util.h"
 #include "mesh.h"
 
+// internal structure to manage our link-local state about pipes
+
+typedef struct seen_struct
+{
+  pipe_t pipe;
+  uint32_t at;
+  struct seen_struct *next;
+} *seen_t;
+
+
+link_t link_new(mesh_t mesh, hashname_t id)
+{
+  link_t link;
+
+  if(!mesh || !id) return LOG("invalid args");
+
+  LOG("adding link %s",id->hashname);
+  if(!(link = malloc(sizeof (struct link_struct)))) return NULL;
+  memset(link,0,sizeof (struct link_struct));
+  
+  link->id = id;
+  return link;
+}
+
+void link_free(link_t link)
+{
+  if(!link) return;
+  LOG("dropping link %s",link->id->hashname);
+
+  // TODO go through ->pipes
+
+  hashname_free(link->id);
+  free(link);
+}
+
 /*
 // flags channel as ended either in or out
 void doend(link_t c)

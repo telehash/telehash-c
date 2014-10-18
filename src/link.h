@@ -1,12 +1,24 @@
 #ifndef link_h
 #define link_h
 #include <stdint.h>
-#include "e3x.h"
 
-typedef struct link_struct
+typedef struct link_struct *link_t;
+
+#include "mesh.h"
+
+struct link_struct
 {
-  channel3_t chan;
-} *link_t;
+  // public link data
+  hashname_t id;
+  exchange3_t x;
+  mesh_t mesh;
+
+  // these are for internal link management only
+  struct seen_struct *pipes;
+};
+
+link_t link_new(mesh_t mesh, hashname_t id);
+void link_free(link_t link);
 
 /*
 // default channel inactivity timeout in seconds

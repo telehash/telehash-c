@@ -1,15 +1,19 @@
 #ifndef mesh_h
 #define mesh_h
 
+typedef struct mesh_struct *mesh_t;
+
+#include "e3x.h"
 #include "hashname.h"
 #include "lob.h"
 #include "xht.h"
 #include "link.h"
 #include "links.h"
+#include "pipe.h"
 #include "util.h"
 #include "platform.h"
 
-typedef struct mesh_struct
+struct mesh_struct
 {
   hashname_t id;
 //  bucket_t seeds, active;
@@ -21,7 +25,7 @@ typedef struct mesh_struct
 //  uint8_t isSeed;
   xht_t index;
 //  void (*handler)(struct mesh_struct *, hashname_t); // called w/ a hn that has no key info
-} *mesh_t;
+};
 
 // pass in a prime for the main index of hashnames+lines+channels, 0 to use default
 mesh_t mesh_new(uint32_t prime);
