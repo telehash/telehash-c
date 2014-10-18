@@ -10,7 +10,7 @@ typedef struct self3_struct
 } *self3_t;
 
 // load id secrets/keys to create a new local endpoint
-self3_t self3_new(lob_t secrets);
+self3_t self3_new(lob_t secrets, lob_t keys);
 void self3_free(self3_t self); // any exchanges must have been free'd first
 
 // try to decrypt any message sent to us, returns the inner

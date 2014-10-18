@@ -6,11 +6,11 @@
 #include "e3x.h"
 
 // load secrets/keys to create a new local endpoint
-self3_t self3_new(lob_t secrets)
+self3_t self3_new(lob_t secrets, lob_t keys)
 {
   uint8_t i, ok = 0, hash[32];
   self3_t self;
-  lob_t keys = lob_linked(secrets);
+  if(!keys) keys = lob_linked(secrets); // convenience
   if(!keys) return NULL;
 
   if(!(self = malloc(sizeof (struct self3_struct)))) return NULL;

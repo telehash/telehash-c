@@ -3,13 +3,17 @@
 #include "platform.h"
 #include <string.h>
 
-// any process-wide initialization
+static uint8_t _initialized = 0;
+
+// any process-wide one-time initialization
 uint8_t e3x_init(lob_t options)
 {
   uint8_t err;
+  if(_initialized) return 0;
   platform_random_init();
   err = cipher3_init(options);
   if(err) return err;
+  _initialized = 1;
   return 0;
 }
 
