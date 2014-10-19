@@ -46,27 +46,38 @@ hashname_t hashname_str(char *str)
 }
 
 // create hashname from intermediate values as hex/base32 key/value pairs
-hashname_t hashname_im(lob_t im)
+hashname_t hashname_key(lob_t key)
 {
   int i, start;
   uint8_t hash[64];
-  char *key, *value;
+  char *id, *value;
   hashname_t hn = NULL;
-  if(!im) return LOG("invalid args");
+  if(!key) return LOG("invalid args");
 
   // get in sorted order
-  lob_sort(im);
+  lob_sort(key);
 
   // loop through all keys rolling up
-  for(i=0;(key = lob_get_index(im,i));i+=2)
+  for(i=0;(id = lob_get_index(key,i));i+=2)
   {
-    value = lob_get_index(im,i+1);
-    if(strlen(key) != 2 || !value) continue; // skip non-csid keys
-    if(strlen(value) != 52) return LOG("invalid value %s %d",value,strlen(value));
-    util_unhex(key,2,hash+32);
+    value = lob_get_index(key,i+1);
+    if(strlen(id) != 2 || !value) continue; // skip non-id keys
+    
+    // hash the id
+    util_unhex(id,2,hash+32);
     start = (i == 0) ? 32 : 0; // only first one excludes previous rollup
     e3x_hash(hash+start,(32-start)+1,hash); // hash in place
-    base32_decode_into(value,52,hash+32);
+
+    // get the value from the body if bool
+    if(util_cmp("true",value) == 0)
+    {
+      if(key->body_len == 0) return LOG("missing key body");
+      // hash the body
+      e3x_hash(key->body,key->body_len,hash+32);
+    }else{
+      if(strlen(value) != 52) return LOG("invalid value %s %d",value,strlen(value));
+      base32_decode_into(value,52,hash+32);
+    }
     e3x_hash(hash,64,hash);
   }
   if(!i || i % 2 != 0) return LOG("invalid keys %d",i);
@@ -77,39 +88,14 @@ hashname_t hashname_im(lob_t im)
 
 hashname_t hashname_keys(lob_t keys)
 {
-  int i,len;
-  uint8_t *buf, hash[32];
-  char *key, *value;
   hashname_t hn;
   lob_t im;
 
   if(!keys) return LOG("bad args");
-
-  // loop through all keys and create intermediates
-  im = lob_new();
-  buf = NULL;
-  for(i=0;(key = lob_get_index(keys,i));i+=2)
-  {
-    value = lob_get_index(keys,i+1);
-    if(strlen(key) != 2 || !value) continue; // skip non-csid keys
-    len = base32_decode_length(strlen(value));
-    buf = util_reallocf(buf,len);
-    if(!buf) return (hashname_t)lob_free(im);
-    if(base32_decode_into(value,strlen(value),buf) != len) continue;
-    // store the hash intermediate value
-    e3x_hash(buf,len,hash);
-    lob_set_base32(im,key,hash,32);
-  }
-  free(buf);
-
-  hn = hashname_im(im);
+  im = hashname_im(keys,0);
+  hn = hashname_key(im);
   lob_free(im);
   return hn;
-}
-
-hashname_t hashname_key(lob_t packet)
-{
-  return 0;
 }
 
 hashname_t hashname_free(hashname_t hn)
@@ -121,13 +107,60 @@ hashname_t hashname_free(hashname_t hn)
 
 uint8_t hashname_id(lob_t a, lob_t b)
 {
-  return 0;
+  uint8_t id, best;
+  int i;
+  char *key;
+
+  if(!a || !b) return 0;
+
+  best = 0;
+  for(i=0;(key = lob_get_index(a,i));i+=2)
+  {
+    if(strlen(key) != 2) continue;
+    if(!lob_get(b,key)) continue;
+    id = 0;
+    util_unhex(key,2,&id);
+    if(id > best) best = id;
+  }
+  
+  return best;
 }
 
 // packet-format w/ intermediate hashes in the json
-lob_t hashname_packet(uint8_t id, lob_t keys)
+lob_t hashname_im(lob_t keys, uint8_t id)
 {
-  return NULL;
+  int i,len;
+  uint8_t *buf, hash[32];
+  char *key, *value, hex[3];
+  lob_t im;
+
+  if(!keys) return LOG("bad args");
+
+  // loop through all keys and create intermediates
+  im = lob_new();
+  buf = NULL;
+  util_hex(&id,1,hex);
+  for(i=0;(key = lob_get_index(keys,i));i+=2)
+  {
+    value = lob_get_index(keys,i+1);
+    if(strlen(key) != 2 || !value) continue; // skip non-csid keys
+    len = base32_decode_length(strlen(value));
+    // save to body raw or as a base32 intermediate value
+    if(id && util_cmp(hex,key) == 0)
+    {
+      lob_body(im,NULL,len);
+      if(base32_decode_into(value,strlen(value),im->body) != len) continue;
+    }else{
+      buf = util_reallocf(buf,len);
+      if(!buf) return lob_free(im);
+      if(base32_decode_into(value,strlen(value),buf) != len) continue;
+      // store the hash intermediate value
+      e3x_hash(buf,len,hash);
+      lob_set_base32(im,key,hash,32);
+    }
+  }
+  if(buf) free(buf);
+  return im;
 }
 
 /*

@@ -22,7 +22,7 @@ int main(int argc, char **argv)
   lob_t im = lob_new();
   lob_set(im,"1a","ym7p66flpzyncnwkzxv2qk5dtosgnnstgfhw6xj2wvbvm7oz5oaq");
   lob_set(im,"3a","bmxelsxgecormqjlnati6chxqua7wzipxliw5le35ifwxlge2zva");
-  hn = hashname_im(im);
+  hn = hashname_key(im);
   fail_unless(hn);
   fail_unless(util_cmp(hn->hashname,"jvdoio6kjvf3yqnxfvck43twaibbg4pmb7y3mqnvxafb26rqllwa") == 0);
 
@@ -32,6 +32,13 @@ int main(int argc, char **argv)
   hn = hashname_keys(keys);
   fail_unless(hn);
   fail_unless(util_cmp(hn->hashname,"jvdoio6kjvf3yqnxfvck43twaibbg4pmb7y3mqnvxafb26rqllwa") == 0);
+
+  fail_unless(hashname_id(NULL,NULL) == 0);
+  fail_unless(hashname_id(im,keys) == 0x3a);
+  lob_t test = lob_new();
+  lob_set(test,"1a","test");
+  lob_set(test,"2a","test");
+  fail_unless(hashname_id(keys,test) == 0x1a);
   return 0;
 }
 
