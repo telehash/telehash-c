@@ -112,10 +112,11 @@ hashname_t hashname_key(lob_t packet)
   return 0;
 }
 
-void hashname_free(hashname_t hn)
+hashname_t hashname_free(hashname_t hn)
 {
-  if(!hn) return;
+  if(!hn) return NULL;
   free(hn);
+  return NULL;
 }
 
 uint8_t hashname_id(lob_t a, lob_t b)

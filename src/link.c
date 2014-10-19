@@ -21,10 +21,13 @@ link_t link_new(mesh_t mesh, hashname_t id)
   if(!mesh || !id) return LOG("invalid args");
 
   LOG("adding link %s",id->hashname);
-  if(!(link = malloc(sizeof (struct link_struct)))) return NULL;
+  if(!(link = malloc(sizeof (struct link_struct)))) return (link_t)hashname_free(id);
   memset(link,0,sizeof (struct link_struct));
   
   link->id = id;
+  link->mesh = mesh;
+  xht_set(mesh->index,id->hashname,link);
+
   return link;
 }
 
@@ -32,11 +35,39 @@ void link_free(link_t link)
 {
   if(!link) return;
   LOG("dropping link %s",link->id->hashname);
+  xht_set(link->mesh->index,link->id->hashname,NULL);
 
   // TODO go through ->pipes
 
   hashname_free(link->id);
   free(link);
+}
+
+link_t link_get(mesh_t mesh, char *hashname)
+{
+  link_t link;
+  hashname_t id;
+
+  if(!mesh || !hashname) return LOG("invalid args");
+  link = xht_get(mesh->index,hashname);
+  if(!link)
+  {
+    id = hashname_str(hashname);
+    if(!id) return LOG("invalid hashname %s",hashname);
+    link = link_new(mesh,id);
+  }
+
+  return link;
+}
+
+link_t link_keys(mesh_t mesh, lob_t keys)
+{
+  return NULL;
+}
+
+link_t link_key(mesh_t mesh, lob_t key)
+{
+  return NULL;
 }
 
 /*

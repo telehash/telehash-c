@@ -16,7 +16,7 @@ uint8_t hashname_valid(char *str);
 
 // bin must be 32 bytes if given
 hashname_t hashname_new(uint8_t *bin);
-void hashname_free(hashname_t hn);
+hashname_t hashname_free(hashname_t hn);
 
 // these all create a new hashname
 hashname_t hashname_str(char *str); // from a string

@@ -11,7 +11,9 @@ int main(int argc, char **argv)
   fail_unless(mesh->id);
   
   lob_t idB = e3x_generate();
-  link_t link = link_new(mesh,hashname_keys(lob_linked(idB)));
+  hashname_t hnB = hashname_keys(lob_linked(idB));
+  fail_unless(hnB);
+  link_t link = link_get(mesh,hnB->hashname);
   fail_unless(link);
   fail_unless(strlen(link->id->hashname) == 52);
 

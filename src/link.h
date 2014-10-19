@@ -17,7 +17,12 @@ struct link_struct
   struct seen_struct *pipes;
 };
 
-link_t link_new(mesh_t mesh, hashname_t id);
+// these all create or return existing one from the mesh
+link_t link_get(mesh_t mesh, char *hashname);
+link_t link_keys(mesh_t mesh, lob_t keys); // adds in the right key
+link_t link_key(mesh_t mesh, lob_t key); // adds in from the body
+
+// removes from mesh
 void link_free(link_t link);
 
 /*
