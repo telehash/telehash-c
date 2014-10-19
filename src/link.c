@@ -62,12 +62,37 @@ link_t link_get(mesh_t mesh, char *hashname)
 
 link_t link_keys(mesh_t mesh, lob_t keys)
 {
-  return NULL;
+  uint8_t csid;
+
+  if(!mesh || !keys) return LOG("invalid args");
+  csid = hashname_id(mesh->keys,keys);
+  if(!csid) return LOG("no supported key");
+  return link_key(mesh, hashname_im(keys,csid));
 }
 
 link_t link_key(mesh_t mesh, lob_t key)
 {
-  return NULL;
+  uint8_t csid;
+  hashname_t hn;
+  link_t link;
+
+  if(!mesh || !key) return LOG("invalid args");
+  csid = hashname_id(mesh->keys,key);
+  if(!csid) return LOG("no supported key");
+
+  hn = hashname_key(key);
+  if(!hn) return LOG("invalid key");
+
+  link = link_get(mesh, hn->hashname);
+  if(link)
+  {
+    hashname_free(hn);
+  }else{
+    link = link_new(mesh,hn);
+  }
+
+  if(!link->key) link->key = lob_copy(key);
+  return link;
 }
 
 /*

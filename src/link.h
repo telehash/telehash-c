@@ -12,6 +12,7 @@ struct link_struct
   hashname_t id;
   exchange3_t x;
   mesh_t mesh;
+  lob_t key;
 
   // these are for internal link management only
   struct seen_struct *pipes;
