@@ -8,7 +8,7 @@
 // load secrets/keys to create a new local endpoint
 self3_t self3_new(lob_t secrets, lob_t keys)
 {
-  uint8_t i, ok = 0, hash[32];
+  uint8_t i, csids = 0, hash[32];
   self3_t self;
   if(!keys) keys = lob_linked(secrets); // convenience
   if(!keys) return NULL;
@@ -28,16 +28,16 @@ self3_t self3_new(lob_t secrets, lob_t keys)
     // make a hash for the intermediate form for hashnames
     e3x_hash(self->keys[i]->body,self->keys[i]->body_len,hash);
     lob_set_base32(self->keys[i],"hash",hash,32);
-    ok++;
+    csids++;
   }
 
-  if(!ok)
+  if(!csids)
   {
     self3_free(self);
     return LOG("self failed for %.*s",keys->head_len,keys->head);
   }
 
-  LOG("self created");
+  LOG("self created with %d csids",csids);
   return self;
 }
 

@@ -26,6 +26,12 @@ int main(int argc, char **argv)
   fail_unless(hn);
   fail_unless(util_cmp(hn->hashname,"jvdoio6kjvf3yqnxfvck43twaibbg4pmb7y3mqnvxafb26rqllwa") == 0);
 
+  lob_t keys = lob_new();
+  lob_set(keys,"1a","vgjz3yjb6cevxjomdleilmzasbj6lcc7");
+  lob_set(keys,"3a","hp6yglmmqwcbw5hno37uauh6fn6dx5oj7s5vtapaifrur2jv6zha");
+  hn = hashname_keys(keys);
+  fail_unless(hn);
+  fail_unless(util_cmp(hn->hashname,"jvdoio6kjvf3yqnxfvck43twaibbg4pmb7y3mqnvxafb26rqllwa") == 0);
   return 0;
 }
 

@@ -62,7 +62,7 @@ hashname_t hashname_im(lob_t im)
   {
     value = lob_get_index(im,i+1);
     if(strlen(key) != 2 || !value) continue; // skip non-csid keys
-    if(strlen(value) != 52) return LOG("invalid value %s",key,value);
+    if(strlen(value) != 52) return LOG("invalid value %s %d",value,strlen(value));
     util_unhex(key,2,hash+32);
     start = (i == 0) ? 32 : 0; // only first one excludes previous rollup
     e3x_hash(hash+start,(32-start)+1,hash); // hash in place
@@ -78,7 +78,7 @@ hashname_t hashname_im(lob_t im)
 hashname_t hashname_keys(lob_t keys)
 {
   int i,len;
-  uint8_t *buf;
+  uint8_t *buf, hash[32];
   char *key, *value;
   hashname_t hn;
   lob_t im;
@@ -87,15 +87,18 @@ hashname_t hashname_keys(lob_t keys)
 
   // loop through all keys and create intermediates
   im = lob_new();
+  buf = NULL;
   for(i=0;(key = lob_get_index(keys,i));i+=2)
   {
-    value = lob_get_index(im,i+1);
+    value = lob_get_index(keys,i+1);
     if(strlen(key) != 2 || !value) continue; // skip non-csid keys
     len = base32_decode_length(strlen(value));
-    buf = realloc(buf,len);
+    buf = util_reallocf(buf,len);
     if(!buf) return (hashname_t)lob_free(im);
-    base32_decode_into(value,strlen(value),buf);
-    lob_set_base32(im,key,buf,len);
+    if(base32_decode_into(value,strlen(value),buf) != len) continue;
+    // store the hash intermediate value
+    e3x_hash(buf,len,hash);
+    lob_set_base32(im,key,hash,32);
   }
   free(buf);
 
