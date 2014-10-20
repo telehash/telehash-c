@@ -150,6 +150,7 @@ lob_t hashname_im(lob_t keys, uint8_t id)
     {
       lob_body(im,NULL,len);
       if(base32_decode_into(value,strlen(value),im->body) != len) continue;
+      lob_set_raw(im,key,"true",4);
     }else{
       buf = util_reallocf(buf,len);
       if(!buf) return lob_free(im);

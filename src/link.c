@@ -90,8 +90,16 @@ link_t link_key(mesh_t mesh, lob_t key)
   }else{
     link = link_new(mesh,hn);
   }
+  
+  // key is new, add exchange
+  if(!link->key)
+  {
+    LOG("adding %x key to link %s",csid,link->id->hashname);
+    link->csid = csid;
+    link->key = lob_copy(key);
+    link->x = exchange3_new(link->mesh->self, csid, key, platform_seconds());
+  }
 
-  if(!link->key) link->key = lob_copy(key);
   return link;
 }
 

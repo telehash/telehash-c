@@ -13,6 +13,7 @@ struct link_struct
   exchange3_t x;
   mesh_t mesh;
   lob_t key;
+  uint8_t csid;
 
   // these are for internal link management only
   struct seen_struct *pipes;

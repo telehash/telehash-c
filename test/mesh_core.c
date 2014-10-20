@@ -16,6 +16,11 @@ int main(int argc, char **argv)
   link_t link = link_get(mesh,hnB->hashname);
   fail_unless(link);
   fail_unless(strlen(link->id->hashname) == 52);
+  fail_unless(link->csid == 0);
+  
+  fail_unless(link_keys(mesh,lob_linked(idB)) == link);
+  fail_unless(link->csid == 0x1a);
+  fail_unless(link->x);
 
   pipe_t pipe = pipe_new("test");
   fail_unless(pipe);
