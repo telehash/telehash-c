@@ -27,6 +27,9 @@ link_t link_key(mesh_t mesh, lob_t key); // adds in from the body
 // removes from mesh
 void link_free(link_t link);
 
+// try to turn a path into a pipe
+pipe_t link_path(link_t link, lob_t path);
+
 /*
 // default channel inactivity timeout in seconds
 #define CHAN_TIMEOUT 10

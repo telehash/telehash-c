@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include "util.h"
 
-// a prime number for the internal hashtable used to track all active hashnames/lines
+// a default prime number for the internal hashtable used to track all active hashnames/lines
 #define MAXPRIME 4211
 
 mesh_t mesh_new(uint32_t prime)
@@ -23,6 +23,7 @@ mesh_t mesh_new(uint32_t prime)
 //  s->active = bucket_new();
 //  s->tick = platform_seconds();
   if(!s->index) return mesh_free(s);
+  
   return s;
 }
 
@@ -37,7 +38,7 @@ mesh_t mesh_free(mesh_t mesh)
 }
 
 // must be called to initialize to a hashname from keys/secrets, return !0 if failed
-int mesh_load(mesh_t mesh, lob_t secrets, lob_t keys)
+uint8_t mesh_load(mesh_t mesh, lob_t secrets, lob_t keys)
 {
   if(!mesh || !secrets || !keys) return 1;
   if(!(mesh->self = self3_new(secrets, keys))) return 2;
@@ -55,6 +56,20 @@ lob_t mesh_generate(mesh_t mesh)
   if(!secrets) return LOG("failed to generate %s",e3x_err());
   if(mesh_load(mesh, secrets, lob_linked(secrets))) return lob_free(secrets);
   return secrets;
+}
+
+// add a transport to this mesh to handle future added paths
+uint8_t mesh_tp(mesh_t mesh, pipe_t (*tp)(link_t link, lob_t path))
+{
+  uint8_t i;
+  if(!mesh || !tp) return 1;
+  for(i=0;i<MAXTP;i++)
+  {
+    if(mesh->tp[i]) continue;
+    mesh->tp[i] = tp;
+    return 0;
+  }
+  return 2;
 }
 
 /*

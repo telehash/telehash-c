@@ -103,6 +103,35 @@ link_t link_key(mesh_t mesh, lob_t key)
   return link;
 }
 
+// try to turn a path into a pipe
+pipe_t link_path(link_t link, lob_t path)
+{
+  pipe_t pipe;
+  uint8_t i;
+  seen_t seen;
+
+  if(!link || !path) return LOG("bad args");
+
+  // check all the transports
+  for(i=0; link->mesh->tp[i] && i < MAXTP; i++)
+  {
+    if(!(pipe = link->mesh->tp[i](link,path))) continue;
+    // see if we've seen it already
+    for(seen = link->pipes; seen; seen = seen->next)
+    {
+      if(seen->pipe == pipe) return pipe;
+    }
+    if(!(seen = malloc(sizeof (struct seen_struct)))) return NULL;
+    memset(seen,0,sizeof (struct seen_struct));
+    seen->pipe = pipe;
+    seen->next = link->pipes;
+    link->pipes = seen;
+    return pipe;
+  }
+  
+  return LOG("path not supported %.*s",path->head_len,path->head);
+}
+
 /*
 // flags channel as ended either in or out
 void doend(link_t c)
