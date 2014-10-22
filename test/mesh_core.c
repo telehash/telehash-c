@@ -1,7 +1,7 @@
 #include "mesh.h"
 #include "unit_test.h"
 
-pipe_t tp_test(link_t link, lob_t path)
+pipe_t net_test(link_t link, lob_t path)
 {
   fail_unless(path);
   pipe_t pipe = pipe_new("test");
@@ -34,7 +34,7 @@ int main(int argc, char **argv)
   fail_unless(pipe);
   pipe_free(pipe);
 
-  fail_unless(mesh_tp(mesh, tp_test) == 0);
+  fail_unless(mesh_net(mesh, net_test) == 0);
   pipe = link_path(link,lob_set(lob_new(),"type","test"));
   fail_unless(pipe);
   fail_unless(util_cmp(pipe->type,"test") == 0);

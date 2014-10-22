@@ -14,8 +14,8 @@ typedef struct mesh_struct *mesh_t;
 #include "platform.h"
 
 // how many network transports can any mesh support
-#ifndef MAXTP
-#define MAXTP 8
+#ifndef MAXNET
+#define MAXNET 8
 #endif
 
 struct mesh_struct
@@ -31,8 +31,8 @@ struct mesh_struct
   int cap, window;
 //  uint8_t isSeed;
   xht_t index;
-  // transport handlers to get a pipe for a path
-  pipe_t (*tp[MAXTP])(link_t link, lob_t path);
+  // network transport handlers to get a pipe for a path
+  pipe_t (*net[MAXNET])(link_t link, lob_t path);
 //  void (*handler)(struct mesh_struct *, hashname_t); // called w/ a hn that has no key info
 };
 
@@ -46,8 +46,8 @@ uint8_t mesh_load(mesh_t mesh, lob_t secrets, lob_t keys);
 // creates a new mesh identity, returns secrets
 lob_t mesh_generate(mesh_t mesh);
 
-// add a transport to this mesh to handle future added paths
-uint8_t mesh_tp(mesh_t mesh, pipe_t (*tp)(link_t link, lob_t path));
+// add a network transport to this mesh to handle future added paths
+uint8_t mesh_net(mesh_t mesh, pipe_t (*net)(link_t link, lob_t path));
 
 // processes incoming packet, it will take ownership of p
 uint8_t mesh_receive(mesh_t mesh, lob_t p, pipe_t pipe);

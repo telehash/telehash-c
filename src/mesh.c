@@ -59,14 +59,14 @@ lob_t mesh_generate(mesh_t mesh)
 }
 
 // add a transport to this mesh to handle future added paths
-uint8_t mesh_tp(mesh_t mesh, pipe_t (*tp)(link_t link, lob_t path))
+uint8_t mesh_net(mesh_t mesh, pipe_t (*net)(link_t link, lob_t path))
 {
   uint8_t i;
-  if(!mesh || !tp) return 1;
-  for(i=0;i<MAXTP;i++)
+  if(!mesh || !net) return 1;
+  for(i=0;i<MAXNET;i++)
   {
-    if(mesh->tp[i]) continue;
-    mesh->tp[i] = tp;
+    if(mesh->net[i]) continue;
+    mesh->net[i] = net;
     return 0;
   }
   return 2;

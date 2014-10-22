@@ -113,9 +113,9 @@ pipe_t link_path(link_t link, lob_t path)
   if(!link || !path) return LOG("bad args");
 
   // check all the transports
-  for(i=0; link->mesh->tp[i] && i < MAXTP; i++)
+  for(i=0; link->mesh->net[i] && i < MAXNET; i++)
   {
-    if(!(pipe = link->mesh->tp[i](link,path))) continue;
+    if(!(pipe = link->mesh->net[i](link,path))) continue;
     // see if we've seen it already
     for(seen = link->pipes; seen; seen = seen->next)
     {
