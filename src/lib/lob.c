@@ -12,7 +12,7 @@
 lob_t lob_new()
 {
   lob_t p;
-  if(!(p = malloc(sizeof (struct lob_struct)))) return NULL;
+  if(!(p = malloc(sizeof (struct lob_struct)))) return LOG("OOM");
   memset(p,0,sizeof (struct lob_struct));
   if(!(p->raw = malloc(2))) return lob_free(p);
   memset(p->raw,0,2);
@@ -148,32 +148,33 @@ uint8_t *lob_body(lob_t p, uint8_t *body, uint32_t len)
   return p->body;
 }
 
-void lob_append(lob_t p, uint8_t *chunk, uint32_t len)
+lob_t lob_append(lob_t p, uint8_t *chunk, uint32_t len)
 {
   void *ptr;
-  if(!p || !chunk || !len) return;
-  if(!(ptr = realloc(p->raw,2+len+p->body_len+p->head_len))) return;
+  if(!p || !chunk || !len) return LOG("bad args");
+  if(!(ptr = realloc(p->raw,2+len+p->body_len+p->head_len))) return NULL;
   p->raw = (unsigned char *)ptr;
   p->head = p->raw+2;
   p->body = p->raw+(2+p->head_len);
   memcpy(p->body+p->body_len,chunk,len);
   p->body_len += len;
+  return p;
 }
 
 // TODO allow empty val to remove existing
-void lob_set_raw(lob_t p, char *key, char *val, uint16_t vlen)
+lob_t lob_set_raw(lob_t p, char *key, char *val, uint16_t vlen)
 {
   char *json, *at, *eval;
   uint16_t klen, len;
   int evlen;
 
-  if(!p || !key || !val) return;
+  if(!p || !key || !val) return LOG("bad args");
   if(p->head_len < 2) lob_head(p, (uint8_t*)"{}", 2);
   klen = strlen(key);
   if(!vlen) vlen = strlen(val); // convenience
 
   // make space and copy
-  if(!(json = malloc(klen+vlen+p->head_len+4))) return;
+  if(!(json = malloc(klen+vlen+p->head_len+4))) return LOG("OOM");
   memcpy(json,p->head,p->head_len);
 
   // if it's already set, replace the value
@@ -208,15 +209,16 @@ void lob_set_raw(lob_t p, char *key, char *val, uint16_t vlen)
   }
   lob_head(p, (uint8_t*)json, len);
   free(json);
+  return p;
 }
 
-void lob_set_printf(lob_t p, char *key, const char *format, ...)
+lob_t lob_set_printf(lob_t p, char *key, const char *format, ...)
 {
   va_list ap, cp;
   int len;
   char *val;
 
-  if(!p || !key || !format) return;
+  if(!p || !key || !format) return LOG("bad args");
 
   va_start(ap, format);
   va_copy(cp, ap);
@@ -227,23 +229,25 @@ void lob_set_printf(lob_t p, char *key, const char *format, ...)
   va_end(cp);
 
   lob_set(p, key, val);
+  return p;
 }
 
-void lob_set_int(lob_t p, char *key, int val)
+lob_t lob_set_int(lob_t p, char *key, int val)
 {
   char num[32];
-  if(!p || !key) return;
+  if(!p || !key) return LOG("bad args");
   sprintf(num,"%d",val);
   lob_set_raw(p, key, num, 0);
+  return p;
 }
 
-void lob_set(lob_t p, char *key, char *val)
+lob_t lob_set(lob_t p, char *key, char *val)
 {
   char *escaped;
   int i, len, vlen = strlen(val);
-  if(!p || !key || !val) return;
+  if(!p || !key || !val) return LOG("bad args");
   // TODO escape key too
-  if(!(escaped = malloc(vlen*2+2))) return; // enough space worst case
+  if(!(escaped = malloc(vlen*2+2))) return LOG("OOM"); // enough space worst case
   len = 0;
   escaped[len++] = '"';
   for(i=0;i<vlen;i++)
@@ -254,19 +258,20 @@ void lob_set(lob_t p, char *key, char *val)
   escaped[len++] = '"';
   lob_set_raw(p, key, escaped, len);
   free(escaped);
+  return p;
 }
 
-void lob_set_base32(lob_t p, char *key, uint8_t *bin, uint16_t blen)
+lob_t lob_set_base32(lob_t p, char *key, uint8_t *bin, uint16_t blen)
 {
   char *val;
-  if(!p || !key || !bin || !blen) return;
+  if(!p || !key || !bin || !blen) return LOG("bad args");
   uint16_t vlen = base32_encode_length(blen)-1; // remove the auto-added \0 space
-  if(!(val = malloc(vlen+2))) return; // include surrounding quotes
+  if(!(val = malloc(vlen+2))) return LOG("OOM"); // include surrounding quotes
   val[0] = '"';
   base32_encode_into(bin, blen, val+1);
   val[vlen+1] = '"';
   lob_set_raw(p,key,val,vlen+2);
-  return;
+  return p;
 }
 
 
@@ -280,7 +285,7 @@ char *unescape(lob_t p, char *start, int len)
   // make a copy if we haven't yet
   if(!p->cache)
   {
-    if(!(p->cache = malloc(p->head_len))) return NULL;
+    if(!(p->cache = malloc(p->head_len))) return LOG("OOM");
     memcpy(p->cache,p->head,p->head_len);
   }
   
@@ -409,18 +414,19 @@ int lob_keys(lob_t p)
   return i/2;
 }
 
-void lob_sort(lob_t p)
+lob_t lob_sort(lob_t p)
 {
   int i, len;
   char **keys;
   lob_t tmp;
 
-  if(!p) return;
+  if(!p) return p;
   len = lob_keys(p);
-  if(!len) return;
+  if(!len) return p;
 
   // create array of keys to sort
   keys = malloc(len*sizeof(char*));
+  if(!keys) return LOG("OOM");
   for(i=0;i<len;i++)
   {
     keys[i] = lob_get_index(p,i*2);
@@ -440,6 +446,7 @@ void lob_sort(lob_t p)
   lob_head(p,tmp->head,tmp->head_len);
   lob_free(tmp);
   free(keys);
+  return p;
 }
 
 
@@ -462,7 +469,7 @@ int lob_cmp(lob_t a, lob_t b)
   return memcmp(a->body,b->body,a->body_len);
 }
 
-void lob_set_json(lob_t p, lob_t json)
+lob_t lob_set_json(lob_t p, lob_t json)
 {
   char *part;
   int i = 0;
@@ -472,5 +479,6 @@ void lob_set_json(lob_t p, lob_t json)
     lob_set(p,part,lob_get_index(json,i+1));
     i += 2;
   }
+  return p;
 }
 
