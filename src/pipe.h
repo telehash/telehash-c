@@ -16,7 +16,7 @@ struct pipe_struct
 };
 
 pipe_t pipe_new(char *type);
-void pipe_free(pipe_t p);
+pipe_t pipe_free(pipe_t p);
 
 /*
 typedef struct pipe_struct

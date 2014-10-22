@@ -17,13 +17,14 @@ pipe_t pipe_new(char *type)
   return p;
 }
 
-void pipe_free(pipe_t p)
+pipe_t pipe_free(pipe_t p)
 {
   free(p->type);
   if(p->id) free(p->id);
   if(p->path) lob_free(p->path);
   if(p->notify) LOG("pipe free'd leaking notifications");
   free(p);
+  return NULL;
 }
 
 /*
