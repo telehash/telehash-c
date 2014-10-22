@@ -132,6 +132,18 @@ pipe_t link_path(link_t link, lob_t path)
   return LOG("path not supported %.*s",path->head_len,path->head);
 }
 
+// process an incoming handshake
+uint8_t link_handshake(link_t link, lob_t inner, lob_t outer, pipe_t pipe)
+{
+  return 11;
+}
+
+// process a decrypted channel packet
+uint8_t link_receive(link_t link, lob_t inner, pipe_t pipe)
+{
+  return 11;
+}
+
 /*
 // flags channel as ended either in or out
 void doend(link_t c)

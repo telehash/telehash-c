@@ -30,6 +30,12 @@ void link_free(link_t link);
 // try to turn a path into a pipe
 pipe_t link_path(link_t link, lob_t path);
 
+// process an incoming handshake
+uint8_t link_handshake(link_t link, lob_t inner, lob_t outer, pipe_t pipe);
+
+// process a decrypted channel packet
+uint8_t link_receive(link_t link, lob_t inner, pipe_t pipe);
+
 /*
 // default channel inactivity timeout in seconds
 #define CHAN_TIMEOUT 10

@@ -38,7 +38,9 @@ int main(int argc, char **argv)
   pipe = link_path(link,lob_set(lob_new(),"type","test"));
   fail_unless(pipe);
   fail_unless(util_cmp(pipe->type,"test") == 0);
-  
+  fail_unless(link->pipes);
+
+
   return 0;
 }
 

@@ -72,6 +72,96 @@ uint8_t mesh_tp(mesh_t mesh, pipe_t (*tp)(link_t link, lob_t path))
   return 2;
 }
 
+// processes incoming packet, it will take ownership of p
+uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
+{
+  lob_t inner;
+  hashname_t from;
+  link_t link;
+  char hex[33];
+
+  if(!mesh || !outer || !pipe)
+  {
+    LOG("bad args");
+    return 1;
+  }
+  
+  // process handshakes
+  if(outer->head_len == 1)
+  {
+    util_hex(outer->head,1,hex);
+    inner = self3_decrypt(mesh->self, outer);
+    if(!inner)
+    {
+      LOG("%s handshake failed %s",hex,e3x_err());
+      lob_free(outer);
+      return 2;
+    }
+    
+    // couple the two together, outer->inner
+    lob_link(outer,inner);
+
+    // make sure csid is set on the handshake to get the hashname
+    lob_set_raw(inner,hex,"true",4);
+    from = hashname_key(inner);
+    if(!from)
+    {
+      LOG("no hashname in %.*s",inner->head_len,inner->head);
+      lob_free(outer);
+      return 2;
+      
+    }
+    
+    link = xht_get(mesh->index,from->hashname);
+    if(!link)
+    {
+      LOG("dropping, no link for hashname %s",from->hashname);
+      hashname_free(from);
+      lob_free(outer);
+      return 3;
+    }
+    hashname_free(from);
+
+    LOG("incoming handshake for link %s",link->id->hashname);
+    return link_handshake(link,inner,outer,pipe);
+  }
+
+  // handle channel packets
+  if(outer->head_len == 0)
+  {
+    if(outer->body_len < 16)
+    {
+      LOG("packet too small %d",outer->body_len);
+      return 5;
+    }
+    util_hex(outer->body, 16, hex);
+    link = xht_get(mesh->index, hex);
+    if(!link)
+    {
+      LOG("dropping, no link for token %s",hex);
+      lob_free(outer);
+      return 6;
+    }
+
+    inner = exchange3_receive(link->x, outer);
+    if(!inner)
+    {
+      LOG("channel decryption fail for link %s %s",link->id->hashname,e3x_err());
+      lob_free(outer);
+      return 7;
+    }
+    
+    LOG("incoming channel packet for link %s",link->id->hashname);
+    return link_receive(link,inner,pipe);
+    
+  }
+  
+  LOG("dropping unknown outer packet with header %d %.*s",outer->head_len,outer->head_len,outer->head);
+  lob_free(outer);
+
+  return 10;
+}
+
 /*
 int mesh_init(mesh_t s, lob_t keys)
 {

@@ -38,16 +38,19 @@ struct mesh_struct
 
 // pass in a prime for the main index of hashnames+links+channels, 0 to use compiled default
 mesh_t mesh_new(uint32_t prime);
-mesh_t mesh_free(mesh_t s);
+mesh_t mesh_free(mesh_t mesh);
 
 // must be called to initialize to a hashname from keys/secrets, return !0 if failed
-uint8_t mesh_load(mesh_t s, lob_t secrets, lob_t keys);
+uint8_t mesh_load(mesh_t mesh, lob_t secrets, lob_t keys);
 
 // creates a new mesh identity, returns secrets
-lob_t mesh_generate(mesh_t s);
+lob_t mesh_generate(mesh_t mesh);
 
 // add a transport to this mesh to handle future added paths
-uint8_t mesh_tp(mesh_t s, pipe_t (*tp)(link_t link, lob_t path));
+uint8_t mesh_tp(mesh_t mesh, pipe_t (*tp)(link_t link, lob_t path));
+
+// processes incoming packet, it will take ownership of p
+uint8_t mesh_receive(mesh_t mesh, lob_t p, pipe_t pipe);
 
 /*
 
