@@ -1,4 +1,4 @@
-#include "pair.h"
+#include "loopback.h"
 #include "unit_test.h"
 
 int main(int argc, char **argv)
@@ -13,7 +13,7 @@ int main(int argc, char **argv)
   lob_t secretsB = mesh_generate(meshB);
   fail_unless(secretsB);
   
-  net_pair_t pair = net_pair_new(meshA,meshB);
+  net_loopback_t pair = net_loopback_new(meshA,meshB);
   fail_unless(pair);
 
   return 0;

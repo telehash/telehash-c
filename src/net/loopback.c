@@ -1,23 +1,23 @@
 #include <string.h>
-#include "pair.h"
+#include "loopback.h"
 
-#define ONID "net_pair"
+#define ONID "net_loopback"
 
 void pair_send(pipe_t pipe, lob_t packet, link_t link)
 {
-  net_pair_t pair = (net_pair_t)pipe->arg;
+  net_loopback_t pair = (net_loopback_t)pipe->arg;
   if(!pair || !packet || !link) return;
   LOG("pair pipe from %s",link->id->hashname);
   if(link->mesh == pair->a) mesh_receive(pair->b,packet,pipe);
   if(link->mesh == pair->b) mesh_receive(pair->a,packet,pipe);
 }
 
-net_pair_t net_pair_new(mesh_t a, mesh_t b)
+net_loopback_t net_loopback_new(mesh_t a, mesh_t b)
 {
-  net_pair_t pair;
+  net_loopback_t pair;
 
-  if(!(pair = malloc(sizeof (struct net_pair_struct)))) return LOG("OOM");
-  memset(pair,0,sizeof (struct net_pair_struct));
+  if(!(pair = malloc(sizeof (struct net_loopback_struct)))) return LOG("OOM");
+  memset(pair,0,sizeof (struct net_loopback_struct));
   pair->a = a;
   pair->b = b;
   pair->pipe = pipe_new("pair");
@@ -31,7 +31,7 @@ net_pair_t net_pair_new(mesh_t a, mesh_t b)
   return pair;
 }
 
-void net_pair_free(net_pair_t pair)
+void net_loopback_free(net_loopback_t pair)
 {
   pipe_free(pair->pipe);
   free(pair);
