@@ -5,8 +5,8 @@
 
 typedef struct net_pair_struct
 {
-  mesh_t a;
-  mesh_t b;
+  pipe_t pipe;
+  mesh_t a, b;
 } *net_pair_t;
 
 // connect two mesh instances with each other for packet delivery

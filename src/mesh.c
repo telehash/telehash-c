@@ -121,6 +121,8 @@ pipe_t mesh_path(mesh_t mesh, link_t link, lob_t path)
 {
   on_t on;
   pipe_t pipe;
+  if(!mesh || !link || !path) return NULL;
+
   for(on = mesh->on; on; on = on->next)
   {
     if(on->path) pipe = on->path(link, path);

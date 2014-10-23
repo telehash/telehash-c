@@ -107,17 +107,25 @@ link_t link_key(mesh_t mesh, lob_t key)
 pipe_t link_path(link_t link, lob_t path)
 {
   pipe_t pipe;
-  seen_t seen;
 
   if(!link || !path) return LOG("bad args");
 
   pipe = mesh_path(link->mesh, link, path);
-  if(!pipe) return NULL;
+  link_pipe(link, pipe);
+  return pipe;
+}
+
+// add a pipe to this link if not yet
+link_t link_pipe(link_t link, pipe_t pipe)
+{
+  seen_t seen;
+
+  if(!link || !pipe) return LOG("bad args");
 
   // see if we've seen it already
   for(seen = link->pipes; seen; seen = seen->next)
   {
-    if(seen->pipe == pipe) return pipe;
+    if(seen->pipe == pipe) return link;
   }
 
   // add this pipe to this link
@@ -126,7 +134,7 @@ pipe_t link_path(link_t link, lob_t path)
   seen->pipe = pipe;
   seen->next = link->pipes;
   link->pipes = seen;
-  return pipe;
+  return link;
 }
 
 // process an incoming handshake

@@ -5,14 +5,16 @@
 typedef struct pipe_struct *pipe_t;
 
 #include "mesh.h"
+#include "link.h"
 
 struct pipe_struct
 {
   char *type;
   char *id;
   lob_t path;
-  lob_t notify;
+  lob_t notify; // who to signal for pipe events
   void *arg; // for use by app/network transport
+  void (*send)(pipe_t pipe, lob_t packet, link_t link); // deliver this packet via this pipe
 };
 
 pipe_t pipe_new(char *type);

@@ -30,6 +30,9 @@ void link_free(link_t link);
 // try to turn a path into a pipe
 pipe_t link_path(link_t link, lob_t path);
 
+// just add a pipe directly
+link_t link_pipe(link_t link, pipe_t pipe);
+
 // process an incoming handshake
 uint8_t link_handshake(link_t link, lob_t inner, lob_t outer, pipe_t pipe);
 
