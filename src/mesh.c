@@ -7,6 +7,22 @@
 // a default prime number for the internal hashtable used to track all active hashnames/lines
 #define MAXPRIME 4211
 
+// internally handle list of triggers active on the mesh
+typedef struct on_struct
+{
+  char *id; // used to store in index
+  
+  void (*free)(mesh_t mesh); // relese resources
+  void (*link)(link_t link); // when a link is created, and again when exchange is created
+  pipe_t (*path)(link_t link, lob_t path); // convert path->pipe
+  void (*open)(link_t link, lob_t open); // incoming channel requests
+  
+  struct on_struct *next;
+} *on_t;
+on_t on_get(mesh_t mesh, char *id);
+on_t on_free(on_t on);
+
+
 mesh_t mesh_new(uint32_t prime)
 {
   mesh_t s;
@@ -29,10 +45,23 @@ mesh_t mesh_new(uint32_t prime)
 
 mesh_t mesh_free(mesh_t mesh)
 {
+  on_t on;
   if(!mesh) return NULL;
+
+  // free any triggers first
+  while(mesh->on)
+  {
+    on = mesh->on;
+    mesh->on = on->next;
+    if(on->free) on->free(mesh);
+    free(on->id);
+    free(on);
+  }
+
   xht_free(mesh->index);
   lob_free(mesh->keys);
   self3_free(mesh->self);
+
   free(mesh);
   return NULL;
 }
@@ -58,18 +87,70 @@ lob_t mesh_generate(mesh_t mesh)
   return secrets;
 }
 
-// add a transport to this mesh to handle future added paths
-uint8_t mesh_net(mesh_t mesh, pipe_t (*net)(link_t link, lob_t path))
+// create our generic callback linked list entry
+on_t on_get(mesh_t mesh, char *id)
 {
-  uint8_t i;
-  if(!mesh || !net) return 1;
-  for(i=0;i<MAXNET;i++)
+  on_t on;
+  
+  if(!mesh || !id) return LOG("bad args");
+  on = xht_get(mesh->index,id);
+  if(on) return on;
+
+  if(!(on = malloc(sizeof (struct on_struct)))) return LOG("OOM");
+  memset(on, 0, sizeof(struct on_struct));
+  on->id = strdup(id);
+  on->next = mesh->on;
+  mesh->on = on;
+  xht_set(mesh->index,on->id,on);
+  return on;
+}
+
+void mesh_on_free(mesh_t mesh, char *id, void (*free)(mesh_t mesh))
+{
+  on_t on = on_get(mesh, id);
+  if(on) on->free = free;
+}
+
+void mesh_on_path(mesh_t mesh, char *id, pipe_t (*path)(link_t link, lob_t path))
+{
+  on_t on = on_get(mesh, id);
+  if(on) on->path = path;
+}
+
+pipe_t mesh_path(mesh_t mesh, link_t link, lob_t path)
+{
+  on_t on;
+  pipe_t pipe;
+  for(on = mesh->on; on; on = on->next)
   {
-    if(mesh->net[i]) continue;
-    mesh->net[i] = net;
-    return 0;
+    if(on->path) pipe = on->path(link, path);
+    if(pipe) return pipe;
   }
-  return 2;
+  return LOG("no pipe for path %.*s",path->head_len,path->head);
+}
+
+void mesh_on_link(mesh_t mesh, char *id, void (*link)(link_t link))
+{
+  on_t on = on_get(mesh, id);
+  if(on) on->link = link;
+}
+
+void mesh_link(mesh_t mesh, link_t link)
+{
+  on_t on;
+  for(on = mesh->on; on; on = on->next) if(on->link) on->link(link);
+}
+
+void mesh_on_open(mesh_t mesh, char *id, void (*open)(link_t link, lob_t open))
+{
+  on_t on = on_get(mesh, id);
+  if(on) on->open = open;
+}
+
+void mesh_open(mesh_t mesh, link_t link, lob_t open)
+{
+  on_t on;
+  for(on = mesh->on; on; on = on->next) if(on->open) on->open(link, open);
 }
 
 // processes incoming packet, it will take ownership of p

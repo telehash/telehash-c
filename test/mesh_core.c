@@ -34,7 +34,7 @@ int main(int argc, char **argv)
   fail_unless(pipe);
   pipe_free(pipe);
 
-  fail_unless(mesh_net(mesh, net_test) == 0);
+  mesh_on_path(mesh, "test", net_test);
   pipe = link_path(link,lob_set(lob_new(),"type","test"));
   fail_unless(pipe);
   fail_unless(util_cmp(pipe->type,"test") == 0);

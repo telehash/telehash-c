@@ -107,29 +107,26 @@ link_t link_key(mesh_t mesh, lob_t key)
 pipe_t link_path(link_t link, lob_t path)
 {
   pipe_t pipe;
-  uint8_t i;
   seen_t seen;
 
   if(!link || !path) return LOG("bad args");
 
-  // check all the transports
-  for(i=0; link->mesh->net[i] && i < MAXNET; i++)
+  pipe = mesh_path(link->mesh, link, path);
+  if(!pipe) return NULL;
+
+  // see if we've seen it already
+  for(seen = link->pipes; seen; seen = seen->next)
   {
-    if(!(pipe = link->mesh->net[i](link,path))) continue;
-    // see if we've seen it already
-    for(seen = link->pipes; seen; seen = seen->next)
-    {
-      if(seen->pipe == pipe) return pipe;
-    }
-    if(!(seen = malloc(sizeof (struct seen_struct)))) return NULL;
-    memset(seen,0,sizeof (struct seen_struct));
-    seen->pipe = pipe;
-    seen->next = link->pipes;
-    link->pipes = seen;
-    return pipe;
+    if(seen->pipe == pipe) return pipe;
   }
-  
-  return LOG("path not supported %.*s",path->head_len,path->head);
+
+  // add this pipe to this link
+  if(!(seen = malloc(sizeof (struct seen_struct)))) return NULL;
+  memset(seen,0,sizeof (struct seen_struct));
+  seen->pipe = pipe;
+  seen->next = link->pipes;
+  link->pipes = seen;
+  return pipe;
 }
 
 // process an incoming handshake

@@ -13,27 +13,13 @@ typedef struct mesh_struct *mesh_t;
 #include "util.h"
 #include "platform.h"
 
-// how many network transports can any mesh support
-#ifndef MAXNET
-#define MAXNET 8
-#endif
-
 struct mesh_struct
 {
   hashname_t id;
   lob_t keys;
   self3_t self;
-//  bucket_t seeds, active;
-  lob_t out, last; // packets waiting to be delivered
-  lob_t parts;
-//  chan_t chans; // channels waiting to be processed
-  uint32_t uid, tick;
-  int cap, window;
-//  uint8_t isSeed;
   xht_t index;
-  // network transport handlers to get a pipe for a path
-  pipe_t (*net[MAXNET])(link_t link, lob_t path);
-//  void (*handler)(struct mesh_struct *, hashname_t); // called w/ a hn that has no key info
+  void *on; // internal list of triggers
 };
 
 // pass in a prime for the main index of hashnames+links+channels, 0 to use compiled default
@@ -46,11 +32,23 @@ uint8_t mesh_load(mesh_t mesh, lob_t secrets, lob_t keys);
 // creates a new mesh identity, returns secrets
 lob_t mesh_generate(mesh_t mesh);
 
-// add a network transport to this mesh to handle future added paths
-uint8_t mesh_net(mesh_t mesh, pipe_t (*net)(link_t link, lob_t path));
+// processes incoming packet, it will take ownership of packet
+uint8_t mesh_receive(mesh_t mesh, lob_t packet, pipe_t pipe);
 
-// processes incoming packet, it will take ownership of p
-uint8_t mesh_receive(mesh_t mesh, lob_t p, pipe_t pipe);
+// callback when the mesh is free'd
+void mesh_on_free(mesh_t mesh, char *id, void (*free)(mesh_t mesh));
+
+// callback when a path needs to be turned into a pipe
+void mesh_on_path(mesh_t mesh, char *id, pipe_t (*path)(link_t link, lob_t path));
+pipe_t mesh_path(mesh_t mesh, link_t link, lob_t path);
+
+// callback when a link is created
+void mesh_on_link(mesh_t mesh, char *id, void (*link)(link_t link));
+void mesh_link(mesh_t mesh, link_t link);
+
+// callback when a new incoming channel is requested
+void mesh_on_open(mesh_t mesh, char *id, void (*open)(link_t link, lob_t open));
+void mesh_open(mesh_t mesh, link_t link, lob_t open);
 
 /*
 
