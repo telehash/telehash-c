@@ -1,7 +1,7 @@
 #include <string.h>
 #include "loopback.h"
 
-#define ONID "net_loopback"
+#define MID "net_loopback"
 
 void pair_send(pipe_t pipe, lob_t packet, link_t link)
 {

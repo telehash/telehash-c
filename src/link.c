@@ -149,6 +149,19 @@ uint8_t link_receive(link_t link, lob_t inner, pipe_t pipe)
   return 11;
 }
 
+// encrypt/send this packet to the best pipe
+link_t link_send(link_t link, lob_t inner)
+{
+  pipe_t pipe;
+  
+  if(!link) return LOG("bad args");
+  if(!link->x) return LOG("no exchange");
+  if(!link->pipes || !(pipe = link->pipes->pipe)) return LOG("no network");
+
+  pipe->send(pipe, exchange3_send(link->x, inner), link);
+  return link;
+}
+
 // trigger a new sync
 link_t link_sync(link_t link)
 {

@@ -39,6 +39,9 @@ uint8_t link_handshake(link_t link, lob_t inner, lob_t outer, pipe_t pipe);
 // process a decrypted channel packet
 uint8_t link_receive(link_t link, lob_t inner, pipe_t pipe);
 
+// try to encrypt/deliver this channel packet
+link_t link_send(link_t link, lob_t inner);
+
 // trigger a new sync
 link_t link_sync(link_t link);
 

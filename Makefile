@@ -25,7 +25,7 @@ UNIX1a = unix/platform.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c  $(LIB)
 # all
 #ARCH = unix/platform.c $(JSON) $(CS1a) $(CS2a) $(CS3a) $(INCLUDE) $(LIBS)
 
-TESTS = lib_base32 lib_lob lib_hashname lib_murmur lib_util e3x_core e3x_cs1a e3x_self3 e3x_exchange3 e3x_event3 e3x_channel3 mesh_core net_loopback
+TESTS = lib_base32 lib_lob lib_hashname lib_murmur lib_util e3x_core e3x_cs1a e3x_self3 e3x_exchange3 e3x_event3 e3x_channel3 mesh_core net_loopback net_udp4
 
 all: test
 
@@ -84,6 +84,9 @@ mesh_core:
 
 net_loopback:
 	$(CC) $(CFLAGS) -o test/net_loopback test/net_loopback.c src/net/loopback.c $(UNIX1a) $(MESH)
+
+net_udp4:
+	$(CC) $(CFLAGS) -o test/net_udp4 test/net_udp4.c src/net/udp4.c $(UNIX1a) $(MESH)
 
 idgen:
 	$(CC) $(CFLAGS) -o bin/idgen util/idgen.c $(ARCH)
