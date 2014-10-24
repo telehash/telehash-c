@@ -74,6 +74,10 @@ char *lob_get(lob_t p, char *key);
 int lob_get_int(lob_t p, char *key);
 char *lob_get_index(lob_t p, uint32_t i); // returns ["0","1","2","3"] or {"0":"1","2":"3"}
 
+// get the raw value, must use get_len
+char *lob_get_raw(lob_t p, char *key);
+uint32_t lob_get_len(lob_t p, char *key);
+
 // returns new packets based on values
 lob_t lob_get_packet(lob_t p, char *key); // creates new packet from key:object value
 lob_t lob_get_packets(lob_t p, char *key); // list of packet->next from key:[object,object]

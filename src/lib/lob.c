@@ -322,6 +322,32 @@ char *lob_get(lob_t p, char *key)
   return unescape(p,val,len);
 }
 
+char *lob_get_raw(lob_t p, char *key)
+{
+  char *val;
+  int len = 0;
+  if(!p || !key || p->head_len < 5) return NULL;
+  val = js0n(key,0,(char*)p->head,p->head_len,&len);
+  if(!val) return NULL;
+  // if it's a string value, return start of quotes
+  if(*(val-1) == '"') return val-1;
+  // everything else is straight up
+  return val;
+}
+
+uint32_t lob_get_len(lob_t p, char *key)
+{
+  char *val;
+  int len = 0;
+  if(!p || !key || p->head_len < 5) return 0;
+  val = js0n(key,0,(char*)p->head,p->head_len,&len);
+  if(!val) return 0;
+  // if it's a string value, include quotes
+  if(*(val-1) == '"') return len+2;
+  // everything else is straight up
+  return len;
+}
+
 int lob_get_int(lob_t p, char *key)
 {
   char *val = lob_get(p,key);
@@ -439,7 +465,7 @@ lob_t lob_sort(lob_t p)
   tmp = lob_new();
   for(i=0;i<len;i++)
   {
-    lob_set(tmp,keys[i],lob_get(p,keys[i]));
+    lob_set_raw(tmp,keys[i],lob_get_raw(p,keys[i]),lob_get_len(p,keys[i]));
   }
 
   // replace json in original packet
