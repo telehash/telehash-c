@@ -149,6 +149,25 @@ uint8_t link_receive(link_t link, lob_t inner, pipe_t pipe)
   return 11;
 }
 
+// trigger a new sync
+link_t link_sync(link_t link)
+{
+  seen_t seen;
+  lob_t handshake;
+  if(!link) return LOG("bad args");
+  if(!link->x) return LOG("no exchange");
+
+  // send a handshake to every pipe
+  handshake = exchange3_handshake(link->x, 0);
+  for(seen = link->pipes;seen;seen = seen->next)
+  {
+    if(seen->pipe) seen->pipe->send(seen->pipe,lob_copy(handshake),link);
+  }
+
+  lob_free(handshake);
+  return link;
+}
+
 /*
 // flags channel as ended either in or out
 void doend(link_t c)

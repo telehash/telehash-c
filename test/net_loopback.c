@@ -15,6 +15,13 @@ int main(int argc, char **argv)
   
   net_loopback_t pair = net_loopback_new(meshA,meshB);
   fail_unless(pair);
+  
+  link_t linkAB = link_get(meshA, meshB->id->hashname);
+  link_t linkBA = link_get(meshB, meshA->id->hashname);
+  fail_unless(linkAB);
+  fail_unless(linkBA);
+
+  fail_unless(link_sync(linkAB));
 
   return 0;
 }

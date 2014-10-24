@@ -39,6 +39,9 @@ uint8_t link_handshake(link_t link, lob_t inner, lob_t outer, pipe_t pipe);
 // process a decrypted channel packet
 uint8_t link_receive(link_t link, lob_t inner, pipe_t pipe);
 
+// trigger a new sync
+link_t link_sync(link_t link);
+
 /*
 // default channel inactivity timeout in seconds
 #define CHAN_TIMEOUT 10
