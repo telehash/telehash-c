@@ -61,7 +61,7 @@ hashname_t hashname_key(lob_t key)
   for(i=0;(id = lob_get_index(key,i));i+=2)
   {
     value = lob_get_index(key,i+1);
-    if(strlen(id) != 2 || !value) continue; // skip non-id keys
+    if(strlen(id) != 2 || !util_ishex(id,2) || !value) continue; // skip non-id keys
     
     // hash the id
     util_unhex(id,2,hash+32);
