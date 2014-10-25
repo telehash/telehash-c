@@ -125,7 +125,7 @@ pipe_t link_path(link_t link, lob_t path)
 
   if(!link || !path) return LOG("bad args");
 
-  pipe = mesh_path(link->mesh, link, path);
+  if(!(pipe = mesh_path(link->mesh, link, path))) return NULL;
   link_pipe(link, pipe);
   return pipe;
 }
@@ -189,7 +189,7 @@ link_t link_sync(link_t link)
   handshake = exchange3_handshake(link->x, 0);
   for(seen = link->pipes;seen;seen = seen->next)
   {
-    if(seen->pipe) seen->pipe->send(seen->pipe,lob_copy(handshake),link);
+    if(seen->pipe && seen->pipe->send) seen->pipe->send(seen->pipe,lob_copy(handshake),link);
   }
 
   lob_free(handshake);

@@ -1,8 +1,6 @@
 #include <string.h>
 #include "loopback.h"
 
-#define MID "net_loopback"
-
 void pair_send(pipe_t pipe, lob_t packet, link_t link)
 {
   net_loopback_t pair = (net_loopback_t)pipe->arg;

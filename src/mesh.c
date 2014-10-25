@@ -93,15 +93,13 @@ on_t on_get(mesh_t mesh, char *id)
   on_t on;
   
   if(!mesh || !id) return LOG("bad args");
-  on = xht_get(mesh->index,id);
-  if(on) return on;
+  for(on = mesh->on; on; on = on->next) if(util_cmp(on->id,id) == 0) return on;
 
   if(!(on = malloc(sizeof (struct on_struct)))) return LOG("OOM");
   memset(on, 0, sizeof(struct on_struct));
   on->id = strdup(id);
   on->next = mesh->on;
   mesh->on = on;
-  xht_set(mesh->index,on->id,on);
   return on;
 }
 

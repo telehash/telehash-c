@@ -25,6 +25,16 @@ int main(int argc, char **argv)
   fail_unless(netB->port > 0);
   LOG("netB %.*s",netB->path->head_len,netB->path->head);
   
+  link_t linkAB = link_keys(meshA, meshB->keys);
+  link_t linkBA = link_keys(meshB, meshA->keys);
+  fail_unless(linkAB);
+  fail_unless(linkBA);
+  
+  fail_unless(link_path(linkAB,netB->path));
+  fail_unless(link_path(linkBA,netA->path));
+  
+  link_sync(linkAB);
+
   return 0;
 }
 

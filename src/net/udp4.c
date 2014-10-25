@@ -2,7 +2,8 @@
 #include <string.h>
 #include "udp4.h"
 
-#define MID "net_udp4"
+// our unique id per mesh
+#define MUID "net_udp4"
 
 // individual pipe local info
 typedef struct pipe_udp4_struct
@@ -31,7 +32,9 @@ pipe_t udp4_pipe(net_udp4_t net, char *ip, int port)
   snprintf(id,23,"%s:%d",ip,port);
   pipe = xht_get(net->pipes,id);
   if(pipe) return pipe;
-  
+
+  LOG("new pipe to %s",id);
+
   // create new udp4 pipe
   if(!(to = malloc(sizeof (struct pipe_udp4_struct)))) return LOG("OOM");
   memset(to,0,sizeof (struct pipe_udp4_struct));
@@ -47,8 +50,10 @@ pipe_t udp4_pipe(net_udp4_t net, char *ip, int port)
     return LOG("OOM");
   }
   pipe->id = strdup(id);
-  pipe->arg = to;
   xht_set(net->pipes,pipe->id,pipe);
+
+  pipe->arg = to;
+  pipe->send = udp4_send;
 
   return pipe;
 }
@@ -61,7 +66,7 @@ pipe_t udp4_path(link_t link, lob_t path)
 
   // just sanity check the path first
   if(!link || !path) return NULL;
-  if(!(net = xht_get(link->mesh->index, MID))) return NULL;
+  if(!(net = xht_get(link->mesh->index, MUID))) return NULL;
   if(util_cmp("udp4",lob_get(path,"type"))) return NULL;
   if(!(ip = lob_get(path,"ip"))) return LOG("missing ip");
   if((port = lob_get_int(path,"port")) <= 0) return LOG("missing port");
@@ -88,9 +93,13 @@ net_udp4_t net_udp4_new(mesh_t mesh, int port)
 
   if(!(net = malloc(sizeof (struct net_udp4_struct)))) return LOG("OOM");
   memset(net,0,sizeof (struct net_udp4_struct));
-  net->mesh = mesh;
   net->server = sock;
   net->port = ntohs(sa.sin_port);
+
+  // connect us to this mesh
+  net->mesh = mesh;
+  xht_set(mesh->index, MUID, net);
+  mesh_on_path(mesh, MUID, udp4_path);
   
   // convenience
   net->path = lob_new();
