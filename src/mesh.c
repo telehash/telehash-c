@@ -169,6 +169,8 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
     return 1;
   }
   
+  LOG("mesh receiving packet %d %s from %s",outer->head_len,mesh->id->hashname,pipe->id);
+
   // process handshakes
   if(outer->head_len == 1)
   {

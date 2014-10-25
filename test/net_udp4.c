@@ -1,4 +1,5 @@
 #include "udp4.h"
+#include "platform.h"
 #include "unit_test.h"
 
 int main(int argc, char **argv)
@@ -15,6 +16,14 @@ int main(int argc, char **argv)
   
   net_udp4_t netA = net_udp4_new(meshA, 0);
   fail_unless(netA);
+  fail_unless(netA->port > 0);
+  fail_unless(netA->path);
+  LOG("netA %.*s",netA->path->head_len,netA->path->head);
+
+  net_udp4_t netB = net_udp4_new(meshB, 0);
+  fail_unless(netB);
+  fail_unless(netB->port > 0);
+  LOG("netB %.*s",netB->path->head_len,netB->path->head);
   
   return 0;
 }

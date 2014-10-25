@@ -21,22 +21,13 @@ void udp4_send(pipe_t pipe, lob_t packet, link_t link)
   if(sendto(to->net->server, lob_raw(packet), lob_len(packet), 0, (struct sockaddr *)&(to->sa), sizeof(struct sockaddr_in)) < 0) LOG("sendto failed: %s",strerror(errno));
 }
 
-pipe_t udp4_path(link_t link, lob_t path)
+// internal, get or create a pipe
+pipe_t udp4_pipe(net_udp4_t net, char *ip, int port)
 {
-  net_udp4_t net;
   pipe_t pipe;
   pipe_udp4_t to;
-  char *ip;
-  int port;
   char id[23];
 
-  if(!link || !path) return NULL;
-  if(!(net = xht_get(link->mesh->index, MID))) return NULL;
-  if(util_cmp("udp4",lob_get(path,"type"))) return NULL;
-  if(!(ip = lob_get(path,"ip"))) return LOG("missing ip");
-  if((port = lob_get_int(path,"port")) <= 0) return LOG("missing port");
-  
-  // create the id and look for existing pipe
   snprintf(id,23,"%s:%d",ip,port);
   pipe = xht_get(net->pipes,id);
   if(pipe) return pipe;
@@ -62,45 +53,50 @@ pipe_t udp4_path(link_t link, lob_t path)
   return pipe;
 }
 
-net_udp4_t net_udp4_new(mesh_t mesh, int port)
+pipe_t udp4_path(link_t link, lob_t path)
 {
   net_udp4_t net;
+  char *ip;
+  int port;
+
+  // just sanity check the path first
+  if(!link || !path) return NULL;
+  if(!(net = xht_get(link->mesh->index, MID))) return NULL;
+  if(util_cmp("udp4",lob_get(path,"type"))) return NULL;
+  if(!(ip = lob_get(path,"ip"))) return LOG("missing ip");
+  if((port = lob_get_int(path,"port")) <= 0) return LOG("missing port");
+  
+  return udp4_pipe(net, ip, port);
+}
+
+net_udp4_t net_udp4_new(mesh_t mesh, int port)
+{
+  int sock;
+  net_udp4_t net;
+  struct sockaddr_in sa;
+  socklen_t size = sizeof(struct sockaddr_in);
+
+  // create a udp socket
+  if((sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP) ) < 0 ) return LOG("failed to create socket %s",strerror(errno));
+
+  memset(&sa,0,sizeof(sa));
+  sa.sin_family = AF_INET;
+  sa.sin_port = htons(port);
+  sa.sin_addr.s_addr = htonl(INADDR_ANY);
+  if (bind (sock, (struct sockaddr*)&sa, size) < 0) return LOG("bind failed %s",strerror(errno));
+  getsockname(sock, (struct sockaddr*)&sa, &size);
 
   if(!(net = malloc(sizeof (struct net_udp4_struct)))) return LOG("OOM");
   memset(net,0,sizeof (struct net_udp4_struct));
-  
-  // TODO server
-  net->port = port;
   net->mesh = mesh;
-
-  /*
-  int sock;
-  struct	sockaddr_in sad;
-  struct timeval tv;
-
-  // create a udp socket
-  if( (sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP) ) < 0 )
-  {
-    printf("failed to create socket\n");
-    return -1;
-  }
-  memset(&sad,0,sizeof(sad));
-  sad.sin_family = AF_INET;
-  sad.sin_port = htons(port);
-  sad.sin_addr.s_addr = htonl(INADDR_ANY);
-  if (bind (sock, (struct sockaddr *)&sad, sizeof(sad)) < 0)
-  {
-    perror("bind failed");
-    return -1;
-  }
-  tv.tv_sec = ms/1000;
-  tv.tv_usec = (ms%1000)*1000;
-  if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0)
-  {
-    perror("setsockopt");
-    return -1;
-  }
-  */
+  net->server = sock;
+  net->port = ntohs(sa.sin_port);
+  
+  // convenience
+  net->path = lob_new();
+  lob_set(net->path,"type","udp4");
+  lob_set(net->path,"ip","127.0.0.1");
+  lob_set_int(net->path,"port",net->port);
 
   return net;
 }
@@ -111,28 +107,46 @@ void net_udp4_free(net_udp4_t net)
   return;
 }
 
-uint8_t net_udp4_receive(net_udp4_t net)
+net_udp4_t net_udp4_timeout(net_udp4_t net, uint32_t ms)
 {
-  return 1;
-  /*
+  struct timeval tv;
+  if(!net) return LOG("bad args");
+
+  tv.tv_sec = ms/1000;
+  tv.tv_usec = (ms%1000)*1000;
+
+  if(setsockopt(net->server, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) return LOG("timeout setsockopt error %s",strerror(errno));
+
+  return net;
+}
+
+net_udp4_t net_udp4_receive(net_udp4_t net)
+{
   unsigned char buf[2048];
   struct sockaddr_in sa;
   int len, salen;
-  lob_t p;
+  lob_t packet;
+  pipe_t pipe;
   
+  if(!net) return LOG("bad args");
+
   salen = sizeof(sa);
   memset(&sa,0,salen);
-  len = recvfrom(sock, buf, sizeof(buf), 0, (struct sockaddr *)&sa, (socklen_t *)&salen);
+  len = recvfrom(net->server, buf, sizeof(buf), 0, (struct sockaddr *)&sa, (socklen_t *)&salen);
 
-  if(len < 0 && errno != EAGAIN && errno != EWOULDBLOCK) return -1;
-  if(len <= 0) return 0;
+  if(len < 0 && errno != EAGAIN && errno != EWOULDBLOCK) return LOG("recvfrom error %s",strerror(errno));
+  if(len <= 0) return NULL;
 
-  sa2path(&sa,in); // inits ip/port from sa
-  strcpy(p->ip,inet_ntoa(sa->sin_addr));
-  p->port = ntohs(sa->sin_port);
-  p = lob_parse(buf,len);
-  DEBUG_PRINTF(">>> %s packet %d %s", p->json_len?"open":"line", len, path_json(in));
-  switch_receive(s,p,in);
-  return 0;
-  */
+  packet = lob_parse(buf,len);
+  if(!packet)
+  {
+    LOG("parse error from %s on %d bytes",inet_ntoa(sa.sin_addr),len);
+    return net;
+  }
+
+  // create the id and look for existing pipe
+  pipe = udp4_pipe(net, inet_ntoa(sa.sin_addr), ntohs(sa.sin_port));
+  mesh_receive(net->mesh, packet, pipe);
+  
+  return net;
 }
