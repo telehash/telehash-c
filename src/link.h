@@ -14,6 +14,7 @@ struct link_struct
   mesh_t mesh;
   lob_t key;
   uint8_t csid;
+  xht_t channels;
 
   // these are for internal link management only
   struct seen_struct *pipes;
@@ -44,6 +45,15 @@ link_t link_send(link_t link, lob_t inner);
 
 // trigger a new sync
 link_t link_sync(link_t link);
+
+// create/track a new channel for this open
+channel3_t link_open(link_t link, lob_t open);
+
+// set up internal handler for all incoming packets on this channel
+link_t link_handle(link_t link, channel3_t c3, void (*handle)(link_t link, channel3_t c3, void *arg), void *arg);
+
+// process any outgoing packets for this channel
+link_t link_channel(link_t link, channel3_t c3);
 
 /*
 // default channel inactivity timeout in seconds

@@ -29,6 +29,12 @@ int main(int argc, char **argv)
   fail_unless(link_keys(mesh,lob_linked(idB)) == link);
   fail_unless(link->csid == 0x1a);
   fail_unless(link->x);
+  
+  lob_t open = lob_new();
+  lob_set(open,"type","test");
+  lob_set_int(open,"c",exchange3_cid(link->x));
+  channel3_t chan = link_open(link, open);
+  fail_unless(chan);
 
   pipe_t pipe = pipe_new("test");
   fail_unless(pipe);

@@ -4,8 +4,9 @@
 #include "util.h"
 #include "mesh.h"
 
-// internal structure to manage our link-local state about pipes
+// internal structures to manage our link-local state about pipes and channels
 
+// list of active pipes and state per link
 typedef struct seen_struct
 {
   pipe_t pipe;
@@ -13,6 +14,13 @@ typedef struct seen_struct
   struct seen_struct *next;
 } *seen_t;
 
+// these sit in the xht index to wrap the channel3 and recipient handler
+typedef struct chan_struct
+{
+  channel3_t c3;
+  void *arg;
+  void (*handle)(link_t link, channel3_t c3, void *arg);
+} *chan_t;
 
 link_t link_new(mesh_t mesh, hashname_t id)
 {
@@ -28,6 +36,10 @@ link_t link_new(mesh_t mesh, hashname_t id)
   link->mesh = mesh;
   xht_set(mesh->index,id->hashname,link);
 
+  // minimum active channels by default
+  // app can xht_free(link->channels); link->channels = xht_new(BIGGER) at start itself
+  link->channels = xht_new(5);
+
   return link;
 }
 
@@ -38,6 +50,9 @@ void link_free(link_t link)
   xht_set(link->mesh->index,link->id->hashname,NULL);
 
   // TODO go through ->pipes
+
+  // TODO go through link->channels
+  xht_free(link->channels);
 
   hashname_free(link->id);
   free(link);
@@ -162,7 +177,7 @@ link_t link_send(link_t link, lob_t inner)
   return link;
 }
 
-// trigger a new sync
+// trigger a new exchange sync
 link_t link_sync(link_t link)
 {
   seen_t seen;
@@ -180,6 +195,59 @@ link_t link_sync(link_t link)
   lob_free(handshake);
   return link;
 }
+
+// create/track a new channel for this open
+channel3_t link_open(link_t link, lob_t open)
+{
+  chan_t chan;
+  channel3_t c3;
+  if(!link || !open) return LOG("bad args");
+
+  c3 = channel3_new(open);
+  if(!c3) return LOG("invalid open %.*s",open->head_len,open->head);
+
+  // add this channel to the link's channel index
+  if(!(chan = malloc(sizeof (struct chan_struct))))
+  {
+    channel3_free(c3);
+    return LOG("OOM");
+  }
+  memset(chan,0,sizeof (struct chan_struct));
+  chan->c3 = c3;
+  xht_set(link->channels, channel3_uid(c3), chan);
+
+  return c3;
+}
+
+// set up internal handler for all incoming packets on this channel
+link_t link_handle(link_t link, channel3_t c3, void (*handle)(link_t link, channel3_t c3, void *arg), void *arg)
+{
+  chan_t chan;
+  if(!link || !c3) return LOG("bad args");
+  chan = xht_get(link->channels, channel3_uid(c3));
+  if(!chan) return LOG("unknown channel %s",channel3_uid(c3));
+
+  chan->handle = handle;
+  chan->arg = arg;
+
+  return link;
+}
+
+// process any outgoing packets for this channel
+link_t link_channel(link_t link, channel3_t c3)
+{
+  lob_t packet;
+  if(!link || !c3) return LOG("bad args");
+  
+  while((packet = channel3_sending(c3)))
+  {
+    link_send(link, exchange3_send(link->x, packet));
+    lob_free(packet);
+  }
+
+  return link;
+}
+
 
 /*
 // flags channel as ended either in or out
