@@ -19,22 +19,23 @@ typedef struct exchange3_struct
 
 // make a new exchange
 // packet must contain the raw key in the body
-exchange3_t exchange3_new(self3_t self, uint8_t csid, lob_t key, uint32_t at);
+exchange3_t exchange3_new(self3_t self, uint8_t csid, lob_t key);
 void exchange3_free(exchange3_t x);
 
-// these require a self (local) and an exchange (remote) but are exchange independent
+// these are stateless async encryption and verification
 lob_t exchange3_message(exchange3_t x, lob_t inner);
 uint8_t exchange3_verify(exchange3_t x, lob_t outer);
 
-// returns the seq value for a handshake reply if needed
-// sets secrets/seq/cids to the given handshake if it's newer
-// always call chan_sync(c,true) after this on all open channels to signal them the exchange is active
-uint32_t exchange3_sync(exchange3_t x, lob_t outer, lob_t inner);
+// will return the current at to use in a handshake, optional base to start from to force a new at
+uint32_t exchange3_at(exchange3_t x, uint32_t base);
 
-// just a convenience, at=0 means force new handshake, or pass at from exchange3_sync()
-lob_t exchange3_handshake(exchange3_t x, uint32_t at);
+// process incoming handshake, returns x if success, NULL if not
+exchange3_t exchange3_sync(exchange3_t x, lob_t outer, lob_t inner);
 
-// simple encrypt/decrypt conversion of any packet for channels
+// just a convenience, generates handshake w/ current exchange3_at value
+lob_t exchange3_handshake(exchange3_t x);
+
+// simple synchronous encrypt/decrypt conversion of any packet for channels
 lob_t exchange3_receive(exchange3_t x, lob_t outer); // goes to channel, validates cid
 lob_t exchange3_send(exchange3_t x, lob_t inner); // comes from channel 
 

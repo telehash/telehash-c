@@ -6,7 +6,7 @@
 
 // make a new exchange
 // packet must contain the raw key in the body
-exchange3_t exchange3_new(self3_t self, uint8_t csid, lob_t key, uint32_t at)
+exchange3_t exchange3_new(self3_t self, uint8_t csid, lob_t key)
 {
   uint8_t i, token[16];
   exchange3_t x;
@@ -44,15 +44,6 @@ exchange3_t exchange3_new(self3_t self, uint8_t csid, lob_t key, uint32_t at)
     x->order = (key->body[i] > self->keys[cs->id]->body[i]) ? 2 : 1;
   }
   x->cid = x->order;
-
-  // make sure at matches order
-  x->at = at;
-  if(x->order == 2)
-  {
-    if(at % 2 != 0) x->at++;
-  }else{
-    if(at % 2 == 0) x->at++;
-  }
   
   return x;
 }
@@ -80,53 +71,67 @@ uint8_t exchange3_verify(exchange3_t x, lob_t outer)
   return x->cs->remote_verify(x->remote,x->self->locals[x->cs->id],outer);
 }
 
-// returns the seq value for a handshake reply if needed
-// sets secrets/seq/cids to the given handshake if it's newer
-// always call chan_sync(c,true||false) after this on all open channels to signal them
-uint32_t exchange3_sync(exchange3_t x, lob_t outer, lob_t inner)
+// will return the current at to use in a handshake, optional base to start from to force a new at
+uint32_t exchange3_at(exchange3_t x, uint32_t base)
+{
+  if(!x) return 0;
+
+  // if there's a base, update at
+  if(base && base > x->at)
+  {
+    // make sure at matches order
+    x->at = base;
+    if(x->order == 2)
+    {
+      if(x->at % 2 != 0) x->at++;
+    }else{
+      if(x->at % 2 == 0) x->at++;
+    }
+  }
+  
+  return x->at;
+}
+
+// process incoming handshake, return 0 if success, >0 if error/ignored
+exchange3_t exchange3_sync(exchange3_t x, lob_t outer, lob_t inner)
 {
   uint32_t at;
   ephemeral_t ephem;
-  if(!x || !outer || !inner) return x->at;
-  if(outer->body_len < 16) return x->at;
+  if(!x || !outer || !inner) return LOG("bad args");
+  if(outer->body_len < 16) return LOG("handshake too small");
   
   // if the inner at is older than ours, send ours
   at = lob_get_int(inner,"at");
-  if(at < x->at) return x->at;
+  if(at < x->at) return LOG("old handshake %d < %d",at,x->at);
 
+  // new at sync'd
+  LOG("handshake sync to %d",at);
+  x->at = at;
+  
   // if the incoming handshake's key is different, create a new ephemeral
   if(memcmp(outer->body,x->etoken,16) != 0)
   {
     ephem = x->cs->ephemeral_new(x->remote,outer);
-    if(!ephem)
-    {
-      LOG("ephemeral creation failed %s",x->cs->err());
-      return 0;
-    }
+    if(!ephem) return LOG("ephemeral creation failed %s",x->cs->err());
     x->cs->ephemeral_free(x->ephem);
     x->ephem = ephem;
+    memcpy(x->etoken,outer->body,16);
   }
 
-  return at;
+  return x;
 }
 
-// just a convenience, at=0 means force new handshake (and chan_sync(false)), or pass at from exchange3_sync()
-lob_t exchange3_handshake(exchange3_t x, uint32_t at)
+// just a convenience, generates handshake w/ current exchange3_at value
+lob_t exchange3_handshake(exchange3_t x)
 {
   lob_t inner, key;
   uint8_t i;
   if(!x) return LOG("invalid args");
-
-  // no at, force us out of sync
-  if(!at)
-  {
-    x->at += 2;
-    at = x->at;
-  }
+  if(!x->at) return LOG("no at set");
 
   // create new handshake inner from all supported csets
   inner = lob_new();
-  lob_set_int(inner,"at",at);
+  lob_set_int(inner,"at",x->at);
   
   // loop through all ciphersets for any keys
   for(i=0; i<CS_MAX; i++)

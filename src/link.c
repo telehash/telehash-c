@@ -112,7 +112,8 @@ link_t link_key(mesh_t mesh, lob_t key)
     LOG("adding %x key to link %s",csid,link->id->hashname);
     link->csid = csid;
     link->key = lob_copy(key);
-    link->x = exchange3_new(link->mesh->self, csid, key, platform_seconds());
+    link->x = exchange3_new(link->mesh->self, csid, key);
+    exchange3_at(link->x, platform_seconds());
   }
 
   return link;
@@ -185,8 +186,9 @@ link_t link_sync(link_t link)
   if(!link) return LOG("bad args");
   if(!link->x) return LOG("no exchange");
 
-  // send a handshake to every pipe
-  handshake = exchange3_handshake(link->x, 0);
+  // send a new handshake to every pipe
+  exchange3_at(link->x,exchange3_at(link->x,0)+1); // force new sync
+  handshake = exchange3_handshake(link->x);
   for(seen = link->pipes;seen;seen = seen->next)
   {
     if(seen->pipe && seen->pipe->send) seen->pipe->send(seen->pipe,lob_copy(handshake),link);

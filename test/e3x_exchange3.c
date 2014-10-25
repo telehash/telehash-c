@@ -19,10 +19,11 @@ int main(int argc, char **argv)
   lob_t idB = e3x_generate();
   self3_t selfB = self3_new(idB,NULL);
   lob_t keyB = lob_get_base32(lob_linked(idB),"1a");
-  exchange3_t xAB = exchange3_new(selfA, 0x1a, keyB, 1);
+  exchange3_t xAB = exchange3_new(selfA, 0x1a, keyB);
   fail_unless(xAB);
-  fail_unless(xAB->order == xAB->at);
   fail_unless(xAB->csid == 0x1a);
+  fail_unless(exchange3_at(xAB,1));
+  fail_unless(xAB->order == xAB->at);
 
   // create message from A->B
   lob_t innerAB = lob_new();
@@ -39,12 +40,14 @@ int main(int argc, char **argv)
   fail_unless(util_cmp(lob_get(innerAB,"te"),"st") == 0);
 
   // create exchange B->A and verify message
-  exchange3_t xBA = exchange3_new(selfB, 0x1a, keyA, 1);
+  exchange3_t xBA = exchange3_new(selfB, 0x1a, keyA);
   fail_unless(xBA);
+  fail_unless(exchange3_at(xBA,1));
   fail_unless(exchange3_verify(xBA,msgAB) == 0);
 
   // generate handshake
-  lob_t hsAB = exchange3_handshake(xAB, 3);
+  fail_unless(exchange3_at(xAB,3));
+  lob_t hsAB = exchange3_handshake(xAB);
   fail_unless(hsAB);
   fail_unless(hsAB->head_len == 1);
   fail_unless(hsAB->head[0] == 0x1a);
@@ -53,13 +56,11 @@ int main(int argc, char **argv)
   // sync w/ handshake both ways
   lob_t inAB = self3_decrypt(selfB,hsAB);
   fail_unless(inAB);
-  int sync = exchange3_sync(xBA,hsAB,inAB);
-  fail_unless(sync);
-  lob_t hsBA = exchange3_handshake(xBA, sync);
+  fail_unless(exchange3_sync(xBA,hsAB,inAB));
+  lob_t hsBA = exchange3_handshake(xBA);
   lob_t inBA = self3_decrypt(selfA,hsBA);
   fail_unless(inBA);
-  sync = exchange3_sync(xAB,hsBA,inBA);
-  fail_unless(sync);
+  fail_unless(exchange3_sync(xAB,hsBA,inBA));
   
   // send/receive channel packet
   lob_t chanAB = lob_new();
