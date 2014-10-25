@@ -35,16 +35,19 @@ pipe_t link_path(link_t link, lob_t path);
 link_t link_pipe(link_t link, pipe_t pipe);
 
 // process an incoming handshake
-uint8_t link_handshake(link_t link, lob_t inner, lob_t outer, pipe_t pipe);
+link_t link_handshake(link_t link, lob_t inner, lob_t outer, pipe_t pipe);
 
 // process a decrypted channel packet
-uint8_t link_receive(link_t link, lob_t inner, pipe_t pipe);
+link_t link_receive(link_t link, lob_t inner, pipe_t pipe);
 
 // try to encrypt/deliver this channel packet
 link_t link_send(link_t link, lob_t inner);
 
-// trigger a new sync
+// make sure current handshake is sent to all pipes
 link_t link_sync(link_t link);
+
+// trigger a new sync
+link_t link_resync(link_t link);
 
 // create/track a new channel for this open
 channel3_t link_open(link_t link, lob_t open);

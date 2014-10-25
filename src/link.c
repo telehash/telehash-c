@@ -150,19 +150,30 @@ link_t link_pipe(link_t link, pipe_t pipe)
   seen->pipe = pipe;
   seen->next = link->pipes;
   link->pipes = seen;
-  return link;
+  
+  // make sure it gets sync'd
+  return link_sync(link);
 }
 
 // process an incoming handshake
-uint8_t link_handshake(link_t link, lob_t inner, lob_t outer, pipe_t pipe)
+link_t link_handshake(link_t link, lob_t inner, lob_t outer, pipe_t pipe)
 {
-  return 11;
+  if(!link || !inner || !outer) return LOG("bad args");
+  if(!link->key && link_key(link->mesh,inner) != link) return LOG("invalid/mismatch handshake key");
+  if(!exchange3_sync(link->x,outer,inner)) return NULL; // it LOG's
+  if(pipe) link_pipe(link,pipe);
+  return link_sync(link);
 }
 
 // process a decrypted channel packet
-uint8_t link_receive(link_t link, lob_t inner, pipe_t pipe)
+link_t link_receive(link_t link, lob_t inner, pipe_t pipe)
 {
-  return 11;
+  if(!link || !inner) return LOG("bad args");
+  // TODO, see if existing channel and send there
+  // TODO, if it's an open, fire mesh on opens
+  LOG("TODO channel packet %.*s",inner->head_len,inner->head);
+  if(pipe) link_pipe(link,pipe);
+  return link;
 }
 
 // encrypt/send this packet to the best pipe
@@ -178,24 +189,37 @@ link_t link_send(link_t link, lob_t inner)
   return link;
 }
 
-// trigger a new exchange sync
+// make sure all pipes have the current handshake
 link_t link_sync(link_t link)
 {
+  uint32_t at;
   seen_t seen;
-  lob_t handshake;
+  lob_t handshake = NULL;
   if(!link) return LOG("bad args");
   if(!link->x) return LOG("no exchange");
 
-  // send a new handshake to every pipe
-  exchange3_at(link->x,exchange3_at(link->x,0)+1); // force new sync
-  handshake = exchange3_handshake(link->x);
+  at = exchange3_at(link->x,0);
   for(seen = link->pipes;seen;seen = seen->next)
   {
-    if(seen->pipe && seen->pipe->send) seen->pipe->send(seen->pipe,lob_copy(handshake),link);
+    if(!seen->pipe || !seen->pipe->send || seen->at == at) continue;
+    if(!handshake) handshake = exchange3_handshake(link->x); // only create if we have to
+    seen->at = at;
+    seen->pipe->send(seen->pipe,lob_copy(handshake),link);
   }
 
   lob_free(handshake);
   return link;
+}
+
+// trigger a new exchange sync
+link_t link_resync(link_t link)
+{
+  if(!link) return LOG("bad args");
+  if(!link->x) return LOG("no exchange");
+
+  // force a higher at, triggers all to sync
+  exchange3_at(link->x,exchange3_at(link->x,0)+1);
+  return link_sync(link);
 }
 
 // create/track a new channel for this open

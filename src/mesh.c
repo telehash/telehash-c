@@ -206,7 +206,7 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
     hashname_free(from);
 
     LOG("incoming handshake for link %s",link->id->hashname);
-    return link_handshake(link,inner,outer,pipe);
+    return link_handshake(link,inner,outer,pipe) ? 0 : 4;
   }
 
   // handle channel packets
@@ -235,7 +235,7 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
     }
     
     LOG("incoming channel packet for link %s",link->id->hashname);
-    return link_receive(link,inner,pipe);
+    return link_receive(link,inner,pipe) ? 0 : 8;
     
   }
   
