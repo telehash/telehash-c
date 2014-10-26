@@ -28,7 +28,7 @@ ARCH = $(UNIX1a)
 
 TESTS = lib_base32 lib_lob lib_hashname lib_murmur lib_util e3x_core e3x_cs1a e3x_self3 e3x_exchange3 e3x_event3 e3x_channel3 mesh_core net_loopback net_udp4
 
-all: test
+all: idgen
 
 # TODO, create a static libe3x.a build option
 
@@ -103,5 +103,5 @@ port:
 	$(CC) $(CFLAGS) -o bin/port util/port.c src/*.c unix/util.c src/ext/*.c $(ARCH)
  
 clean:
-	rm -f bin/*
+	rm -rf bin/*
 	rm -f id.json
