@@ -105,16 +105,27 @@ link_t link_key(mesh_t mesh, lob_t key)
   }else{
     link = link_new(mesh,hn);
   }
-  
-  // key is new, add exchange
-  if(!link->key)
-  {
-    LOG("adding %x key to link %s",csid,link->id->hashname);
-    link->csid = csid;
-    link->key = lob_copy(key);
-    link->x = exchange3_new(link->mesh->self, csid, key);
-    exchange3_at(link->x, platform_seconds());
-  }
+
+  // load key if it's not yet
+  if(!link->key) return link_load(link, csid, key);
+
+  return link;
+}
+
+// load in the key to existing link
+link_t link_load(link_t link, uint8_t csid, lob_t key)
+{
+  if(!link || !csid || !key) return LOG("bad args");
+  if(link->x) return link;
+
+  LOG("adding %x key to link %s",csid,link->id->hashname);
+  link->x = exchange3_new(link->mesh->self, csid, key);
+  if(!link->x) return LOG("invalid %x key length %d",csid,key->body_len);
+
+  // copy key and add exchange
+  link->csid = csid;
+  link->key = lob_copy(key);
+  exchange3_at(link->x, platform_seconds());
 
   return link;
 }
