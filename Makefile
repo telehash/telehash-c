@@ -34,13 +34,11 @@ all: test
 
 test: $(TESTS)
 	@for test in $(TESTS); do \
-		chmod 0755 ./test/$$test && \
+		chmod 0755 ./bin/test_$$test && \
 		echo "=====[ running $$test ]=====" && \
-		if ./test/$$test ; then \
-			rm -f ./test/$$test; \
+		if ./bin/test_$$test ; then \
 			echo "PASSED: $$test"; \
 		else \
-			rm -f ./test/$$test; \
 			echo "FAILED: $$test"; exit 1; \
 		fi; \
 	done
@@ -48,46 +46,46 @@ test: $(TESTS)
 # my make zen is not high enough right now, is yours?
 
 lib_base32:
-	$(CC) $(CFLAGS) -o test/lib_base32 test/lib_base32.c src/lib/base32.c $(INCLUDE)
+	$(CC) $(CFLAGS) -o bin/test_lib_base32 test/lib_base32.c src/lib/base32.c $(INCLUDE)
 
 lib_lob:
-	$(CC) $(CFLAGS) -o test/lib_lob test/lib_lob.c $(UNIX1a)
+	$(CC) $(CFLAGS) -o bin/test_lib_lob test/lib_lob.c $(UNIX1a)
 
 lib_hashname:
-	$(CC) $(CFLAGS) -o test/lib_hashname test/lib_hashname.c $(UNIX1a)
+	$(CC) $(CFLAGS) -o bin/test_lib_hashname test/lib_hashname.c $(UNIX1a)
 
 lib_murmur:
-	$(CC) $(CFLAGS) -o test/lib_murmur test/lib_murmur.c src/lib/murmur.c $(INCLUDE)
+	$(CC) $(CFLAGS) -o bin/test_lib_murmur test/lib_murmur.c src/lib/murmur.c $(INCLUDE)
 
 lib_util:
-	$(CC) $(CFLAGS) -o test/lib_util test/lib_util.c src/lib/util.c $(INCLUDE)
+	$(CC) $(CFLAGS) -o bin/test_lib_util test/lib_util.c src/lib/util.c $(INCLUDE)
 
 e3x_core:
-	$(CC) $(CFLAGS) -o test/e3x_core test/e3x_core.c unix/platform.c src/e3x/cs1a_disabled.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c $(LIB) $(E3X) $(INCLUDE)
+	$(CC) $(CFLAGS) -o bin/test_e3x_core test/e3x_core.c unix/platform.c src/e3x/cs1a_disabled.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c $(LIB) $(E3X) $(INCLUDE)
 
 e3x_cs1a:
-	$(CC) $(CFLAGS) -o test/e3x_cs1a test/e3x_cs1a.c $(UNIX1a)
+	$(CC) $(CFLAGS) -o bin/test_e3x_cs1a test/e3x_cs1a.c $(UNIX1a)
 
 e3x_self3:
-	$(CC) $(CFLAGS) -o test/e3x_self3 test/e3x_self3.c $(UNIX1a)
+	$(CC) $(CFLAGS) -o bin/test_e3x_self3 test/e3x_self3.c $(UNIX1a)
 
 e3x_exchange3:
-	$(CC) $(CFLAGS) -o test/e3x_exchange3 test/e3x_exchange3.c $(UNIX1a)
+	$(CC) $(CFLAGS) -o bin/test_e3x_exchange3 test/e3x_exchange3.c $(UNIX1a)
 
 e3x_event3:
-	$(CC) $(CFLAGS) -o test/e3x_event3 test/e3x_event3.c $(UNIX1a)
+	$(CC) $(CFLAGS) -o bin/test_e3x_event3 test/e3x_event3.c $(UNIX1a)
 
 e3x_channel3:
-	$(CC) $(CFLAGS) -o test/e3x_channel3 test/e3x_channel3.c $(UNIX1a)
+	$(CC) $(CFLAGS) -o bin/test_e3x_channel3 test/e3x_channel3.c $(UNIX1a)
 
 mesh_core:
-	$(CC) $(CFLAGS) -o test/mesh_core test/mesh_core.c $(UNIX1a) $(MESH)
+	$(CC) $(CFLAGS) -o bin/test_mesh_core test/mesh_core.c $(UNIX1a) $(MESH)
 
 net_loopback:
-	$(CC) $(CFLAGS) -o test/net_loopback test/net_loopback.c src/net/loopback.c $(UNIX1a) $(MESH)
+	$(CC) $(CFLAGS) -o bin/test_net_loopback test/net_loopback.c src/net/loopback.c $(UNIX1a) $(MESH)
 
 net_udp4:
-	$(CC) $(CFLAGS) -o test/net_udp4 test/net_udp4.c src/net/udp4.c $(UNIX1a) $(MESH)
+	$(CC) $(CFLAGS) -o bin/test_net_udp4 test/net_udp4.c src/net/udp4.c $(UNIX1a) $(MESH)
 
 idgen:
 	$(CC) $(CFLAGS) -o bin/idgen util/idgen.c $(ARCH)
@@ -96,7 +94,7 @@ ping:
 	$(CC) $(CFLAGS) -o bin/ping util/ping.c src/*.c unix/util.c $(ARCH)
 
 router:
-	$(CC) $(CFLAGS) -o bin/router util/router.c src/*.c unix/util.c src/ext/*.c $(ARCH)
+	$(CC) $(CFLAGS) -o bin/router util/router.c src/*.c unix/util.c $(ARCH)
 
 mesh:
 	$(CC) $(CFLAGS) -o bin/mesh util/mesh.c src/*.c unix/util.c src/ext/*.c $(ARCH)
