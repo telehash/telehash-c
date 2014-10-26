@@ -90,7 +90,20 @@ lob_t mesh_generate(mesh_t mesh)
 
 link_t mesh_add(mesh_t mesh, lob_t json)
 {
-  // TODO
+  link_t link;
+  lob_t keys;
+  uint8_t csid;
+
+  if(!mesh || !json) return LOG("bad args");
+  link = link_get(mesh, lob_get(json,"hashname"));
+  keys = lob_get_json(json,"keys");
+  if(!link) link = link_keys(mesh, keys);
+  if(!link) return LOG("no hashname");
+  
+  if(keys && (csid = hashname_id(mesh->keys,keys))) link_load(link, csid, keys);
+
+  // TODO path
+
   return NULL;
 }
 
