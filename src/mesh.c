@@ -16,6 +16,7 @@ typedef struct on_struct
   void (*link)(link_t link); // when a link is created, and again when exchange is created
   pipe_t (*path)(link_t link, lob_t path); // convert path->pipe
   void (*open)(link_t link, lob_t open); // incoming channel requests
+  link_t (*discover)(mesh_t mesh, lob_t discovered); // incoming unknown hashnames
   
   struct on_struct *next;
 } *on_t;
@@ -87,6 +88,12 @@ lob_t mesh_generate(mesh_t mesh)
   return secrets;
 }
 
+link_t mesh_add(mesh_t mesh, lob_t json)
+{
+  // TODO
+  return NULL;
+}
+
 // create our generic callback linked list entry
 on_t on_get(mesh_t mesh, char *id)
 {
@@ -153,10 +160,22 @@ void mesh_open(mesh_t mesh, link_t link, lob_t open)
   for(on = mesh->on; on; on = on->next) if(on->open) on->open(link, open);
 }
 
+void mesh_on_discover(mesh_t mesh, char *id, link_t (*discover)(mesh_t mesh, lob_t discovered))
+{
+  on_t on = on_get(mesh, id);
+  if(on) on->discover = discover;
+}
+
+void mesh_discover(mesh_t mesh, lob_t discovered)
+{
+  on_t on;
+  for(on = mesh->on; on; on = on->next) if(on->discover) on->discover(mesh, discovered);
+}
+
 // processes incoming packet, it will take ownership of p
 uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
 {
-  lob_t inner;
+  lob_t inner, discovered;
   hashname_t from;
   link_t link;
   char hex[33];
@@ -198,7 +217,11 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
     link = xht_get(mesh->index,from->hashname);
     if(!link)
     {
-      LOG("dropping, no link for hashname %s",from->hashname);
+      LOG("no link for hashname %s",from->hashname);
+      discovered = lob_new();
+      lob_set(discovered,"hashname",from->hashname);
+      // TODO keys and path
+      mesh_discover(mesh, discovered);
       hashname_free(from);
       lob_free(outer);
       return 3;
