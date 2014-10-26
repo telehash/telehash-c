@@ -28,7 +28,7 @@ ARCH = $(UNIX1a)
 
 TESTS = lib_base32 lib_lob lib_hashname lib_murmur lib_util e3x_core e3x_cs1a e3x_self3 e3x_exchange3 e3x_event3 e3x_channel3 mesh_core net_loopback net_udp4
 
-all: idgen
+all: idgen router
 
 # TODO, create a static libe3x.a build option
 
@@ -94,7 +94,7 @@ ping:
 	$(CC) $(CFLAGS) -o bin/ping util/ping.c src/*.c unix/util.c $(ARCH)
 
 router:
-	$(CC) $(CFLAGS) -o bin/router util/router.c src/*.c unix/util.c $(ARCH)
+	$(CC) $(CFLAGS) -o bin/router util/router.c src/*.c unix/util.c src/net/udp4.c $(ARCH)
 
 mesh:
 	$(CC) $(CFLAGS) -o bin/mesh util/mesh.c src/*.c unix/util.c src/ext/*.c $(ARCH)

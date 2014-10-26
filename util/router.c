@@ -5,22 +5,33 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
-#include "switch.h"
-#include "util.h"
-#include "ext.h"
+#include "mesh.h"
 #include "util_unix.h"
+#include "udp4.h"
 
 int main(void)
 {
-  switch_t s;
-  chan_t c;
-  lob_t p;
-  path_t in;
-  int sock;
+  lob_t id;
+  mesh_t mesh;
+  net_udp4_t udp4;
+  char *paths;
 
-  crypt_init();
-  s = switch_new(0);
+  id = util_fjson("id.json");
+  if(!id) return -1;
+  
+  mesh = mesh_new(0);
+  mesh_load(mesh,lob_get_json(id,"secrets"),lob_get_json(id,"keys"));
+  mesh_on_discover(mesh,"auto",mesh_add); // auto-link anyone
 
+  udp4 = net_udp4_new(mesh,0);
+  paths = malloc(udp4->path->head_len+2);
+  sprintf(paths,"[%s]",lob_json(udp4->path));
+  lob_set_raw(id,"paths",paths,udp4->path->head_len+2);
+  LOG("%s",lob_json(id));
+
+  while(net_udp4_receive(udp4));
+
+  /*
   if(util_loadjson(s) != 0 || (sock = util_server(0,1000)) <= 0)
   {
     printf("failed to startup %s or %s\n", strerror(errno), crypt_err());
@@ -55,7 +66,7 @@ int main(void)
 
     util_sendall(s,sock);
   }
-
+  */
   perror("exiting");
   return 0;
 }
