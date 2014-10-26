@@ -34,6 +34,10 @@ int main(int argc, char **argv)
   fail_unless(link_path(linkBA,netA->path));
   
   link_sync(linkAB);
+  net_udp4_receive(netB);
+  fail_unless(exchange3_at(linkBA->x,0) >= exchange3_at(linkAB->x,0));
+  net_udp4_receive(netA);
+  fail_unless(exchange3_at(linkBA->x,0) == exchange3_at(linkAB->x,0));
 
   return 0;
 }
