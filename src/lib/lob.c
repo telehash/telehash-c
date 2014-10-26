@@ -274,6 +274,18 @@ lob_t lob_set_base32(lob_t p, char *key, uint8_t *bin, uint16_t blen)
   return p;
 }
 
+// return null-terminated json string
+char *lob_json(lob_t p)
+{
+  if(!p) return NULL;
+  if(p->head_len < 2) return LOG("head to short to be json");
+  if(p->cache) free(p->cache);
+  if(!(p->cache = malloc(p->head_len+1))) return LOG("OOM");
+  memcpy(p->cache,p->head,p->head_len);
+  p->cache[p->head_len] = 0;
+  return p->cache;
+}
+
 
 // unescape any json string in place
 char *unescape(lob_t p, char *start, int len)
@@ -283,11 +295,8 @@ char *unescape(lob_t p, char *start, int len)
   if(!p || !start || len <= 0) return NULL;
 
   // make a copy if we haven't yet
-  if(!p->cache)
-  {
-    if(!(p->cache = malloc(p->head_len))) return LOG("OOM");
-    memcpy(p->cache,p->head,p->head_len);
-  }
+  if(!p->cache) lob_json(p);
+  if(!p->cache) return NULL;
   
   // switch pointer to the json copy 
   start = p->cache + (start - (char*)p->head);
@@ -366,7 +375,7 @@ char *lob_get_index(lob_t p, uint32_t i)
 }
 
 // creates new packet from key:object
-lob_t lob_get_packet(lob_t p, char *key)
+lob_t lob_get_json(lob_t p, char *key)
 {
   lob_t pp;
   char *val;
@@ -382,7 +391,7 @@ lob_t lob_get_packet(lob_t p, char *key)
 }
 
 // list of packet->next from key:[{},{}]
-lob_t lob_get_packets(lob_t p, char *key)
+lob_t lob_get_array(lob_t p, char *key)
 {
   int i;
   char *val;
@@ -390,7 +399,7 @@ lob_t lob_get_packets(lob_t p, char *key)
   lob_t parr, pent, plast, pret = NULL;
   if(!p || !key) return NULL;
 
-  parr = lob_get_packet(p, key);
+  parr = lob_get_json(p, key);
   if(!parr || *parr->head != '[')
   {
     lob_free(parr);

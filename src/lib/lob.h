@@ -45,6 +45,9 @@ lob_t lob_parse(uint8_t *raw, uint32_t len);
 uint8_t *lob_raw(lob_t p);
 uint32_t lob_len(lob_t p);
 
+// return null-terminated json header only
+char *lob_json(lob_t p);
+
 // set/store these in the current packet
 uint8_t *lob_head(lob_t p, uint8_t *head, uint16_t len);
 uint8_t *lob_body(lob_t p, uint8_t *body, uint32_t len);
@@ -79,8 +82,8 @@ char *lob_get_raw(lob_t p, char *key);
 uint32_t lob_get_len(lob_t p, char *key);
 
 // returns new packets based on values
-lob_t lob_get_packet(lob_t p, char *key); // creates new packet from key:object value
-lob_t lob_get_packets(lob_t p, char *key); // list of packet->next from key:[object,object]
+lob_t lob_get_json(lob_t p, char *key); // creates new packet from key:object value
+lob_t lob_get_array(lob_t p, char *key); // list of packet->next from key:[object,object]
 lob_t lob_get_base32(lob_t p, char *key); // decoded binary is the return body
 
 // TODO, this would be handy, js syntax to get a json value
