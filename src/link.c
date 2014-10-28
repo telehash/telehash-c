@@ -169,10 +169,29 @@ link_t link_pipe(link_t link, pipe_t pipe)
 // process an incoming handshake
 link_t link_handshake(link_t link, lob_t inner, lob_t outer, pipe_t pipe)
 {
+  seen_t seen;
+
   if(!link || !inner || !outer) return LOG("bad args");
   if(!link->key && link_key(link->mesh,inner) != link) return LOG("invalid/mismatch handshake key");
-  if(!exchange3_sync(link->x,outer,inner)) return NULL; // it LOG's
+
+  // if no pipes, always add the first one regardless of sync state
+  if(!link->pipes && pipe) link_pipe(link,pipe);
+
+  // if not in sync, always send a current handshake
+  if(!exchange3_sync(link->x,outer,inner))
+  {
+    for(seen = link->pipes;seen;seen = seen->next) if(seen->pipe == pipe) break;
+    if(seen)
+    {
+      seen->at = exchange3_at(link->x,0);
+      seen->pipe->send(seen->pipe,exchange3_handshake(link->x),link);
+    }
+    return NULL;
+  }
+  
+  // ensure pipe is added
   if(pipe) link_pipe(link,pipe);
+
   return link_sync(link);
 }
 
@@ -210,6 +229,7 @@ link_t link_sync(link_t link)
   if(!link->x) return LOG("no exchange");
 
   at = exchange3_at(link->x,0);
+  LOG("link sync at %d",at);
   for(seen = link->pipes;seen;seen = seen->next)
   {
     if(!seen->pipe || !seen->pipe->send || seen->at == at) continue;
