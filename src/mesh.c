@@ -95,6 +95,7 @@ link_t mesh_add(mesh_t mesh, lob_t json, pipe_t pipe)
   uint8_t csid;
 
   if(!mesh || !json) return LOG("bad args");
+  LOG("mesh add %s",lob_json(json));
   link = link_get(mesh, lob_get(json,"hashname"));
   keys = lob_get_json(json,"keys");
   paths = lob_get_array(json,"paths");

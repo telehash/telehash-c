@@ -115,16 +115,31 @@ link_t link_key(mesh_t mesh, lob_t key)
 // load in the key to existing link
 link_t link_load(link_t link, uint8_t csid, lob_t key)
 {
+  char hex[3];
+  lob_t copy;
+
   if(!link || !csid || !key) return LOG("bad args");
   if(link->x) return link;
 
   LOG("adding %x key to link %s",csid,link->id->hashname);
-  link->x = exchange3_new(link->mesh->self, csid, key);
-  if(!link->x) return LOG("invalid %x key length %d",csid,key->body_len);
+  
+  // key must be bin
+  if(key->body_len)
+  {
+    copy = lob_copy(key);
+  }else{
+    util_hex(&csid,1,hex);
+    copy = lob_get_base32(key,hex);
+  }
+  link->x = exchange3_new(link->mesh->self, csid, copy);
+  if(!link->x)
+  {
+    lob_free(copy);
+    return LOG("invalid %x key %d %s",csid,key->body_len,lob_json(key));
+  }
 
-  // copy key and add exchange
   link->csid = csid;
-  link->key = lob_copy(key);
+  link->key = copy;
   exchange3_at(link->x, platform_seconds());
 
   return link;
