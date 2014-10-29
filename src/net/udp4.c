@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <string.h>
+#include <unistd.h>
 #include "udp4.h"
 
 // our unique id per mesh
@@ -74,12 +75,16 @@ pipe_t udp4_path(link_t link, lob_t path)
   return udp4_pipe(net, ip, port);
 }
 
-net_udp4_t net_udp4_new(mesh_t mesh, int port)
+net_udp4_t net_udp4_new(mesh_t mesh, lob_t options)
 {
-  int sock;
+  int port, sock, pipes;
   net_udp4_t net;
   struct sockaddr_in sa;
   socklen_t size = sizeof(struct sockaddr_in);
+  
+  port = lob_get_int(options,"port");
+  pipes = lob_get_int(options,"pipes");
+  if(!pipes) pipes = 11; // hashtable for active pipes
 
   // create a udp socket
   if((sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP) ) < 0 ) return LOG("failed to create socket %s",strerror(errno));
@@ -95,6 +100,7 @@ net_udp4_t net_udp4_new(mesh_t mesh, int port)
   memset(net,0,sizeof (struct net_udp4_struct));
   net->server = sock;
   net->port = ntohs(sa.sin_port);
+  net->pipes = xht_new(pipes);
 
   // connect us to this mesh
   net->mesh = mesh;
@@ -112,6 +118,10 @@ net_udp4_t net_udp4_new(mesh_t mesh, int port)
 
 void net_udp4_free(net_udp4_t net)
 {
+  if(!net) return;
+  close(net->server);
+  xht_free(net->pipes);
+  lob_free(net->path);
   free(net);
   return;
 }

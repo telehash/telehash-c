@@ -11,7 +11,7 @@
 
 int main(int argc, char *argv[])
 {
-  lob_t id;
+  lob_t id, options;
   mesh_t mesh;
   net_udp4_t udp4;
   char *paths;
@@ -29,7 +29,9 @@ int main(int argc, char *argv[])
   mesh_load(mesh,lob_get_json(id,"secrets"),lob_get_json(id,"keys"));
   mesh_on_discover(mesh,"auto",mesh_add); // auto-link anyone
 
-  udp4 = net_udp4_new(mesh, port);
+  options = lob_new();
+  lob_set_int(options,"port",port);
+  udp4 = net_udp4_new(mesh, options);
   paths = malloc(udp4->path->head_len+2);
   sprintf(paths,"[%s]",lob_json(udp4->path));
   lob_set_raw(id,"paths",paths,udp4->path->head_len+2);

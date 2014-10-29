@@ -19,7 +19,7 @@ typedef struct net_udp4_struct
 } *net_udp4_t;
 
 // create a new listening udp server
-net_udp4_t net_udp4_new(mesh_t mesh, int port);
+net_udp4_t net_udp4_new(mesh_t mesh, lob_t options);
 void net_udp4_free(net_udp4_t net);
 
 // receive a packet into this mesh
