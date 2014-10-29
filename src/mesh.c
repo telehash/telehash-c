@@ -16,7 +16,7 @@ typedef struct on_struct
   void (*link)(link_t link); // when a link is created, and again when exchange is created
   pipe_t (*path)(link_t link, lob_t path); // convert path->pipe
   void (*open)(link_t link, lob_t open); // incoming channel requests
-  link_t (*discover)(mesh_t mesh, lob_t discovered); // incoming unknown hashnames
+  link_t (*discover)(mesh_t mesh, lob_t discovered, pipe_t pipe); // incoming unknown hashnames
   
   struct on_struct *next;
 } *on_t;
@@ -88,21 +88,24 @@ lob_t mesh_generate(mesh_t mesh)
   return secrets;
 }
 
-link_t mesh_add(mesh_t mesh, lob_t json)
+link_t mesh_add(mesh_t mesh, lob_t json, pipe_t pipe)
 {
   link_t link;
-  lob_t keys;
+  lob_t keys, paths;
   uint8_t csid;
 
   if(!mesh || !json) return LOG("bad args");
   link = link_get(mesh, lob_get(json,"hashname"));
   keys = lob_get_json(json,"keys");
+  paths = lob_get_array(json,"paths");
   if(!link) link = link_keys(mesh, keys);
   if(!link) return LOG("no hashname");
   
   if(keys && (csid = hashname_id(mesh->keys,keys))) link_load(link, csid, keys);
 
-  // TODO path
+  // handle any pipe/paths
+  if(pipe) link_pipe(link, pipe);
+  for(;paths;paths = paths->next) link_path(link,paths);
 
   return NULL;
 }
@@ -173,25 +176,25 @@ void mesh_open(mesh_t mesh, link_t link, lob_t open)
   for(on = mesh->on; on; on = on->next) if(on->open) on->open(link, open);
 }
 
-void mesh_on_discover(mesh_t mesh, char *id, link_t (*discover)(mesh_t mesh, lob_t discovered))
+void mesh_on_discover(mesh_t mesh, char *id, link_t (*discover)(mesh_t mesh, lob_t discovered, pipe_t pipe))
 {
   on_t on = on_get(mesh, id);
   if(on) on->discover = discover;
 }
 
-void mesh_discover(mesh_t mesh, lob_t discovered)
+void mesh_discover(mesh_t mesh, lob_t discovered, pipe_t pipe)
 {
   on_t on;
-  for(on = mesh->on; on; on = on->next) if(on->discover) on->discover(mesh, discovered);
+  for(on = mesh->on; on; on = on->next) if(on->discover) on->discover(mesh, discovered, pipe);
 }
 
 // processes incoming packet, it will take ownership of p
 uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
 {
-  lob_t inner, discovered;
+  lob_t inner, discovered, key;
   hashname_t from;
   link_t link;
-  char hex[33];
+  char hex[33], *paths;
 
   if(!mesh || !outer || !pipe)
   {
@@ -231,10 +234,23 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
     if(!link)
     {
       LOG("no link for hashname %s",from->hashname);
+      // serialize all the new hashname's info into json for the app to access/handle
       discovered = lob_new();
       lob_set(discovered,"hashname",from->hashname);
-      // TODO keys and path
-      mesh_discover(mesh, discovered);
+      // add the key
+      key = lob_new();
+      lob_set_base32(key,hex,inner->body,inner->body_len);
+      lob_set_raw(discovered,"keys",(char*)key->head,key->head_len);
+      lob_free(key);
+      // add the path if one
+      if(pipe && pipe->path)
+      {
+        paths = malloc(pipe->path->head_len+2);
+        sprintf(paths,"[%s]",lob_json(pipe->path));
+        lob_set_raw(discovered,"paths",paths,pipe->path->head_len+2);
+        free(paths);
+      }
+      mesh_discover(mesh, discovered, pipe);
       hashname_free(from);
       lob_free(outer);
       return 3;

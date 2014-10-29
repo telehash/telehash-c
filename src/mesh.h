@@ -32,8 +32,8 @@ uint8_t mesh_load(mesh_t mesh, lob_t secrets, lob_t keys);
 // creates a new mesh identity, returns secrets
 lob_t mesh_generate(mesh_t mesh);
 
-// creates a link from the json format of {"hashname":"...","keys":{},"paths":[]}
-link_t mesh_add(mesh_t mesh, lob_t json);
+// creates a link from the json format of {"hashname":"...","keys":{},"paths":[]}, optional direct pipe too
+link_t mesh_add(mesh_t mesh, lob_t json, pipe_t pipe);
 
 // processes incoming packet, it will take ownership of packet
 uint8_t mesh_receive(mesh_t mesh, lob_t packet, pipe_t pipe);
@@ -46,8 +46,8 @@ void mesh_on_path(mesh_t mesh, char *id, pipe_t (*path)(link_t link, lob_t path)
 pipe_t mesh_path(mesh_t mesh, link_t link, lob_t path);
 
 // callback when an unknown hashname is discovered
-void mesh_on_discover(mesh_t mesh, char *id, link_t (*discover)(mesh_t mesh, lob_t discovered));
-void mesh_discover(mesh_t mesh, lob_t discovered);
+void mesh_on_discover(mesh_t mesh, char *id, link_t (*discover)(mesh_t mesh, lob_t discovered, pipe_t pipe));
+void mesh_discover(mesh_t mesh, lob_t discovered, pipe_t pipe);
 
 // callback when a link is created
 void mesh_on_link(mesh_t mesh, char *id, void (*link)(link_t link));
