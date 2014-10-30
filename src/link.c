@@ -55,6 +55,11 @@ void link_free(link_t link)
   xht_free(link->channels);
 
   hashname_free(link->id);
+  if(link->x)
+  {
+    xht_set(link->mesh->index,link->token,NULL);
+    exchange3_free(link->x);
+  }
   free(link);
 }
 
@@ -140,7 +145,10 @@ link_t link_load(link_t link, uint8_t csid, lob_t key)
 
   link->csid = csid;
   link->key = copy;
-  exchange3_at(link->x, platform_seconds());
+  // route packets to this token
+  util_hex(exchange3_token(link->x),16,link->token);
+  xht_set(link->mesh->index,link->token,link);
+  exchange3_out(link->x, platform_seconds());
 
   return link;
 }
@@ -184,29 +192,29 @@ link_t link_pipe(link_t link, pipe_t pipe)
 // process an incoming handshake
 link_t link_handshake(link_t link, lob_t inner, lob_t outer, pipe_t pipe)
 {
-  seen_t seen;
+  uint32_t out;
 
   if(!link || !inner || !outer) return LOG("bad args");
   if(!link->key && link_key(link->mesh,inner) != link) return LOG("invalid/mismatch handshake key");
+  out = exchange3_out(link->x,0);
 
-  // if no pipes, always add the first one regardless of sync state
-  if(!link->pipes && pipe) link_pipe(link,pipe);
-
-  // if not in sync, always send a current handshake
-  if(!exchange3_sync(link->x,outer,inner))
+  // if bad at, always send current handshake
+  if(exchange3_in(link->x, lob_get_int(inner,"at")) < out)
   {
-    for(seen = link->pipes;seen;seen = seen->next) if(seen->pipe == pipe) break;
-    if(seen)
-    {
-      seen->at = exchange3_at(link->x,0);
-      seen->pipe->send(seen->pipe,exchange3_handshake(link->x),link);
-    }
-    return NULL;
+    if(pipe) pipe->send(pipe,exchange3_handshake(link->x),link);
+    return LOG("old/bad at: %s",lob_json(inner));
   }
-  
-  // ensure pipe is added
+
+  // trust/add this pipe
   if(pipe) link_pipe(link,pipe);
 
+  // try to sync ephemeral key
+  if(!exchange3_sync(link->x,outer)) return LOG("sync failed");
+  
+  // if we we're already in sync, all done
+  if(out == exchange3_out(link->x,0)) return link;
+
+  // send out current handshake
   return link_sync(link);
 }
 
@@ -243,7 +251,7 @@ link_t link_sync(link_t link)
   if(!link) return LOG("bad args");
   if(!link->x) return LOG("no exchange");
 
-  at = exchange3_at(link->x,0);
+  at = exchange3_out(link->x,0);
   LOG("link sync at %d",at);
   for(seen = link->pipes;seen;seen = seen->next)
   {
@@ -264,7 +272,7 @@ link_t link_resync(link_t link)
   if(!link->x) return LOG("no exchange");
 
   // force a higher at, triggers all to sync
-  exchange3_at(link->x,exchange3_at(link->x,0)+1);
+  exchange3_out(link->x,exchange3_out(link->x,0)+1);
   return link_sync(link);
 }
 

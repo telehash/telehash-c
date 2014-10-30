@@ -15,6 +15,7 @@ struct link_struct
   lob_t key;
   uint8_t csid;
   xht_t channels;
+  char token[33];
 
   // these are for internal link management only
   struct seen_struct *pipes;
