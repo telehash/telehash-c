@@ -149,7 +149,7 @@ link_t link_load(link_t link, uint8_t csid, lob_t key)
   util_hex(exchange3_token(link->x),16,link->token);
   xht_set(link->mesh->index,link->token,link);
   exchange3_out(link->x, platform_seconds());
-  LOG("delivering token %s to %s",link->token,link->id->hashname);
+  LOG("delivering session token %s to %s",link->token,link->id->hashname);
 
   return link;
 }

@@ -98,8 +98,8 @@ uint32_t exchange3_in(exchange3_t x, uint32_t at)
 {
   if(!x) return 0;
 
-  // ensure at is newer and valid
-  if(at && at > x->in && ((at % 2)+1) == x->order) x->in = at;
+  // ensure at is newer and valid, or acking our out
+  if(at && at > x->in && (((at % 2)+1) == x->order || at == x->out)) x->in = at;
   
   return x->in;
 }
