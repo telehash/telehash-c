@@ -22,8 +22,8 @@ int main(int argc, char **argv)
   exchange3_t xAB = exchange3_new(selfA, 0x1a, keyB);
   fail_unless(xAB);
   fail_unless(xAB->csid == 0x1a);
-  fail_unless(exchange3_at(xAB,1));
-  fail_unless(xAB->order == xAB->at);
+  fail_unless(exchange3_out(xAB,1));
+  fail_unless(xAB->order == xAB->out);
 
   // create message from A->B
   lob_t innerAB = lob_new();
@@ -42,11 +42,11 @@ int main(int argc, char **argv)
   // create exchange B->A and verify message
   exchange3_t xBA = exchange3_new(selfB, 0x1a, keyA);
   fail_unless(xBA);
-  fail_unless(exchange3_at(xBA,1));
+  fail_unless(exchange3_out(xBA,1));
   fail_unless(exchange3_verify(xBA,msgAB) == 0);
 
   // generate handshake
-  fail_unless(exchange3_at(xAB,3));
+  fail_unless(exchange3_out(xAB,3));
   lob_t hsAB = exchange3_handshake(xAB);
   fail_unless(hsAB);
   fail_unless(hsAB->head_len == 1);
@@ -56,11 +56,11 @@ int main(int argc, char **argv)
   // sync w/ handshake both ways
   lob_t inAB = self3_decrypt(selfB,hsAB);
   fail_unless(inAB);
-  fail_unless(exchange3_sync(xBA,hsAB,inAB));
+  fail_unless(exchange3_sync(xBA,hsAB));
   lob_t hsBA = exchange3_handshake(xBA);
   lob_t inBA = self3_decrypt(selfA,hsBA);
   fail_unless(inBA);
-  fail_unless(exchange3_sync(xAB,hsBA,inBA));
+  fail_unless(exchange3_sync(xAB,hsBA));
   
   // send/receive channel packet
   lob_t chanAB = lob_new();

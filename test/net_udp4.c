@@ -35,9 +35,9 @@ int main(int argc, char **argv)
   
   link_sync(linkAB);
   net_udp4_receive(netB);
-  fail_unless(exchange3_at(linkBA->x,0) >= exchange3_at(linkAB->x,0));
+  fail_unless(exchange3_out(linkBA->x,0) >= exchange3_out(linkAB->x,0));
   net_udp4_receive(netA);
-  fail_unless(exchange3_at(linkBA->x,0) == exchange3_at(linkAB->x,0));
+  fail_unless(exchange3_out(linkBA->x,0) == exchange3_out(linkAB->x,0));
 
   return 0;
 }

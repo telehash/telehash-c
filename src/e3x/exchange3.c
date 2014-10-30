@@ -71,51 +71,55 @@ uint8_t exchange3_verify(exchange3_t x, lob_t outer)
   return x->cs->remote_verify(x->remote,x->self->locals[x->cs->id],outer);
 }
 
-// will return the current at to use in a handshake, optional base to start from to force a new at
-uint32_t exchange3_at(exchange3_t x, uint32_t base)
+// will return the current outgoing at value, optional arg to update it
+uint32_t exchange3_out(exchange3_t x, uint32_t at)
 {
   if(!x) return 0;
 
   // if there's a base, update at
-  if(base && base > x->at)
+  if(at && at > x->out)
   {
     // make sure at matches order
-    x->at = base;
+    x->out = at;
     if(x->order == 2)
     {
-      if(x->at % 2 != 0) x->at++;
+      if(x->out % 2 != 0) x->out++;
     }else{
-      if(x->at % 2 == 0) x->at++;
+      if(x->out % 2 == 0) x->out++;
     }
   }
   
-  return x->at;
+  return x->out;
 }
 
-// process incoming handshake, return 0 if success, >0 if error/ignored
-exchange3_t exchange3_sync(exchange3_t x, lob_t outer, lob_t inner)
+// return the current incoming at value, optional arg to update it
+uint32_t exchange3_in(exchange3_t x, uint32_t at)
 {
-  uint32_t at;
-  ephemeral_t ephem;
-  if(!x || !outer || !inner) return LOG("bad args");
-  if(outer->body_len < 16) return LOG("handshake too small");
+  if(!x) return 0;
   
-  // if the inner at is older than ours, send ours
-  at = lob_get_int(inner,"at");
-  if(at < x->at) return LOG("old handshake %d < %d",at,x->at);
+  // ensure at is newer and valid
+  if(at && at > x->in && (at % x->order) == 1) x->in = at;
+  
+  return x->in;
+}
 
-  // new at sync'd
-  LOG("handshake sync to %d",at);
-  x->at = at;
+// synchronize to incoming ephemeral key and set out at = in at, returns x if success, NULL if not
+exchange3_t exchange3_sync(exchange3_t x, lob_t outer)
+{
+  ephemeral_t ephem;
+  if(!x || !outer) return LOG("bad args");
+  if(outer->body_len < 16) return LOG("outer too small");
   
-  // if the incoming handshake's key is different, create a new ephemeral
-  if(memcmp(outer->body,x->etoken,16) != 0)
+  if(x->in > x->out) x->out = x->in;
+
+  // if the incoming ephemeral key is different, create a new ephemeral
+  if(memcmp(outer->body,x->eid,16) != 0)
   {
     ephem = x->cs->ephemeral_new(x->remote,outer);
     if(!ephem) return LOG("ephemeral creation failed %s",x->cs->err());
     x->cs->ephemeral_free(x->ephem);
     x->ephem = ephem;
-    memcpy(x->etoken,outer->body,16);
+    memcpy(x->eid,outer->body,16);
   }
 
   return x;
@@ -127,11 +131,11 @@ lob_t exchange3_handshake(exchange3_t x)
   lob_t inner, key;
   uint8_t i;
   if(!x) return LOG("invalid args");
-  if(!x->at) return LOG("no at set");
+  if(!x->out) return LOG("no out set");
 
   // create new handshake inner from all supported csets
   inner = lob_new();
-  lob_set_int(inner,"at",x->at);
+  lob_set_int(inner,"at",x->out);
   
   // loop through all ciphersets for any keys
   for(i=0; i<CS_MAX; i++)
@@ -177,5 +181,11 @@ uint32_t exchange3_cid(exchange3_t x)
 {
   if(!x) return 0;
   return x->cid++;
+}
+
+uint8_t *exchange3_token(exchange3_t x)
+{
+  if(!x) return NULL;
+  return x->token;
 }
 
