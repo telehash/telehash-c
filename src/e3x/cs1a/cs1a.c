@@ -198,6 +198,7 @@ lob_t local_decrypt(local_t local, lob_t outer)
 
 remote_t remote_new(lob_t key, uint8_t *token)
 {
+  uint8_t hash[32];
   remote_t remote;
   if(!key || key->body_len != uECC_BYTES+1) return LOG("invalid key %d != %d",(key)?key->body_len:0,uECC_BYTES+1);
   
@@ -208,7 +209,11 @@ remote_t remote_new(lob_t key, uint8_t *token)
   uECC_decompress(key->body,remote->key);
   uECC_make_key(remote->ekey, remote->esecret);
   uECC_compress(remote->ekey, remote->ecomp);
-  if(token) memcpy(token,remote->ecomp,16);
+  if(token)
+  {
+    cipher_hash(remote->ecomp,16,hash);
+    memcpy(token,hash,16);
+  }
 
   // generate a random seq starting point for message IV's
   e3x_rand((uint8_t*)&(remote->seq),4);
