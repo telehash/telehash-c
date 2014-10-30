@@ -42,6 +42,7 @@ exchange3_t exchange3_new(self3_t self, uint8_t csid, lob_t key)
   {
     if(key->body[i] == self->keys[cs->id]->body[i]) continue;
     x->order = (key->body[i] > self->keys[cs->id]->body[i]) ? 2 : 1;
+    break;
   }
   x->cid = x->order;
   
