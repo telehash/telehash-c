@@ -96,9 +96,9 @@ uint32_t exchange3_out(exchange3_t x, uint32_t at)
 uint32_t exchange3_in(exchange3_t x, uint32_t at)
 {
   if(!x) return 0;
-  
+
   // ensure at is newer and valid
-  if(at && at > x->in && (at % x->order) == 1) x->in = at;
+  if(at && at > x->in && ((at % 2)+1) == x->order) x->in = at;
   
   return x->in;
 }

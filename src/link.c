@@ -201,8 +201,9 @@ link_t link_handshake(link_t link, lob_t inner, lob_t outer, pipe_t pipe)
   // if bad at, always send current handshake
   if(exchange3_in(link->x, lob_get_int(inner,"at")) < out)
   {
+    LOG("old/bad at: %s (%d,%d)",lob_json(inner),exchange3_in(link->x,0),exchange3_out(link->x,0));
     if(pipe) pipe->send(pipe,exchange3_handshake(link->x),link);
-    return LOG("old/bad at: %s",lob_json(inner));
+    return NULL;
   }
 
   // trust/add this pipe
