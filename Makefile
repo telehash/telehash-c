@@ -32,6 +32,13 @@ all: idgen router
 
 # TODO, create a static libe3x.a build option
 
+test-node: net_link
+	if ./test/node.sh ; then \
+		echo "PASSED: node.sh"; \
+	else \
+		echo "FAILED: node.sh"; exit 1; \
+	fi;
+
 test: $(TESTS)
 	@for test in $(TESTS); do \
 		chmod 0755 ./bin/test_$$test && \
@@ -86,6 +93,9 @@ net_loopback:
 
 net_udp4:
 	$(CC) $(CFLAGS) -o bin/test_net_udp4 test/net_udp4.c src/net/udp4.c $(UNIX1a) $(MESH)
+
+net_link:
+	$(CC) $(CFLAGS) -o bin/test_net_link test/net_link.c src/net/udp4.c $(UNIX1a) $(MESH)
 
 idgen:
 	$(CC) $(CFLAGS) -o bin/idgen util/idgen.c $(ARCH)
