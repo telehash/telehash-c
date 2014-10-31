@@ -37,7 +37,7 @@ lob_t e3x_generate(void)
   lob_t keys, secrets;
   keys = lob_new();
   secrets = lob_chain(keys);
-  for(i=0; i<CS_MAX; i++)
+  for(err=i=0; i<CS_MAX; i++)
   {
     if(err || !cipher3_sets[i] || !cipher3_sets[i]->generate) continue;
     err = cipher3_sets[i]->generate(keys, secrets);
