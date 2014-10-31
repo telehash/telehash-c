@@ -1,5 +1,46 @@
 #include "ext.h"
 
+// handle incoming packets for the built-in link channel
+void link_chan_handler(link_t link, channel3_t chan, void *arg)
+{
+  lob_t packet;
+  if(!link || link->chan != chan) return;
+  while((packet = channel3_receiving(chan)))
+  {
+    link->up = lob_free(link->up);
+    // TODO if packet has err, set link->status instead
+    link->up = packet;
+    // send out link update/change signal
+    mesh_link(link->mesh, link);
+  }
+
+  // if no status is set, default one back
+  if(!link->status)
+  {
+    link->status = lob_new();
+    channel3_send(chan,link->status);
+  }
+}
+
+// new incoming link channel, set up handler
+void link_chan_open(link_t link, lob_t open)
+{
+  if(!link || !open) return;
+  if(link->chan) LOG("TODO remove end/remove existing channel, leaking it!");
+  link->chan = channel3_new(open);
+  link_handle(link, link->chan, link_chan_handler, NULL);
+  channel3_receive(link->chan, open);
+  link_chan_handler(link, link->chan, NULL);
+}
+
+mesh_t ext_link(mesh_t mesh)
+{
+  // set up built-in link channel handler
+  mesh_on_open(mesh, "link", link_chan_open);
+  return mesh;
+}
+
+/*
 #define LINK_TPING 29
 #define LINK_TOUT 65
 
@@ -61,12 +102,6 @@ void link_seed(switch_t s, int max)
   memset(l->buckets, 0, 256 * sizeof(bucket_t));
 }
 
-/*
-  unsigned char bucket = hashname_distance(s->id, hn);
-  if(!s->buckets[bucket]) s->buckets[bucket] = bucket_new();
-  bucket_add(s->buckets[bucket], hn);
-  // TODO figure out if there's actually more capacity
-*/
 
 // adds regular ping data and sends
 void link_ping(link_t l, chan_t c, lob_t p)
@@ -162,3 +197,4 @@ void ext_seek(chan_t c)
 {
   printf("TODO handle seek channel\n");
 }
+*/

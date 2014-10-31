@@ -232,39 +232,6 @@ link_t link_handshake(link_t link, lob_t inner, lob_t outer, pipe_t pipe)
   return link_sync(link);
 }
 
-// handle incoming packets for the built-in link channel
-void link_chan_handler(link_t link, channel3_t chan, void *arg)
-{
-  lob_t packet;
-  if(!link || link->chan != chan) return;
-  while((packet = channel3_receiving(chan)))
-  {
-    link->up = lob_free(link->up);
-    // TODO if packet has err, set link->status instead
-    link->up = packet;
-    // send out link update/change signal
-    mesh_link(link->mesh, link);
-  }
-
-  // if no status is set, default one back
-  if(!link->status)
-  {
-    link->status = lob_new();
-    channel3_send(chan,link->status);
-  }
-}
-
-// new incoming link channel, set up handler
-void link_chan_open(link_t link, lob_t open)
-{
-  if(!link || !open) return;
-  if(link->chan) LOG("TODO remove end/remove existing channel, leaking it!");
-  link->chan = channel3_new(open);
-  link_handle(link, link->chan, link_chan_handler, NULL);
-  channel3_receive(link->chan, open);
-  link_chan_handler(link, link->chan, NULL);
-}
-
 // process a decrypted channel packet
 link_t link_receive(link_t link, lob_t inner, pipe_t pipe)
 {
