@@ -26,22 +26,20 @@ on_t on_free(on_t on);
 
 mesh_t mesh_new(uint32_t prime)
 {
-  mesh_t s;
+  mesh_t mesh;
   
   // make sure we've initialized
   if(e3x_init(NULL)) return LOG("e3x init failed");
 
-  if(!(s = malloc(sizeof (struct mesh_struct)))) return NULL;
-  memset(s, 0, sizeof(struct mesh_struct));
-//  s->cap = 256; // default cap size
-//  s->window = 32; // default reliable window size
-  s->index = xht_new(prime?prime:MAXPRIME);
-//  s->parts = lob_new();
-//  s->active = bucket_new();
-//  s->tick = platform_seconds();
-  if(!s->index) return mesh_free(s);
+  if(!(mesh = malloc(sizeof (struct mesh_struct)))) return NULL;
+  memset(mesh, 0, sizeof(struct mesh_struct));
+  mesh->index = xht_new(prime?prime:MAXPRIME);
+  if(!mesh->index) return mesh_free(mesh);
   
-  return s;
+  // set up built-in link channel handler
+  mesh_on_open(mesh, "link", link_chan_open);
+
+  return mesh;
 }
 
 mesh_t mesh_free(mesh_t mesh)

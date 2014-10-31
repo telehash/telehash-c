@@ -16,7 +16,10 @@ struct link_struct
   uint8_t csid;
   xht_t channels;
   char token[33];
-  uint32_t up;
+  
+  // these are for our built-in type:link channel
+  channel3_t chan;
+  lob_t up, status;
 
   // these are for internal link management only
   struct seen_struct *pipes;
@@ -32,6 +35,9 @@ void link_free(link_t link);
 
 // load in the key to existing link
 link_t link_load(link_t link, uint8_t csid, lob_t key);
+
+// set/change the link status (err to mark down)
+link_t link_status(link_t link, lob_t status);
 
 // try to turn a path into a pipe and add it to the link
 pipe_t link_path(link_t link, lob_t path);
@@ -62,6 +68,9 @@ link_t link_handle(link_t link, channel3_t c3, void (*handle)(link_t link, chann
 
 // process any outgoing packets for this channel
 link_t link_channel(link_t link, channel3_t c3);
+
+// internally used for new incoming link channel, set up handler
+void link_chan_open(link_t link, lob_t open);
 
 /*
 // default channel inactivity timeout in seconds

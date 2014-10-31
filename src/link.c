@@ -190,6 +190,18 @@ link_t link_pipe(link_t link, pipe_t pipe)
   return link_sync(link);
 }
 
+// set/change the link status (err to mark down)
+link_t link_status(link_t link, lob_t status)
+{
+  if(!link || !status) return LOG("bad args");
+  if(link->status) lob_free(link->status);
+  link->status = status;
+  if(!link->chan) return link;
+  // if we have a channel, send it immediately too
+  channel3_send(link->chan, status);
+  return link_channel(link, link->chan);
+}
+
 // process an incoming handshake
 link_t link_handshake(link_t link, lob_t inner, lob_t outer, pipe_t pipe)
 {
@@ -220,6 +232,39 @@ link_t link_handshake(link_t link, lob_t inner, lob_t outer, pipe_t pipe)
   return link_sync(link);
 }
 
+// handle incoming packets for the built-in link channel
+void link_chan_handler(link_t link, channel3_t chan, void *arg)
+{
+  lob_t packet;
+  if(!link || link->chan != chan) return;
+  while((packet = channel3_receiving(chan)))
+  {
+    link->up = lob_free(link->up);
+    // TODO if packet has err, set link->status instead
+    link->up = packet;
+    // send out link update/change signal
+    mesh_link(link->mesh, link);
+  }
+
+  // if no status is set, default one back
+  if(!link->status)
+  {
+    link->status = lob_new();
+    channel3_send(chan,link->status);
+  }
+}
+
+// new incoming link channel, set up handler
+void link_chan_open(link_t link, lob_t open)
+{
+  if(!link || !open) return;
+  if(link->chan) LOG("TODO remove end/remove existing channel, leaking it!");
+  link->chan = channel3_new(open);
+  link_handle(link, link->chan, link_chan_handler, NULL);
+  channel3_receive(link->chan, open);
+  link_chan_handler(link, link->chan, NULL);
+}
+
 // process a decrypted channel packet
 link_t link_receive(link_t link, lob_t inner, pipe_t pipe)
 {
@@ -228,6 +273,7 @@ link_t link_receive(link_t link, lob_t inner, pipe_t pipe)
   // TODO, if it's an open, fire mesh on opens
   LOG("TODO channel packet %.*s",inner->head_len,inner->head);
   // TODO validate link channels, then set link->on and fire on_link's if new
+  // TODO link_channel() to flush
   if(pipe) link_pipe(link,pipe);
   return link;
 }
@@ -327,6 +373,8 @@ link_t link_channel(link_t link, channel3_t c3)
     link_send(link, exchange3_send(link->x, packet));
     lob_free(packet);
   }
+  
+  // TODO if channel is now ended, remove from link->channels, link->chan
 
   return link;
 }
