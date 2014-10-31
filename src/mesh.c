@@ -36,9 +36,6 @@ mesh_t mesh_new(uint32_t prime)
   mesh->index = xht_new(prime?prime:MAXPRIME);
   if(!mesh->index) return mesh_free(mesh);
   
-  // set up built-in link channel handler
-  mesh_on_open(mesh, "link", link_chan_open);
-
   return mesh;
 }
 

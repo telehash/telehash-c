@@ -33,7 +33,7 @@ int main(int argc, char **argv)
   lob_t open = lob_new();
   lob_set(open,"type","test");
   lob_set_int(open,"c",exchange3_cid(link->x));
-  channel3_t chan = link_open(link, open);
+  channel3_t chan = link_channel(link, open);
   fail_unless(chan);
 
   pipe_t pipe = pipe_new("test");
