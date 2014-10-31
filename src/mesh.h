@@ -49,13 +49,16 @@ pipe_t mesh_path(mesh_t mesh, link_t link, lob_t path);
 void mesh_on_discover(mesh_t mesh, char *id, link_t (*discover)(mesh_t mesh, lob_t discovered, pipe_t pipe));
 void mesh_discover(mesh_t mesh, lob_t discovered, pipe_t pipe);
 
-// callback when a link is created
+// callback when a link changes state created/up/down
 void mesh_on_link(mesh_t mesh, char *id, void (*link)(link_t link));
 void mesh_link(mesh_t mesh, link_t link);
 
 // callback when a new incoming channel is requested
 void mesh_on_open(mesh_t mesh, char *id, void (*open)(link_t link, lob_t open));
 void mesh_open(mesh_t mesh, link_t link, lob_t open);
+
+// for any link, validate a request packet
+void mesh_on_validate(mesh_t mesh, char *id, lob_t (*validate)(link_t link, lob_t req));
 
 /*
 

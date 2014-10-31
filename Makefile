@@ -33,7 +33,7 @@ all: idgen router
 # TODO, create a static libe3x.a build option
 
 test-node: net_link
-	if ./test/node.sh ; then \
+	@if ./test/node.sh ; then \
 		echo "PASSED: node.sh"; \
 	else \
 		echo "FAILED: node.sh"; exit 1; \

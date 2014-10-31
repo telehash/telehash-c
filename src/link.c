@@ -227,6 +227,7 @@ link_t link_receive(link_t link, lob_t inner, pipe_t pipe)
   // TODO, see if existing channel and send there
   // TODO, if it's an open, fire mesh on opens
   LOG("TODO channel packet %.*s",inner->head_len,inner->head);
+  // TODO validate link channels, then set link->on and fire on_link's if new
   if(pipe) link_pipe(link,pipe);
   return link;
 }
