@@ -61,16 +61,13 @@ link_t link_sync(link_t link);
 link_t link_resync(link_t link);
 
 // create/track a new channel for this open
-channel3_t link_open(link_t link, lob_t open);
+channel3_t link_channel(link_t link, lob_t open);
 
 // set up internal handler for all incoming packets on this channel
 link_t link_handle(link_t link, channel3_t c3, void (*handle)(link_t link, channel3_t c3, void *arg), void *arg);
 
 // process any outgoing packets for this channel
-link_t link_channel(link_t link, channel3_t c3);
-
-// internally used for new incoming link channel, set up handler
-void link_chan_open(link_t link, lob_t open);
+link_t link_flush(link_t link, channel3_t c3);
 
 /*
 // default channel inactivity timeout in seconds

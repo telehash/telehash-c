@@ -199,7 +199,7 @@ link_t link_status(link_t link, lob_t status)
   if(!link->chan) return link;
   // if we have a channel, send it immediately too
   channel3_send(link->chan, status);
-  return link_channel(link, link->chan);
+  return link_flush(link, link->chan);
 }
 
 // process an incoming handshake
@@ -268,12 +268,15 @@ void link_chan_open(link_t link, lob_t open)
 // process a decrypted channel packet
 link_t link_receive(link_t link, lob_t inner, pipe_t pipe)
 {
+  uint32_t cid;
   if(!link || !inner) return LOG("bad args");
+  if(!(cid = lob_get_int(inner,"c"))) return LOG("bad cid %s",lob_json(inner));
+
   // TODO, see if existing channel and send there
   // TODO, if it's an open, fire mesh on opens
   LOG("TODO channel packet %.*s",inner->head_len,inner->head);
   // TODO validate link channels, then set link->on and fire on_link's if new
-  // TODO link_channel() to flush
+  // TODO link_flush() to flush
   if(pipe) link_pipe(link,pipe);
   return link;
 }
@@ -326,7 +329,7 @@ link_t link_resync(link_t link)
 }
 
 // create/track a new channel for this open
-channel3_t link_open(link_t link, lob_t open)
+channel3_t link_channel(link_t link, lob_t open)
 {
   chan_t chan;
   channel3_t c3;
@@ -363,7 +366,7 @@ link_t link_handle(link_t link, channel3_t c3, void (*handle)(link_t link, chann
 }
 
 // process any outgoing packets for this channel
-link_t link_channel(link_t link, channel3_t c3)
+link_t link_flush(link_t link, channel3_t c3)
 {
   lob_t packet;
   if(!link || !c3) return LOG("bad args");
