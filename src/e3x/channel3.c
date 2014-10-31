@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include "util.h"
 #include "e3x.h"
 #include "platform.h"
@@ -11,6 +12,7 @@ static uint32_t _uids = 0;
 struct channel3_struct
 {
   uint32_t id; // wire id (not unique)
+  char c[12]; // str of id
   char uid[9]; // process hex id (unique)
   uint32_t tsent, trecv; // last send, recv
   uint32_t timeout; // seconds since last trecv to auto-err
@@ -46,6 +48,7 @@ channel3_t channel3_new(lob_t open)
   memset(c,0,sizeof (struct channel3_struct));
   c->state = OPENING;
   c->id = id;
+  sprintf(c->c,"%u",id);
   c->open = lob_copy(open);
   c->type = lob_get(open,"type");
 
@@ -99,6 +102,12 @@ uint32_t channel3_id(channel3_t c)
 {
   if(!c) return 0;
   return c->id;
+}
+
+char *channel3_c(channel3_t c)
+{
+  if(!c) return NULL;
+  return c->c;
 }
 
 // this will set the default inactivity timeout using this event timer and our uid

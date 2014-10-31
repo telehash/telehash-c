@@ -23,8 +23,9 @@ uint8_t channel3_send(channel3_t c, lob_t inner); // adds to sending queue, adds
 lob_t channel3_sending(channel3_t c); // must be called after every send or receive, pass pkt to exchange3_encrypt before sending
 
 // convenience functions
-char *channel3_uid(channel3_t c);
-uint32_t channel3_id(channel3_t c); // numeric of the open->cid
+char *channel3_uid(channel3_t c); // process-unique string id
+uint32_t channel3_id(channel3_t c); // numeric of the open->c id
+char *channel3_c(channel3_t c); // string of the c id
 lob_t channel3_open(channel3_t c); // returns the open packet (always cached)
 
 enum channel3_states { ENDED, OPENING, OPEN };
