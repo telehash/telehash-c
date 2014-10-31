@@ -44,7 +44,7 @@ int main(int argc, char **argv)
 
   // create another to start testing real packets
   lob_t secretsB = e3x_generate();
-  local_t localB = cs->local_new(NULL,secretsB);
+  local_t localB = cs->local_new(lob_linked(secretsB),secretsB);
   fail_unless(localB);
   remote_t remoteB = cs->remote_new(lob_get_base32(lob_linked(secretsB),"1a"), NULL);
   fail_unless(remoteB);
