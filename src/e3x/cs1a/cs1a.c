@@ -346,10 +346,10 @@ lob_t ephemeral_encrypt(ephemeral_t ephem, lob_t inner)
   // encrypt full inner into the outer
   aes_128_ctr(ephem->enckey,inner_len,iv,lob_raw(inner),outer->body+16+4);
 
-  // generate mac key and mac it
+  // generate mac key and mac the ciphertext
   memcpy(hmac,ephem->enckey,16);
   memcpy(hmac+16,iv,4);
-  hmac_256(hmac,16+4,outer->body,16+4+inner_len,hmac);
+  hmac_256(hmac,16+4,outer->body+16+4,inner_len,hmac);
   fold3(hmac,outer->body+16+4+inner_len);
 
   return outer;
@@ -364,8 +364,10 @@ lob_t ephemeral_decrypt(ephemeral_t ephem, lob_t outer)
 
   memcpy(hmac,ephem->deckey,16);
   memcpy(hmac+16,iv,4);
-  hmac_256(hmac,16+4,outer->body,outer->body_len-4,hmac);
+  // mac just the ciphertext
+  hmac_256(hmac,16+4,outer->body+16+4,outer->body_len-(4+16+4),hmac);
   fold3(hmac,hmac);
+
   if(memcmp(hmac,outer->body+(outer->body_len-4),4) != 0) return LOG("hmac failed");
 
   // decrypt in place
