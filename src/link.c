@@ -191,14 +191,26 @@ link_t link_pipe(link_t link, pipe_t pipe)
   return link_sync(link);
 }
 
+// can channel data be sent/received
+link_t link_ready(link_t link)
+{
+  if(!link) return NULL;
+  if(!link->x) return NULL;
+  if(!exchange3_out(link->x,0)) return NULL;
+  if(!exchange3_in(link->x,0)) return NULL;
+  return link;
+}
+
 // process an incoming handshake
 link_t link_handshake(link_t link, lob_t inner, lob_t outer, pipe_t pipe)
 {
+  link_t ready;
   uint32_t out;
 
   if(!link || !inner || !outer) return LOG("bad args");
   if(!link->key && link_key(link->mesh,inner) != link) return LOG("invalid/mismatch handshake key");
   out = exchange3_out(link->x,0);
+  ready = link_ready(link);
 
   // if bad at, always send current handshake
   if(exchange3_in(link->x, lob_get_int(inner,"at")) < out)
@@ -214,11 +226,17 @@ link_t link_handshake(link_t link, lob_t inner, lob_t outer, pipe_t pipe)
   // try to sync ephemeral key
   if(!exchange3_sync(link->x,outer)) return LOG("sync failed");
   
-  // if we we're already in sync, all done
-  if(out == exchange3_out(link->x,0)) return link;
-
-  // send out current handshake
-  return link_sync(link);
+  // we may need to re-sync
+  if(out != exchange3_out(link->x,0)) link_sync(link);
+  
+  // notify of ready state change
+  if(!ready && link_ready(link))
+  {
+    LOG("link ready");
+    mesh_link(link->mesh, link);
+  }
+  
+  return link;
 }
 
 // process a decrypted channel packet
@@ -237,16 +255,15 @@ link_t link_receive(link_t link, lob_t inner, pipe_t pipe)
   return link;
 }
 
-// encrypt/send this packet to the best pipe
-link_t link_send(link_t link, lob_t inner)
+// send this packet to the best pipe
+link_t link_send(link_t link, lob_t outer)
 {
   pipe_t pipe;
   
   if(!link) return LOG("bad args");
-  if(!link->x) return LOG("no exchange");
   if(!link->pipes || !(pipe = link->pipes->pipe)) return LOG("no network");
 
-  pipe->send(pipe, exchange3_send(link->x, inner), link);
+  pipe->send(pipe, outer, link);
   return link;
 }
 
@@ -291,8 +308,9 @@ channel3_t link_channel(link_t link, lob_t open)
   channel3_t c3;
   if(!link || !open) return LOG("bad args");
 
+  lob_set_int(open,"c",exchange3_cid(link->x));
   c3 = channel3_new(open);
-  if(!c3) return LOG("invalid open %.*s",open->head_len,open->head);
+  if(!c3) return LOG("invalid open %s",lob_json(open));
 
   // add this channel to the link's channel index
   if(!(chan = malloc(sizeof (struct chan_struct))))
@@ -304,6 +322,9 @@ channel3_t link_channel(link_t link, lob_t open)
   chan->c3 = c3;
   xht_set(link->channels, channel3_uid(c3), chan);
   xht_set(link->index, channel3_c(c3), chan);
+
+  // send the open out
+  link_flush(link, c3, lob_copy(open));
 
   return c3;
 }

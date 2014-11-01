@@ -99,7 +99,7 @@ net_link:
 	$(CC) $(CFLAGS) -o bin/test_net_link test/net_link.c src/net/udp4.c $(UNIX1a) $(MESH) $(EXT) 
 
 ext_link:
-	$(CC) $(CFLAGS) -o bin/test_ext_link test/ext_link.c $(UNIX1a) $(MESH) $(EXT) 
+	$(CC) $(CFLAGS) -o bin/test_ext_link test/ext_link.c src/net/loopback.c $(UNIX1a) $(MESH) $(EXT) 
 
 idgen:
 	$(CC) $(CFLAGS) -o bin/idgen util/idgen.c $(ARCH)

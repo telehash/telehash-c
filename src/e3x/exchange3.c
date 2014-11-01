@@ -162,7 +162,7 @@ lob_t exchange3_receive(exchange3_t x, lob_t outer)
   if(!x->ephem) return LOG("no handshake");
   inner = x->cs->ephemeral_decrypt(x->ephem,outer);
   if(!inner) return LOG("decryption failed %s",x->cs->err());
-  // TODO validate channel packet / cid
+  LOG("decrypted head %d body %d",inner->head_len,inner->body_len);
   return inner;
 }
 
@@ -172,6 +172,7 @@ lob_t exchange3_send(exchange3_t x, lob_t inner)
   lob_t outer;
   if(!x || !inner) return LOG("invalid args");
   if(!x->ephem) return LOG("no handshake");
+  LOG("encrypting head %d body %d",inner->head_len,inner->body_len);
   outer = x->cs->ephemeral_encrypt(x->ephem,inner);
   if(!outer) return LOG("encryption failed %s",x->cs->err());
   return outer;

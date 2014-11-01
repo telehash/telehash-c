@@ -198,7 +198,7 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
     return 1;
   }
   
-  LOG("mesh receiving packet %d %s from %s",outer->head_len,mesh->id->hashname,pipe->id);
+  LOG("mesh receiving %s to %s via pipe %s",outer->head_len?"handshake":"channel",mesh->id->hashname,pipe->id);
 
   // process handshakes
   if(outer->head_len == 1)
@@ -282,7 +282,7 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
       return 7;
     }
     
-    LOG("incoming channel packet for link %s",link->id->hashname);
+    LOG("channel packet %d bytes from %s",lob_len(inner),link->id->hashname);
     return link_receive(link,inner,pipe) ? 0 : 8;
     
   }

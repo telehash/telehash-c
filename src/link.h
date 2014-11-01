@@ -44,7 +44,7 @@ link_t link_handshake(link_t link, lob_t inner, lob_t outer, pipe_t pipe);
 // process a decrypted channel packet
 link_t link_receive(link_t link, lob_t inner, pipe_t pipe);
 
-// try to encrypt/deliver this channel packet
+// try to deliver this packet to the best pipe
 link_t link_send(link_t link, lob_t inner);
 
 // make sure current handshake is sent to all pipes
@@ -53,13 +53,16 @@ link_t link_sync(link_t link);
 // trigger a new sync
 link_t link_resync(link_t link);
 
+// can channel data be sent/received
+link_t link_ready(link_t link);
+
 // create/track a new channel for this open
 channel3_t link_channel(link_t link, lob_t open);
 
 // set up internal handler for all incoming packets on this channel
 link_t link_handle(link_t link, channel3_t c3, void (*handle)(link_t link, channel3_t c3, void *arg), void *arg);
 
-// process any outgoing packets for this channel
+// encrpt and send any outgoing packets for this channel, send the inner if given
 link_t link_flush(link_t link, channel3_t c3, lob_t inner);
 
 /*

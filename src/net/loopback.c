@@ -19,6 +19,7 @@ net_loopback_t net_loopback_new(mesh_t a, mesh_t b)
   pair->a = a;
   pair->b = b;
   pair->pipe = pipe_new("pair");
+  pair->pipe->id = strdup("loopback");
   pair->pipe->arg = pair;
   pair->pipe->send = pair_send;
 

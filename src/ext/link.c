@@ -57,6 +57,7 @@ lob_t ext_link_status(link_t link, lob_t status)
     chan = link_channel(link,open);
     link_handle(link,chan,link_chan_handler,NULL);
     xht_set(link->index,"link",chan);
+    return NULL;
   }
   
   open = channel3_open(chan);
@@ -80,6 +81,28 @@ lob_t ext_link_status(link_t link, lob_t status)
   return lob_linked(open);
 }
 
+// auto-link
+void link_chan_auto(link_t link)
+{
+  channel3_t chan;
+  if(!link_ready(link)) return;
+
+  chan = (channel3_t)xht_get(link->index, "link");
+  if(lob_get(channel3_open(chan),"auto")) return; // already sent
+
+  LOG("auto-linking");
+  ext_link_status(link,lob_new());
+  chan = (channel3_t)xht_get(link->index, "link"); // chan may have been created by status
+  lob_set(channel3_open(chan),"auto","true");
+}
+
+mesh_t ext_link_auto(mesh_t mesh)
+{
+  ext_link(mesh);
+  // watch link events to auto create/respond to link channel
+  mesh_on_link(mesh, "link", link_chan_auto);
+  return mesh;
+}
 
 mesh_t ext_link(mesh_t mesh)
 {
