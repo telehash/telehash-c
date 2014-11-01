@@ -3,35 +3,83 @@
 // handle incoming packets for the built-in link channel
 void link_chan_handler(link_t link, channel3_t chan, void *arg)
 {
-  lob_t packet;
-  if(!link || link->chan != chan) return;
+  lob_t status, open, packet;
+  if(!link) return;
+
+  open = channel3_open(chan);
   while((packet = channel3_receiving(chan)))
   {
-    link->up = lob_free(link->up);
-    // TODO if packet has err, set link->status instead
-    link->up = packet;
+    lob_free(lob_unlink(open));
+    if(lob_get(packet,"err"))
+    {
+      status = packet;
+    }else{
+      status = lob_parse(packet->body,packet->body_len);
+      if(!status) status = lob_new(); // actual attached packet is optional, but we use it's existence for status
+      lob_free(packet);
+    }
+    lob_link(open,status);
+
     // send out link update/change signal
     mesh_link(link->mesh, link);
-  }
-
-  // if no status is set, default one back
-  if(!link->status)
-  {
-    link->status = lob_new();
-    channel3_send(chan,link->status);
   }
 }
 
 // new incoming link channel, set up handler
 void link_chan_open(link_t link, lob_t open)
 {
+  channel3_t chan;
   if(!link || !open) return;
-  if(link->chan) LOG("TODO remove end/remove existing channel, leaking it!");
-  link->chan = channel3_new(open);
-  link_handle(link, link->chan, link_chan_handler, NULL);
-  channel3_receive(link->chan, open);
-  link_chan_handler(link, link->chan, NULL);
+  if(xht_get(link->index, "link")) LOG("note: new incoming link channel replacing existing one");
+
+  // create new channel, set it up, then receive this open
+  chan = link_channel(link, open);
+  link_handle(link,chan,link_chan_handler,NULL);
+  xht_set(link->index,"link",chan);
+  channel3_receive(chan,open);
+  link_chan_handler(link,chan,NULL);
 }
+
+// set/change the link status (err to mark down)
+lob_t ext_link_status(link_t link, lob_t status)
+{
+  channel3_t chan;
+  lob_t open, wrap;
+
+  if(!link) return LOG("bad args");
+  chan = (channel3_t)xht_get(link->index, "link");
+  if(!chan)
+  {
+    if(!status) return LOG("link down");
+    open = lob_new();
+    lob_set(open,"type","link");
+    lob_body(open,lob_raw(status),lob_len(status));
+    chan = link_channel(link,open);
+    link_handle(link,chan,link_chan_handler,NULL);
+    xht_set(link->index,"link",chan);
+  }
+  
+  open = channel3_open(chan);
+  if(!open) return LOG("internal error");
+
+  if(status)
+  {
+    
+    if(lob_get(status,"err"))
+    {
+      lob_free(lob_linked(open)); // link down
+      link_flush(link, chan, status);
+      return NULL;
+    }
+    wrap = lob_new();
+    lob_body(wrap,lob_raw(status),lob_len(status));
+    link_flush(link, chan, wrap);
+  }
+
+  // return last received status (linked off the open)
+  return lob_linked(open);
+}
+
 
 mesh_t ext_link(mesh_t mesh)
 {

@@ -36,9 +36,9 @@ link_t link_new(mesh_t mesh, hashname_t id)
   link->mesh = mesh;
   xht_set(mesh->index,id->hashname,link);
 
-  // minimum active channels by default
-  // app can xht_free(link->channels); link->channels = xht_new(BIGGER) at start itself
-  link->channels = xht_new(5);
+  // to size larger, app can xht_free(); link->channels = xht_new(BIGGER) at start itself
+  link->channels = xht_new(5); // index of all channels
+  link->index = xht_new(5); // index for active channels and extensions
 
   return link;
 }
@@ -53,6 +53,7 @@ void link_free(link_t link)
 
   // TODO go through link->channels
   xht_free(link->channels);
+  xht_free(link->index);
 
   hashname_free(link->id);
   if(link->x)
@@ -190,18 +191,6 @@ link_t link_pipe(link_t link, pipe_t pipe)
   return link_sync(link);
 }
 
-// set/change the link status (err to mark down)
-link_t link_status(link_t link, lob_t status)
-{
-  if(!link || !status) return LOG("bad args");
-  if(link->status) lob_free(link->status);
-  link->status = status;
-  if(!link->chan) return link;
-  // if we have a channel, send it immediately too
-  channel3_send(link->chan, status);
-  return link_flush(link, link->chan);
-}
-
 // process an incoming handshake
 link_t link_handshake(link_t link, lob_t inner, lob_t outer, pipe_t pipe)
 {
@@ -314,6 +303,7 @@ channel3_t link_channel(link_t link, lob_t open)
   memset(chan,0,sizeof (struct chan_struct));
   chan->c3 = c3;
   xht_set(link->channels, channel3_uid(c3), chan);
+  xht_set(link->index, channel3_c(c3), chan);
 
   return c3;
 }
@@ -332,19 +322,20 @@ link_t link_handle(link_t link, channel3_t c3, void (*handle)(link_t link, chann
   return link;
 }
 
-// process any outgoing packets for this channel
-link_t link_flush(link_t link, channel3_t c3)
+// process any outgoing packets for this channel, optionally send given packet too
+link_t link_flush(link_t link, channel3_t c3, lob_t inner)
 {
-  lob_t packet;
   if(!link || !c3) return LOG("bad args");
   
-  while((packet = channel3_sending(c3)))
+  if(inner) channel3_send(c3, inner);
+
+  while((inner = channel3_sending(c3)))
   {
-    link_send(link, exchange3_send(link->x, packet));
-    lob_free(packet);
+    link_send(link, exchange3_send(link->x, inner));
+    lob_free(inner);
   }
   
-  // TODO if channel is now ended, remove from link->channels, link->chan
+  // TODO if channel is now ended, remove from link->index
 
   return link;
 }
