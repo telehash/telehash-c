@@ -32,6 +32,8 @@ void link_chan_open(link_t link, lob_t open)
   if(!link || !open) return;
   if(xht_get(link->index, "link")) LOG("note: new incoming link channel replacing existing one");
 
+  LOG("incoming link channel open");
+
   // create new channel, set it up, then receive this open
   chan = link_channel(link, open);
   link_handle(link,chan,link_chan_handler,NULL);
@@ -51,12 +53,13 @@ lob_t ext_link_status(link_t link, lob_t status)
   if(!chan)
   {
     if(!status) return LOG("link down");
+    LOG("initiating new link channel");
     open = lob_new();
     lob_set(open,"type","link");
     lob_body(open,lob_raw(status),lob_len(status));
     chan = link_channel(link,open);
-    link_handle(link,chan,link_chan_handler,NULL);
     xht_set(link->index,"link",chan);
+    link_handle(link,chan,link_chan_handler,NULL);
     return NULL;
   }
   

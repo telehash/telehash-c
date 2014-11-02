@@ -250,6 +250,7 @@ link_t link_receive(link_t link, lob_t inner, pipe_t pipe)
   if((chan = xht_get(link->index, lob_get(inner,"c"))))
   {
     if(channel3_receive(chan->c3, inner)) return LOG("channel receive error, dropping %s",lob_json(inner));
+    if(chan->handle) chan->handle(link, chan->c3, chan->arg);
   }else{
     // if it's an open, validate and fire event
    if(!lob_get(inner,"type")) return LOG("invalid channel open, no type %s",lob_json(inner));
@@ -319,9 +320,11 @@ channel3_t link_channel(link_t link, lob_t open)
   channel3_t c3;
   if(!link || !open) return LOG("bad args");
 
-  lob_set_int(open,"c",exchange3_cid(link->x, NULL));
+  // add an outgoing cid if none set
+  if(!lob_get_int(open,"c")) lob_set_int(open,"c",exchange3_cid(link->x, NULL));
   c3 = channel3_new(open);
   if(!c3) return LOG("invalid open %s",lob_json(open));
+  LOG("new outgoing channel open: %s",lob_get(open,"type"));
 
   // add this channel to the link's channel index
   if(!(chan = malloc(sizeof (struct chan_struct))))
