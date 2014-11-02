@@ -168,7 +168,7 @@ uint8_t channel3_receive(channel3_t c, lob_t inner)
   // TODO reliability
 
   end = c->in;
-  while(!end->next) end = end->next;
+  while(end->next) end = end->next;
   end->next = inner;
 
   return 0;
@@ -212,8 +212,8 @@ uint8_t channel3_send(channel3_t c, lob_t inner)
   lob_t end;
   if(!c || !inner) return 1;
   
-  LOG("channel send %d %s",c->id,lob_json(inner));
   if(!lob_get_int(inner,"c")) lob_set_int(inner,"c",c->id);
+  LOG("channel send %d %s",c->id,lob_json(inner));
 
   // TODO reliability
 
