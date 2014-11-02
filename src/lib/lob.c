@@ -278,7 +278,7 @@ lob_t lob_set_base32(lob_t p, char *key, uint8_t *bin, uint16_t blen)
 char *lob_json(lob_t p)
 {
   if(!p) return NULL;
-  if(p->head_len < 2) return LOG("head to short to be json");
+  if(p->head_len < 2) return NULL;
   if(p->cache) free(p->cache);
   if(!(p->cache = malloc(p->head_len+1))) return LOG("OOM");
   memcpy(p->cache,p->head,p->head_len);
