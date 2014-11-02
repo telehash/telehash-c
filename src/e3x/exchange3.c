@@ -198,7 +198,7 @@ uint32_t exchange3_cid(exchange3_t x, lob_t incoming)
   if(!(cid = lob_get_int(incoming,"c"))) return 0;
   if(cid <= x->last) return 0; // can't re-use old ones
   // make sure it's even/odd properly
-  if(((cid % 2)+1) == x->order) return 0;
+  if((cid % 2) == (x->cid % 2)) return 0;
   x->last = cid; // track the highest
   return cid;
 }
