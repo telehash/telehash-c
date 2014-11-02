@@ -242,17 +242,28 @@ link_t link_handshake(link_t link, lob_t inner, lob_t outer, pipe_t pipe)
 // process a decrypted channel packet
 link_t link_receive(link_t link, lob_t inner, pipe_t pipe)
 {
-  uint32_t cid;
-  if(!link || !inner) return LOG("bad args");
-  if(!(cid = lob_get_int(inner,"c"))) return LOG("bad cid %s",lob_json(inner));
+  chan_t chan;
 
-  // TODO, see if existing channel and send there
-  // TODO, if it's an open, fire mesh on opens
-  LOG("TODO channel packet %.*s",inner->head_len,inner->head);
-  // TODO validate link channels, then set link->on and fire on_link's if new
-  // TODO link_flush() to flush
+  if(!link || !inner) return LOG("bad args");
+
+  // see if existing channel and send there
+  if((chan = xht_get(link->index, lob_get(inner,"c"))))
+  {
+    if(channel3_receive(chan->c3, inner)) return LOG("channel receive error, dropping %s",lob_json(inner));
+  }else{
+    // if it's an open, validate and fire event
+   if(!lob_get(inner,"type")) return LOG("invalid channel open, no type %s",lob_json(inner));
+   if(!exchange3_cid(link->x, inner)) return LOG("invalid channel open id %s",lob_json(inner));
+   mesh_open(link->mesh,link,inner);
+   if(!(chan = xht_get(link->index, lob_get(inner,"c")))) return LOG("unhandled channel open %s",lob_json(inner));
+  }
+
+  // always accept the pipe
   if(pipe) link_pipe(link,pipe);
-  return link;
+
+  // check if there's any packets to be sent back
+  return link_flush(link, chan->c3, NULL);
+
 }
 
 // send this packet to the best pipe
@@ -308,7 +319,7 @@ channel3_t link_channel(link_t link, lob_t open)
   channel3_t c3;
   if(!link || !open) return LOG("bad args");
 
-  lob_set_int(open,"c",exchange3_cid(link->x));
+  lob_set_int(open,"c",exchange3_cid(link->x, NULL));
   c3 = channel3_new(open);
   if(!c3) return LOG("invalid open %s",lob_json(open));
 
