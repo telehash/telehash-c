@@ -144,7 +144,7 @@ void keygen()
 {
   printf("keygen ");
 
-  packet_t keys = packet_new();
+  lob_t keys = lob_new();
   crypt_keygen(0x1a,keys);
   printf("%s",keys->json); //,keys->json_len);
   printf("length=%d\n",keys->json_len);

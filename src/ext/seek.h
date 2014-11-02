@@ -9,6 +9,6 @@ void seek_auto(switch_t s);
 void seek_free(switch_t s);
 
 // just call back note instead of auto-connect
-void seek_note(switch_t s, hn_t h, packet_t note);
+void seek_note(switch_t s, hashname_t h, lob_t note);
 
 #endif

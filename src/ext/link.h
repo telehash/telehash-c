@@ -1,20 +1,16 @@
 #ifndef ext_link_h
 #define ext_link_h
 
-#include "xht.h"
-#include "chan.h"
+#include "mesh.h"
 
-void ext_link(chan_t c);
+// add link channel support
+mesh_t ext_link(mesh_t mesh);
 
-void link_free(switch_t s);
+// auto-connect any incoming/outgoing links
+mesh_t ext_link_auto(mesh_t mesh);
 
-// automatically mesh any links, defaults to 0, set to max mesh
-void link_mesh(switch_t s, int max);
+// get/change the link status (err to mark down, any status to mark up)
+lob_t ext_link_status(link_t link, lob_t status);
 
-// enable acting as a seed, defaults to 0, or set to max links (as a prime#!)
-void link_seed(switch_t s, int max);
-
-// create/fetch/maintain a link to this hn, fires note with "link":"up" and "link":"down" change events
-chan_t link_hn(switch_t s, hn_t h, packet_t note);
 
 #endif

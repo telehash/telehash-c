@@ -4,12 +4,12 @@
 
 void ext_connect(chan_t c)
 {
-  packet_t p;
-  hn_t hn;
+  lob_t p;
+  hashname_t hn;
   while((p = chan_pop(c)))
   {
-    hn = hn_fromjson(c->s->index,p);
-    packet_free(p);
+    hn = hashname_fromjson(c->s->index,p);
+    lob_free(p);
     if(!hn) continue;
     DEBUG_PRINTF("connect HN %s\n",hn?hn->hexname:"null");
     switch_open(c->s, hn, NULL);

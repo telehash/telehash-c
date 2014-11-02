@@ -1,31 +1,12 @@
 #ifndef util_unix_h
 #define util_unix_h
 
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/stat.h>
+#include "mesh.h"
 
-#include "switch.h"
+// load a json file into packet
+lob_t util_fjson(char *file);
 
-void path2sa(path_t p, struct sockaddr_in *sa);
-void sa2path(struct sockaddr_in *sa, path_t p);
-packet_t util_file2packet(char *file);
-
-// load an array of hashnames from a file and return them as a new bucket
-bucket_t bucket_load(xht_t index, char *file);
-
-// deliver all waiting packets from switch to ipv4 sock
-void util_sendall(switch_t s, int sock);
-
-// read the next packet and process it from the socket
-int util_readone(switch_t s, int sock, path_t in);
-
-// create a listening ipv4 udp sock, blocks for up to ms
-int util_server(int port, int ms);
-
-// load id.json and seeds.json
-int util_loadjson(switch_t s);
+// load an array of hashnames from a file and add them as links
+mesh_t util_links(mesh_t mesh, char *file);
 
 #endif

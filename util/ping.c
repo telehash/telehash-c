@@ -16,7 +16,7 @@ int main(void)
   switch_t s;
   bucket_t seeds;
   chan_t c, c2;
-  packet_t p;
+  lob_t p;
   path_t from;
   int sock, len, blen;
   struct	sockaddr_in sad, sa;
@@ -59,24 +59,24 @@ int main(void)
   // create/send a ping packet  
   c = chan_new(s, bucket_get(seeds, 0), "seek", 0);
   p = chan_packet(c);
-  packet_set_str(p,"seek",s->id->hexname);  
+  lob_set_str(p,"seek",s->id->hexname);  
   chan_send(c, p);
 
   while((p = switch_sending(s)))
   {
     if(util_cmp(p->out->type,"ipv4")!=0)
     {
-      packet_free(p);
+      lob_free(p);
       continue;
     }
-    printf("sending %s packet %d %s\n",p->json_len?"open":"line",packet_len(p),path_json(p->out));
+    printf("sending %s packet %d %s\n",p->json_len?"open":"line",lob_len(p),path_json(p->out));
     path2sa(p->out, &sa);
-    if(sendto(sock, packet_raw(p), packet_len(p), 0, (struct sockaddr *)&sa, sizeof(sa))==-1)
+    if(sendto(sock, lob_raw(p), lob_len(p), 0, (struct sockaddr *)&sa, sizeof(sa))==-1)
     {
   	  printf("sendto failed\n");
   	  return -1;
     }
-    packet_free(p);
+    lob_free(p);
   }
   
   from = path_new("ipv4");
@@ -87,7 +87,7 @@ int main(void)
 	  return -1;
   }
   sa2path(&sa, from); // inits ip/port from sa
-  p = packet_parse(buf,blen);
+  p = lob_parse(buf,blen);
   printf("received %s packet %d %s\n", p->json_len?"open":"line", blen, path_json(from));
   switch_receive(s,p,from);
 
@@ -95,17 +95,17 @@ int main(void)
   {
     if(util_cmp(p->out->type,"ipv4")!=0)
     {
-      packet_free(p);
+      lob_free(p);
       continue;
     }
-    printf("Sending %s packet %d %s\n",p->json_len?"open":"line",packet_len(p),path_json(p->out));
+    printf("Sending %s packet %d %s\n",p->json_len?"open":"line",lob_len(p),path_json(p->out));
     path2sa(p->out, &sa);
-    if(sendto(sock, packet_raw(p), packet_len(p), 0, (struct sockaddr *)&sa, sizeof(sa))==-1)
+    if(sendto(sock, lob_raw(p), lob_len(p), 0, (struct sockaddr *)&sa, sizeof(sa))==-1)
     {
   	  printf("sendto failed\n");
   	  return -1;
     }
-    packet_free(p);
+    lob_free(p);
   }
 
   from = path_new("ipv4");
@@ -113,7 +113,7 @@ int main(void)
   while((blen = recvfrom(sock, buf, sizeof(buf), 0, (struct sockaddr *)&sa, (socklen_t *)&len)) != -1)
   {
     sa2path(&sa, from); // inits ip/port from sa
-    p = packet_parse(buf,blen);
+    p = lob_parse(buf,blen);
     printf("Received %s packet %d %s\n", p->json_len?"open":"line", blen, path_json(from));
     switch_receive(s,p,from);
   
@@ -121,13 +121,13 @@ int main(void)
     {
       if(c2 == c)
       {
-        printf("got pong state %d from %s see %s\n",c->ended,c->to->hexname,packet_get_str(chan_pop(c),"see"));
+        printf("got pong state %d from %s see %s\n",c->ended,c->to->hexname,lob_get_str(chan_pop(c),"see"));
         return 0;
       }
       while((p = chan_pop(c)))
       {
         printf("unhandled channel packet %.*s\n", p->json_len, p->json);      
-        packet_free(p);
+        lob_free(p);
       }
     }
   }
