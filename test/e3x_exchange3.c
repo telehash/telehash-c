@@ -65,7 +65,7 @@ int main(int argc, char **argv)
   // send/receive channel packet
   lob_t chanAB = lob_new();
   lob_set_int(chanAB,"c",exchange3_cid(xAB, NULL));
-//  fail_unless(exchange3_cid(xBA, chanAB)); // verify incoming
+  fail_unless(exchange3_cid(xBA, chanAB)); // verify incoming
   lob_t coutAB = exchange3_send(xAB,chanAB);
   fail_unless(coutAB);
   fail_unless(coutAB->body_len == 33);
