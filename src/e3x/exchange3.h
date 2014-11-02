@@ -16,7 +16,7 @@ typedef struct exchange3_struct
   ephemeral_t ephem;
   uint8_t token[16], eid[16];
   uint32_t in, out;
-  uint32_t cid;
+  uint32_t cid, last;
 } *exchange3_t;
 
 // make a new exchange
@@ -44,8 +44,8 @@ lob_t exchange3_handshake(exchange3_t x);
 lob_t exchange3_receive(exchange3_t x, lob_t outer); // goes to channel, validates cid
 lob_t exchange3_send(exchange3_t x, lob_t inner); // comes from channel 
 
-// get next avail outgoing channel id
-uint32_t exchange3_cid(exchange3_t x);
+// validate the next incoming channel id from the packet, or return the next avail outgoing channel id
+uint32_t exchange3_cid(exchange3_t x, lob_t incoming);
 
 // get the 16-byte token value to this exchange
 uint8_t *exchange3_token(exchange3_t x);

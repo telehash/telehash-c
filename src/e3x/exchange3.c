@@ -121,6 +121,8 @@ exchange3_t exchange3_sync(exchange3_t x, lob_t outer)
     x->cs->ephemeral_free(x->ephem);
     x->ephem = ephem;
     memcpy(x->eid,outer->body,16);
+    // reset incoming channel id validation
+    x->last = 0;
   }
 
   return x;
@@ -178,11 +180,27 @@ lob_t exchange3_send(exchange3_t x, lob_t inner)
   return outer;
 }
 
-// get next avail outgoing channel id
-uint32_t exchange3_cid(exchange3_t x)
+// validate the next incoming channel id from the packet, or return the next avail outgoing channel id
+uint32_t exchange3_cid(exchange3_t x, lob_t incoming)
 {
+  uint32_t cid;
   if(!x) return 0;
-  return x->cid++;
+  
+  // in outgoing mode, just return next valid one
+  if(!incoming)
+  {
+    cid = x->cid;
+    x->cid += 2;
+    return cid;
+  }
+
+  // incoming mode, verify it
+  if(!(cid = lob_get_int(incoming,"c"))) return 0;
+  if(cid <= x->last) return 0; // can't re-use old ones
+  // make sure it's even/odd properly
+  if(((cid % 2)+1) == x->order) return 0;
+  x->last = cid; // track the highest
+  return cid;
 }
 
 uint8_t *exchange3_token(exchange3_t x)
