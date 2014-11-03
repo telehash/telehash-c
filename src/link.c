@@ -250,21 +250,25 @@ link_t link_receive(link_t link, lob_t inner, pipe_t pipe)
   if((chan = xht_get(link->index, lob_get(inner,"c"))))
   {
     if(channel3_receive(chan->c3, inner)) return LOG("channel receive error, dropping %s",lob_json(inner));
+    link_pipe(link,pipe); // we trust the pipe at this point
     if(chan->handle) chan->handle(link, chan->c3, chan->arg);
-  }else{
-    // if it's an open, validate and fire event
-   if(!lob_get(inner,"type")) return LOG("invalid channel open, no type %s",lob_json(inner));
-   if(!exchange3_cid(link->x, inner)) return LOG("invalid channel open id %s",lob_json(inner));
-   mesh_open(link->mesh,link,inner);
-   if(!(chan = xht_get(link->index, lob_get(inner,"c")))) return LOG("unhandled channel open %s",lob_json(inner));
+    // check if there's any packets to be sent back
+    return link_flush(link, chan->c3, NULL);
   }
 
-  // always accept the pipe
-  if(pipe) link_pipe(link,pipe);
-
-  // check if there's any packets to be sent back
-  return link_flush(link, chan->c3, NULL);
-
+  // if it's an open, validate and fire event
+  if(!lob_get(inner,"type")) return LOG("invalid channel open, no type %s",lob_json(inner));
+  if(!exchange3_cid(link->x, inner)) return LOG("invalid channel open id %s",lob_json(inner));
+  link_pipe(link,pipe); // we trust the pipe at this point
+  inner = mesh_open(link->mesh,link,inner);
+  if(inner)
+  {
+   LOG("unhandled channel open %s",lob_json(inner));
+   lob_free(inner);
+   return NULL;
+  }
+  
+  return link;
 }
 
 // send this packet to the best pipe
@@ -336,9 +340,6 @@ channel3_t link_channel(link_t link, lob_t open)
   chan->c3 = c3;
   xht_set(link->channels, channel3_uid(c3), chan);
   xht_set(link->index, channel3_c(c3), chan);
-
-  // send the open out
-  link_flush(link, c3, lob_copy(open));
 
   return c3;
 }

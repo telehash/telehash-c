@@ -54,11 +54,8 @@ void mesh_on_link(mesh_t mesh, char *id, void (*link)(link_t link));
 void mesh_link(mesh_t mesh, link_t link);
 
 // callback when a new incoming channel is requested
-void mesh_on_open(mesh_t mesh, char *id, void (*open)(link_t link, lob_t open));
-void mesh_open(mesh_t mesh, link_t link, lob_t open);
-
-// for any link, validate a request packet
-void mesh_on_validate(mesh_t mesh, char *id, lob_t (*validate)(link_t link, lob_t req));
+void mesh_on_open(mesh_t mesh, char *id, lob_t (*open)(link_t link, lob_t open));
+lob_t mesh_open(mesh_t mesh, link_t link, lob_t open);
 
 /*
 

@@ -1,5 +1,7 @@
 #include "ext.h"
 
+#define MUID "ext_link"
+
 // handle incoming packets for the built-in link channel
 void link_chan_handler(link_t link, channel3_t chan, void *arg)
 {
@@ -26,10 +28,12 @@ void link_chan_handler(link_t link, channel3_t chan, void *arg)
 }
 
 // new incoming link channel, set up handler
-void link_chan_open(link_t link, lob_t open)
+lob_t link_on_open(link_t link, lob_t open)
 {
   channel3_t chan;
-  if(!link || !open) return;
+  if(!link) return open;
+  if(lob_get_cmp(open,"type","link")) return open;
+  
   if(xht_get(link->index, "link")) LOG("note: new incoming link channel replacing existing one");
 
   LOG("incoming link channel open");
@@ -40,6 +44,7 @@ void link_chan_open(link_t link, lob_t open)
   xht_set(link->index,"link",chan);
   channel3_receive(chan,open);
   link_chan_handler(link,chan,NULL);
+  return NULL;
 }
 
 // set/change the link status (err to mark down)
@@ -85,7 +90,7 @@ lob_t ext_link_status(link_t link, lob_t status)
 }
 
 // auto-link
-void link_chan_auto(link_t link)
+void link_on_link(link_t link)
 {
   channel3_t chan;
   if(!link_ready(link)) return;
@@ -103,14 +108,14 @@ mesh_t ext_link_auto(mesh_t mesh)
 {
   ext_link(mesh);
   // watch link events to auto create/respond to link channel
-  mesh_on_link(mesh, "link", link_chan_auto);
+  mesh_on_link(mesh, MUID, link_on_link);
   return mesh;
 }
 
 mesh_t ext_link(mesh_t mesh)
 {
   // set up built-in link channel handler
-  mesh_on_open(mesh, "link", link_chan_open);
+  mesh_on_open(mesh, MUID, link_on_open);
   return mesh;
 }
 

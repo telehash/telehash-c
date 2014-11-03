@@ -15,7 +15,7 @@ typedef struct on_struct
   void (*free)(mesh_t mesh); // relese resources
   void (*link)(link_t link); // when a link is created, and again when exchange is created
   pipe_t (*path)(link_t link, lob_t path); // convert path->pipe
-  void (*open)(link_t link, lob_t open); // incoming channel requests
+  lob_t (*open)(link_t link, lob_t open); // incoming channel requests
   link_t (*discover)(mesh_t mesh, lob_t discovered, pipe_t pipe); // incoming unknown hashnames
   
   struct on_struct *next;
@@ -160,16 +160,17 @@ void mesh_link(mesh_t mesh, link_t link)
   for(on = mesh->on; on; on = on->next) if(on->link) on->link(link);
 }
 
-void mesh_on_open(mesh_t mesh, char *id, void (*open)(link_t link, lob_t open))
+void mesh_on_open(mesh_t mesh, char *id, lob_t (*open)(link_t link, lob_t open))
 {
   on_t on = on_get(mesh, id);
   if(on) on->open = open;
 }
 
-void mesh_open(mesh_t mesh, link_t link, lob_t open)
+lob_t mesh_open(mesh_t mesh, link_t link, lob_t open)
 {
   on_t on;
-  for(on = mesh->on; on; on = on->next) if(on->open) on->open(link, open);
+  for(on = mesh->on; open && on; on = on->next) if(on->open) open = on->open(link, open);
+  return open;
 }
 
 void mesh_on_discover(mesh_t mesh, char *id, link_t (*discover)(mesh_t mesh, lob_t discovered, pipe_t pipe))
