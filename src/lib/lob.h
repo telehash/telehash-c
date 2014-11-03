@@ -77,6 +77,9 @@ char *lob_get(lob_t p, char *key);
 int lob_get_int(lob_t p, char *key);
 char *lob_get_index(lob_t p, uint32_t i); // returns ["0","1","2","3"] or {"0":"1","2":"3"}
 
+// just shorthand for util_cmp to match a key/value
+int lob_get_cmp(lob_t p, char *key, char *val);
+
 // get the raw value, must use get_len
 char *lob_get_raw(lob_t p, char *key);
 uint32_t lob_get_len(lob_t p, char *key);

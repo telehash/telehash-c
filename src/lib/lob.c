@@ -439,6 +439,13 @@ lob_t lob_get_base32(lob_t p, char *key)
   return ret;
 }
 
+// just shorthand for util_cmp to match a key/value
+int lob_get_cmp(lob_t p, char *key, char *val)
+{
+  return util_cmp(lob_get(p,key),val);
+}
+
+
 // count of keys
 int lob_keys(lob_t p)
 {
