@@ -7,6 +7,7 @@
 
 #include "mesh.h"
 #include "udp4.h"
+#include "ext.h"
 #include "unit_test.h"
 
 int main(int argc, char *argv[])
@@ -18,7 +19,8 @@ int main(int argc, char *argv[])
 
   mesh = mesh_new(0);
   fail_unless(mesh_generate(mesh));
-  mesh_on_discover(mesh,"auto",mesh_add); // auto-link anyone
+  mesh_on_discover(mesh,"auto",mesh_add); // accept anyone
+  ext_link_auto(mesh); // allow all link channels
 
   udp4 = net_udp4_new(mesh, NULL);
 

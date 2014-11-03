@@ -61,6 +61,7 @@ lob_t ext_link_status(link_t link, lob_t status)
     LOG("initiating new link channel");
     open = lob_new();
     lob_set(open,"type","link");
+    lob_set_int(open,"seq",0); // reliable
     lob_body(open,lob_raw(status),lob_len(status));
     chan = link_channel(link,open);
     xht_set(link->index,"link",chan);
