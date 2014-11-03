@@ -18,7 +18,6 @@ struct channel3_struct
   uint32_t timeout; // seconds since last trecv to auto-err
   lob_t open; // cached for convenience
   char *type;
-  uint8_t reliable;
   enum channel3_states state;
   event3_t ev;
   
@@ -27,7 +26,7 @@ struct channel3_struct
   lob_t out;
   
   // reliable seq tracking
-  uint32_t seq_id, seq_nextin, seq_seen, seq_acked;
+  uint32_t seq, seq_nextin, seq_seen, seq_acked;
   lob_t in;
 };
 
@@ -59,10 +58,10 @@ channel3_t channel3_new(lob_t open)
   // reliability
   if(lob_get(open,"seq"))
   {
-    c->reliable = 1;
+    c->seq = 1;
   }
 
-  LOG("new %s channel %s %d %s",c->reliable?"reliable":"unreliable",c->uid,id,type);
+  LOG("new %s channel %s %d %s",c->seq?"reliable":"unreliable",c->uid,id,type);
   return c;
 }
 
@@ -213,9 +212,11 @@ uint8_t channel3_send(channel3_t c, lob_t inner)
   if(!c || !inner) return 1;
   
   if(!lob_get_int(inner,"c")) lob_set_int(inner,"c",c->id);
-  LOG("channel send %d %s",c->id,lob_json(inner));
 
-  // TODO reliability
+  // if reliable, add seq
+  if(c->seq) lob_set_int(inner,"seq",c->seq++);
+
+  LOG("channel send %d %s",c->id,lob_json(inner));
 
   if(!c->out)
   {
