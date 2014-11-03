@@ -10,6 +10,14 @@
 #include "ext.h"
 #include "unit_test.h"
 
+lob_t status;
+
+// exit as soon as the link is up
+void link_check(link_t link)
+{
+  status = ext_link_status(link,NULL);
+}
+
 int main(int argc, char *argv[])
 {
   lob_t id;
@@ -21,6 +29,8 @@ int main(int argc, char *argv[])
   fail_unless(mesh_generate(mesh));
   mesh_on_discover(mesh,"auto",mesh_add); // accept anyone
   ext_link_auto(mesh); // allow all link channels
+  mesh_on_link(mesh, "test", link_check);
+  status = NULL;
 
   udp4 = net_udp4_new(mesh, NULL);
 
@@ -32,7 +42,7 @@ int main(int argc, char *argv[])
   printf("%s\n",lob_json(id));
   fflush(stdout);
 
-  while(net_udp4_receive(udp4));
+  while(net_udp4_receive(udp4) && !status);
 
   return 0;
 }

@@ -47,7 +47,7 @@ lob_t link_on_open(link_t link, lob_t open)
   return NULL;
 }
 
-// set/change the link status (err to mark down)
+// get/set/change the link status (err to mark down)
 lob_t ext_link_status(link_t link, lob_t status)
 {
   channel3_t chan;
@@ -74,7 +74,6 @@ lob_t ext_link_status(link_t link, lob_t status)
 
   if(status)
   {
-    
     if(lob_get(status,"err"))
     {
       lob_free(lob_linked(open)); // link down
