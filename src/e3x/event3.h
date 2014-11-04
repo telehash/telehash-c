@@ -1,7 +1,7 @@
 #ifndef event3_h
 #define event3_h
 
-#include "lob.h"
+#include "../lib/lob.h"
 
 // simple timer eventing (for channels) that can be replaced by different backends
 // an event is just a lob packet and ordering value

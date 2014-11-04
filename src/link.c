@@ -1,7 +1,7 @@
 #include "link.h"
 #include <string.h>
 #include <stdlib.h>
-#include "util.h"
+#include "lib/util.h"
 #include "mesh.h"
 
 // internal structures to manage our link-local state about pipes and channels

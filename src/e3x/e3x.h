@@ -1,7 +1,7 @@
 #ifndef e3x_h
 #define e3x_h
 
-#include "lob.h" // json+binary container
+#include "../lib/lob.h" // json+binary container
 
 // ##### e3x - end-to-end encrypted exchange #####
 //

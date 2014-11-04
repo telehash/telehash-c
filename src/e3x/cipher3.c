@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include "cipher3.h"
-#include "util.h"
+#include "../lib/util.h"
 
 cipher3_t cipher3_sets[CS_MAX];
 cipher3_t cipher3_default = NULL;

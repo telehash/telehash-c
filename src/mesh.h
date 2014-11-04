@@ -3,14 +3,11 @@
 
 typedef struct mesh_struct *mesh_t;
 
-#include "e3x.h"
-#include "hashname.h"
-#include "lob.h"
-#include "xht.h"
+#include "e3x/e3x.h"
+#include "lib/lib.h"
 #include "pipe.h"
 #include "link.h"
 #include "links.h"
-#include "util.h"
 #include "platform.h"
 
 struct mesh_struct

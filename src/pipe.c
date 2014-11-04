@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
-#include "util.h"
+#include "lib/util.h"
 #include "platform.h"
 #include "pipe.h"
 
