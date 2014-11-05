@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include "base32.h"
-#include "platform.h"
+#include "../platform.h"
 #include "util.h"
 #include "../e3x/e3x.h" // for sha256 e3x_hash()
 
