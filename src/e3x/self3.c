@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "self3.h"
-#include "platform.h"
+#include "../platform.h"
 #include "e3x.h"
 
 // load secrets/keys to create a new local endpoint
