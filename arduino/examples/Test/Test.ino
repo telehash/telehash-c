@@ -1,14 +1,7 @@
-// you need https://github.com/kmackay/avr-ecc and https://github.com/quartzjer/js0n added to your libraries to compile
+#include <AESLib.h>
 
 extern "C" {
-#include "ecc.h"
-#include "./aes.h"
-#include "./sha256.h"
-#include "./sha1.h"
-#include "./hmac.h"
-#include "js0n.h"
-#define CS_1a
-#include "switch.h"
+#include <mesh.h>
 }
 
 #define sp Serial.print
@@ -39,47 +32,46 @@ int RNG(uint8_t *p_dest, unsigned p_size)
 
 void vli_print(uint8_t *p_vli, unsigned int p_size)
 {
-  unsigned char buf[256];
-  sp((char*)util_hex(p_vli,p_size,buf));
+  char buf[256];
+  sp(util_hex(p_vli,p_size,buf));
 }
 
 
 void setup() {
   Serial.begin(115200);
-  crypt_init();
 }
 
-int ecc_test(int loops)
+int uECC_test(int loops)
 {
     int i;
     
-    uint8_t l_private1[ECC_BYTES];
-    uint8_t l_private2[ECC_BYTES];
+    uint8_t l_private1[uECC_BYTES];
+    uint8_t l_private2[uECC_BYTES];
     
-    uint8_t l_public1[ECC_BYTES *2];
-    uint8_t l_public2[ECC_BYTES *2];
+    uint8_t l_public1[uECC_BYTES *2];
+    uint8_t l_public2[uECC_BYTES *2];
     
-    uint8_t l_secret1[ECC_BYTES];
-    uint8_t l_secret2[ECC_BYTES];
+    uint8_t l_secret1[uECC_BYTES];
+    uint8_t l_secret2[uECC_BYTES];
 
-    ecc_set_rng(&RNG);
+    uECC_set_rng(&RNG);
     
     speol("Testing random private key pairs");
 
     for(i=0; i<loops; ++i)
     {
         long a = millis();
-        ecc_make_key(l_public1, l_private1);
+        uECC_make_key(l_public1, l_private1);
         sp(millis()-a);
         speol(" gen");
         a = millis();
-        ecc_make_key(l_public2, l_private2);
+        uECC_make_key(l_public2, l_private2);
         sp(millis()-a);
         speol(" gen");
 
 
         a = millis();
-        if(!ecdh_shared_secret(l_public2, l_private1, l_secret1))
+        if(!uECC_shared_secret(l_public2, l_private1, l_secret1))
         {
             sp("shared_secret() failed (1)\n");
             return 1;
@@ -88,7 +80,7 @@ int ecc_test(int loops)
         speol(" dh");
 
         a = millis();
-        if(!ecdh_shared_secret(l_public1, l_private2, l_secret2))
+        if(!uECC_shared_secret(l_public1, l_private2, l_secret2))
         {
             sp("shared_secret() failed (2)\n");
             return 1;
@@ -100,16 +92,16 @@ int ecc_test(int loops)
         {
             sp("Shared secrets are not identical!\n");
             sp("Shared secret 1 = ");
-            vli_print(l_secret1, ECC_BYTES);
+            vli_print(l_secret1, uECC_BYTES);
             sp("\n");
             sp("Shared secret 2 = ");
-            vli_print(l_secret2, ECC_BYTES);
+            vli_print(l_secret2, uECC_BYTES);
             sp("\n");
             sp("Private key 1 = ");
-            vli_print(l_private1, ECC_BYTES);
+            vli_print(l_private1, uECC_BYTES);
             sp("\n");
             sp("Private key 2 = ");
-            vli_print(l_private2, ECC_BYTES);
+            vli_print(l_private2, uECC_BYTES);
             sp("\n");
         }
     }
@@ -120,14 +112,12 @@ int ecc_test(int loops)
 
 int aes_test()
 {
-  aes_context ctx;
   unsigned char key[16], data[6],iv[16],block[16];
   size_t off = 0;
   memcpy(key,"1234567812345678",16);
   memset(iv,0,16);
   memcpy(data,"foobar",6);
-  aes_setkey_enc(&ctx,(unsigned char*)key,16);
-  aes_crypt_ctr(&ctx,6,&off,iv,block,data,data);
+  aes_128_ctr(key,6,iv,data,data);
   sp("aes ");
   vli_print(data,6);
   speol();
@@ -142,29 +132,20 @@ int sha256_test()
   speol();
 }
 
-int sha1_test()
-{
-  unsigned char hash[SHA1_HASH_BYTES];
-  sha1(hash,"foo",3*8);
-  sp("sha1 ");
-  vli_print(hash,SHA1_HASH_BYTES);
-  speol();
-}
-
 int hmac_test()
 {
-  unsigned char hmac[HMAC_SHA1_BYTES];
-  hmac_sha1(hmac,"foo",3,"bar",3*8);
+  unsigned char hmac[32];
+  hmac_256((unsigned char*)"foo",3,(unsigned char*)"bar",3,hmac);
   sp("hmac ");
-  vli_print(hmac,HMAC_SHA1_BYTES);
+  vli_print(hmac,32);
   speol();
 }
 
 int keygen()
 {
-  packet_t keys = packet_new();
-  crypt_keygen(0x1a,keys);
-  Serial.write(keys->json,keys->json_len);
+//  packet_t keys = packet_new();
+//  crypt_keygen(0x1a,keys);
+//  Serial.write(keys->json,keys->json_len);
   speol();
 }
 
@@ -173,11 +154,10 @@ void loop() {
   Serial.write("hi\n");
   keygen();
   aes_test();
-  sha1_test();
   hmac_test();
   sha256_test();
   sp(millis() - start);
-  ecc_test(5);
+  uECC_test(5);
   speol();
 }
 

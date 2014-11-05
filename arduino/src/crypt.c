@@ -1,4 +1,4 @@
-#include "avrcrypt.h"
+#include "mesh.h"
 
 unsigned char *crypt_rand(unsigned char *s, int len)
 {

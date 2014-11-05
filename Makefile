@@ -33,6 +33,16 @@ all: idgen router
 
 # TODO, create a static libe3x.a build option
 
+.PHONY: arduino
+
+arduino: 
+	mkdir -p arduino/src/telehash
+	cp src/*.c src/*.h arduino/src/telehash/
+	mkdir -p arduino/src/telehash/lib
+	cp src/lib/*.c src/lib/*.h arduino/src/telehash/lib/
+	mkdir -p arduino/src/telehash/e3x
+	cp src/e3x/*.c src/e3x/*.h arduino/src/telehash/e3x/
+
 test-node: net_link
 	@if ./test/node.sh ; then \
 		echo "PASSED: node.sh"; \

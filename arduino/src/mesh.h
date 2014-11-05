@@ -1,8 +1,7 @@
-#ifndef avrcrypt_h
-#define avrcrypt_h
+#ifndef arduino_mesh_h
+#define arduino_mesh_h
 
-#include "platform.h"
-#include <mesh.h>
+#include "telehash/mesh.h"
 #include "uECC.h"
 #include "sha256.h"
 #include "hmac.h"
