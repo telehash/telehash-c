@@ -2,3 +2,4 @@
 *.dSYM
 .DS_Store
 arduino/src/telehash
+arduino/build
