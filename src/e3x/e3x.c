@@ -1,6 +1,6 @@
 #include "e3x.h"
 #include "cipher3.h"
-#include "platform.h"
+#include "../platform.h"
 #include <string.h>
 
 static uint8_t _initialized = 0;

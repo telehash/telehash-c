@@ -1,5 +1,6 @@
+
 #include <stdarg.h>
-#include "avrcrypt.h"
+#include "mesh.h"
 
 unsigned long platform_seconds()
 {
@@ -11,8 +12,19 @@ unsigned short platform_short(unsigned short x)
    return ( ((x)<<8) | (((x)>>8)&0xFF) );
 }
 
+void platform_random_init(void)
+{
+  srandom(analogRead(0));
+}
+
+long platform_random(void)
+{
+  // TODO use hardware random
+  return random();
+}
+
 int _debugging = 0;
-void platform_debugging(int enabled)
+void platform_logging(int enabled)
 {
   if(enabled < 0)
   {
@@ -20,16 +32,17 @@ void platform_debugging(int enabled)
   }else{
     _debugging = enabled;    
   }
-  DEBUG_PRINTF("debug output enabled");
+  LOG("debug output enabled");
 }
 
-void platform_debug(char * format, ...)
+void *platform_log(const char *file, int line, const char *function, const char * format, ...)
 {
     char buffer[256];
     va_list args;
-    if(!_debugging) return;
+    if(!_debugging) return NULL;
     va_start (args, format);
     vsnprintf (buffer, 256, format, args);
     println(buffer);
     va_end (args);
+    return NULL;
 }

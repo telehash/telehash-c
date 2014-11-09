@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <stdarg.h>
 #include "js0n.h"
-#include "platform.h" // platform_short()
+#include "../platform.h" // platform_short()
 #include "util.h" // util_sort()
 #include "base32.h"
 

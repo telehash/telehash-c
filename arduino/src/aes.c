@@ -1,5 +1,5 @@
 // depends on AESLib from https://github.com/DavyLandman/AESLib, add to your libraries and #include <AESLib.h> in the sketch
-#include "avrcrypt.h"
+#include "aes.h"
 #include "aes_keyschedule.h"
 
 void aes_128_ctr(unsigned char *key, size_t length, unsigned char nonce_counter[16], const unsigned char *input, unsigned char *output)
