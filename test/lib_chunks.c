@@ -20,7 +20,21 @@ int main(int argc, char **argv)
   fail_unless(chunks_next(chunks, &len));
   fail_unless(len == 10);
   fail_unless(chunks_waiting(chunks) == 105);
+  
+  // check ack
+  fail_unless(chunks_ack(chunks, 1));
+  fail_unless(chunks_waiting(chunks) == 105);
+  fail_unless(chunks_ack(chunks, 20));
+  fail_unless(chunks_waiting(chunks) == 0);
+  fail_unless(!chunks_next(chunks, &len));
 
+  // check write
+  fail_unless(!chunks_write(chunks));
+  fail_unless(chunks_send(chunks, packet));
+  fail_unless(chunks_write(chunks));
+  fail_unless(chunks_written(chunks,15));
+  fail_unless(chunks_waiting(chunks) == 100);
+  
   return 0;
 }
 

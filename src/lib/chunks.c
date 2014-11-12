@@ -61,12 +61,13 @@ chunks_t chunks_send(chunks_t chunks, lob_t out)
   for(at = 0; at < len;)
   {
     size = ((len-at) < max) ? (len-at) : max;
-    chunks->writing[start+at] = size;
-    at++;
-    memcpy(chunks->writing+(start+at),raw+at,size);
+    chunks->writing[start] = size;
+    start++;
+    memcpy(chunks->writing+start,raw+at,size);
     at += size;
+    start += size;
   }
-  chunks->writing[start+at] = 0; // end of chunks, full packet
+  chunks->writing[start] = 0; // end of chunks, full packet
   
   return chunks;
 }
@@ -96,17 +97,56 @@ uint8_t *chunks_next(chunks_t chunks, uint8_t *len)
   }
   len[0] = chunks->writing[chunks->writeat] + 1;
   // include the packet terminator in this chunk if there's space
-  if(len[0] < 255 && chunks->writing[chunks->writeat+len[0]] == 0) len[0]++;
+  if(len[0] < chunks->size && chunks->writing[chunks->writeat+len[0]] == 0) len[0]++;
   ret = chunks->writing+chunks->writeat;
   chunks->writeat += len[0];
   return ret;
 }
 
-// >0 ack that a chunk was sent, <0 drop all the packets partially written, 0 start-over/resend current window
+// >0 ack # of chunks that have been sent successfully, <0 drop oldest packet, 0 start-over/resend oldest packet
 chunks_t chunks_ack(chunks_t chunks, int ack)
 {
+  uint32_t at, count;
   if(!chunks) return NULL;
-  return NULL;
+
+  // reset
+  if(ack == 0)
+  {
+    chunks->writeat = 0;
+    chunks->acked = 0;
+  }
+
+  // nothing to do
+  if(!chunks->writeat || !chunks->writelen) return chunks;
+
+  // count how many chunks before next terminator
+  for(at = count = 0;at < chunks->writelen && chunks->writing[at]; at += chunks->writing[at]+1) count++;
+
+  // add one for terminator itself if it was alone in a chunk (on boundary)
+  if(at % (chunks->size-1) == 0)
+  {
+    count++;
+  }
+  
+  // include terminator
+  at++;
+
+  // clear current packet
+  if(ack < 0)
+  {
+    chunks->acked = 0;
+    return chunks_written(chunks, at);
+  }
+
+  chunks->acked += ack;
+  if(chunks->acked >= count)
+  {
+    chunks->acked -= count;
+    return chunks_written(chunks, at);
+  }
+
+  // not enough acks yet
+  return chunks;
 }
 
 // process an incoming individual chunk, also parses as a raw lob as a fallback
@@ -128,13 +168,24 @@ uint32_t chunks_len(chunks_t chunks)
 // return the next block of data to be written to the stream transport
 uint8_t *chunks_write(chunks_t chunks)
 {
-  return NULL;
+  if(!chunks_len(chunks)) return NULL;
+  return chunks->writing+chunks->writeat;
 }
 
-// advance the write this far
+// advance the write this far, free up some memory
 chunks_t chunks_written(chunks_t chunks, uint32_t len)
 {
-  return NULL;
+  if(!chunks || len > chunks->writelen) return NULL;
+  if(len > chunks->writeat) chunks->writeat = len; // force-forward
+  chunks->writelen -= len;
+  chunks->writeat -= len;
+  memmove(chunks->writing,chunks->writing+len,chunks->writelen);
+  if(!(chunks->writing = util_reallocf(chunks->writing, chunks->writelen)))
+  {
+    chunks->writelen = chunks->writeat = 0;
+    return LOG("OOM");
+  }
+  return chunks;
 }
 
 // process incoming stream data into any packets, auto-generates acks that show up in _write()
