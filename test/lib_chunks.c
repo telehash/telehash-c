@@ -5,9 +5,21 @@ int main(int argc, char **argv)
 {
   chunks_t chunks;
 
-  chunks = chunks_new(1,1);
+  chunks = chunks_new(10,1);
   fail_unless(chunks);
+  fail_unless(chunks_waiting(chunks) == 0);
   fail_unless(!chunks_free(chunks));
+
+  chunks = chunks_new(10,1);
+  lob_t packet = lob_new();
+  lob_body(packet,0,100);
+  fail_unless(chunks_send(chunks, packet));
+  fail_unless(chunks_waiting(chunks) == 115);
+  fail_unless(chunks_len(chunks) == 10);
+  uint8_t len = 0;
+  fail_unless(chunks_next(chunks, &len));
+  fail_unless(len == 10);
+  fail_unless(chunks_waiting(chunks) == 105);
 
   return 0;
 }
