@@ -11,8 +11,10 @@ struct chunks_struct
 {
   uint8_t size;
   uint32_t window, acked;
+
   uint8_t *writing;
   uint32_t writelen, writeat;
+
   uint8_t *reading;
   uint32_t readlen, readat;
 };
@@ -81,7 +83,7 @@ lob_t chunks_receive(chunks_t chunks)
 // how many bytes are there waiting to be sent total
 uint32_t chunks_waiting(chunks_t chunks)
 {
-  if(!chunks) return 0;
+  if(!chunks || !chunks->writing) return 0;
   return chunks->writelen - chunks->writeat;
 }
 
@@ -101,6 +103,22 @@ uint8_t *chunks_next(chunks_t chunks, uint8_t *len)
   ret = chunks->writing+chunks->writeat;
   chunks->writeat += len[0];
   return ret;
+}
+
+// free up some write buffer memory
+chunks_t chunks_flush(chunks_t chunks, uint32_t len)
+{
+  if(!chunks || len > chunks->writelen) return NULL;
+  if(len > chunks->writeat) chunks->writeat = len; // force-forward
+  chunks->writelen -= len;
+  chunks->writeat -= len;
+  memmove(chunks->writing,chunks->writing+len,chunks->writelen);
+  if(!(chunks->writing = util_reallocf(chunks->writing, chunks->writelen)))
+  {
+    chunks->writelen = chunks->writeat = 0;
+    return LOG("OOM");
+  }
+  return chunks;
 }
 
 // >0 ack # of chunks that have been sent successfully, <0 drop oldest packet, 0 start-over/resend oldest packet
@@ -135,24 +153,29 @@ chunks_t chunks_ack(chunks_t chunks, int ack)
   if(ack < 0)
   {
     chunks->acked = 0;
-    return chunks_written(chunks, at);
+    return chunks_flush(chunks, at);
   }
 
   chunks->acked += ack;
   if(chunks->acked >= count)
   {
     chunks->acked -= count;
-    return chunks_written(chunks, at);
+    return chunks_flush(chunks, at);
   }
 
   // not enough acks yet
   return chunks;
 }
 
-// process an incoming individual chunk, also parses as a raw lob as a fallback
+// process an incoming individual chunk
 chunks_t chunks_chunk(chunks_t chunks, uint8_t *chunk, uint8_t len)
 {
-  return NULL;
+  if(!chunks || !chunk || !len) return chunks;
+  if((*chunk + 1) != len) return LOG("invalid chunk len %d != %d+1",len,*chunk);
+  chunks->readlen += len;
+  if(!(chunks->reading = util_reallocf(chunks->reading, chunks->readlen))) return LOG("OOM"); 
+  memcpy(chunks->reading+(chunks->readlen-len),chunk,len);
+  return chunks;
 }
 
 // how many bytes are there READY to be sent
@@ -172,24 +195,47 @@ uint8_t *chunks_write(chunks_t chunks)
   return chunks->writing+chunks->writeat;
 }
 
-// advance the write this far, free up some memory
+// advance the write pointer this far
 chunks_t chunks_written(chunks_t chunks, uint32_t len)
 {
-  if(!chunks || len > chunks->writelen) return NULL;
-  if(len > chunks->writeat) chunks->writeat = len; // force-forward
-  chunks->writelen -= len;
-  chunks->writeat -= len;
-  memmove(chunks->writing,chunks->writing+len,chunks->writelen);
-  if(!(chunks->writing = util_reallocf(chunks->writing, chunks->writelen)))
-  {
-    chunks->writelen = chunks->writeat = 0;
-    return LOG("OOM");
-  }
+  if(!chunks || (len+chunks->writeat) > chunks->writelen) return NULL;
+  chunks->writeat += len;
   return chunks;
 }
 
 // process incoming stream data into any packets, auto-generates acks that show up in _write()
 chunks_t chunks_read(chunks_t chunks, uint8_t *block, uint32_t len)
 {
-  return NULL;
+  uint32_t at, acks, acking, last;
+  if(!chunks || !block || !len) return chunks;
+  chunks->readlen += len;
+  if(!(chunks->reading = util_reallocf(chunks->reading, chunks->readlen))) return LOG("OOM"); 
+  memcpy(chunks->reading+(chunks->readlen-len),block,len);
+
+  // process ack state since last read
+  acks = acking = last = 0;
+  for(at = chunks->readat;at < chunks->readlen; at += chunks->reading[at]+1)
+  {
+    if(chunks->reading[at] != 0 || last)
+    {
+      // sequential chunks must be acked
+      acking++;
+    }else{
+      // lone zeros are incoming acks
+      acks++;
+    }
+    last = chunks->reading[at];
+  }
+  chunks->readat = at;
+  chunks_ack(chunks,acks);
+
+  // auto-append acks back for any new chunks
+  if(acking)
+  {
+    if(!(chunks->writing = util_reallocf(chunks->writing, chunks->writelen+acking))) return LOG("OOM");
+    memset(chunks->writing+chunks->writelen,0,acking); // zeros are acks
+    chunks->writelen += acking;
+  }
+
+  return chunks;
 }

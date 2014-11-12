@@ -28,7 +28,7 @@ uint8_t *chunks_next(chunks_t chunks, uint8_t *len);
 // >0 ack that a chunk was sent, <0 drop all the packets partially written, 0 start-over/resend current window
 chunks_t chunks_ack(chunks_t chunks, int ack);
 
-// process an incoming individual chunk, also parses as a raw lob as a fallback
+// process an incoming individual chunk
 chunks_t chunks_chunk(chunks_t chunks, uint8_t *chunk, uint8_t len);
 
 
