@@ -134,7 +134,6 @@ chunks_t chunks_flush(chunks_t chunks, uint32_t len)
 {
   if(!chunks || len > chunks->writelen) return NULL;
   if(len > chunks->writeat) chunks->writeat = len; // force-forward
-  LOG("FLUSH %d %d %d",chunks->writing,chunks->writelen,len);
   chunks->writelen -= len;
   chunks->writeat -= len;
   memmove(chunks->writing,chunks->writing+len,chunks->writelen);
@@ -192,7 +191,7 @@ chunks_t chunks_ack(chunks_t chunks, int ack)
 chunks_t chunks_chunk(chunks_t chunks, uint8_t *chunk, uint8_t len)
 {
   if(!chunks || !chunk || !len) return chunks;
-  if((*chunk + 1) != len) return LOG("invalid chunk len %d != %d+1",len,*chunk);
+  if(len < (*chunk + 1)) return LOG("invalid chunk len %d < %d+1",len,*chunk);
   chunks->readlen += len;
   if(!(chunks->reading = util_reallocf(chunks->reading, chunks->readlen))) return LOG("OOM"); 
   memcpy(chunks->reading+(chunks->readlen-len),chunk,len);
