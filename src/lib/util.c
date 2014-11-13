@@ -123,10 +123,17 @@ void util_sort(void *base, int nel, int width, int (*comp)(void *, const void *,
   }
 }
 
-// portable reallocf
+// portable friendly reallocf
 void *util_reallocf(void *ptr, size_t size)
 {
-  void *ra = realloc(ptr,size);
+  void *ra;
+  // zero == free
+  if(!size)
+  {
+    if(ptr) free(ptr);
+    return NULL;
+  }
+  ra = realloc(ptr,size);
   if(ra) return ra;
   free(ptr);
   return NULL;
