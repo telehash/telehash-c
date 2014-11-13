@@ -198,13 +198,16 @@ chunks_t chunks_written(chunks_t chunks, uint32_t len)
 // process incoming stream data into any packets, returns NULL until a chunk was received and ensures there's data to write
 chunks_t chunks_read(chunks_t chunks, uint8_t *block, uint32_t len)
 {
-  uint32_t at;
+  uint32_t at, good;
   if(!_chunks_append(chunks,block,len)) return NULL;
   if(!chunks->reading || !chunks->readlen) return NULL; // paranoid
 
-  // walk through read data to look for whole chunks
-  for(at = chunks->readat;(at+chunks->reading[at]+1) < chunks->readlen; at += chunks->reading[at]+1);
-  if(at == chunks->readat) return NULL;
+  // walk through read data to skip whole chunks, stop at incomplete one
+  for(at = chunks->readat;at < chunks->readlen; at += chunks->reading[at]+1) good = at;
+  if(at == chunks->readlen) good = at;
+
+  // unchanged
+  if(good == chunks->readat) return NULL;
 
   // there's already response data waiting
   if(chunks->writing) return chunks;
@@ -213,7 +216,7 @@ chunks_t chunks_read(chunks_t chunks, uint8_t *block, uint32_t len)
   if(!(chunks->writing = util_reallocf(chunks->writing, chunks->writelen+1))) return LOG("OOM");
   memset(chunks->writing+chunks->writelen,0,1); // zeros are acks
   chunks->writelen++;
-  chunks->readat = at;
+  chunks->readat = good;
 
   return chunks;
 }

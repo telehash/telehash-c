@@ -88,7 +88,35 @@ int main(int argc, char **argv)
   chunks_free(c2);
 
   // blocking behavior
+  LOG("chunk blocking test");
+  c1 = chunks_new(60);
+  fail_unless(chunks_send(c1, packet));
+  c2 = chunks_new(60);
+  fail_unless(chunks_send(c2, packet));
 
+  // send first volley
+  buf = chunks_out(c1, &len);
+  fail_unless(chunks_read(c2,buf,10) == NULL); // incomplete
+  fail_unless(chunks_read(c2,buf+10,len-10)); // one chunk
+  buf = chunks_out(c2, &len);
+  fail_unless(chunks_read(c1,buf,len)); // one chunk back
+  fail_unless(chunks_receive(c1) == NULL); // no packet yet
+  fail_unless(chunks_receive(c2) == NULL); // no packet yet
+  buf = chunks_out(c1, &len);
+  fail_unless(chunks_read(c2,buf,len)); // rest of packet
+  buf = chunks_out(c2, &len);
+  fail_unless(chunks_read(c1,buf,len)); // rest back
+  
+  p1 = chunks_receive(c1);
+  fail_unless(p1);
+  fail_unless(p1->body_len == 100);
+  lob_free(p1);
+  p2 = chunks_receive(c2);
+  fail_unless(p2);
+  fail_unless(p2->body_len == 100);
+  lob_free(p2);
+  chunks_free(c1);
+  chunks_free(c2);
 
   return 0;
 }
