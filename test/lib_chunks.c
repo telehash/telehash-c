@@ -44,18 +44,25 @@ int main(int argc, char **argv)
   fail_unless(chunks_waiting(c1) == 230);
 
   chunks_t c2 = chunks_new(2,1);
+  uint8_t *chunk;
   while(chunks_len(c1))
   {
-    chunks_chunk(c2,chunks_next(c1,&len),len);
+    chunk = chunks_next(c1,&len);
+    chunks_chunk(c2,chunk,len);
     chunks_ack(c1,1);
   }
   fail_unless(chunks_waiting(c1) == 0);
   lob_t p1 = chunks_receive(c2);
   fail_unless(p1);
   fail_unless(p1->body_len == 100);
+  lob_free(p1);
   lob_t p2 = chunks_receive(c2);
   fail_unless(p2);
   fail_unless(p2->body_len == 100);
+  lob_free(p2);
+
+  chunks_free(c1);
+  chunks_free(c2);
 
   return 0;
 }
