@@ -77,7 +77,31 @@ chunks_t chunks_send(chunks_t chunks, lob_t out)
 // get any packets that have been reassembled from incoming chunks
 lob_t chunks_receive(chunks_t chunks)
 {
-  return NULL;
+  uint32_t at, len;
+  uint8_t *buf, *append;
+  lob_t ret;
+
+  if(!chunks || !chunks->reading) return NULL;
+  // check for complete packet and get its length
+  for(len = at = 0;at < chunks->readlen && chunks->reading[at]; at += chunks->reading[at]+1) len += chunks->reading[at];
+  if(!len || at == chunks->readlen) return NULL;
+  
+  if(!(buf = malloc(len))) return LOG("OOM %d",len);
+  // copy in the body of each chunk
+  for(at = 0, append = buf; chunks->reading[at]; append += chunks->reading[at], at += chunks->reading[at]+1)
+  {
+    memcpy(append, chunks->reading+(at+1), chunks->reading[at]);
+  }
+  ret = lob_parse(buf,len);
+  free(buf);
+  
+  // advance reading
+  at++;
+  chunks->readlen -= at;
+  memmove(chunks->reading,chunks->reading+at,chunks->readlen);
+  chunks->reading = util_reallocf(chunks->reading,chunks->readlen);
+
+  return ret;
 }
 
 // how many bytes are there waiting to be sent total
