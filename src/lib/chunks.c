@@ -9,7 +9,7 @@
 
 struct chunks_struct
 {
-  uint8_t size, ack;
+  uint8_t size, acked;
 
   uint8_t *writing;
   uint32_t writelen, writeat;
@@ -38,7 +38,6 @@ chunks_t chunks_free(chunks_t chunks)
   return NULL;
 }
 
-
 // turn this packet into chunks
 chunks_t chunks_send(chunks_t chunks, lob_t out)
 {
@@ -52,7 +51,7 @@ chunks_t chunks_send(chunks_t chunks, lob_t out)
   chunks->writelen++; // space for terminating 0
   if(!(chunks->writing = util_reallocf(chunks->writing, chunks->writelen)))
   {
-    chunks->writelen = chunks->writeat = 0;
+    chunks->writelen = chunks->writeat = chunks->acked = 0;
     return LOG("OOM");
   }
   
@@ -67,6 +66,7 @@ chunks_t chunks_send(chunks_t chunks, lob_t out)
     start += size;
   }
   chunks->writing[start] = 0; // end of chunks, full packet
+  chunks->acked = 0;
   
   return chunks;
 }
@@ -92,7 +92,7 @@ lob_t chunks_receive(chunks_t chunks)
   ret = lob_parse(buf,len);
   free(buf);
   
-  // advance reading
+  // advance the reading buffer the whole packet, shrink
   at++;
   chunks->readlen -= at;
   memmove(chunks->reading,chunks->reading+at,chunks->readlen);
@@ -101,11 +101,29 @@ lob_t chunks_receive(chunks_t chunks)
   return ret;
 }
 
-// how many bytes are there waiting to be sent total
-uint32_t chunks_waiting(chunks_t chunks)
+// internal to clean up written data
+chunks_t _chunks_gc(chunks_t chunks)
 {
-  if(!chunks || !chunks->writing) return 0;
-  return chunks->writelen - chunks->writeat;
+  uint8_t len;
+  if(!chunks) return NULL;
+
+  // nothing to do
+  if(!chunks->writing || !chunks->writeat || !chunks->writelen) return chunks;
+
+  len = chunks->writing[0]+1;
+  if(len > chunks->writelen) return LOG("bad chunk write data");
+
+  // the current chunk hasn't beeen written yet
+  if(chunks->writeat < len) return chunks;
+
+  // remove the current chunk
+  chunks->writelen -= len;
+  chunks->writeat -= len;
+  memmove(chunks->writing,chunks->writing+len,chunks->writelen);
+  chunks->writing = util_reallocf(chunks->writing, chunks->writelen);
+
+  // tail recurse to eat any more chunks
+  return _chunks_gc(chunks);
 }
 
 // get the next chunk, put its length in len
@@ -113,67 +131,33 @@ uint8_t *chunks_out(chunks_t chunks, uint8_t *len)
 {
   uint8_t *ret;
   if(!chunks || !len) return NULL;
+  if(!_chunks_gc(chunks)) return NULL; // try to clean up any done chunks
+
   if(chunks->writeat == chunks->writelen)
   {
     len[0] = 0;
     return NULL;
   }
+  
+  // next chunk body+len
   len[0] = chunks->writing[chunks->writeat] + 1;
-  // include the packet terminator in this chunk if there's space
-  if(len[0] < chunks->size && chunks->writing[chunks->writeat+len[0]] == 0) len[0]++;
+
+  // include any zeros in this chunk if there's space
+  while(len[0] < chunks->size && chunks->writing[chunks->writeat+len[0]] == 0) len[0]++;
+
   ret = chunks->writing+chunks->writeat;
   chunks->writeat += len[0];
   return ret;
 }
 
-// free up some write buffer memory
-chunks_t chunks_flush(chunks_t chunks, uint32_t len)
+// internal to append read data
+chunks_t _chunks_append(chunks_t chunks, uint8_t *block, uint32_t len)
 {
-  if(!chunks || len > chunks->writelen) return NULL;
-  if(len > chunks->writeat) chunks->writeat = len; // force-forward
-  chunks->writelen -= len;
-  chunks->writeat -= len;
-  memmove(chunks->writing,chunks->writing+len,chunks->writelen);
-  chunks->writing = util_reallocf(chunks->writing, chunks->writelen);
-  return chunks;
-}
-
-chunks_t chunks_next(chunks_t chunks)
-{
-//  uint32_t at, count;
-  if(!chunks) return NULL;
-
-  // nothing to do
-  if(!chunks->writing || !chunks->writeat || !chunks->writelen) return chunks;
-
-  /*
-  // count how many chunks before next terminator
-  for(at = count = 0;at < chunks->writelen && chunks->writing[at]; at += chunks->writing[at]+1) count++;
-
-  // add one for terminator itself if it was alone in a chunk (on boundary)
-  if(at % (chunks->size-1) == 0)
-  {
-    count++;
-  }
-  
-  // include terminator
-  at++;
-
-  // clear current packet
-  if(ack < 0)
-  {
-    chunks->acked = 0;
-    return chunks_flush(chunks, at);
-  }
-
-  chunks->acked += ack;
-  if(chunks->acked >= count)
-  {
-    chunks->acked -= count;
-    return chunks_flush(chunks, at);
-  }
-*/
-  // not enough acks yet
+  if(!chunks || !block || !len) return chunks;
+  if(!chunks->reading) chunks->readlen = chunks->readat = 0; // be paranoid
+  chunks->readlen += len;
+  if(!(chunks->reading = util_reallocf(chunks->reading, chunks->readlen))) return LOG("OOM"); 
+  memcpy(chunks->reading+(chunks->readlen-len),block,len);
   return chunks;
 }
 
@@ -182,23 +166,14 @@ chunks_t chunks_in(chunks_t chunks, uint8_t *chunk, uint8_t len)
 {
   if(!chunks || !chunk || !len) return chunks;
   if(len < (*chunk + 1)) return LOG("invalid chunk len %d < %d+1",len,*chunk);
-  chunks->readlen += len;
-  if(!(chunks->reading = util_reallocf(chunks->reading, chunks->readlen))) return LOG("OOM"); 
-  memcpy(chunks->reading+(chunks->readlen-len),chunk,len);
-  return chunks;
+  return _chunks_append(chunks,chunk,len);
 }
 
-// how many bytes are there READY to be sent
+// how many bytes are there in total to be sent
 uint32_t chunks_len(chunks_t chunks)
 {
-  uint32_t max, len;
-  if(!chunks) return 0;
-  max = chunks->size;
-  if(chunks->writeat >= max) return 0;
-  max -= chunks->writeat; // how many bytes are written and un-acked
-  len = chunks_waiting(chunks); // total left
-  if(max < len) len = max;
-  return len;
+  if(!chunks || !chunks->writing || chunks->writeat >= chunks->writelen) return 0;
+  return chunks->writelen - chunks->writeat;
 }
 
 // return the next block of data to be written to the stream transport
@@ -213,42 +188,31 @@ chunks_t chunks_written(chunks_t chunks, uint32_t len)
 {
   if(!chunks || (len+chunks->writeat) > chunks->writelen) return NULL;
   chunks->writeat += len;
-  return chunks;
+  // try a cleanup
+  return _chunks_gc(chunks);
+
 }
 
 // process incoming stream data into any packets, auto-generates acks that show up in _write()
 chunks_t chunks_read(chunks_t chunks, uint8_t *block, uint32_t len)
 {
-  uint32_t at, acks, acking, last;
-  if(!chunks || !block || !len) return chunks;
-  chunks->readlen += len;
-  if(!(chunks->reading = util_reallocf(chunks->reading, chunks->readlen))) return LOG("OOM"); 
-  memcpy(chunks->reading+(chunks->readlen-len),block,len);
+  uint32_t at;
+  if(!_chunks_append(chunks,block,len)) return NULL;
+  if(!chunks->reading || !chunks->readlen) return chunks; // paranoid
 
-  // process ack state since last read
-  acks = acking = last = 0;
-  for(at = chunks->readat;at < chunks->readlen; at += chunks->reading[at]+1)
-  {
-    if(chunks->reading[at] != 0 || last)
-    {
-      // sequential chunks must be acked
-      acking++;
-    }else{
-      // lone zeros are incoming acks
-      acks++;
-    }
-    last = chunks->reading[at];
-  }
+  // there's already an outgoing ack waiting
+  if(chunks->acked) return chunks;
+
+  // walk through read data to look for whole chunks
+  for(at = chunks->readat;(at+chunks->reading[at]+1) < chunks->readlen; at += chunks->reading[at]+1);
+  if(at == chunks->readat) return chunks;
+
+  // advance to start of last whole chunk and append an ack
+  if(!(chunks->writing = util_reallocf(chunks->writing, chunks->writelen+1))) return LOG("OOM");
+  memset(chunks->writing+chunks->writelen,0,1); // zeros are acks
+  chunks->writelen++;
   chunks->readat = at;
-//  chunks_ack(chunks,acks);
-
-  // auto-append acks back for any new chunks
-  if(acking)
-  {
-    if(!(chunks->writing = util_reallocf(chunks->writing, chunks->writelen+acking))) return LOG("OOM");
-    memset(chunks->writing+chunks->writelen,0,acking); // zeros are acks
-    chunks->writelen += acking;
-  }
+  chunks->acked = 1;
 
   return chunks;
 }
