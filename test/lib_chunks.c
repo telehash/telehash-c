@@ -22,13 +22,14 @@ int main(int argc, char **argv)
   fail_unless(chunks_len(chunks) == 105);
   fail_unless(chunks_out(chunks, &len));
   fail_unless(len == 10);
-  fail_unless(chunks_len(chunks) == 94);
-  while(chunks_len(chunks)) fail_unless(!chunks_out(chunks, &len));
+  fail_unless(chunks_len(chunks) == 95);
+  while(chunks_len(chunks)) fail_unless(chunks_out(chunks, &len));
 
   // check write
   fail_unless(!chunks_write(chunks));
   fail_unless(chunks_send(chunks, packet));
   fail_unless(chunks_write(chunks));
+  fail_unless(chunks_len(chunks) == 115);
   fail_unless(chunks_written(chunks,15));
   fail_unless(chunks_len(chunks) == 100);
 
@@ -72,36 +73,22 @@ int main(int argc, char **argv)
   while(chunks_len(c1))
   {
     fail_unless((buf = chunks_write(c1)));
-    fail_unless(chunks_read(c2,buf,10));
+    chunks_read(c2,buf,10);
     fail_unless(chunks_written(c1,10));
   }
-  fail_unless(chunks_len(c1) > 0);
   p1 = chunks_receive(c2);
   fail_unless(p1);
   fail_unless(p1->body_len == 100);
   lob_free(p1);
-
-  // no p2 yet due to window
-  p2 = chunks_receive(c2);
-  fail_unless(p2 == NULL);
-
-  // return acks
-  fail_unless((buf = chunks_write(c2)));
-  fail_unless(chunks_read(c1,buf,chunks_len(c2)));
-  fail_unless(chunks_written(c2,chunks_len(c2)));
-
-  // send rest of p2
-  fail_unless((buf = chunks_write(c1)));
-  fail_unless(chunks_read(c2,buf,chunks_len(c1)));
-  fail_unless(chunks_written(c1,chunks_len(c1)));
-
   p2 = chunks_receive(c2);
   fail_unless(p2);
   fail_unless(p2->body_len == 100);
   lob_free(p2);
-
   chunks_free(c1);
   chunks_free(c2);
+
+  // blocking behavior
+
 
   return 0;
 }

@@ -41,7 +41,7 @@ uint8_t *chunks_write(chunks_t chunks);
 // advance the write this far, don't mix with chunks_out() usage
 chunks_t chunks_written(chunks_t chunks, uint32_t len);
 
-// process incoming stream data into any packets, every non-zero chunk will trigger a zero-chunk back out _write()
+// process incoming stream data into any packets, returns NULL until a chunk was received and there's data to write
 chunks_t chunks_read(chunks_t chunks, uint8_t *block, uint32_t len);
 
 #endif
