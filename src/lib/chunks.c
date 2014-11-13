@@ -134,14 +134,11 @@ chunks_t chunks_flush(chunks_t chunks, uint32_t len)
 {
   if(!chunks || len > chunks->writelen) return NULL;
   if(len > chunks->writeat) chunks->writeat = len; // force-forward
+  LOG("FLUSH %d %d %d",chunks->writing,chunks->writelen,len);
   chunks->writelen -= len;
   chunks->writeat -= len;
   memmove(chunks->writing,chunks->writing+len,chunks->writelen);
-  if(!(chunks->writing = util_reallocf(chunks->writing, chunks->writelen)))
-  {
-    chunks->writelen = chunks->writeat = 0;
-    return LOG("OOM");
-  }
+  chunks->writing = util_reallocf(chunks->writing, chunks->writelen);
   return chunks;
 }
 
@@ -159,7 +156,7 @@ chunks_t chunks_ack(chunks_t chunks, int ack)
   }
 
   // nothing to do
-  if(!chunks->writeat || !chunks->writelen) return chunks;
+  if(!chunks->writing || !chunks->writeat || !chunks->writelen) return chunks;
 
   // count how many chunks before next terminator
   for(at = count = 0;at < chunks->writelen && chunks->writing[at]; at += chunks->writing[at]+1) count++;

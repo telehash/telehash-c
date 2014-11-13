@@ -34,7 +34,9 @@ int main(int argc, char **argv)
   fail_unless(chunks_write(chunks));
   fail_unless(chunks_written(chunks,15));
   fail_unless(chunks_waiting(chunks) == 100);
-  
+
+  fail_unless(!chunks_free(chunks));
+
   return 0;
 }
 
