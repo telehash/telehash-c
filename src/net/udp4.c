@@ -126,19 +126,6 @@ void net_udp4_free(net_udp4_t net)
   return;
 }
 
-net_udp4_t net_udp4_timeout(net_udp4_t net, uint32_t ms)
-{
-  struct timeval tv;
-  if(!net) return LOG("bad args");
-
-  tv.tv_sec = ms/1000;
-  tv.tv_usec = (ms%1000)*1000;
-
-  if(setsockopt(net->server, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) return LOG("timeout setsockopt error %s",strerror(errno));
-
-  return net;
-}
-
 net_udp4_t net_udp4_receive(net_udp4_t net)
 {
   unsigned char buf[2048];

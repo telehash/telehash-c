@@ -43,3 +43,18 @@ mesh_t util_links(mesh_t mesh, char *file)
   return mesh;
 }
 
+int util_sock_timeout(int sock, uint32_t ms)
+{
+  struct timeval tv;
+
+  tv.tv_sec = ms/1000;
+  tv.tv_usec = (ms%1000)*1000;
+
+  if(setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0)
+  {
+    LOG("timeout setsockopt error %s",strerror(errno));
+    return -1;
+  }
+
+  return sock;
+}

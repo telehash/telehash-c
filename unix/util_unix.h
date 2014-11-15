@@ -9,4 +9,7 @@ lob_t util_fjson(char *file);
 // load an array of hashnames from a file and add them as links
 mesh_t util_links(mesh_t mesh, char *file);
 
+// simple sockets simpler
+int util_sock_timeout(int sock, uint32_t ms); // blocking timeout
+
 #endif
