@@ -23,6 +23,7 @@ typedef struct pipe_tcp4_struct
   int client;
   pipe_t pipe;
   net_tcp4_t net;
+  chunks_t chunks;
 } *pipe_tcp4_t;
 
 // just make sure it's connected
@@ -78,6 +79,20 @@ void tcp4_send(pipe_t pipe, lob_t packet, link_t link)
   tcp4_flush(to);
 }
 
+void tcp4_free(pipe_tcp4_t to)
+{
+  if(!to) return;
+  if(to->pipe)
+  {
+    LOG("removing %d");
+    xht_set(to->net->pipes,to->pipe->id,NULL);
+    pipe_free(to->pipe);
+  }
+  if(to->client > 0) close(to->client);
+  chunks_free(to->chunks);
+  free(to);
+}
+
 // internal, get or create a pipe
 pipe_t tcp4_pipe(net_tcp4_t net, char *ip, int port)
 {
@@ -100,9 +115,9 @@ pipe_t tcp4_pipe(net_tcp4_t net, char *ip, int port)
   to->sa.sin_port = htons(port);
 
   // create the general pipe object to return and save reference to it
-  if(!(pipe = pipe_new("tcp4")))
+  if(!(to->chunks = chunks_new(0)) || !(pipe = pipe_new("tcp4")))
   {
-    free(to);
+    tcp4_free(to);
     return LOG("OOM");
   }
   pipe->id = strdup(id);

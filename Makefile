@@ -2,7 +2,7 @@ CC=gcc
 CFLAGS+=-g -Wall -Wextra -Wno-unused-parameter -DDEBUG
 INCLUDE+=-Iunix -Isrc -Isrc/lib -Isrc/ext -Isrc/e3x -Isrc/net
 
-LIB = src/lib/util.c src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c
+LIB = src/lib/util.c src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/lib/chunks.c
 E3X = src/e3x/e3x.c src/e3x/channel3.c src/e3x/self3.c src/e3x/exchange3.c src/e3x/event3.c src/e3x/cipher3.c
 MESH = src/mesh.c src/link.c src/links.c src/pipe.c
 EXT = src/ext/link.c
@@ -76,7 +76,7 @@ lib_murmur:
 	$(CC) $(CFLAGS) -o bin/test_lib_murmur test/lib_murmur.c src/lib/murmur.c $(INCLUDE)
 
 lib_chunks:
-	$(CC) $(CFLAGS) -o bin/test_lib_chunks test/lib_chunks.c src/lib/chunks.c $(UNIX1a)
+	$(CC) $(CFLAGS) -o bin/test_lib_chunks test/lib_chunks.c $(UNIX1a)
 
 lib_util:
 	$(CC) $(CFLAGS) -o bin/test_lib_util test/lib_util.c src/lib/util.c $(INCLUDE)
