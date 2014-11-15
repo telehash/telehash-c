@@ -6,7 +6,7 @@
 
 typedef struct chunks_struct *chunks_t;
 
-// max size of each chunk (>1)
+// size of each chunk, 0 == MAX (256)
 chunks_t chunks_new(uint8_t size);
 
 chunks_t chunks_free(chunks_t chunks);

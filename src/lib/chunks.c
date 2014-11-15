@@ -9,7 +9,7 @@
 
 struct chunks_struct
 {
-  uint8_t size;
+  uint8_t space;
 
   uint8_t *writing;
   uint32_t writelen, writeat;
@@ -21,11 +21,17 @@ struct chunks_struct
 chunks_t chunks_new(uint8_t size)
 {
   chunks_t chunks;
-  if(size < 2) return LOG("size must be >1");
   if(!(chunks = malloc(sizeof (struct chunks_struct)))) return LOG("OOM");
   memset(chunks,0,sizeof (struct chunks_struct));
 
-  chunks->size = size;
+  if(!size)
+  {
+    chunks->space = 255;
+  }else if(size == 1){
+    chunks->space = 1; // minimum
+  }else{
+    chunks->space = size-1;
+  }
   return chunks;
 }
 
@@ -67,15 +73,14 @@ chunks_t _chunks_gc(chunks_t chunks)
 chunks_t chunks_send(chunks_t chunks, lob_t out)
 {
   uint32_t start, len, at;
-  uint8_t *raw, size, max;
+  uint8_t *raw, size;
   
   // validate and gc first
   if(!_chunks_gc(chunks) || !(len = lob_len(out))) return chunks;
 
-  max = chunks->size-1;
   start = chunks->writelen;
   chunks->writelen += len;
-  chunks->writelen += CEIL(len,max); // space for per-chunk start byte and optional packet term
+  chunks->writelen += CEIL(len,chunks->space); // include space for per-chunk start byte
   chunks->writelen++; // space for terminating 0
   if(!(chunks->writing = util_reallocf(chunks->writing, chunks->writelen)))
   {
@@ -86,7 +91,7 @@ chunks_t chunks_send(chunks_t chunks, lob_t out)
   raw = lob_raw(out);
   for(at = 0; at < len;)
   {
-    size = ((len-at) < max) ? (len-at) : max;
+    size = ((len-at) < chunks->space) ? (len-at) : chunks->space;
     chunks->writing[start] = size;
     start++;
     memcpy(chunks->writing+start,raw+at,size);
@@ -145,7 +150,7 @@ uint8_t *chunks_out(chunks_t chunks, uint8_t *len)
   len[0] = chunks->writing[chunks->writeat] + 1;
 
   // include any trailing zeros in this chunk if there's space
-  while(len[0] < chunks->size && (chunks->writeat+len[0]) < chunks->writelen && chunks->writing[chunks->writeat+len[0]] == 0) len[0]++;
+  while(len[0] < chunks->space && (chunks->writeat+len[0]) < chunks->writelen && chunks->writing[chunks->writeat+len[0]] == 0) len[0]++;
 
   ret = chunks->writing+chunks->writeat;
   chunks->writeat += len[0];
