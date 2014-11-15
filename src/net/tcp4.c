@@ -21,16 +21,18 @@ typedef struct pipe_tcp4_struct
 {
   struct sockaddr_in sa;
   int client;
-  pipe_t pipe;
   net_tcp4_t net;
   chunks_t chunks;
 } *pipe_tcp4_t;
 
 // just make sure it's connected
-pipe_tcp4_t tcp4_connected(pipe_tcp4_t to)
+pipe_tcp4_t tcp4_to(pipe_t pipe)
 {
   struct sockaddr_in addr;
-  if(!to) return NULL;
+  int ret;
+  pipe_tcp4_t to;
+  if(!pipe || !pipe->arg) return NULL;
+  to = (pipe_tcp4_t)pipe->arg;
   if(to->client > 0) return to;
   
   // no socket yet, connect one
@@ -43,54 +45,56 @@ pipe_tcp4_t tcp4_connected(pipe_tcp4_t to)
   addr.sin_addr.s_addr = htonl(INADDR_ANY);
   bind(to->client, (struct sockaddr *)&addr, sizeof(struct sockaddr)); // optional, ignore fail
 
-  if(connect(to->client, (struct sockaddr *)&(to->sa), sizeof(struct sockaddr)) < 0)
+  fcntl(to->client, F_SETFL, O_NONBLOCK);
+  ret = connect(to->client, (struct sockaddr *)&(to->sa), sizeof(struct sockaddr));
+  if(ret < 0 && errno != EWOULDBLOCK && errno != EINPROGRESS)
   {
-    LOG("client socket connect faied to %s: %s, will retry next send",to->pipe->id,strerror(errno));
+    LOG("client socket connect faied to %s: %s, will retry next send",pipe->id,strerror(errno));
     close(to->client);
     to->client = 0;
     return NULL;
   }
 
-  LOG("connected to %s",to->pipe->id);
-  fcntl(to->client, F_SETFL, O_NONBLOCK);
+  LOG("connected to %s",pipe->id);
   return to;
 }
 
 // do all chunk/socket stuff
-pipe_tcp4_t tcp4_flush(pipe_tcp4_t to)
+pipe_t tcp4_flush(pipe_t pipe)
 {
-  to = tcp4_connected(to);
+  pipe_tcp4_t to = tcp4_to(pipe);
   if(!to) return NULL;
 
-  LOG("TODO send and receive to %s",to->pipe->id);
-  return to;
+  LOG("TODO send and receive to %s",pipe->id);
+  return pipe;
 }
 
 // chunkize a packet
 void tcp4_send(pipe_t pipe, lob_t packet, link_t link)
 {
-  pipe_tcp4_t to = (pipe_tcp4_t)pipe->arg;
-
+  pipe_tcp4_t to = tcp4_to(pipe);
   if(!to || !packet || !link) return;
   LOG("tcp4 to %s",link->id->hashname);
 
   // TODO chunks
 
-  tcp4_flush(to);
+  tcp4_flush(pipe);
 }
 
-void tcp4_free(pipe_tcp4_t to)
+pipe_t tcp4_free(pipe_t pipe)
 {
-  if(!to) return;
-  if(to->pipe)
-  {
-    LOG("removing %d");
-    xht_set(to->net->pipes,to->pipe->id,NULL);
-    pipe_free(to->pipe);
-  }
+  pipe_tcp4_t to;
+  if(!pipe) return NULL;
+  to = (pipe_tcp4_t)pipe->arg;
+  if(!to) return LOG("internal error, invalid pipe, leaking it");
+
+  LOG("removing %d");
+  xht_set(to->net->pipes,pipe->id,NULL);
+  pipe_free(pipe);
   if(to->client > 0) close(to->client);
   chunks_free(to->chunks);
   free(to);
+  return NULL;
 }
 
 // internal, get or create a pipe
@@ -107,24 +111,18 @@ pipe_t tcp4_pipe(net_tcp4_t net, char *ip, int port)
   LOG("new pipe to %s",id);
 
   // create new tcp4 pipe
-  if(!(to = malloc(sizeof (struct pipe_tcp4_struct)))) return LOG("OOM");
+  if(!(pipe = pipe_new("tcp4"))) return NULL;
+  if(!(pipe->arg = to = malloc(sizeof (struct pipe_tcp4_struct)))) return pipe_free(pipe);
   memset(to,0,sizeof (struct pipe_tcp4_struct));
   to->net = net;
   to->sa.sin_family = AF_INET;
   inet_aton(ip, &(to->sa.sin_addr));
   to->sa.sin_port = htons(port);
+  if(!(to->chunks = chunks_new(0))) return tcp4_free(pipe);
 
-  // create the general pipe object to return and save reference to it
-  if(!(to->chunks = chunks_new(0)) || !(pipe = pipe_new("tcp4")))
-  {
-    tcp4_free(to);
-    return LOG("OOM");
-  }
+  // set up pipe
   pipe->id = strdup(id);
   xht_set(net->pipes,pipe->id,pipe);
-
-  pipe->arg = to;
-  to->pipe = pipe;
   pipe->send = tcp4_send;
 
   return pipe;
@@ -168,6 +166,7 @@ net_tcp4_t net_tcp4_new(mesh_t mesh, lob_t options)
   getsockname(sock, (struct sockaddr*)&sa, &size);
   if(listen(sock, 10) < 0) return LOG("listen failed %s",strerror(errno));
   setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (const void *)&opt , sizeof(int));
+  fcntl(sock, F_SETFL, O_NONBLOCK);
 
   if(!(net = malloc(sizeof (struct net_tcp4_struct)))) return LOG("OOM");
   memset(net,0,sizeof (struct net_tcp4_struct));
@@ -212,9 +211,9 @@ void net_tcp4_accept(net_tcp4_t net)
   {
     fcntl(client, F_SETFL, O_NONBLOCK);
     if(!(pipe = tcp4_pipe(net, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port)))) continue;
-    LOG("connected %s",pipe->id);
+    LOG("incoming connection from %s",pipe->id);
     to = (pipe_tcp4_t)pipe->arg;
-    if(to->client) close(to->client);
+    if(to->client > 0) close(to->client);
     to->client = client;
   }
 
@@ -223,7 +222,7 @@ void net_tcp4_accept(net_tcp4_t net)
 // check a single pipe's socket for any read/write activity
 void _walkflush(xht_t h, const char *key, void *val, void *arg)
 {
-  tcp4_flush((pipe_tcp4_t)val);
+  tcp4_flush((pipe_t)val);
 }
 
 net_tcp4_t net_tcp4_loop(net_tcp4_t net)

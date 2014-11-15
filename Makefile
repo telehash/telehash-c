@@ -109,7 +109,7 @@ net_udp4:
 	$(CC) $(CFLAGS) -o bin/test_net_udp4 test/net_udp4.c src/net/udp4.c $(UNIX1a) $(MESH)
 
 net_tcp4:
-	$(CC) $(CFLAGS) -o bin/test_net_tcp4 test/net_tcp4.c src/net/tcp4.c $(UNIX1a) $(MESH)
+	$(CC) $(CFLAGS) -o bin/test_net_tcp4 test/net_tcp4.c src/net/tcp4.c unix/util.c $(UNIX1a) $(MESH)
 
 net_link:
 	$(CC) $(CFLAGS) -o bin/test_net_link test/net_link.c src/net/udp4.c $(UNIX1a) $(MESH) $(EXT) 
