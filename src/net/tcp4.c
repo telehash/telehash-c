@@ -1,7 +1,15 @@
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include "tcp4.h"
+
 
 // this is just a minimal tcp4 transport backing for testing, it should only serve as an example for using a real socket event lib
 
@@ -12,9 +20,52 @@
 typedef struct pipe_tcp4_struct
 {
   struct sockaddr_in sa;
+  int client;
+  pipe_t pipe;
   net_tcp4_t net;
 } *pipe_tcp4_t;
 
+// just make sure it's connected
+pipe_tcp4_t tcp4_connected(pipe_tcp4_t to)
+{
+  struct sockaddr_in addr;
+  if(!to) return NULL;
+  if(to->client > 0) return to;
+  
+  // no socket yet, connect one
+  if((to->client = socket(AF_INET, SOCK_STREAM, 0)) <= 0) return LOG("client socket faied %s, will retry next send",strerror(errno));
+
+  // try to bind to our server port for some reflection
+  memset(&addr, 0, sizeof(struct sockaddr_in));
+  addr.sin_family = AF_INET;
+  addr.sin_port = htons(to->net->port);
+  addr.sin_addr.s_addr = htonl(INADDR_ANY);
+  bind(to->client, (struct sockaddr *)&addr, sizeof(struct sockaddr)); // optional, ignore fail
+
+  if(connect(to->client, (struct sockaddr *)&(to->sa), sizeof(struct sockaddr)) < 0)
+  {
+    LOG("client socket connect faied to %s: %s, will retry next send",to->pipe->id,strerror(errno));
+    close(to->client);
+    to->client = 0;
+    return NULL;
+  }
+
+  LOG("connected to %s",to->pipe->id);
+  fcntl(to->client, F_SETFL, O_NONBLOCK);
+  return to;
+}
+
+// do all chunk/socket stuff
+pipe_tcp4_t tcp4_flush(pipe_tcp4_t to)
+{
+  to = tcp4_connected(to);
+  if(!to) return NULL;
+
+  LOG("TODO send and receive to %s",to->pipe->id);
+  return to;
+}
+
+// chunkize a packet
 void tcp4_send(pipe_t pipe, lob_t packet, link_t link)
 {
   pipe_tcp4_t to = (pipe_tcp4_t)pipe->arg;
@@ -23,6 +74,8 @@ void tcp4_send(pipe_t pipe, lob_t packet, link_t link)
   LOG("tcp4 to %s",link->id->hashname);
 
   // TODO chunks
+
+  tcp4_flush(to);
 }
 
 // internal, get or create a pipe
@@ -56,10 +109,12 @@ pipe_t tcp4_pipe(net_tcp4_t net, char *ip, int port)
   xht_set(net->pipes,pipe->id,pipe);
 
   pipe->arg = to;
+  to->pipe = pipe;
   pipe->send = tcp4_send;
 
   return pipe;
 }
+
 
 pipe_t tcp4_path(link_t link, lob_t path)
 {
@@ -73,7 +128,6 @@ pipe_t tcp4_path(link_t link, lob_t path)
   if(util_cmp("tcp4",lob_get(path,"type"))) return NULL;
   if(!(ip = lob_get(path,"ip"))) return LOG("missing ip");
   if((port = lob_get_int(path,"port")) <= 0) return LOG("missing port");
-  
   return tcp4_pipe(net, ip, port);
 }
 
@@ -130,9 +184,36 @@ void net_tcp4_free(net_tcp4_t net)
   return;
 }
 
+// process any new incoming connections
+void net_tcp4_accept(net_tcp4_t net)
+{
+  struct sockaddr_in addr;
+  int client;
+  pipe_t pipe;
+  pipe_tcp4_t to;
+  socklen_t size = sizeof(struct sockaddr_in);
+
+  while((client = accept(net->server, (struct sockaddr *)&addr,&size)) > 0)
+  {
+    fcntl(client, F_SETFL, O_NONBLOCK);
+    if(!(pipe = tcp4_pipe(net, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port)))) continue;
+    LOG("connected %s",pipe->id);
+    to = (pipe_tcp4_t)pipe->arg;
+    if(to->client) close(to->client);
+    to->client = client;
+  }
+
+}
+
+// check a single pipe's socket for any read/write activity
+void _walkflush(xht_t h, const char *key, void *val, void *arg)
+{
+  tcp4_flush((pipe_tcp4_t)val);
+}
+
 net_tcp4_t net_tcp4_loop(net_tcp4_t net)
 {
-  // TODO accept, bind to our port, nonblock, get pipe
-  // TODO loop pipes to read/write chunks
+  net_tcp4_accept(net);
+  xht_walk(net->pipes, _walkflush, NULL);
   return net;
 }
