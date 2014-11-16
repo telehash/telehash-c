@@ -68,12 +68,19 @@ pipe_t tcp4_flush(pipe_t pipe)
   pipe_tcp4_t to = tcp4_to(pipe);
   if(!to) return NULL;
 
-  LOG("send and receive to %s",pipe->id);
   if(chunks_len(to->chunks))
   {
-    while((len = write(to->client, chunks_write(to->chunks), chunks_len(to->chunks))) > 0) chunks_written(to->chunks, len);
+    while((len = write(to->client, chunks_write(to->chunks), chunks_len(to->chunks))) > 0)
+    {
+      chunks_written(to->chunks, len);
+      LOG("wrote %d bytes to %s",len,pipe->id);
+    }
   }
-  while((len = read(to->client, buf, 256)) > 0) chunks_read(to->chunks, buf, len);
+  while((len = read(to->client, buf, 256)) > 0)
+  {
+    LOG("reading %d bytes from %s",len,pipe->id);
+    chunks_read(to->chunks, buf, len);
+  }
 
   // any incoming full packets can be received
   while((packet = chunks_receive(to->chunks))) mesh_receive(to->net->mesh, packet, pipe);
