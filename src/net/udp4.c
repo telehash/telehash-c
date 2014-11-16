@@ -140,8 +140,8 @@ net_udp4_t net_udp4_receive(net_udp4_t net)
   memset(&sa,0,salen);
   len = recvfrom(net->server, buf, sizeof(buf), 0, (struct sockaddr *)&sa, (socklen_t *)&salen);
 
-  if(len < 0 && errno != EAGAIN && errno != EWOULDBLOCK) return LOG("recvfrom error %s",strerror(errno));
-  if(len <= 0) return NULL;
+  if(len < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) return net;
+  if(len <= 0) return LOG("recvfrom error %s",strerror(errno));
 
   packet = lob_parse(buf,len);
   if(!packet)
