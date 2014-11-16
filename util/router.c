@@ -8,14 +8,16 @@
 #include "mesh.h"
 #include "util_unix.h"
 #include "udp4.h"
+#include "tcp4.h"
 
 int main(int argc, char *argv[])
 {
   lob_t id, options;
   mesh_t mesh;
   net_udp4_t udp4;
+  net_tcp4_t tcp4;
   char *paths;
-  int port = 0;
+  int port = 0, len;
 
   if(argc==2)
   {
@@ -31,13 +33,19 @@ int main(int argc, char *argv[])
 
   options = lob_new();
   lob_set_int(options,"port",port);
-  udp4 = net_udp4_new(mesh, options);
-  paths = malloc(udp4->path->head_len+2);
-  sprintf(paths,"[%s]",lob_json(udp4->path));
-  lob_set_raw(id,"paths",paths,udp4->path->head_len+2);
-  LOG("%s",lob_json(id));
 
-  while(net_udp4_receive(udp4));
+  udp4 = net_udp4_new(mesh, options);
+  util_sock_timeout(udp4->server,100);
+
+  tcp4 = net_tcp4_new(mesh, options);
+
+  len = strlen(lob_json(udp4->path))+strlen(lob_json(tcp4->path))+3;
+  paths = malloc(len+1);
+  sprintf(paths,"[%s,%s]",lob_json(udp4->path),lob_json(tcp4->path));
+  lob_set_raw(id,"paths",paths,len);
+  printf("%s\n",lob_json(id));
+
+  while(net_udp4_receive(udp4) && net_tcp4_loop(tcp4));
 
   /*
   if(util_loadjson(s) != 0 || (sock = util_server(0,1000)) <= 0)
