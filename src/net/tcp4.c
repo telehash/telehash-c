@@ -62,10 +62,29 @@ pipe_tcp4_t tcp4_to(pipe_t pipe)
 // do all chunk/socket stuff
 pipe_t tcp4_flush(pipe_t pipe)
 {
+  int len;
+  lob_t packet;
+  uint8_t buf[256];
   pipe_tcp4_t to = tcp4_to(pipe);
   if(!to) return NULL;
 
-  LOG("TODO send and receive to %s",pipe->id);
+  LOG("send and receive to %s",pipe->id);
+  if(chunks_len(to->chunks))
+  {
+    while((len = write(to->client, chunks_write(to->chunks), chunks_len(to->chunks))) > 0) chunks_written(to->chunks, len);
+  }
+  while((len = read(to->client, buf, 256)) > 0) chunks_read(to->chunks, buf, len);
+
+  // any incoming full packets can be received
+  while((packet = chunks_receive(to->chunks))) mesh_receive(to->net->mesh, packet, pipe);
+
+  if(len < 0 && errno != EWOULDBLOCK && errno != EINPROGRESS)
+  {
+    LOG("socket error to %s: %s",pipe->id,strerror(errno));
+    close(to->client);
+    to->client = 0;
+  }
+
   return pipe;
 }
 
@@ -76,8 +95,7 @@ void tcp4_send(pipe_t pipe, lob_t packet, link_t link)
   if(!to || !packet || !link) return;
   LOG("tcp4 to %s",link->id->hashname);
 
-  // TODO chunks
-
+  chunks_send(to->chunks, packet);
   tcp4_flush(pipe);
 }
 
