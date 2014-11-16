@@ -135,7 +135,7 @@ ping:
 	$(CC) $(CFLAGS) -o bin/ping util/ping.c src/*.c unix/util.c $(ARCH)
 
 router:
-	$(CC) $(CFLAGS) -o bin/router util/router.c src/*.c unix/util.c src/net/udp4.c $(ARCH)
+	$(CC) $(CFLAGS) -o bin/router util/router.c src/*.c unix/util.c src/net/udp4.c src/net/tcp4.c $(ARCH)
 
 mesh:
 	$(CC) $(CFLAGS) -o bin/mesh util/mesh.c src/*.c unix/util.c src/ext/*.c $(ARCH)
