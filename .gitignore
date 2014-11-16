@@ -1,3 +1,4 @@
+*.a
 *.json
 *.dSYM
 .DS_Store

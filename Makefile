@@ -29,9 +29,20 @@ ARCH = $(UNIX1a)
 
 TESTS = lib_base32 lib_lob lib_hashname lib_murmur lib_chunks lib_util e3x_core e3x_cs1a e3x_self3 e3x_exchange3 e3x_event3 e3x_channel3 mesh_core net_loopback net_udp4 net_tcp4 ext_link
 
+#all: libmesh libe3x idgen router
 all: idgen router
 
-# TODO, create a static libe3x.a build option
+# TODO make these lib builds real
+
+libe3x:
+	rm -f libe3x.a
+	ar cru libe3x.a unix/platform.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c  $(LIB) $(E3X) $(CS1a)
+	ranlib libe3x.a
+
+libmesh:
+	rm -f libmesh.a
+	ar cru libmesh.a libe3x.a $(MESH)
+	ranlib libmesh.a
 
 .PHONY: arduino
 
