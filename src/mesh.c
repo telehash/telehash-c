@@ -1,4 +1,4 @@
-#include "mesh.h"
+#include "telehash.h"
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -36,6 +36,8 @@ mesh_t mesh_new(uint32_t prime)
   mesh->index = xht_new(prime?prime:MAXPRIME);
   if(!mesh->index) return mesh_free(mesh);
   
+  LOG("mesh created version %d.%d.%d",TELEHASH_VERSION_MAJOR,TELEHASH_VERSION_MINOR,TELEHASH_VERSION_PATCH);
+
   return mesh;
 }
 

@@ -1,6 +1,15 @@
 #ifndef e3x_h
 #define e3x_h
 
+#define E3X_VERSION_MAJOR 0
+#define E3X_VERSION_MINOR 5
+#define E3X_VERSION_PATCH 1
+#define E3X_VERSION ((E3X_VERSION_MAJOR) * 10000 + (E3X_VERSION_MINOR) * 100 + (E3X_VERSION_PATCH))
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "../lib/lob.h" // json+binary container
 
 // ##### e3x - end-to-end encrypted exchange #####
@@ -56,5 +65,9 @@ uint8_t *e3x_hash(uint8_t *in, uint32_t len, uint8_t *out32);
 * always use the most recently validated-active transport session to deliver to for sending
 
 */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
