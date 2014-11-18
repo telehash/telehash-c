@@ -54,14 +54,14 @@ arduino:
 	mkdir -p arduino/src/telehash/e3x
 	cp src/e3x/*.c src/e3x/*.h arduino/src/telehash/e3x/
 
-test-node: net_link
-	@if ./test/node.sh ; then \
-		echo "PASSED: node.sh"; \
+test-interop: net_link
+	@if ./test/interop.sh ; then \
+		echo "PASSED: interop.sh"; \
 	else \
-		echo "FAILED: node.sh"; exit 1; \
+		echo "FAILED: interop.sh"; exit 1; \
 	fi;
 
-test: $(TESTS)
+test: $(TESTS) test-interop
 	@for test in $(TESTS); do \
 		chmod 0755 ./bin/test_$$test && \
 		echo "=====[ running $$test ]=====" && \

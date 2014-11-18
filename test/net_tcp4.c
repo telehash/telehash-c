@@ -35,10 +35,13 @@ int main(int argc, char **argv)
   fail_unless(link_path(linkBA,netA->path));
   
   link_sync(linkAB);
-  net_tcp4_loop(netB);
-  net_tcp4_loop(netA);
-  net_tcp4_loop(netB);
-  net_tcp4_loop(netA);
+  // let tcp go back and forth enough, need a better way to do this
+  int loop;
+  for(loop = 10; loop; loop--)
+  {
+    net_tcp4_loop(netB);
+    net_tcp4_loop(netA);
+  }
   fail_unless(exchange3_out(linkBA->x,0) >= exchange3_out(linkAB->x,0));
   fail_unless(exchange3_out(linkBA->x,0) == exchange3_out(linkAB->x,0));
 
