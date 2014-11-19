@@ -87,7 +87,7 @@ lib_murmur:
 	$(CC) $(CFLAGS) -o bin/test_lib_murmur test/lib_murmur.c src/lib/murmur.c $(INCLUDE)
 
 lib_chacha:
-	$(CC) $(CFLAGS) -o bin/test_lib_chacha test/lib_chacha.c src/lib/chacha.c $(INCLUDE)
+	$(CC) $(CFLAGS) -o bin/test_lib_chacha test/lib_chacha.c src/lib/chacha.c src/lib/util.c $(INCLUDE)
 
 lib_chunks:
 	$(CC) $(CFLAGS) -o bin/test_lib_chunks test/lib_chunks.c $(UNIX1a)
