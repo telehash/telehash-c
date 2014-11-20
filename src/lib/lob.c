@@ -8,6 +8,8 @@
 #include "../platform.h" // platform_short()
 #include "util.h" // util_sort()
 #include "base32.h"
+#include "chacha.h"
+#include "e3x.h" // e3x_rand()
 
 lob_t lob_new()
 {
@@ -522,5 +524,31 @@ lob_t lob_set_json(lob_t p, lob_t json)
     i += 2;
   }
   return p;
+}
+
+// sha256("telehash")
+static const uint8_t _cloak_key[32] = {0xd7, 0xf0, 0xe5, 0x55, 0x54, 0x62, 0x41, 0xb2, 0xa9, 0x44, 0xec, 0xd6, 0xd0, 0xde, 0x66, 0x85, 0x6a, 0xc5, 0x0b, 0x0b, 0xab, 0xa7, 0x6a, 0x6f, 0x5a, 0x47, 0x82, 0x95, 0x6c, 0xa9, 0x45, 0x9a};
+
+// handles cloaking conveniently, len is lob_len()+(8*rounds)
+uint8_t *lob_cloak(lob_t p, uint8_t rounds)
+{
+  uint8_t *ret, len;
+  if(!p || !rounds) return lob_raw(p);
+  len = lob_len(p);
+  len += 8*rounds;
+  if(!(ret = malloc(len))) return LOG("OOM needed %d",len);
+  // TODO rounds
+  e3x_rand(ret, 8);
+  memcpy(ret+8,lob_raw(p),lob_len(p));
+  chacha20((uint8_t*)_cloak_key, ret, ret+8, lob_len(p));
+  return ret;
+}
+
+// decloaks and parses
+lob_t lob_decloak(uint8_t *cloaked, uint32_t len)
+{
+  if(!cloaked || !len) return LOG("bad args");
+  // TODO
+  return NULL;
 }
 
