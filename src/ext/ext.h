@@ -7,6 +7,7 @@
 #include "mesh.h"
 
 #include "link.h"
+#include "block.h"
 
 //#include "chat.h"
 //#include "thtp.h"

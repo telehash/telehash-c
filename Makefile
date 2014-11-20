@@ -5,7 +5,7 @@ INCLUDE+=-Iunix -Isrc -Isrc/lib -Isrc/ext -Isrc/e3x -Isrc/net
 LIB = src/lib/util.c src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/lib/chunks.c src/lib/chacha.c
 E3X = src/e3x/e3x.c src/e3x/channel3.c src/e3x/self3.c src/e3x/exchange3.c src/e3x/event3.c src/e3x/cipher3.c
 MESH = src/mesh.c src/link.c src/links.c src/pipe.c
-EXT = src/ext/link.c
+EXT = src/ext/link.c src/ext/block.c
 
 CS1a = src/e3x/cs1a/aes.c src/e3x/cs1a/hmac.c src/e3x/cs1a/aes128.c src/e3x/cs1a/cs1a.c src/e3x/cs1a/uECC.c src/e3x/cs1a/sha256.c
 CS2a = -ltomcrypt -ltommath -DLTM_DESC -DCS_2a src/e3x/cs2a/crypt_libtom_*.c
@@ -27,7 +27,7 @@ UNIX1a = unix/platform.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c  $(LIB)
 #ARCH = unix/platform.c $(JSON) $(CS1a) $(CS2a) $(CS3a) $(INCLUDE) $(LIBS)
 ARCH = $(UNIX1a)
 
-TESTS = lib_base32 lib_lob lib_hashname lib_murmur lib_chunks lib_util e3x_core e3x_cs1a e3x_self3 e3x_exchange3 e3x_event3 e3x_channel3 mesh_core net_loopback net_udp4 net_tcp4 ext_link lib_chacha
+TESTS = lib_base32 lib_lob lib_hashname lib_murmur lib_chunks lib_util e3x_core e3x_cs1a e3x_self3 e3x_exchange3 e3x_event3 e3x_channel3 mesh_core net_loopback net_udp4 net_tcp4 ext_link lib_chacha ext_block
 
 #all: libmesh libe3x idgen router
 all: idgen router
@@ -130,6 +130,9 @@ net_link:
 
 ext_link:
 	$(CC) $(CFLAGS) -o bin/test_ext_link test/ext_link.c src/net/loopback.c $(UNIX1a) $(MESH) $(EXT) 
+
+ext_block:
+	$(CC) $(CFLAGS) -o bin/test_ext_block test/ext_block.c src/net/loopback.c $(UNIX1a) $(MESH) $(EXT) 
 
 idgen:
 	$(CC) $(CFLAGS) -o bin/idgen util/idgen.c $(ARCH)
