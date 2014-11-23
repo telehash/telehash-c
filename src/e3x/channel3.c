@@ -14,11 +14,14 @@ struct channel3_struct
   uint32_t id; // wire id (not unique)
   char c[12]; // str of id
   char uid[9]; // process hex id (unique)
+  char *type;
+  lob_t open; // cached for convenience
+  enum channel3_states state;
+
+  // timer stuff
   uint32_t tsent, trecv; // last send, recv
   uint32_t timeout; // seconds since last trecv to auto-err
-  lob_t open; // cached for convenience
-  char *type;
-  enum channel3_states state;
+  lob_t timer; // the timer that has been sent to ev
   event3_t ev;
   
   // reliable miss tracking
@@ -109,6 +112,15 @@ char *channel3_c(channel3_t c)
   return c->c;
 }
 
+// internally calculate until timeout
+uint32_t _time_left(channe3_t c)
+{
+  uint32_t at = platform_seconds();
+  if(!c) return 0;
+  if(!c->timeout) return 1; // never timeout
+  if(c->timeout > at) return c->timeout - at;
+  return 0;
+}
 // this will set the default inactivity timeout using this event timer and our uid
 uint32_t channel3_timeout(channel3_t c, event3_t ev, uint32_t timeout)
 {
@@ -125,17 +137,15 @@ uint32_t channel3_timeout(channel3_t c, event3_t ev, uint32_t timeout)
   }
   
   // return how much time is left
-  if(!timeout)
-  {
-    // TODO calculate it
-    return c->timeout;
-  }
+  if(!timeout) return _time_left(c);
 
   // add/update new timeout
   c->ev = ev;
   c->timeout = timeout;
-  // TODO set up a timer
-  return c->timeout;
+  // TODO calculate
+  c->timer = lob_new(); // if there was an old one, event3 is managing it
+  event3_set(c->ev, c->timer, lob_get(c->timer, "id"), c->timeat);
+  return _time_left(c);
 }
 
 // returns the open packet (always cached)
