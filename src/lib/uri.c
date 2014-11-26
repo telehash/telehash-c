@@ -5,7 +5,7 @@
 #include "platform.h"
 #include "uri.h"
 
-// these all allocate/free memory
+// this is a very verbose/explicit single-pass telehash uri parser, no magic
 uri_t uri_new(char *encoded, char *protocol)
 {
   uri_t uri;
@@ -48,7 +48,7 @@ uri_t uri_new(char *encoded, char *protocol)
   if(!(uri = malloc(sizeof(struct uri_struct)))) return LOG("OOM");
   memset(uri,0,sizeof (struct uri_struct));
 
-  uri->protocol = strdup(protocol);
+  uri->protocol = strndup(protocol,plen);
   if(ulen) uri->user = strndup(user,ulen);
 
   // copy in canonical and parse address/port
@@ -72,6 +72,12 @@ uri_t uri_new(char *encoded, char *protocol)
     }
   }
 
+  // optional token at the end
+  if((at = strchr(encoded,'#')))
+  {
+    uri->token = strdup(at+1);
+  }
+
   // optional keys query string
   if((at = strchr(encoded,'?')))
   {
@@ -92,34 +98,22 @@ uri_t uri_new(char *encoded, char *protocol)
         klen--;
       }
       // require the equals
-      if(!(val = strchr(encoded,'=')))
-      {
-        encoded += klen;
-        klen = 0;
-      }
+      if(!(val = strchr(encoded,'='))) break;
       val++;
-      if((at = strchr(val,'#')))
+      if((at = strchr(val,'&')))
       {
         vlen = at - val;
       }else{
         vlen = strlen(val);
       }
       lob_set_raw(uri->keys, encoded, (val-encoded)-1, val, vlen);
+      // skip past whole block
+      klen -= ((val+vlen) - encoded);
+      encoded = val + vlen;
     }
-    // make sure at least one key/value was given
-    if(lob_keys(uri->keys))
-    {
-      uri->keys = lob_sort(uri->keys);
-    }else{
-      uri->keys = lob_free(uri->keys);
-    }
-  }
 
-  // optional token
-  if((at = strchr(encoded,'#')))
-  {
-    encoded = at+1;
-    uri->token = strdup(encoded);
+    // make sure at least one key/value was given
+    if(!lob_keys(uri->keys)) uri->keys = lob_free(uri->keys);
   }
 
   return uri;
@@ -155,6 +149,7 @@ char *uri_encode(uri_t uri)
   len += uri->session?strlen(uri->session):0;
   len += uri->token?strlen(uri->token):0;
   if(!(uri->encoded = malloc(len))) return LOG("OOM %d",len);
+  memset(uri->encoded,0,len);
 
   sprintf(uri->encoded,"%s://",uri->protocol);
   if(uri->user) sprintf(uri->encoded+strlen(uri->encoded),"%s@",uri->user);
@@ -163,6 +158,7 @@ char *uri_encode(uri_t uri)
   if(uri->session) sprintf(uri->encoded+strlen(uri->encoded),"/%s",uri->session);
   if(uri->keys)
   {
+    lob_sort(uri->keys);
     sprintf(uri->encoded+strlen(uri->encoded),"?");
     i = 0;
     while((key = lob_get_index(uri->keys, i)))
@@ -242,7 +238,7 @@ uri_t uri_keys(uri_t uri, lob_t keys)
 {
   if(!uri || !keys) return LOG("bad args");
   if(uri->keys) lob_free(uri->keys);
-  uri->keys = lob_sort(lob_copy(keys));
+  uri->keys = lob_copy(keys);
   return uri;
 }
 
