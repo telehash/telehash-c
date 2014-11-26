@@ -9,8 +9,8 @@
 uri_t uri_new(char *encoded, char *protocol)
 {
   uri_t uri;
-  uint32_t plen, ulen, alen, klen;
-  char *at, *user, *address;
+  uint32_t plen, ulen, alen, klen, vlen;
+  char *at, *user, *address, *val;
 
   if(!encoded) return LOG("bad args");
 
@@ -72,9 +72,10 @@ uri_t uri_new(char *encoded, char *protocol)
     }
   }
 
-  // optional keys
+  // optional keys query string
   if((at = strchr(encoded,'?')))
   {
+    uri->keys = lob_new();
     encoded = at+1;
     if((at = strchr(encoded,'#')))
     {
@@ -82,7 +83,36 @@ uri_t uri_new(char *encoded, char *protocol)
     }else{
       klen = strlen(encoded);
     }
-    // TODO decode keys in querystring
+    while(klen)
+    {
+      // skip any separator
+      if(*encoded == '&')
+      {
+        encoded++;
+        klen--;
+      }
+      // require the equals
+      if(!(val = strchr(encoded,'=')))
+      {
+        encoded += klen;
+        klen = 0;
+      }
+      val++;
+      if((at = strchr(val,'#')))
+      {
+        vlen = at - val;
+      }else{
+        vlen = strlen(val);
+      }
+      lob_set_raw(uri->keys, encoded, (val-encoded)-1, val, vlen);
+    }
+    // make sure at least one key/value was given
+    if(lob_keys(uri->keys))
+    {
+      uri->keys = lob_sort(uri->keys);
+    }else{
+      uri->keys = lob_free(uri->keys);
+    }
   }
 
   // optional token
@@ -112,7 +142,9 @@ uri_t uri_free(uri_t uri)
 // produces string safe to use until next encode or free
 char *uri_encode(uri_t uri)
 {
-  uint32_t len;
+  uint32_t len, i;
+  char *key;
+
   if(!uri) return LOG("bad args");
   if(uri->encoded) free(uri->encoded);
   len = 9; // space for seperator chars of '://@:/?#\0'
@@ -131,7 +163,13 @@ char *uri_encode(uri_t uri)
   if(uri->session) sprintf(uri->encoded+strlen(uri->encoded),"/%s",uri->session);
   if(uri->keys)
   {
-    sprintf(uri->encoded+strlen(uri->encoded),"?TODO");
+    sprintf(uri->encoded+strlen(uri->encoded),"?");
+    i = 0;
+    while((key = lob_get_index(uri->keys, i)))
+    {
+      sprintf(uri->encoded+strlen(uri->encoded),"%s%s=%s",i?"&":"", key, lob_get_index(uri->keys, i+1));
+      i += 2;
+    }
   }
   if(uri->token) sprintf(uri->encoded+strlen(uri->encoded),"#%s",uri->token);
   return uri->encoded;
@@ -204,7 +242,7 @@ uri_t uri_keys(uri_t uri, lob_t keys)
 {
   if(!uri || !keys) return LOG("bad args");
   if(uri->keys) lob_free(uri->keys);
-  uri->keys = lob_copy(keys);
+  uri->keys = lob_sort(lob_copy(keys));
   return uri;
 }
 
