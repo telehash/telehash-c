@@ -1,7 +1,7 @@
 TESTS = lib_base32 lib_lob lib_hashname lib_murmur lib_chunks lib_util \
 		e3x_core e3x_cs1a e3x_self3 e3x_exchange3 e3x_event3 e3x_channel3 \
 		mesh_core net_loopback net_udp4 net_tcp4 ext_link lib_chacha \
-		ext_block
+		ext_block lib_uri
 
 CC=gcc
 CFLAGS+=-g -Wall -Wextra -Wno-unused-parameter -DDEBUG
@@ -113,8 +113,8 @@ lib_chacha:
 lib_chunks:
 	$(CC) $(CFLAGS) $(INCLUDE) -o bin/test_lib_chunks lib_chunks.c $(FULL_OBJFILES)
 
-#lib_uri:
-#	$(CC) $(CFLAGS) $(INCLUDE) -o bin/test_lib_uri lib_uri.c ../src/lib/uri.c $(FULL_OBJFILES)
+lib_uri:
+	$(CC) $(CFLAGS) $(INCLUDE) -o bin/test_lib_uri lib_uri.c ../src/lib/uri.c $(FULL_OBJFILES)
 
 lib_util:
 	$(CC) $(CFLAGS) $(INCLUDE) -o bin/test_lib_util lib_util.c ../src/lib/util.c $(INCLUDE)
