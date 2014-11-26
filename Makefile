@@ -46,19 +46,21 @@ IDGEN_OBJFILES = $(CORE_OBJFILES) $(CS1a_OBJFILES) $(ARCH_OBJFILES) util/idgen.o
 ROUTER_OBJFILES = $(CORE_OBJFILES) $(CS1a_OBJFILES) $(ARCH_OBJFILES) unix/util.o util/router.o src/net/tcp4.o src/net/udp4.o
 
 #all: libmesh libe3x idgen router
-all: idgen router
+all: idgen router static
 
 # TODO make these lib builds real
 
-libe3x: $(CORE_OBJFILES)
+static: libe3x libtelehash
+
+libe3x: $(E3X_OBJFILES) $(LIB_OBJFILES)
 	rm -f libe3x.a
-	ar cru libe3x.a unix/platform.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c  $(LIB) $(E3X) $(CS1a)
+	ar cru libe3x.a $(E3X_OBJFILES) $(LIB_OBJFILES)
 	ranlib libe3x.a
 
-libmesh:
-	rm -f libmesh.a
-	ar cru libmesh.a libe3x.a $(MESH)
-	ranlib libmesh.a
+libtelehash: $(FULL_OBJFILES)
+	rm -f libtelehash.a
+	ar cru libtelehash.a libe3x.a $(FULL_OBJFILES)
+	ranlib libtelehash.a
 
 .PHONY: arduino test
 
