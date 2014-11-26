@@ -219,7 +219,7 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
     lob_link(outer,inner);
 
     // make sure csid is set on the handshake to get the hashname
-    lob_set_raw(inner,hex,"true",4);
+    lob_set_raw(inner,hex,0,"true",4);
     from = hashname_key(inner);
     if(!from)
     {
@@ -239,14 +239,14 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
       // add the key
       key = lob_new();
       lob_set_base32(key,hex,inner->body,inner->body_len);
-      lob_set_raw(discovered,"keys",(char*)key->head,key->head_len);
+      lob_set_raw(discovered,"keys",0,(char*)key->head,key->head_len);
       lob_free(key);
       // add the path if one
       if(pipe && pipe->path)
       {
         paths = malloc(pipe->path->head_len+2);
         sprintf(paths,"[%s]",lob_json(pipe->path));
-        lob_set_raw(discovered,"paths",paths,pipe->path->head_len+2);
+        lob_set_raw(discovered,"paths",0,paths,pipe->path->head_len+2);
         free(paths);
       }
       mesh_discover(mesh, discovered, pipe);

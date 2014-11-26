@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
   len = strlen(lob_json(udp4->path))+strlen(lob_json(tcp4->path))+3;
   paths = malloc(len+1);
   sprintf(paths,"[%s,%s]",lob_json(udp4->path),lob_json(tcp4->path));
-  lob_set_raw(id,"paths",paths,len);
+  lob_set_raw(id,"paths",0,paths,len);
   printf("%s\n",lob_json(id));
 
   while(net_udp4_receive(udp4) && net_tcp4_loop(tcp4));

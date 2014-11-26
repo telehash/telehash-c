@@ -164,16 +164,17 @@ lob_t lob_append(lob_t p, uint8_t *chunk, uint32_t len)
 }
 
 // TODO allow empty val to remove existing
-lob_t lob_set_raw(lob_t p, char *key, char *val, uint16_t vlen)
+lob_t lob_set_raw(lob_t p, char *key, uint16_t klen, char *val, uint16_t vlen)
 {
   char *json, *at, *eval;
-  uint16_t klen, len;
+  uint16_t len;
   int evlen;
 
-  if(!p || !key || !val) return LOG("bad args");
+  if(!p || !key || !val) return LOG("bad args (%d,%d,%d)",p,key,val);
   if(p->head_len < 2) lob_head(p, (uint8_t*)"{}", 2);
-  klen = strlen(key);
-  if(!vlen) vlen = strlen(val); // convenience
+  // convenience
+  if(!klen) klen = strlen(key);
+  if(!vlen) vlen = strlen(val);
 
   // make space and copy
   if(!(json = malloc(klen+vlen+p->head_len+4))) return LOG("OOM");
@@ -239,7 +240,7 @@ lob_t lob_set_int(lob_t p, char *key, int val)
   char num[32];
   if(!p || !key) return LOG("bad args");
   sprintf(num,"%d",val);
-  lob_set_raw(p, key, num, 0);
+  lob_set_raw(p, key, 0, num, 0);
   return p;
 }
 
@@ -258,7 +259,7 @@ lob_t lob_set(lob_t p, char *key, char *val)
     escaped[len++]=val[i];
   }
   escaped[len++] = '"';
-  lob_set_raw(p, key, escaped, len);
+  lob_set_raw(p, key, 0, escaped, len);
   free(escaped);
   return p;
 }
@@ -272,7 +273,7 @@ lob_t lob_set_base32(lob_t p, char *key, uint8_t *bin, uint16_t blen)
   val[0] = '"';
   base32_encode_into(bin, blen, val+1);
   val[vlen+1] = '"';
-  lob_set_raw(p,key,val,vlen+2);
+  lob_set_raw(p,key,0,val,vlen+2);
   return p;
 }
 
@@ -483,7 +484,7 @@ lob_t lob_sort(lob_t p)
   tmp = lob_new();
   for(i=0;i<len;i++)
   {
-    lob_set_raw(tmp,keys[i],lob_get_raw(p,keys[i]),lob_get_len(p,keys[i]));
+    lob_set_raw(tmp,keys[i],0,lob_get_raw(p,keys[i]),lob_get_len(p,keys[i]));
   }
 
   // replace json in original packet
