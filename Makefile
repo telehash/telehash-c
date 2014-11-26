@@ -54,13 +54,11 @@ static: libe3x libtelehash
 
 libe3x: $(E3X_OBJFILES) $(LIB_OBJFILES)
 	rm -f libe3x.a
-	ar cru libe3x.a $(E3X_OBJFILES) $(LIB_OBJFILES)
-	ranlib libe3x.a
+	ar crs libe3x.a $(E3X_OBJFILES) $(LIB_OBJFILES)
 
 libtelehash: $(FULL_OBJFILES)
 	rm -f libtelehash.a
-	ar cru libtelehash.a libe3x.a $(FULL_OBJFILES)
-	ranlib libtelehash.a
+	ar crs libtelehash.a $(FULL_OBJFILES)
 
 .PHONY: arduino test
 
