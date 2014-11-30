@@ -2,6 +2,7 @@
    "name": "telehash-c",
    "version": "0.3.0",
    "dependencies": {
+     "libsodium-c":"quartzjer/libsodium-c"
    },
    "devDependencies": {
    },
