@@ -156,7 +156,7 @@ char *uri_encode(uri_t uri)
   if(uri->user) sprintf(uri->encoded+strlen(uri->encoded),"%s@",uri->user);
   sprintf(uri->encoded+strlen(uri->encoded),"%s",uri->address);
   if(uri->port) sprintf(uri->encoded+strlen(uri->encoded),":%u",uri->port);
-  if(uri->session) sprintf(uri->encoded+strlen(uri->encoded),"/%s",uri->session);
+  sprintf(uri->encoded+strlen(uri->encoded),"/%s",uri->session?uri->session:"");
   if(uri->keys)
   {
     lob_sort(uri->keys);

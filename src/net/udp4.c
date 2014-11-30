@@ -83,6 +83,7 @@ net_udp4_t net_udp4_new(mesh_t mesh, lob_t options)
   socklen_t size = sizeof(struct sockaddr_in);
   
   port = lob_get_int(options,"port");
+  if(!port) port = mesh->port_local; // might be another in use
   pipes = lob_get_int(options,"pipes");
   if(!pipes) pipes = 11; // hashtable for active pipes
 
@@ -100,6 +101,7 @@ net_udp4_t net_udp4_new(mesh_t mesh, lob_t options)
   memset(net,0,sizeof (struct net_udp4_struct));
   net->server = sock;
   net->port = ntohs(sa.sin_port);
+  if(!mesh->port_local) mesh->port_local = net->port; // use ours as the default if no others
   net->pipes = xht_new(pipes);
 
   // connect us to this mesh
