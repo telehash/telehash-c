@@ -5,7 +5,7 @@ TESTS = lib_base32 lib_lob lib_hashname lib_murmur lib_chunks lib_util \
 
 CC=gcc
 CFLAGS+=-g -Wall -Wextra -Wno-unused-parameter -DDEBUG
-INCLUDE+=-I../unix -I../src -I../src/lib -I../src/ext -I../src/e3x -I../src/net
+INCLUDE+=-I../unix -I../include -I../include/lib
 
 LIB = src/lib/util.c src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/lib/chunks.c src/lib/chacha.c
 E3X = src/e3x/e3x.c src/e3x/channel3.c src/e3x/self3.c src/e3x/exchange3.c src/e3x/event3.c src/e3x/cipher3.c

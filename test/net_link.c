@@ -6,7 +6,7 @@
 #include <netdb.h>
 
 #include "mesh.h"
-#include "udp4.h"
+#include "net/udp4.h"
 #include "ext.h"
 #include "unit_test.h"
 

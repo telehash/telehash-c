@@ -1,7 +1,7 @@
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
-#include "udp4.h"
+#include "net/udp4.h"
 
 // our unique id per mesh
 #define MUID "net_udp4"
