@@ -1,8 +1,9 @@
-{
+
    "name": "telehash-c",
    "version": "0.3.0",
    "dependencies": {
-     "libsodium-c":"quartzjer/libsodium-c"
+     "libsodium-c":"quartzjer/libsodium-c",
+     "libtomcrypt-c":"quartzjer/libtomcrypt-c#develop"
    },
    "devDependencies": {
    },
