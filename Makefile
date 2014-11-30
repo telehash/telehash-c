@@ -1,6 +1,6 @@
 CC=gcc
 CFLAGS+=-g -Wall -Wextra -Wno-unused-parameter -DDEBUG
-INCLUDE+=-Iunix -Isrc -Isrc/lib -Isrc/ext -Isrc/e3x -Isrc/net
+INCLUDE+=-I./include -Iunix
 
 LIB = src/lib/util.c src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/lib/chunks.c src/lib/chacha.c
 E3X = src/e3x/e3x.c src/e3x/channel3.c src/e3x/self3.c src/e3x/exchange3.c src/e3x/event3.c src/e3x/cipher3.c
@@ -96,5 +96,6 @@ port:
 clean:
 	rm $(CORE_OBJFILES) $(CS1a_OBJFILES) $(ARCH_OBJFILES)
 	rm -rf bin/*
+	rm -rf arduino/src/telehash/
 	rm -f id.json
 	cd test; $(MAKE) clean
