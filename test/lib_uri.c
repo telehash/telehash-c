@@ -10,7 +10,7 @@ int main(int argc, char **argv)
   fail_unless(util_cmp(uri->protocol,"foo") == 0);
   fail_unless(uri_protocol(uri,"bar"));
   fail_unless(util_cmp(uri->protocol,"bar") == 0);
-  fail_unless(util_cmp(uri_encode(uri),"bar://bar") == 0);
+  fail_unless(util_cmp(uri_encode(uri),"bar://bar/") == 0);
   fail_unless(uri_canonical(uri,"canon:42"));
   fail_unless(uri_token(uri,"token"));
   fail_unless(uri_token(uri,NULL));
@@ -22,13 +22,13 @@ int main(int argc, char **argv)
   fail_unless(uri_free(uri) == NULL);
 
   // test key querystring handling
-  fail_unless((uri = uri_new("foo://bar?1a=foo&2a=bar",NULL)));
+  fail_unless((uri = uri_new("foo://bar/?1a=foo&2a=bar",NULL)));
   fail_unless(util_cmp(uri->protocol,"foo") == 0);
   fail_unless(uri->keys);
   fail_unless(util_cmp(lob_get(uri->keys,"1a"),"foo") == 0);
   fail_unless(util_cmp(lob_get(uri->keys,"2a"),"bar") == 0);
   lob_set(uri->keys,"0a","test");
-  fail_unless(util_cmp(uri_encode(uri),"foo://bar?0a=test&1a=foo&2a=bar") == 0);
+  fail_unless(util_cmp(uri_encode(uri),"foo://bar/?0a=test&1a=foo&2a=bar") == 0);
 
   return 0;
 }
