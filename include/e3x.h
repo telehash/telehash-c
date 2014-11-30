@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-#include "../lib/lob.h" // json+binary container
+#include "lib/lob.h" // json+binary container
 
 // ##### e3x - end-to-end encrypted exchange #####
 //
@@ -40,16 +40,16 @@ uint8_t *e3x_hash(uint8_t *in, uint32_t len, uint8_t *out32);
 
 
 // local endpoint state management
-#include "self3.h"
+#include "e3x/self3.h"
 
 // a single exchange (a session w/ local endpoint and remote endpoint)
-#include "exchange3.h"
+#include "e3x/exchange3.h"
 
 // standalone timer event utility for channels
-#include "event3.h"
+#include "e3x/event3.h"
 
 // standalone channel packet buffer/ordering utility
-#include "channel3.h"
+#include "e3x/channel3.h"
 
 
 

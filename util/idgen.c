@@ -3,12 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
-
-#include "e3x.h"
-#include "lob.h"
-#include "hashname.h"
-
-#include "platform.h"
+#include "telehash.h"
 
 int main(int argc, char *argv[])
 {

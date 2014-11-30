@@ -3,8 +3,8 @@
 
 typedef struct mesh_struct *mesh_t;
 
-#include "e3x/e3x.h"
-#include "lib/lib.h"
+#include "e3x.h"
+#include "lib.h"
 #include "pipe.h"
 #include "link.h"
 #include "links.h"

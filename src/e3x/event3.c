@@ -1,6 +1,6 @@
 #include <string.h>
-#include "event3.h"
-#include "../lib/xht.h"
+#include "e3x.h"
+#include "xht.h"
 #include "platform.h"
 
 struct event3_struct

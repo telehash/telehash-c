@@ -6,8 +6,8 @@
 #include <stdlib.h>
 #include "mesh.h"
 
-#include "link.h"
-#include "block.h"
+#include "ext/link.h"
+#include "ext/block.h"
 
 //#include "chat.h"
 //#include "thtp.h"

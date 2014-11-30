@@ -2,8 +2,8 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdint.h>
-#include "cipher3.h"
-#include "../lib/util.h"
+#include "e3x.h"
+#include "util.h"
 
 cipher3_t cipher3_sets[CS_MAX];
 cipher3_t cipher3_default = NULL;
