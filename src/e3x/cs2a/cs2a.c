@@ -68,30 +68,11 @@ cipher3_t cs2a_init(lob_t options)
   memset(ret,0,sizeof (struct cipher3_struct));
   
   // identifying markers
-  ret->id = CS_1a;
-  ret->csid = 0x1a;
-  memcpy(ret->hex,"1a",3);
+  ret->id = CS_2a;
+  ret->csid = 0x2a;
+  memcpy(ret->hex,"2a",3);
 
-  // normal init stuff
-  uECC_set_rng(&RNG);
-
-  // configure our callbacks (no RNG, default to platform's)
-  ret->hash = cipher_hash;
-  ret->err = cipher_err;
-  ret->generate = cipher_generate;
-
-  // need to cast these to map our struct types to voids
-  ret->local_new = (void *(*)(lob_t, lob_t))local_new;
-  ret->local_free = (void (*)(void *))local_free;
-  ret->local_decrypt = (lob_t (*)(void *, lob_t))local_decrypt;
-  ret->remote_new = (void *(*)(lob_t, uint8_t *))remote_new;
-  ret->remote_free = (void (*)(void *))remote_free;
-  ret->remote_verify = (uint8_t (*)(void *, void *, lob_t))remote_verify;
-  ret->remote_encrypt = (lob_t (*)(void *, void *, lob_t))remote_encrypt;
-  ret->ephemeral_new = (void *(*)(void *, lob_t))ephemeral_new;
-  ret->ephemeral_free = (void (*)(void *))ephemeral_free;
-  ret->ephemeral_encrypt = (lob_t (*)(void *, lob_t))ephemeral_encrypt;
-  ret->ephemeral_decrypt = (lob_t (*)(void *, lob_t))ephemeral_decrypt;
+  // TODO
 
   return ret;
 }
