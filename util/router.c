@@ -6,9 +6,9 @@
 #include <netdb.h>
 
 #include "mesh.h"
-#include "util_unix.h"
-#include "udp4.h"
-#include "tcp4.h"
+#include "../unix/util_unix.h"
+#include "net/udp4.h"
+#include "net/tcp4.h"
 
 int main(int argc, char *argv[])
 {
@@ -44,6 +44,7 @@ int main(int argc, char *argv[])
   sprintf(paths,"[%s,%s]",lob_json(udp4->path),lob_json(tcp4->path));
   lob_set_raw(id,"paths",0,paths,len);
   printf("%s\n",lob_json(id));
+  printf("%s\n",uri_encode(mesh->uri));
 
   while(net_udp4_receive(udp4) && net_tcp4_loop(tcp4));
 

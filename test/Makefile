@@ -7,7 +7,7 @@ CC=gcc
 CFLAGS+=-g -Wall -Wextra -Wno-unused-parameter -DDEBUG
 INCLUDE+=-I../unix -I../include -I../include/lib
 
-LIB = src/lib/util.c src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/lib/chunks.c src/lib/chacha.c
+LIB = src/lib/util.c src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/lib/chunks.c src/lib/chacha.c src/lib/uri.c
 E3X = src/e3x/e3x.c src/e3x/channel3.c src/e3x/self3.c src/e3x/exchange3.c src/e3x/event3.c src/e3x/cipher3.c
 MESH = src/mesh.c src/link.c src/links.c src/pipe.c
 EXT = src/ext/link.c src/ext/block.c
@@ -114,7 +114,7 @@ lib_chunks:
 	$(CC) $(CFLAGS) $(INCLUDE) -o bin/test_lib_chunks lib_chunks.c $(FULL_OBJFILES)
 
 lib_uri:
-	$(CC) $(CFLAGS) $(INCLUDE) -o bin/test_lib_uri lib_uri.c ../src/lib/uri.c $(FULL_OBJFILES)
+	$(CC) $(CFLAGS) $(INCLUDE) -o bin/test_lib_uri lib_uri.c $(FULL_OBJFILES)
 
 lib_util:
 	$(CC) $(CFLAGS) $(INCLUDE) -o bin/test_lib_util lib_util.c ../src/lib/util.c $(INCLUDE)

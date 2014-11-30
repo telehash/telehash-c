@@ -13,6 +13,7 @@ typedef struct mesh_struct *mesh_t;
 struct mesh_struct
 {
   hashname_t id;
+  uri_t uri;
   lob_t keys;
   self3_t self;
   xht_t index;
@@ -28,6 +29,7 @@ uint8_t mesh_load(mesh_t mesh, lob_t secrets, lob_t keys);
 
 // creates a new mesh identity, returns secrets
 lob_t mesh_generate(mesh_t mesh);
+
 
 // creates a link from the json format of {"hashname":"...","keys":{},"paths":[]}, optional direct pipe too
 link_t mesh_add(mesh_t mesh, lob_t json, pipe_t pipe);

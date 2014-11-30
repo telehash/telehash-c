@@ -4,5 +4,6 @@
 #include "lib/js0n.h"
 #include "lib/lob.h"
 #include "lib/murmur.h"
+#include "lib/uri.h"
 #include "lib/util.h"
 #include "lib/xht.h"

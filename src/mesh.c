@@ -35,6 +35,7 @@ mesh_t mesh_new(uint32_t prime)
   memset(mesh, 0, sizeof(struct mesh_struct));
   mesh->index = xht_new(prime?prime:MAXPRIME);
   if(!mesh->index) return mesh_free(mesh);
+  mesh->uri = uri_new("link://127.0.0.1",NULL);
   
   LOG("mesh created version %d.%d.%d",TELEHASH_VERSION_MAJOR,TELEHASH_VERSION_MINOR,TELEHASH_VERSION_PATCH);
 
@@ -59,6 +60,7 @@ mesh_t mesh_free(mesh_t mesh)
   xht_free(mesh->index);
   lob_free(mesh->keys);
   self3_free(mesh->self);
+  uri_free(mesh->uri);
 
   free(mesh);
   return NULL;
