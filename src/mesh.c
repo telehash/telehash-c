@@ -35,7 +35,6 @@ mesh_t mesh_new(uint32_t prime)
   memset(mesh, 0, sizeof(struct mesh_struct));
   mesh->index = xht_new(prime?prime:MAXPRIME);
   if(!mesh->index) return mesh_free(mesh);
-  mesh->uri = uri_new("link://127.0.0.1",NULL);
   
   LOG("mesh created version %d.%d.%d",TELEHASH_VERSION_MAJOR,TELEHASH_VERSION_MINOR,TELEHASH_VERSION_PATCH);
 
@@ -60,7 +59,9 @@ mesh_t mesh_free(mesh_t mesh)
   xht_free(mesh->index);
   lob_free(mesh->keys);
   self3_free(mesh->self);
-  uri_free(mesh->uri);
+  if(mesh->uri) free(mesh->uri);
+  if(mesh->ipv4_local) free(mesh->ipv4_local);
+  if(mesh->ipv4_public) free(mesh->ipv4_public);
 
   free(mesh);
   return NULL;
@@ -85,6 +86,31 @@ lob_t mesh_generate(mesh_t mesh)
   if(!secrets) return LOG("failed to generate %s",e3x_err());
   if(mesh_load(mesh, secrets, lob_linked(secrets))) return lob_free(secrets);
   return secrets;
+}
+
+// return the best current URI to this endpoint, optional override protocol
+char *mesh_uri(mesh_t mesh, char *protocol)
+{
+  uri_t uri;
+  if(!mesh) return LOG("bad args");
+
+  // load existing or create new
+  uri = (mesh->uri) ? uri_new(mesh->uri, protocol) : uri_new("127.0.0.1", protocol);
+  
+  // TODO don't override a router-provided base
+
+  // set best current values
+  uri_keys(uri, mesh->keys);
+  if(mesh->port_local) uri_port(uri, mesh->port_local);
+  if(mesh->port_public) uri_port(uri, mesh->port_public);
+  if(mesh->ipv4_local) uri_address(uri, mesh->ipv4_local);
+  if(mesh->ipv4_public) uri_address(uri, mesh->ipv4_public);
+
+  // save/return new encoded output
+  if(mesh->uri) free(mesh->uri);
+  mesh->uri = strdup(uri_encode(uri));
+  uri_free(uri);
+  return mesh->uri;
 }
 
 link_t mesh_add(mesh_t mesh, lob_t json, pipe_t pipe)

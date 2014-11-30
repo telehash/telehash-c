@@ -11,13 +11,14 @@ uri_t uri_new(char *encoded, char *protocol)
   uri_t uri;
   uint32_t plen, ulen, alen, klen, vlen;
   char *at, *user, *address, *val;
+  char pdef[] = "link";
 
   if(!encoded) return LOG("bad args");
 
   // check for protocol:// prefix first
   if(!(at = strstr(encoded,"://")))
   {
-    if(!protocol) return LOG("no protocol found or given");
+    if(!protocol) protocol = (char*)pdef; // default to "link://"
     plen = strlen(protocol);
   }else{
     plen = at - encoded;
