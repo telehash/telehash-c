@@ -19,10 +19,10 @@ struct channel3_struct
   enum channel3_states state;
 
   // timer stuff
-  uint32_t tsent, trecv; // last send, recv
-  uint32_t timeout; // seconds since last trecv to auto-err
+  uint32_t tsent, trecv; // last send, recv from platform_seconds
+  uint32_t tsince, timeout; // tsince=start, timeout is how many seconds before auto-err
   lob_t timer; // the timer that has been sent to ev
-  event3_t ev;
+  event3_t ev; // the event manager to update our timer with
   
   // reliable miss tracking
   uint32_t miss_nextack;
@@ -113,38 +113,46 @@ char *channel3_c(channel3_t c)
 }
 
 // internally calculate until timeout
-uint32_t _time_left(channe3_t c)
+uint32_t _time_left(channel3_t c)
 {
   uint32_t at = platform_seconds();
   if(!c) return 0;
   if(!c->timeout) return 1; // never timeout
-  if(c->timeout > at) return c->timeout - at;
+  // some seconds left yet
+  if((at - c->tsince) < c->timeout) return c->timeout - (at - c->tsince);
   return 0;
 }
+
 // this will set the default inactivity timeout using this event timer and our uid
 uint32_t channel3_timeout(channel3_t c, event3_t ev, uint32_t timeout)
 {
   if(!c) return 0;
 
   // un-set any
-  if(!ev)
+  if(ev != c->ev)
   {
-    // cancel any that may have been stored
+    // cancel and clearn any previous timer state
+    c->timeout = 0;
     if(c->ev) event3_set(c->ev,NULL,c->uid,0);
     c->ev = NULL;
-    c->timeout = 0;
-    return 0;
+    lob_free(c->timer);
+    c->timer = NULL;
   }
   
-  // return how much time is left
+  // no event manager, no timeouts
+  if(!ev) return 0;
+  
+  // no timeout, just return how much time is left
   if(!timeout) return _time_left(c);
 
   // add/update new timeout
-  c->ev = ev;
+  c->tsince = platform_seconds(); // start timer now
   c->timeout = timeout;
-  // TODO calculate
-  c->timer = lob_new(); // if there was an old one, event3 is managing it
-  event3_set(c->ev, c->timer, lob_get(c->timer, "id"), c->timeat);
+  c->ev = ev;
+  c->timer = channel3_packet(c);
+  lob_set(c->timer, "id", c->uid);
+  lob_set(c->timer, "err", "timeout");
+  event3_set(c->ev, c->timer, lob_get(c->timer, "id"), timeout*1000); // ms in the future
   return _time_left(c);
 }
 
