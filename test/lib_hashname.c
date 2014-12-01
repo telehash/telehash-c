@@ -1,7 +1,4 @@
-#include "hashname.h"
-#include "lob.h"
-#include "util.h"
-#include "e3x.h"
+#include "telehash.h"
 #include "unit_test.h"
 
 int main(int argc, char **argv)

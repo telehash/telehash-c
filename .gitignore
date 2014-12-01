@@ -1,6 +1,9 @@
+*.o
 *.a
 *.json
 *.dSYM
 .DS_Store
 arduino/src/telehash
 arduino/build
+test/bin/*
+node_modules/

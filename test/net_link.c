@@ -6,7 +6,7 @@
 #include <netdb.h>
 
 #include "mesh.h"
-#include "udp4.h"
+#include "net/udp4.h"
 #include "ext.h"
 #include "unit_test.h"
 
@@ -35,10 +35,10 @@ int main(int argc, char *argv[])
   udp4 = net_udp4_new(mesh, NULL);
 
   id = lob_new();
-  fail_unless(lob_set_raw(id,"keys",(char*)mesh->keys->head,mesh->keys->head_len));
+  fail_unless(lob_set_raw(id,"keys",0,(char*)mesh->keys->head,mesh->keys->head_len));
   paths = malloc(udp4->path->head_len+2);
   sprintf(paths,"[%s]",lob_json(udp4->path));
-  lob_set_raw(id,"paths",paths,udp4->path->head_len+2);
+  lob_set_raw(id,"paths",0,paths,udp4->path->head_len+2);
   printf("%s\n",lob_json(id));
   fflush(stdout);
 

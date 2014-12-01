@@ -1,8 +1,8 @@
 CC=gcc
 CFLAGS+=-g -Wall -Wextra -Wno-unused-parameter -DDEBUG
-INCLUDE+=-Iunix -Isrc -Isrc/lib -Isrc/ext -Isrc/e3x -Isrc/net
+INCLUDE+=-Iinclude -Iinclude/lib -Iunix
 
-LIB = src/lib/util.c src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/lib/chunks.c src/lib/chacha.c
+LIB = src/lib/util.c src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/lib/chunks.c src/lib/chacha.c src/lib/uri.c
 E3X = src/e3x/e3x.c src/e3x/channel3.c src/e3x/self3.c src/e3x/exchange3.c src/e3x/event3.c src/e3x/cipher3.c
 MESH = src/mesh.c src/link.c src/links.c src/pipe.c
 EXT = src/ext/link.c src/ext/block.c
@@ -12,7 +12,7 @@ CS2a = -ltomcrypt -ltommath -DLTM_DESC -DCS_2a src/e3x/cs2a/crypt_libtom_*.c
 CS3a = -Ics1a -lsodium -DCS_3a src/e3x/cs3a/crypt_3a.c
 
 # this is CS1a only
-UNIX1a = unix/platform.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c  $(LIB) $(E3X) $(CS1a) $(INCLUDE) $(LIBS)
+UNIX1a = unix/platform.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c
 
 # this is CS3a only
 #ARCH = -DNOCS_1a unix/platform.c cs3a/crypt_base.c cs1a/base64*.c $(JSON) $(CS3a) $(INCLUDE) $(LIBS)
@@ -27,24 +27,40 @@ UNIX1a = unix/platform.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c  $(LIB)
 #ARCH = unix/platform.c $(JSON) $(CS1a) $(CS2a) $(CS3a) $(INCLUDE) $(LIBS)
 ARCH = $(UNIX1a)
 
-TESTS = lib_base32 lib_lob lib_hashname lib_murmur lib_chunks lib_util e3x_core e3x_cs1a e3x_self3 e3x_exchange3 e3x_event3 e3x_channel3 mesh_core net_loopback net_udp4 net_tcp4 ext_link lib_chacha ext_block
+TESTS = lib_base32 lib_lob lib_hashname lib_murmur lib_chunks lib_util e3x_core e3x_cs1a e3x_self3 e3x_exchange3 e3x_event3 e3x_channel3 mesh_core net_loopback net_udp4 net_tcp4 ext_link lib_chacha ext_block lib_uri
+
+LIB_OBJFILES = $(patsubst %.c,%.o,$(LIB))
+E3X_OBJFILES = $(patsubst %.c,%.o,$(E3X))
+MESH_OBJFILES = $(patsubst %.c,%.o,$(MESH))
+EXT_OBJFILES = $(patsubst %.c,%.o,$(EXT))
+
+CORE_OBJFILES = $(LIB_OBJFILES) $(E3X_OBJFILES) $(MESH_OBJFILES) $(EXT_OBJFILES)
+
+CS1a_OBJFILES = $(patsubst %.c,%.o,$(CS1a))
+
+ARCH_OBJFILES = $(patsubst %.c,%.o,$(ARCH))
+
+FULL_OBJFILES = $(CORE_OBJFILES) $(CS1a_OBJFILES) $(ARCH_OBJFILES)
+
+IDGEN_OBJFILES = $(CORE_OBJFILES) $(CS1a_OBJFILES) $(ARCH_OBJFILES) util/idgen.o
+ROUTER_OBJFILES = $(CORE_OBJFILES) $(CS1a_OBJFILES) $(ARCH_OBJFILES) unix/util.o util/router.o src/net/tcp4.o src/net/udp4.o
 
 #all: libmesh libe3x idgen router
-all: idgen router
+all: idgen router static
 
 # TODO make these lib builds real
 
-libe3x:
+static: libe3x libtelehash
+
+libe3x: $(E3X_OBJFILES) $(LIB_OBJFILES)
 	rm -f libe3x.a
-	ar cru libe3x.a unix/platform.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c  $(LIB) $(E3X) $(CS1a)
-	ranlib libe3x.a
+	ar crs libe3x.a $(E3X_OBJFILES) $(LIB_OBJFILES)
 
-libmesh:
-	rm -f libmesh.a
-	ar cru libmesh.a libe3x.a $(MESH)
-	ranlib libmesh.a
+libtelehash: $(FULL_OBJFILES)
+	rm -f libtelehash.a
+	ar crs libtelehash.a $(FULL_OBJFILES)
 
-.PHONY: arduino
+.PHONY: arduino test
 
 arduino: 
 	mkdir -p arduino/src/telehash
@@ -54,94 +70,22 @@ arduino:
 	mkdir -p arduino/src/telehash/e3x
 	cp src/e3x/*.c src/e3x/*.h arduino/src/telehash/e3x/
 
-test-interop: net_link
-	@if ./test/interop.sh ; then \
-		echo "PASSED: interop.sh"; \
-	else \
-		echo "FAILED: interop.sh"; exit 1; \
-	fi;
-
-test: $(TESTS) test-interop
-	@for test in $(TESTS); do \
-		chmod 0755 ./bin/test_$$test && \
-		echo "=====[ running $$test ]=====" && \
-		if ./bin/test_$$test ; then \
-			echo "PASSED: $$test"; \
-		else \
-			echo "FAILED: $$test"; exit 1; \
-		fi; \
-	done
-
+test: $(FULL_OBJFILES)
+	cd test; $(MAKE) $(MFLAGS)
+	
 # my make zen is not high enough right now, is yours?
 
-lib_base32:
-	$(CC) $(CFLAGS) -o bin/test_lib_base32 test/lib_base32.c src/lib/base32.c $(INCLUDE)
+%.o : %.c
+	$(CC) $(INCLUDE) $(CFLAGS) -c $< -o $@
 
-lib_lob:
-	$(CC) $(CFLAGS) -o bin/test_lib_lob test/lib_lob.c $(UNIX1a)
-
-lib_hashname:
-	$(CC) $(CFLAGS) -o bin/test_lib_hashname test/lib_hashname.c $(UNIX1a)
-
-lib_murmur:
-	$(CC) $(CFLAGS) -o bin/test_lib_murmur test/lib_murmur.c src/lib/murmur.c $(INCLUDE)
-
-lib_chacha:
-	$(CC) $(CFLAGS) -o bin/test_lib_chacha test/lib_chacha.c src/lib/chacha.c src/lib/util.c $(INCLUDE)
-
-lib_chunks:
-	$(CC) $(CFLAGS) -o bin/test_lib_chunks test/lib_chunks.c $(UNIX1a)
-
-lib_util:
-	$(CC) $(CFLAGS) -o bin/test_lib_util test/lib_util.c src/lib/util.c $(INCLUDE)
-
-e3x_core:
-	$(CC) $(CFLAGS) -o bin/test_e3x_core test/e3x_core.c unix/platform.c src/e3x/cs1a_disabled.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c $(LIB) $(E3X) $(INCLUDE)
-
-e3x_cs1a:
-	$(CC) $(CFLAGS) -o bin/test_e3x_cs1a test/e3x_cs1a.c $(UNIX1a)
-
-e3x_self3:
-	$(CC) $(CFLAGS) -o bin/test_e3x_self3 test/e3x_self3.c $(UNIX1a)
-
-e3x_exchange3:
-	$(CC) $(CFLAGS) -o bin/test_e3x_exchange3 test/e3x_exchange3.c $(UNIX1a)
-
-e3x_event3:
-	$(CC) $(CFLAGS) -o bin/test_e3x_event3 test/e3x_event3.c $(UNIX1a)
-
-e3x_channel3:
-	$(CC) $(CFLAGS) -o bin/test_e3x_channel3 test/e3x_channel3.c $(UNIX1a)
-
-mesh_core:
-	$(CC) $(CFLAGS) -o bin/test_mesh_core test/mesh_core.c $(UNIX1a) $(MESH)
-
-net_loopback:
-	$(CC) $(CFLAGS) -o bin/test_net_loopback test/net_loopback.c src/net/loopback.c $(UNIX1a) $(MESH)
-
-net_udp4:
-	$(CC) $(CFLAGS) -o bin/test_net_udp4 test/net_udp4.c src/net/udp4.c $(UNIX1a) $(MESH)
-
-net_tcp4:
-	$(CC) $(CFLAGS) -o bin/test_net_tcp4 test/net_tcp4.c src/net/tcp4.c unix/util.c $(UNIX1a) $(MESH)
-
-net_link:
-	$(CC) $(CFLAGS) -o bin/test_net_link test/net_link.c src/net/udp4.c $(UNIX1a) $(MESH) $(EXT) 
-
-ext_link:
-	$(CC) $(CFLAGS) -o bin/test_ext_link test/ext_link.c src/net/loopback.c $(UNIX1a) $(MESH) $(EXT) 
-
-ext_block:
-	$(CC) $(CFLAGS) -o bin/test_ext_block test/ext_block.c src/net/loopback.c $(UNIX1a) $(MESH) $(EXT) 
-
-idgen:
-	$(CC) $(CFLAGS) -o bin/idgen util/idgen.c $(ARCH)
+idgen: $(IDGEN_OBJFILES)
+	$(CC) $(CFLAGS) -o bin/idgen $(IDGEN_OBJFILES)
 
 ping:
 	$(CC) $(CFLAGS) -o bin/ping util/ping.c src/*.c unix/util.c $(ARCH)
 
-router:
-	$(CC) $(CFLAGS) -o bin/router util/router.c src/*.c unix/util.c src/net/udp4.c src/net/tcp4.c $(ARCH)
+router: $(ROUTER_OBJFILES)
+	$(CC) $(CFLAGS) -o bin/router $(ROUTER_OBJFILES)
 
 mesh:
 	$(CC) $(CFLAGS) -o bin/mesh util/mesh.c src/*.c unix/util.c src/ext/*.c $(ARCH)
@@ -151,4 +95,7 @@ port:
  
 clean:
 	rm -rf bin/*
+	rm -rf arduino/src/telehash/
 	rm -f id.json
+	cd test; $(MAKE) clean
+	find . -name "*.o" -exec rm -f {} \;

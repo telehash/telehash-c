@@ -1,0 +1,27 @@
+{
+   "name": "telehash-c",
+   "version": "0.3.0",
+   "dependencies": {
+     "libsodium-c":"quartzjer/libsodium-c",
+     "libtomcrypt-c":"quartzjer/libtomcrypt-c#develop"
+   },
+   "devDependencies": {
+   },
+  "description": "A package of the C source code for telehash",
+  "homepage": "https://github.com/telehash/telehash-c",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/telehash/telehash-c.git"
+  },
+  "licenses": [
+  {
+    "type": "MIT",
+    "url": "https://github.com/telehash/telehash-c/raw/master/LICENSE"
+  }
+  ],
+  "author": {
+    "name": "Jeremie Miller",
+    "email": "jeremie@jabber.org",
+    "url": "http://jeremie.com/"
+  }
+}

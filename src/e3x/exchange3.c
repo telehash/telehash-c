@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include "exchange3.h"
+#include "e3x.h"
 #include "platform.h"
 
 // make a new exchange

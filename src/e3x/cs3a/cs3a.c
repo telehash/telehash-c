@@ -2,9 +2,40 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <sodium.h>
-#include "switch.h"
-#include "base64_enc.h"
-#include "base64_dec.h"
+
+cipher3_t cs3a_init(lob_t options)
+{
+  cipher3_t ret = malloc(sizeof(struct cipher3_struct));
+  if(!ret) return NULL;
+  memset(ret,0,sizeof (struct cipher3_struct));
+  
+  // identifying markers
+  ret->id = CS_3a;
+  ret->csid = 0x3a;
+  memcpy(ret->hex,"3a",3);
+  
+  // TODO
+  return ret;
+}
+
+/*
+unsigned char *crypt_rand(unsigned char *s, int len)
+{
+  randombytes_buf((void * const)s, (const size_t)len);
+  return s;
+}
+
+unsigned char *crypt_hash(unsigned char *input, unsigned long len, unsigned char *output)
+{
+  crypto_hash_sha256(output,input,(unsigned long)len);
+  return output;
+}
+
+char *crypt_err()
+{
+  return 0;
+}
+
 
 typedef struct crypt_3a_struct
 {
@@ -240,4 +271,4 @@ lob_t crypt_deopenize_3a(crypt_t self, lob_t open)
 
   return inner;
 }
-
+*/

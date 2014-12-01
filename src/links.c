@@ -2,7 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include "lib/lib.h"
+#include "lib.h"
 
 links_t links_new()
 {

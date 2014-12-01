@@ -3,12 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
-
-#include "e3x.h"
-#include "lob.h"
-#include "hashname.h"
-
-#include "platform.h"
+#include "telehash.h"
 
 int main(int argc, char *argv[])
 {
@@ -40,8 +35,8 @@ int main(int argc, char *argv[])
   id = hashname_keys(keys);
   json = lob_new();
   lob_set(json,"hashname",id->hashname);
-  lob_set_raw(json,"keys",(char*)keys->head,keys->head_len);
-  lob_set_raw(json,"secrets",(char*)secrets->head,secrets->head_len);
+  lob_set_raw(json,"keys",0,(char*)keys->head,keys->head_len);
+  lob_set_raw(json,"secrets",0,(char*)secrets->head,secrets->head_len);
   
   if(argc==1)
   {

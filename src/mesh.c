@@ -59,6 +59,9 @@ mesh_t mesh_free(mesh_t mesh)
   xht_free(mesh->index);
   lob_free(mesh->keys);
   self3_free(mesh->self);
+  if(mesh->uri) free(mesh->uri);
+  if(mesh->ipv4_local) free(mesh->ipv4_local);
+  if(mesh->ipv4_public) free(mesh->ipv4_public);
 
   free(mesh);
   return NULL;
@@ -83,6 +86,31 @@ lob_t mesh_generate(mesh_t mesh)
   if(!secrets) return LOG("failed to generate %s",e3x_err());
   if(mesh_load(mesh, secrets, lob_linked(secrets))) return lob_free(secrets);
   return secrets;
+}
+
+// return the best current URI to this endpoint, optional override protocol
+char *mesh_uri(mesh_t mesh, char *protocol)
+{
+  uri_t uri;
+  if(!mesh) return LOG("bad args");
+
+  // load existing or create new
+  uri = (mesh->uri) ? uri_new(mesh->uri, protocol) : uri_new("127.0.0.1", protocol);
+  
+  // TODO don't override a router-provided base
+
+  // set best current values
+  uri_keys(uri, mesh->keys);
+  if(mesh->port_local) uri_port(uri, mesh->port_local);
+  if(mesh->port_public) uri_port(uri, mesh->port_public);
+  if(mesh->ipv4_local) uri_address(uri, mesh->ipv4_local);
+  if(mesh->ipv4_public) uri_address(uri, mesh->ipv4_public);
+
+  // save/return new encoded output
+  if(mesh->uri) free(mesh->uri);
+  mesh->uri = strdup(uri_encode(uri));
+  uri_free(uri);
+  return mesh->uri;
 }
 
 link_t mesh_add(mesh_t mesh, lob_t json, pipe_t pipe)
@@ -219,7 +247,7 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
     lob_link(outer,inner);
 
     // make sure csid is set on the handshake to get the hashname
-    lob_set_raw(inner,hex,"true",4);
+    lob_set_raw(inner,hex,0,"true",4);
     from = hashname_key(inner);
     if(!from)
     {
@@ -239,14 +267,14 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
       // add the key
       key = lob_new();
       lob_set_base32(key,hex,inner->body,inner->body_len);
-      lob_set_raw(discovered,"keys",(char*)key->head,key->head_len);
+      lob_set_raw(discovered,"keys",0,(char*)key->head,key->head_len);
       lob_free(key);
       // add the path if one
       if(pipe && pipe->path)
       {
         paths = malloc(pipe->path->head_len+2);
         sprintf(paths,"[%s]",lob_json(pipe->path));
-        lob_set_raw(discovered,"paths",paths,pipe->path->head_len+2);
+        lob_set_raw(discovered,"paths",0,paths,pipe->path->head_len+2);
         free(paths);
       }
       mesh_discover(mesh, discovered, pipe);

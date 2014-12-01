@@ -1,6 +1,4 @@
-#include "lob.h"
-#include "base32.h"
-#include "util.h"
+#include "lib.h"
 #include "unit_test.h"
 
 int main(int argc, char **argv)
