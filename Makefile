@@ -45,6 +45,8 @@ FULL_OBJFILES = $(CORE_OBJFILES) $(CS1a_OBJFILES) $(ARCH_OBJFILES)
 IDGEN_OBJFILES = $(CORE_OBJFILES) $(CS1a_OBJFILES) $(ARCH_OBJFILES) util/idgen.o
 ROUTER_OBJFILES = $(CORE_OBJFILES) $(CS1a_OBJFILES) $(ARCH_OBJFILES) unix/util.o util/router.o src/net/tcp4.o src/net/udp4.o
 
+HEADERS=$(wildcard include/*.h)
+
 #all: libmesh libe3x idgen router
 all: idgen router static
 
@@ -75,7 +77,7 @@ test: $(FULL_OBJFILES)
 	
 # my make zen is not high enough right now, is yours?
 
-%.o : %.c
+%.o : %.c $(HEADERS)
 	$(CC) $(INCLUDE) $(CFLAGS) -c $< -o $@
 
 idgen: $(IDGEN_OBJFILES)
