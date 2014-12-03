@@ -1,7 +1,7 @@
 TESTS = lib_base32 lib_lob lib_hashname lib_murmur lib_chunks lib_util \
 		e3x_core e3x_cs1a e3x_self3 e3x_exchange3 e3x_event3 e3x_channel3 \
 		mesh_core net_loopback net_udp4 net_tcp4 ext_link lib_chacha \
-		ext_block lib_uri net_link
+		ext_block lib_uri
 
 CC=gcc
 CFLAGS+=-g -Wall -Wextra -Wno-unused-parameter -DDEBUG
@@ -75,7 +75,7 @@ arduino:
 	mkdir -p arduino/src/telehash/e3x
 	cp src/e3x/*.c src/e3x/*.h arduino/src/telehash/e3x/
 
-test-interop:
+test-interop: net_link.o bin/test_net_link
 	@if ./interop.sh ; then \
 		echo "PASSED: interop.sh"; \
 	else \
@@ -92,8 +92,6 @@ test: build-tests test-interop
 			echo "FAILED: $$test"; exit 1; \
 		fi; \
 	done
-
-# my make zen is not high enough right now, is yours?
 
 build-tests: $(patsubst %,%.o,$(TESTS)) $(patsubst %,bin/test_%,$(TESTS))
 
