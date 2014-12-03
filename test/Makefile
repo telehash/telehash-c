@@ -45,7 +45,10 @@ CS1a_OBJFILES = $(patsubst %.c,../%.o,$(CS1a))
 
 ARCH_OBJFILES = $(patsubst %.c,../%.o,$(ARCH))
 
-FULL_OBJFILES = $(CORE_OBJFILES) $(CS1a_OBJFILES) $(ARCH_OBJFILES)
+OTHER_TEST_FILES=../src/lib/murmur.c ../src/net/loopback.c ../src/net/udp4.c ../src/net/tcp4.c
+OTHER_TEST_OBJFILES=$(patsubst %.c,%.o,$(OTHER_TEST_FILES))
+
+FULL_OBJFILES = $(CORE_OBJFILES) $(CS1a_OBJFILES) $(ARCH_OBJFILES) $(OTHER_TEST_FILES)
 
 #all: libmesh libe3x idgen router
 all: test
@@ -72,14 +75,14 @@ arduino:
 	mkdir -p arduino/src/telehash/e3x
 	cp src/e3x/*.c src/e3x/*.h arduino/src/telehash/e3x/
 
-test-interop: net_link
+test-interop: net_link.o bin/test_net_link
 	@if ./interop.sh ; then \
 		echo "PASSED: interop.sh"; \
 	else \
 		echo "FAILED: interop.sh"; exit 1; \
 	fi;
 
-test: $(TESTS) test-interop
+test: build-tests test-interop
 	@for test in $(TESTS); do \
 		chmod 0755 ./bin/test_$$test && \
 		echo "=====[ running $$test ]=====" && \
@@ -90,74 +93,15 @@ test: $(TESTS) test-interop
 		fi; \
 	done
 
-# my make zen is not high enough right now, is yours?
+build-tests: $(patsubst %,%.o,$(TESTS)) $(patsubst %,bin/test_%,$(TESTS))
+
+bin/test_% : 
+	$(CC) $(INCLUDE) $(CFLAGS) $(patsubst bin/test_%,%.o,$@) -o $@ $(FULL_OBJFILES)
 
 %.o : %.c
 	$(CC) $(INCLUDE) $(CFLAGS) -c $< -o $@
 
-lib_base32:
-	$(CC) $(CFLAGS) $(INCLUDE) -o bin/test_lib_base32 lib_base32.c ../src/lib/base32.c $(INCLUDE)
-
-lib_lob:
-	$(CC) $(CFLAGS) $(INCLUDE) -o bin/test_lib_lob lib_lob.c $(FULL_OBJFILES)
-
-lib_hashname:
-	$(CC) $(CFLAGS) $(INCLUDE) -o bin/test_lib_hashname lib_hashname.c $(FULL_OBJFILES)
-
-lib_murmur:
-	$(CC) $(CFLAGS) $(INCLUDE) -o bin/test_lib_murmur lib_murmur.c ../src/lib/murmur.c $(INCLUDE)
-
-lib_chacha:
-	$(CC) $(CFLAGS) $(INCLUDE) -o bin/test_lib_chacha lib_chacha.c ../src/lib/chacha.c ../src/lib/util.c $(INCLUDE)
-
-lib_chunks:
-	$(CC) $(CFLAGS) $(INCLUDE) -o bin/test_lib_chunks lib_chunks.c $(FULL_OBJFILES)
-
-lib_uri:
-	$(CC) $(CFLAGS) $(INCLUDE) -o bin/test_lib_uri lib_uri.c $(FULL_OBJFILES)
-
-lib_util:
-	$(CC) $(CFLAGS) $(INCLUDE) -o bin/test_lib_util lib_util.c ../src/lib/util.c $(INCLUDE)
-
-e3x_core:
-	$(CC) $(CFLAGS) $(INCLUDE) -o bin/test_e3x_core e3x_core.c ../unix/platform.c ../src/e3x/cs1a_disabled.c ../src/e3x/cs2a_disabled.c ../src/e3x/cs3a_disabled.c $(LIB_OBJFILES) $(E3X_OBJFILES) $(INCLUDE)
-
-e3x_cs1a:
-	$(CC) $(CFLAGS) $(INCLUDE) -o bin/test_e3x_cs1a e3x_cs1a.c $(FULL_OBJFILES)
-
-e3x_self3:
-	$(CC) $(CFLAGS) $(INCLUDE) -o bin/test_e3x_self3 e3x_self3.c $(FULL_OBJFILES)
-
-e3x_exchange3:
-	$(CC) $(CFLAGS) $(INCLUDE) -o bin/test_e3x_exchange3 e3x_exchange3.c $(FULL_OBJFILES)
-
-e3x_event3:
-	$(CC) $(CFLAGS) $(INCLUDE) -o bin/test_e3x_event3 e3x_event3.c $(FULL_OBJFILES)
-
-e3x_channel3:
-	$(CC) $(CFLAGS) $(INCLUDE) -o bin/test_e3x_channel3 e3x_channel3.c $(FULL_OBJFILES)
-
-mesh_core:
-	$(CC) $(CFLAGS) $(INCLUDE) -o bin/test_mesh_core mesh_core.c $(FULL_OBJFILES)
-
-net_loopback:
-	$(CC) $(CFLAGS) $(INCLUDE) -o bin/test_net_loopback net_loopback.c ../src/net/loopback.c $(FULL_OBJFILES)
-
-net_udp4:
-	$(CC) $(CFLAGS) $(INCLUDE) -o bin/test_net_udp4 net_udp4.c ../src/net/udp4.c $(FULL_OBJFILES)
-
-net_tcp4:
-	$(CC) $(CFLAGS) $(INCLUDE) -o bin/test_net_tcp4 net_tcp4.c ../src/net/tcp4.c ../unix/util.c $(FULL_OBJFILES)
-
-net_link:
-	$(CC) $(CFLAGS) $(INCLUDE) -o bin/test_net_link net_link.c ../src/net/udp4.c $(FULL_OBJFILES)
-
-ext_link:
-	$(CC) $(CFLAGS) $(INCLUDE) -o bin/test_ext_link ext_link.c ../src/net/loopback.c $(FULL_OBJFILES)
-
-ext_block:
-	$(CC) $(CFLAGS) $(INCLUDE) -o bin/test_ext_block ext_block.c ../src/net/loopback.c $(FULL_OBJFILES)
-
 clean:
 	rm -rf bin/*
 	rm -f id.json
+	rm *.o
