@@ -174,19 +174,46 @@ enum channel3_states channel3_state(channel3_t c)
 // usually sets/updates event timer, ret if accepted/valid into receiving queue
 uint8_t channel3_receive(channel3_t c, lob_t inner)
 {
-  lob_t end;
+  lob_t end, miss;
+  uint32_t ack;
+
   if(!c || !inner) return 1;
   if(!c->in)
   {
     c->in = inner;
     return 0;
   }
+  
+  // TODO timer checks
+  if(inner == c->timer)
+  {
+    // uhoh or resend
+  }
 
   // TODO reliability
+  if(c->seq)
+  {
+    inner->id = lob_get_int(inner, "seq");
+    if(inner->id)
+    {
+      // track to trigger misses
+    }
+    if((ack = lob_get_int(inner, "ack")))
+    {
+      // remove from cache
+    }
+    if((miss = lob_get_json(inner, "miss")))
+    {
+      // process array, update list of packets that are missed or not
+    }
+    
+  }
 
   end = c->in;
   while(end->next) end = end->next;
   end->next = inner;
+
+  // TODO reset timer stuff
 
   return 0;
 }
@@ -203,15 +230,22 @@ lob_t channel3_receiving(channel3_t c)
 {
   lob_t ret;
   if(!c || !c->in) return NULL;
-  // TODO reliability
+  
   ret = c->in;
   c->in = ret->next;
+
+  // TODO reliability
+  if(c->seq && ret->id)
+  {
+    // we can ack this seq now
+  }
+
   return ret;
 }
 
 // outgoing packets
 
-// creates a packet w/ necessary json, just a convenience
+// creates a packet w/ necessary json, best way to get valid packet for this channel
 lob_t channel3_packet(channel3_t c)
 {
   lob_t ret;
@@ -219,21 +253,26 @@ lob_t channel3_packet(channel3_t c)
   
   ret = lob_new();
   lob_set_int(ret,"c",c->id);
-  // TODO reliability
+
+  // if reliable, add seq
+  if(c->seq)
+  {
+    ret->id = c->seq; // use the lob id for convenience/checks
+    lob_set_int(ret,"seq",c->seq++);
+  }
+
+  // TODO more reliability
+  // if there's ack/miss waiting, add them
+
   return ret;
 }
 
-// adds to sending queue, adds json if needed
+// adds to sending queue, expects valid packet
 uint8_t channel3_send(channel3_t c, lob_t inner)
 {
   lob_t end;
   if(!c || !inner) return 1;
   
-  if(!lob_get_int(inner,"c")) lob_set_int(inner,"c",c->id);
-
-  // if reliable, add seq
-  if(c->seq) lob_set_int(inner,"seq",c->seq++);
-
   LOG("channel send %d %s",c->id,lob_json(inner));
 
   if(!c->out)
@@ -255,6 +294,9 @@ lob_t channel3_sending(channel3_t c)
   lob_t ret;
   if(!c || !c->out) return NULL;
   // TODO reliability
+  // if there's packets to resend based on miss, do those first
+  // if we need to ack and theres no packets, generate one and clear state
+  // if(ret->id) keep a copy of any seq packet to resend
   ret = c->out;
   c->out = ret->next;
   return ret;
