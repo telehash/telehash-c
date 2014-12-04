@@ -1,6 +1,6 @@
-#include "net/tcp4.h"
+#include "net_tcp4.h"
 #include "platform.h"
-#include "../unix/util_unix.h"
+#include "util_unix.h"
 #include "unit_test.h"
 
 int main(int argc, char **argv)

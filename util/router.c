@@ -6,9 +6,9 @@
 #include <netdb.h>
 
 #include "mesh.h"
-#include "../unix/util_unix.h"
-#include "net/udp4.h"
-#include "net/tcp4.h"
+#include "util_unix.h"
+#include "net_udp4.h"
+#include "net_tcp4.h"
 
 int main(int argc, char *argv[])
 {
