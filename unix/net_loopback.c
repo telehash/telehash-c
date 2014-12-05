@@ -1,5 +1,5 @@
 #include <string.h>
-#include "net/loopback.h"
+#include "net_loopback.h"
 
 void pair_send(pipe_t pipe, lob_t packet, link_t link)
 {

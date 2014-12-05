@@ -17,6 +17,7 @@ struct channel3_struct
   char *type;
   lob_t open; // cached for convenience
   enum channel3_states state;
+  uint32_t capacity, max; // totals for windowing
 
   // timer stuff
   uint32_t tsent, trecv; // last send, recv from platform_seconds
@@ -53,6 +54,7 @@ channel3_t channel3_new(lob_t open)
   sprintf(c->c,"%u",id);
   c->open = lob_copy(open);
   c->type = lob_get(open,"type");
+  c->capacity = 1024*1024; // 1MB total default
 
   // generate a unique id in hex
   _uids++;
@@ -303,11 +305,14 @@ lob_t channel3_sending(channel3_t c)
 }
 
 // size (in bytes) of buffered data in or out
-uint32_t channel3_size(channel3_t c)
+uint32_t channel3_size(channel3_t c, uint32_t max)
 {
   uint32_t size = 0;
   lob_t cur;
   if(!c) return 0;
+
+  // update max capacity if given
+  if(max) c->capacity = max;
 
   // add up the sizes of the in and out buffers
   cur = c->in;

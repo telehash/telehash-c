@@ -43,7 +43,7 @@ ARCH_OBJFILES = $(patsubst %.c,%.o,$(ARCH))
 FULL_OBJFILES = $(CORE_OBJFILES) $(CS1a_OBJFILES) $(ARCH_OBJFILES)
 
 IDGEN_OBJFILES = $(CORE_OBJFILES) $(CS1a_OBJFILES) $(ARCH_OBJFILES) util/idgen.o
-ROUTER_OBJFILES = $(CORE_OBJFILES) $(CS1a_OBJFILES) $(ARCH_OBJFILES) unix/util.o util/router.o src/net/tcp4.o src/net/udp4.o
+ROUTER_OBJFILES = $(CORE_OBJFILES) $(CS1a_OBJFILES) $(ARCH_OBJFILES) unix/util.o util/router.o unix/net_tcp4.o unix/net_udp4.o
 
 HEADERS=$(wildcard include/*.h)
 

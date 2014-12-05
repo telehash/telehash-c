@@ -45,7 +45,7 @@ CS1a_OBJFILES = $(patsubst %.c,../%.o,$(CS1a))
 
 ARCH_OBJFILES = $(patsubst %.c,../%.o,$(ARCH))
 
-OTHER_TEST_FILES=../src/lib/murmur.c ../src/net/loopback.c ../src/net/udp4.c ../src/net/tcp4.c
+OTHER_TEST_FILES=../src/lib/murmur.c ../unix/net_loopback.c ../unix/net_udp4.c ../unix/net_tcp4.c
 OTHER_TEST_OBJFILES=$(patsubst %.c,%.o,$(OTHER_TEST_FILES))
 
 FULL_OBJFILES = $(CORE_OBJFILES) $(CS1a_OBJFILES) $(ARCH_OBJFILES) $(OTHER_TEST_FILES)
