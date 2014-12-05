@@ -12,6 +12,9 @@ void channel3_free(channel3_t c);
 // sets new timeout, or returns current time left if 0
 uint32_t channel3_timeout(channel3_t c, event3_t ev, uint32_t timeout);
 
+// sets the max size (in bytes) of all buffered data in or out, returns current usage, can pass 0 just to check
+uint32_t channel3_size(channel3_t c, uint32_t max); // will actively signal incoming window size depending on capacity left
+
 // incoming packets
 uint8_t channel3_receive(channel3_t c, lob_t inner); // usually sets/updates event timer, ret if accepted/valid into receiving queue
 void channel3_sync(channel3_t c, uint8_t sync); // false to force start timers (any new handshake), true to cancel and resend last packet (after any exchange3_sync)
@@ -30,8 +33,6 @@ lob_t channel3_open(channel3_t c); // returns the open packet (always cached)
 
 enum channel3_states { ENDED, OPENING, OPEN };
 enum channel3_states channel3_state(channel3_t c);
-
-uint32_t channel3_size(channel3_t c); // size (in bytes) of buffered data in or out
 
 
 /*
