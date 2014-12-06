@@ -50,23 +50,14 @@ uint32_t event3_at(event3_t ev, uint64_t now)
   return ev->events->id;
 }
 
-// unlink in place consistently
-lob_t _unlink(event3_t ev, lob_t existing)
-{
-  if(!existing) return existing;
-  if(existing->next) existing->next->prev = existing->prev;
-  if(existing->prev) existing->prev->next = existing->next;
-  if(ev->events == existing) ev->events = existing->next;
-  existing->next = existing->prev = NULL;
-  return existing;
-}
-
 // remove and return the lowest lob packet below the given at
 lob_t event3_get(event3_t ev)
 {
+  lob_t ret;
   // no events waiting or none due yet
-  if(!ev || !ev->events || ev->events->id) return NULL;
-  return _unlink(ev, ev->events);
+  if(!ev || !(ret = lob_shift(ev->events))) return NULL;
+  ev->events = ret->next;
+  return ret;
 }
 
 // 0 is delete, event is unique per id
@@ -82,13 +73,13 @@ void event3_set(event3_t ev, lob_t event, char *id, uint32_t at)
     if(existing && existing != event)
     {
       LOG("replacing existing event timer %s",id);
-      _unlink(ev, existing); // unlink in place
+      ev->events = lob_splice(ev->events, existing);
       lob_free(existing);
     }
   }
   
   // make sure it's not already linked somewhere
-  _unlink(ev, event);
+  ev->events = lob_splice(ev->events, event);
 
   // re-link if requested
   if(event && at)
@@ -108,29 +99,16 @@ void event3_set(event3_t ev, lob_t event, char *id, uint32_t at)
     // is it the first one?
     if(at < ev->events->id)
     {
-      event->next = ev->events;
-      ev->events->prev = event;
-      ev->events = event;
+      ev->events = lob_unshift(ev->events, event);
       return;
     }
 
     // find where it will go in the list
     existing = ev->events;
     while(existing->next && existing->next->id < at) existing = existing->next;
-    
-    // hit the end of the list
-    if(!existing->next)
-    {
-      existing->next = event;
-      event->prev = existing;
-      return;
-    }
-    
-    // insert here, we know we're in the list somewhere safely from above checks
-    event->next = existing->next;
-    existing->next->prev = event;
-    event->prev = existing;
-    existing->next = event;
+
+    // inserts it after an existing one
+    ev->events = lob_insert(ev->events, existing, event);
   }
   
 }
