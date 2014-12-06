@@ -95,7 +95,7 @@ test: build-tests test-interop
 
 build-tests: $(patsubst %,%.o,$(TESTS)) $(patsubst %,bin/test_%,$(TESTS))
 
-bin/test_% : 
+bin/test_% : %.o
 	$(CC) $(INCLUDE) $(CFLAGS) $(patsubst bin/test_%,%.o,$@) -o $@ $(FULL_OBJFILES)
 
 %.o : %.c
