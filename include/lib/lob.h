@@ -14,13 +14,15 @@ typedef struct lob_struct
   uint16_t head_len;
   
   // these are all for external use only
-  struct lob_struct *next, *prev;
   uint32_t id;
   void *arg;
 
   // these are internal/private
   struct lob_struct *chain;
   char *cache; // edited copy of the json head
+
+  // used only by the list utils
+  struct lob_struct *next, *prev;
 
 } *lob_t;
 
@@ -97,5 +99,12 @@ lob_t lob_decloak(uint8_t *cloaked, uint32_t len);
 
 // TODO, this would be handy, js syntax to get a json value
 // char *lob_eval(lob_t p, "foo.bar[0]['zzz']");
+
+// manage a basic double-linked list of packets using ->next and ->prev
+lob_t lob_pop(lob_t list);
+lob_t lob_push(lob_t list, lob_t append);
+lob_t lob_shift(lob_t list);
+lob_t lob_unshift(lob_t list, lob_t prepend);
+lob_t lob_splice(lob_t list, lob_t extract);
 
 #endif
