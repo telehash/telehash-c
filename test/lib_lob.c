@@ -81,6 +81,7 @@ int main(int argc, char **argv)
   fail_unless(insert->next == item);
   fail_unless(lob_splice(list,insert));
   fail_unless(list->next == item);
+  fail_unless(lob_freeall(list) == NULL);
   
   return 0;
 }

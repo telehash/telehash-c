@@ -25,13 +25,10 @@ struct channel3_struct
   lob_t timer; // the timer that has been sent to ev
   event3_t ev; // the event manager to update our timer with
   
-  // reliable miss tracking
-  uint32_t miss_nextack;
+  // reliable tracking
   lob_t out;
-  
-  // reliable seq tracking
-  uint32_t seq, seq_nextin, seq_seen, seq_acked;
   lob_t in;
+  uint32_t seq, flush, flushed;
 };
 
 // open must be channel3_receive or channel3_send next yet
@@ -72,25 +69,14 @@ channel3_t channel3_new(lob_t open)
 
 void channel3_free(channel3_t c)
 {
-  lob_t tmp;
   if(!c) return;
   // cancel timeouts
   channel3_timeout(c,NULL,0);
   // free cached packet
   lob_free(c->open);
   // free any other queued packets
-  while(c->in)
-  {
-    tmp = c->in;
-    c->in = tmp->next;
-    lob_free(tmp);
-  }
-  while(c->out)
-  {
-    tmp = c->out;
-    c->out = tmp->next;
-    lob_free(tmp);
-  }
+  lob_freeall(c->in);
+  lob_freeall(c->out);
   free(c);
 };
 

@@ -617,3 +617,12 @@ lob_t lob_insert(lob_t list, lob_t after, lob_t p)
   after->next = p;
   return list;
 }
+
+lob_t lob_freeall(lob_t list)
+{
+  lob_t next;
+  if(!list) return NULL;
+  next = list->next;
+  lob_free(list);
+  return lob_freeall(next);
+}

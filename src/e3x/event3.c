@@ -26,17 +26,10 @@ event3_t event3_new(uint32_t prime, uint64_t now)
 
 void event3_free(event3_t ev)
 {
-  lob_t event, old;
   if(!ev) return;
   // free all events in the list
-  event = ev->events;
-  while(event)
-  {
-    old = event;
-    event = event->next;
-    LOG("unused event %s",lob_get(old,"id"));
-    lob_free(old);
-  }
+  if(ev->events) LOG("freeing unused events");
+  lob_freeall(ev->events);
   if(ev->ids) xht_free(ev->ids);
   free(ev);
 }
