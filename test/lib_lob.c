@@ -64,14 +64,23 @@ int main(int argc, char **argv)
   fail_unless(!raw2);
 //  fail_unless(util_cmp(lob_get(raw2,"test"),"cloaked") == 0);
 
+  // lots of basic list testing
   lob_t list = lob_new();
   lob_t item = lob_new();
   fail_unless(lob_push(list,item));
-//  fail_unless(lob_pop(list) == item);
-  fail_unless(lob_unshift(list,item));
-//  fail_unless(lob_shift(list) == item);
+  fail_unless(lob_pop(list) == item);
+  list = item->next;
+  fail_unless((list = lob_unshift(list,item)));
+  fail_unless(lob_shift(list) == item);
+  list = item->next;
   fail_unless(lob_push(list,item));
-  fail_unless(lob_splice(list,item));
+  fail_unless(list->next == item);
+  lob_t insert = lob_new();
+  fail_unless(lob_insert(list,list,insert));
+  fail_unless(list->next == insert);
+  fail_unless(insert->next == item);
+  fail_unless(lob_splice(list,insert));
+  fail_unless(list->next == item);
   
   return 0;
 }

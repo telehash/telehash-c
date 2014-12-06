@@ -101,10 +101,11 @@ lob_t lob_decloak(uint8_t *cloaked, uint32_t len);
 // char *lob_eval(lob_t p, "foo.bar[0]['zzz']");
 
 // manage a basic double-linked list of packets using ->next and ->prev
-lob_t lob_pop(lob_t list);
-lob_t lob_push(lob_t list, lob_t append);
-lob_t lob_shift(lob_t list);
-lob_t lob_unshift(lob_t list, lob_t prepend);
-lob_t lob_splice(lob_t list, lob_t extract);
+lob_t lob_pop(lob_t list); // returns last item, item->next is the new list
+lob_t lob_push(lob_t list, lob_t append); // appends new item, returns new list
+lob_t lob_shift(lob_t list); // returns first item, item->next is the new list
+lob_t lob_unshift(lob_t list, lob_t prepend); // adds item, returns new list
+lob_t lob_splice(lob_t list, lob_t extract); // removes item from list, returns new list
+lob_t lob_insert(lob_t list, lob_t after, lob_t p); // inserts item in list after other item, returns new list
 
 #endif

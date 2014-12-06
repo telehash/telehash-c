@@ -553,37 +553,67 @@ lob_t lob_decloak(uint8_t *cloaked, uint32_t len)
   return NULL;
 }
 
+// linked list utilities
+
 lob_t lob_pop(lob_t list)
 {
+  lob_t end = list;
   if(!list) return NULL;
-  return list;
+  while(end->next) end = end->next;
+  end->next = lob_splice(list, end);
+  return end;
 }
 
 lob_t lob_push(lob_t list, lob_t p)
 {
-  if(!p) return NULL;
-  p->next = p->prev = NULL;
+  lob_t end;
+  if(!p) return list;
+  list = lob_splice(list, p);
   if(!list) return p;
+  end = list;
+  while(end->next) end = end->next;
+  end->next = p;
+  p->prev = end;
   return list;
 }
 
 lob_t lob_shift(lob_t list)
 {
-  if(!list) return NULL;
-  return list;
+  lob_t start = list;
+  list = lob_splice(list, start);
+  if(start) start->next = list;
+  return start;
 }
 
 lob_t lob_unshift(lob_t list, lob_t p)
 {
-  if(!p) return NULL;
-  p->next = p->prev = NULL;
+  if(!p) return list;
+  list = lob_splice(list, p);
   if(!list) return p;
-  return list;
+  p->next = list;
+  list->prev = p;
+  return p;
 }
 
 lob_t lob_splice(lob_t list, lob_t p)
 {
-  if(!list || !p) return list;
+  if(!p) return list;
+  if(p->next) p->next->prev = p->prev;
+  if(p->prev) p->prev->next = p->next;
+  if(list == p) list = p->next;
+  p->next = p->prev = NULL;
   return list;
 }
 
+lob_t lob_insert(lob_t list, lob_t after, lob_t p)
+{
+  if(!after || !p) return list;
+  list = lob_splice(list, p);
+  if(!list) return LOG("usage error, empty list");
+
+  p->prev = after;
+  p->next = after->next;
+  if(after->next) after->next->prev = p;
+  after->next = p;
+  return list;
+}
