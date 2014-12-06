@@ -53,6 +53,26 @@ int main(int argc, char **argv)
   lob_set(b,"bar","foo");
   fail_unless(lob_cmp(a,b) != 0);
 
+  // test cloaking
+  lob_t raw = lob_new();
+  lob_set(raw,"test","cloaked");
+  char hexed[128];
+  util_hex(lob_cloak(raw,4),lob_len(raw)+(8*4),hexed);
+//  fail_unless(util_cmp(hexed,"67c6697351ff4aec595edb2689e6bc4f43bd49ffe739b84a8b941dda34337565697763657a74706e34726475777a636d6a717865") == 0);
+  uint8_t unhexed[64];
+  lob_t raw2 = lob_decloak(util_unhex(hexed,strlen(hexed),unhexed),strlen(hexed)/2);
+  fail_unless(!raw2);
+//  fail_unless(util_cmp(lob_get(raw2,"test"),"cloaked") == 0);
+
+  lob_t list = lob_new();
+  lob_t item = lob_new();
+  fail_unless(lob_push(list,item));
+//  fail_unless(lob_pop(list) == item);
+  fail_unless(lob_unshift(list,item));
+//  fail_unless(lob_shift(list) == item);
+  fail_unless(lob_push(list,item));
+  fail_unless(lob_splice(list,item));
+  
   return 0;
 }
 

@@ -553,3 +553,37 @@ lob_t lob_decloak(uint8_t *cloaked, uint32_t len)
   return NULL;
 }
 
+lob_t lob_pop(lob_t list)
+{
+  if(!list) return NULL;
+  return list;
+}
+
+lob_t lob_push(lob_t list, lob_t p)
+{
+  if(!p) return NULL;
+  p->next = p->prev = NULL;
+  if(!list) return p;
+  return list;
+}
+
+lob_t lob_shift(lob_t list)
+{
+  if(!list) return NULL;
+  return list;
+}
+
+lob_t lob_unshift(lob_t list, lob_t p)
+{
+  if(!p) return NULL;
+  p->next = p->prev = NULL;
+  if(!list) return p;
+  return list;
+}
+
+lob_t lob_splice(lob_t list, lob_t p)
+{
+  if(!list || !p) return list;
+  return list;
+}
+
