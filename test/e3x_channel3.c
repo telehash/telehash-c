@@ -22,7 +22,7 @@ int main(int argc, char **argv)
   fail_unless(chan);
   fail_unless(channel3_state(chan) == OPENING);
   fail_unless(channel3_id(chan) == 1);
-  fail_unless(channel3_size(chan) == 0);
+  fail_unless(channel3_size(chan,0) == 0);
   fail_unless(channel3_uid(chan) && strlen(channel3_uid(chan)) == 8);
   fail_unless(channel3_c(chan) && strlen(channel3_c(chan)) == 1);
   fail_unless(util_cmp(lob_get(channel3_open(chan),"type"),"test") == 0);
