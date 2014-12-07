@@ -249,6 +249,7 @@ link_t link_receive(link_t link, lob_t inner, pipe_t pipe)
   // see if existing channel and send there
   if((chan = xht_get(link->index, lob_get(inner,"c"))))
   {
+    LOG("\t<-- %s",lob_json(inner));
     if(channel3_receive(chan->c3, inner)) return LOG("channel receive error, dropping %s",lob_json(inner));
     link_pipe(link,pipe); // we trust the pipe at this point
     if(chan->handle) chan->handle(link, chan->c3, chan->arg);
@@ -367,6 +368,7 @@ link_t link_flush(link_t link, channel3_t c3, lob_t inner)
 
   while((inner = channel3_sending(c3)))
   {
+    LOG("\t--> %s",lob_json(inner));
     link_send(link, exchange3_send(link->x, inner));
     lob_free(inner);
   }
