@@ -97,7 +97,7 @@ tests: build-tests
 
 build-tests: $(patsubst %,%.o,$(TESTS)) $(patsubst %,bin/test_%,$(TESTS))
 
-bin/test_% : %.o
+bin/test_% : %.o $(FULL_OBJFILES)
 	$(CC) $(INCLUDE) $(CFLAGS) $(patsubst bin/test_%,%.o,$@) -o $@ $(FULL_OBJFILES)
 
 %.o : %.c
