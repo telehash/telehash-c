@@ -21,8 +21,9 @@ void channel3_sync(channel3_t c, uint8_t sync); // false to force start timers (
 lob_t channel3_receiving(channel3_t c); // get next avail packet in order, null if nothing
 
 // outgoing packets
-lob_t channel3_packet(channel3_t c);  // creates a packet w/ necessary json, just a convenience
-uint8_t channel3_send(channel3_t c, lob_t inner); // adds to sending queue, adds json if needed
+lob_t channel3_oob(channel3_t c); // id/ack/miss only headers base packet
+lob_t channel3_packet(channel3_t c);  // creates a sequenced packet w/ all necessary headers, just a convenience
+uint8_t channel3_send(channel3_t c, lob_t inner); // adds to sending queue
 lob_t channel3_sending(channel3_t c); // must be called after every send or receive, pass pkt to exchange3_encrypt before sending
 
 // convenience functions

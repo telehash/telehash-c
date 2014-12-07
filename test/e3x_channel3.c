@@ -46,7 +46,29 @@ int main(int argc, char **argv)
   fail_unless(channel3_send(chan,outgoing) == 0);
   fail_unless(lob_get_int(channel3_sending(chan),"test") == 42);
   fail_unless(channel3_sending(chan) == NULL);
+
+  // create a reliable channel
+  channel3_free(chan);
+  lob_set(open,"type","test");
+  lob_set_int(open,"seq",1);
+  chan = channel3_new(open);
+  fail_unless(chan);
+  fail_unless(channel3_state(chan) == OPENING);
+  fail_unless(channel3_sending(chan) == NULL);
   
+  // receive an out of order packet
+  lob_t ooo = lob_new();
+  lob_set_int(ooo,"seq",10);
+  fail_unless(channel3_receive(chan, ooo) == 0);
+  fail_unless(channel3_receive(chan, ooo) == 1); // dedup drop
+  fail_unless(channel3_receiving(chan) == NULL); // nothing to receive yet
+  lob_t oob = channel3_sending(chan); // should have triggered an ack/miss
+  printf("OOB %s\n",lob_json(oob));
+  fail_unless(oob);
+  fail_unless(lob_get_int(oob,"seq") == 1);
+  fail_unless(util_cmp(lob_get(oob,"ack"),"0") == 0);
+  fail_unless(util_cmp(lob_get(oob,"miss"),"[10]") == 0);
+
   return 0;
 }
 

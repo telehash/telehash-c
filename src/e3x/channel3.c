@@ -137,7 +137,8 @@ uint32_t channel3_timeout(channel3_t c, event3_t ev, uint32_t timeout)
   c->tsince = platform_seconds(); // start timer now
   c->timeout = timeout;
   c->ev = ev;
-  c->timer = channel3_packet(c);
+  c->timer = lob_new();
+  lob_set_int(c->timer,"c",c->id);
   lob_set(c->timer, "id", c->uid);
   lob_set(c->timer, "err", "timeout");
   event3_set(c->ev, c->timer, lob_get(c->timer, "id"), timeout*1000); // ms in the future
