@@ -59,18 +59,6 @@ void event3_set(event3_t ev, lob_t event, char *id, uint32_t at)
   lob_t existing;
   if(!ev) return;
 
-  // if given an id, and there's a different existing lob, remove it
-  if(id)
-  {
-    existing = xht_get(ev->ids,id);
-    if(existing && existing != event)
-    {
-      LOG("replacing existing event timer %s",id);
-      ev->events = lob_splice(ev->events, existing);
-      lob_free(existing);
-    }
-  }
-  
   // make sure it's not already linked somewhere
   ev->events = lob_splice(ev->events, event);
 
