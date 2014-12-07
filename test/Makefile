@@ -75,6 +75,8 @@ arduino:
 	mkdir -p arduino/src/telehash/e3x
 	cp src/e3x/*.c src/e3x/*.h arduino/src/telehash/e3x/
 
+test: tests test-interop
+
 test-interop: net_link.o bin/test_net_link
 	@if ./interop.sh ; then \
 		echo "PASSED: interop.sh"; \
@@ -82,7 +84,7 @@ test-interop: net_link.o bin/test_net_link
 		echo "FAILED: interop.sh"; exit 1; \
 	fi;
 
-test: build-tests test-interop
+tests: build-tests
 	@for test in $(TESTS); do \
 		chmod 0755 ./bin/test_$$test && \
 		echo "=====[ running $$test ]=====" && \
@@ -95,7 +97,7 @@ test: build-tests test-interop
 
 build-tests: $(patsubst %,%.o,$(TESTS)) $(patsubst %,bin/test_%,$(TESTS))
 
-bin/test_% : %.o
+bin/test_% : %.o $(FULL_OBJFILES)
 	$(CC) $(INCLUDE) $(CFLAGS) $(patsubst bin/test_%,%.o,$@) -o $@ $(FULL_OBJFILES)
 
 %.o : %.c

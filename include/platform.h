@@ -4,6 +4,9 @@
 // returns a number that increments in seconds for comparison (epoch or just since boot)
 unsigned long platform_seconds();
 
+// number of milliseconds since given epoch seconds value
+unsigned long long platform_ms(unsigned long epoch);
+
 unsigned short platform_short(unsigned short x);
 
 // use the platform's best RNG

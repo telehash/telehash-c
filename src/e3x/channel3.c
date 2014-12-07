@@ -14,21 +14,21 @@ struct channel3_struct
   uint32_t id; // wire id (not unique)
   char c[12]; // str of id
   char uid[9]; // process hex id (unique)
-  uint32_t tsent, trecv; // last send, recv
-  uint32_t timeout; // seconds since last trecv to auto-err
-  lob_t open; // cached for convenience
   char *type;
+  lob_t open; // cached for convenience
   enum channel3_states state;
-  event3_t ev;
   uint32_t capacity, max; // totals for windowing
+
+  // timer stuff
+  uint32_t tsent, trecv; // last send, recv from platform_seconds
+  uint32_t tsince, timeout; // tsince=start, timeout is how many seconds before auto-err
+  lob_t timer; // the timer that has been sent to ev
+  event3_t ev; // the event manager to update our timer with
   
-  // reliable miss tracking
-  uint32_t miss_nextack;
-  lob_t out;
-  
-  // reliable seq tracking
-  uint32_t seq, seq_nextin, seq_seen, seq_acked;
+  // reliable tracking
+  lob_t out, sent;
   lob_t in;
+  uint32_t seq, ack, acked, window;
 };
 
 // open must be channel3_receive or channel3_send next yet
@@ -69,25 +69,14 @@ channel3_t channel3_new(lob_t open)
 
 void channel3_free(channel3_t c)
 {
-  lob_t tmp;
   if(!c) return;
   // cancel timeouts
   channel3_timeout(c,NULL,0);
   // free cached packet
   lob_free(c->open);
   // free any other queued packets
-  while(c->in)
-  {
-    tmp = c->in;
-    c->in = tmp->next;
-    lob_free(tmp);
-  }
-  while(c->out)
-  {
-    tmp = c->out;
-    c->out = tmp->next;
-    lob_free(tmp);
-  }
+  lob_freeall(c->in);
+  lob_freeall(c->out);
   free(c);
 };
 
@@ -111,33 +100,49 @@ char *channel3_c(channel3_t c)
   return c->c;
 }
 
+// internally calculate until timeout
+uint32_t _time_left(channel3_t c)
+{
+  uint32_t at = platform_seconds();
+  if(!c) return 0;
+  if(!c->timeout) return 1; // never timeout
+  // some seconds left yet
+  if((at - c->tsince) < c->timeout) return c->timeout - (at - c->tsince);
+  return 0;
+}
+
 // this will set the default inactivity timeout using this event timer and our uid
 uint32_t channel3_timeout(channel3_t c, event3_t ev, uint32_t timeout)
 {
   if(!c) return 0;
 
   // un-set any
-  if(!ev)
+  if(ev != c->ev)
   {
-    // cancel any that may have been stored
+    // cancel and clearn any previous timer state
+    c->timeout = 0;
     if(c->ev) event3_set(c->ev,NULL,c->uid,0);
     c->ev = NULL;
-    c->timeout = 0;
-    return 0;
+    lob_free(c->timer);
+    c->timer = NULL;
   }
   
-  // return how much time is left
-  if(!timeout)
-  {
-    // TODO calculate it
-    return c->timeout;
-  }
+  // no event manager, no timeouts
+  if(!ev) return 0;
+  
+  // no timeout, just return how much time is left
+  if(!timeout) return _time_left(c);
 
   // add/update new timeout
-  c->ev = ev;
+  c->tsince = platform_seconds(); // start timer now
   c->timeout = timeout;
-  // TODO set up a timer
-  return c->timeout;
+  c->ev = ev;
+  c->timer = lob_new();
+  lob_set_int(c->timer,"c",c->id);
+  lob_set(c->timer, "id", c->uid);
+  lob_set(c->timer, "err", "timeout");
+  event3_set(c->ev, c->timer, lob_get(c->timer, "id"), timeout*1000); // ms in the future
+  return _time_left(c);
 }
 
 // returns the open packet (always cached)
@@ -158,19 +163,71 @@ enum channel3_states channel3_state(channel3_t c)
 // usually sets/updates event timer, ret if accepted/valid into receiving queue
 uint8_t channel3_receive(channel3_t c, lob_t inner)
 {
-  lob_t end;
+  lob_t prev, miss;
+  uint32_t ack;
+
   if(!c || !inner) return 1;
-  if(!c->in)
+
+  // TODO timer checks
+  if(inner == c->timer)
   {
-    c->in = inner;
+    // uhoh or resend
+    return 1;
+  }
+  
+  // no reliability, just append and done
+  if(!c->seq)
+  {
+    c->in = lob_push(c->in, inner);
     return 0;
   }
 
-  // TODO reliability
+  // reliability
+  inner->id = lob_get_int(inner, "seq");
 
-  end = c->in;
-  while(end->next) end = end->next;
-  end->next = inner;
+  // if there's an id, it's content
+  if(inner->id)
+  {
+    if(inner->id <= c->acked)
+    {
+      LOG("dropping old seq %d",inner->id);
+      return 1;
+    }
+
+    // insert it sorted
+    prev = c->in;
+    while(prev && prev->id > inner->id) prev = prev->next;
+    if(prev && prev->id == inner->id)
+    {
+      LOG("dropping dup seq %d",inner->id);
+      lob_free(inner);
+      return 1;
+    }
+    c->in = lob_insert(c->in, prev, inner);
+//    LOG("inserted seq %d",c->in?c->in->id:-1);
+  }
+
+  // remove any from outgoing cache that have been ack'd
+  if((ack = lob_get_int(inner, "ack")))
+  {
+    prev = c->out;
+    while(prev && prev->id <= ack)
+    {
+      c->out = lob_splice(c->out, prev);
+      lob_free(prev); // TODO, notify app this packet was ack'd
+      prev = c->out;
+    }
+
+    // process array, update list of packets that are missed or not
+    if((miss = lob_get_json(inner, "miss")))
+    {
+      // set resend flag timestamp on them
+      // update window
+    }
+
+  }
+
+  // TODO reset timer stuff
 
   return 0;
 }
@@ -187,48 +244,105 @@ lob_t channel3_receiving(channel3_t c)
 {
   lob_t ret;
   if(!c || !c->in) return NULL;
-  // TODO reliability
-  ret = c->in;
+
+  // reliable must be sorted, catch when there's a gap
+  if(c->seq && c->in->id != c->ack + 1)
+  {
+    c->acked = c->ack - 1; // this forces an ack+miss on the next sending
+    return NULL;
+  }
+
+  ret = lob_shift(c->in);
   c->in = ret->next;
+  c->ack = ret->id; // track highest processed
+
   return ret;
 }
 
 // outgoing packets
 
-// creates a packet w/ necessary json, just a convenience
+// ack/miss only base packet
+lob_t channel3_oob(channel3_t c)
+{
+  lob_t ret, cur;
+  char *miss;
+  uint32_t seq, len, last, delta;
+  if(!c) return NULL;
+
+  ret = lob_new();
+  lob_set_int(ret,"c",c->id);
+  
+  if(!c->seq) return ret;
+  
+  // check for ack/miss
+  if(c->ack != c->acked)
+  {
+    lob_set_int(ret,"ack",c->ack);
+
+    // also check to include misses
+    cur = c->in;
+    last = c->ack;
+    if(cur && (cur->id - last) != 1)
+    {
+      // I'm so tired of strings in c
+      len = 2;
+      if(!(miss = malloc(len))) return lob_free(ret);
+      len = snprintf(miss,len,"[");
+      for(seq=c->ack+1; cur; seq++)
+      {
+//        LOG("ack %d seq %d last %d cur %d",c->ack,seq,last,cur->id);
+        // if we have this seq, skip to next packet
+        if(cur->id <= seq)
+        {
+          cur = cur->next;
+          continue;
+        }
+        // insert this missing seq delta
+        delta = seq - last;
+        last = seq;
+        len += snprintf(NULL, 0, "%u,", delta) + 1;
+        if(!(miss = realloc(miss, len))) return lob_free(ret);
+        sprintf(miss+strlen(miss),"%u,", delta);
+      }
+      // add current window at the end
+      delta = 100; // TODO calculate this from actual space avail
+      len += snprintf(NULL, 0, "%u]", delta) + 1;
+      if(!(miss = realloc(miss, len))) return lob_free(ret);
+      sprintf(miss+strlen(miss),"%u]", delta);
+      lob_set_raw(ret,"miss",4,miss,strlen(miss));
+    }
+
+    c->acked = c->ack;
+  }
+  
+  return ret;
+}
+
+// creates a packet w/ necessary json, best way to get valid packet for this channel
 lob_t channel3_packet(channel3_t c)
 {
   lob_t ret;
   if(!c) return NULL;
   
-  ret = lob_new();
-  lob_set_int(ret,"c",c->id);
-  // TODO reliability
+  ret = channel3_oob(c);
+
+  // if reliable, add seq here too
+  if(c->seq)
+  {
+    ret->id = c->seq; // use the lob id for convenience/checks
+    lob_set_int(ret,"seq",c->seq++);
+  }
+
   return ret;
 }
 
-// adds to sending queue, adds json if needed
+// adds to sending queue, expects valid packet
 uint8_t channel3_send(channel3_t c, lob_t inner)
 {
-  lob_t end;
   if(!c || !inner) return 1;
   
-  if(!lob_get_int(inner,"c")) lob_set_int(inner,"c",c->id);
-
-  // if reliable, add seq
-  if(c->seq) lob_set_int(inner,"seq",c->seq++);
-
   LOG("channel send %d %s",c->id,lob_json(inner));
-
-  if(!c->out)
-  {
-    c->out = inner;
-    return 0;
-  }
-
-  end = c->out;
-  while(!end->next) end = end->next;
-  end->next = inner;
+  c->out = lob_push(c->out, inner);
 
   return 0;
 }
@@ -237,11 +351,36 @@ uint8_t channel3_send(channel3_t c, lob_t inner)
 lob_t channel3_sending(channel3_t c)
 {
   lob_t ret;
-  if(!c || !c->out) return NULL;
-  // TODO reliability
-  ret = c->out;
-  c->out = ret->next;
-  return ret;
+  uint32_t now;
+  if(!c) return NULL;
+  
+  // packets waiting
+  if(c->out)
+  {
+    ret = lob_shift(c->out);
+    c->out = ret->next;
+    // if it's a content packet and reliable, add to sent list
+    if(c->seq && ret->id) c->sent = lob_push(c->sent, lob_copy(ret));
+    return ret;
+  }
+  
+  // check sent list for any flagged to resend
+  now = platform_seconds();
+  for(ret = c->sent; ret; ret = ret->next)
+  {
+    if(!ret->id) continue;
+    if(ret->id == now) continue;
+    // max once per second throttle resend
+    ret->id = now;
+    return ret;
+  }
+  
+  LOG("sending ack %d acked %d",c->ack,c->acked);
+
+  // if we need to generate an ack/miss yet, do that
+  if(c->ack != c->acked) return channel3_oob(c);
+  
+  return NULL;
 }
 
 // size (in bytes) of buffered data in or out
@@ -270,276 +409,3 @@ uint32_t channel3_size(channel3_t c, uint32_t max)
 
   return size;
 }
-
-/*
-// immediately removes channel, creates/sends packet to app to notify
-void doerror(channel3_t c, lob_t p, char *err)
-{
-  if(c->ended) return;
-  DEBUG_PRINTF("channel fail %d %s %d %d %d",c->id,err?err:lob_get_str(p,"err"),c->timeout,c->tsent,c->trecv);
-
-  // unregister for any more packets immediately
-  xht_set(c->to->chans,(char*)c->hexid,NULL);
-  if(c->id > c->to->chanMax) c->to->chanMax = c->id;
-
-  // convenience to generate error packet
-  if(!p)
-  {
-    if(!(p = lob_new())) return;
-    lob_set_str(p,"err",err?err:"unknown");
-    lob_set_int(p,"c",c->id);
-  }
-
-  // send error to app immediately, will doend() when processed
-  p->next = c->in;
-  c->in = p;
-  channel3_queue(c);
-}
-
-
-channel3_t channel3_reliable(channel3_t c, int window)
-{
-  if(!c || !window || c->tsent || c->trecv || c->reliable) return c;
-  c->reliable = window;
-  channel3_seq_init(c);
-  channel3_miss_init(c);
-  return c;
-}
-
-void channel3_timeout(channel3_t c, uint32_t seconds)
-{
-  if(!c) return;
-  c->timeout = seconds;
-}
-
-// convenience
-void channel3_end(channel3_t c, lob_t p)
-{
-  if(!c) return;
-  if(!p && !(p = channel3_packet(c))) return;
-  lob_set(p,"end","true",4);
-  channel3_send(c,p);
-}
-
-// send errors directly
-channel3_t channel3_fail(channel3_t c, char *err)
-{
-  lob_t p;
-  if(!c) return NULL;
-  if(!(p = lob_new())) return c;
-  doend(c);
-  p->to = c->to;
-  lob_set_str(p,"err",err?err:"unknown");
-  lob_set_int(p,"c",c->id);
-  switch_send(c->s,p);
-  return c;
-}
-
-// smartly send based on what type of channel we are
-void channel3_send(channel3_t c, lob_t p)
-{
-  if(!p) return;
-  if(!c) return (void)lob_free(p);
-  DEBUG_PRINTF("channel out %d %.*s",c->id,p->json_len,p->json);
-  c->tsent = c->s->tick;
-  if(c->reliable && lob_get_str(p,"seq")) p = lob_copy(p); // miss tracks the original p = channel3_packet(), a sad hack
-  if(lob_get_str(p,"err") || util_cmp(lob_get_str(p,"end"),"true") == 0) doend(c); // track sending error/end
-  else if(!c->reliable && !c->opened && !c->in) c->in = lob_copy(p); // if normal unreliable start packet, track for resends
-  
-  switch_send(c->s,p);
-}
-
-// optionally sends reliable channel ack-only if needed
-void channel3_ack(channel3_t c)
-{
-  lob_t p;
-  if(!c || !c->reliable) return;
-  p = channel3_seq_ack(c,NULL);
-  if(!p) return;
-  DEBUG_PRINTF("channel ack %d %.*s",c->id,p->json_len,p->json);
-  switch_send(c->s,p);
-}
-
-void channel3_seq_init(channel3_t c)
-{
-  seq_t s = malloc(sizeof (struct seq_struct));
-  memset(s,0,sizeof (struct seq_struct));
-  s->in = malloc(sizeof (lob_t) * c->reliable);
-  memset(s->in,0,sizeof (lob_t) * c->reliable);
-  c->seq = (void*)s;
-}
-
-void channel3_seq_free(channel3_t c)
-{
-  int i;
-  seq_t s = (seq_t)c->seq;
-  for(i=0;i<c->reliable;i++) lob_free(s->in[i]);
-  free(s->in);
-  free(s);
-}
-
-// add ack, miss to any packet
-lob_t channel3_seq_ack(channel3_t c, lob_t p)
-{
-  char *miss;
-  int i,max;
-  seq_t s = (seq_t)c->seq;
-
-  // determine if we need to ack
-  if(!s->nextin) return p;
-  if(!p && s->acked && s->acked == s->nextin-1) return NULL;
-
-  if(!p)
-  {
-    if(!(p = lob_new())) return NULL;
-    p->to = c->to;
-    lob_set_int(p,"c",c->id);
-    DEBUG_PRINTF("making SEQ only");
-  }
-  s->acked = s->nextin-1;
-  lob_set_int(p,"ack",(int)s->acked);
-
-  // check if miss is not needed
-  if(s->seen < s->nextin || s->in[0]) return p;
-  
-  // create miss array, c sux
-  max = (c->reliable < 10) ? c->reliable : 10;
-  miss = malloc(3+(max*11)); // up to X uint32,'s
-  memcpy(miss,"[\0",2);
-  for(i=0;i<max;i++) if(!s->in[i]) sprintf(miss+strlen(miss),"%d,",(int)s->nextin+i);
-  if(miss[strlen(miss)-1] == ',') miss[strlen(miss)-1] = 0;
-  memcpy(miss+strlen(miss),"]\0",2);
-  lob_set(p,"miss",miss,strlen(miss));
-  free(miss);
-  return p;
-}
-
-// new channel sequenced packet
-lob_t channel3_seq_packet(channel3_t c)
-{
-  lob_t p = lob_new();
-  seq_t s = (seq_t)c->seq;
-  
-  // make sure there's tracking space
-  if(channel3_miss_track(c,s->id,p)) return NULL;
-
-  // set seq and add any acks
-  lob_set_int(p,"seq",(int)s->id++);
-  return channel3_seq_ack(c, p);
-}
-
-// buffers packets until they're in order
-int channel3_seq_receive(channel3_t c, lob_t p)
-{
-  int offset;
-  uint32_t id;
-  char *seq;
-  seq_t s = (seq_t)c->seq;
-
-  // drop or cache incoming packet
-  seq = lob_get_str(p,"seq");
-  id = seq?(uint32_t)strtol(seq,NULL,10):0;
-  offset = id - s->nextin;
-  if(!seq || offset < 0 || offset >= c->reliable || s->in[offset])
-  {
-    lob_free(p);
-  }else{
-    s->in[offset] = p;
-  }
-
-  // track highest seen
-  if(id > s->seen) s->seen = id;
-  
-  return s->in[0] ? 1 : 0;
-}
-
-// returns ordered packets for this channel, updates ack
-lob_t channel3_seq_pop(channel3_t c)
-{
-  lob_t p;
-  seq_t s = (seq_t)c->seq;
-  if(!s->in[0]) return NULL;
-  // pop off the first, slide any others back, and return
-  p = s->in[0];
-  memmove(s->in, s->in+1, (sizeof (lob_t)) * (c->reliable - 1));
-  s->in[c->reliable-1] = 0;
-  s->nextin++;
-  return p;
-}
-
-void channel3_miss_init(channel3_t c)
-{
-  miss_t m = (miss_t)malloc(sizeof (struct miss_struct));
-  memset(m,0,sizeof (struct miss_struct));
-  m->out = (lob_t*)malloc(sizeof (lob_t) * c->reliable);
-  memset(m->out,0,sizeof (lob_t) * c->reliable);
-  c->miss = (void*)m;
-}
-
-void channel3_miss_free(channel3_t c)
-{
-  int i;
-  miss_t m = (miss_t)c->miss;
-  for(i=0;i<c->reliable;i++) lob_free(m->out[i]);
-  free(m->out);
-  free(m);
-}
-
-// 1 when full, backpressure
-int channel3_miss_track(channel3_t c, uint32_t seq, lob_t p)
-{
-  miss_t m = (miss_t)c->miss;
-  if(seq - m->nextack > (uint32_t)(c->reliable - 1))
-  {
-    lob_free(p);
-    return 1;
-  }
-  m->out[seq - m->nextack] = p;
-  return 0;
-}
-
-// looks at incoming miss/ack and resends or frees
-void channel3_miss_check(channel3_t c, lob_t p)
-{
-  uint32_t ack;
-  int offset, i;
-  char *id, *sack;
-  lob_t miss = lob_get_packet(p,"miss");
-  miss_t m = (miss_t)c->miss;
-
-  sack = lob_get_str(p,"ack");
-  if(!sack) return; // grow some
-  ack = (uint32_t)strtol(sack, NULL, 10);
-  // bad data
-  offset = ack - m->nextack;
-  if(offset < 0 || offset >= c->reliable) return;
-
-  // free and shift up to the ack
-  while(m->nextack <= ack)
-  {
-    // TODO FIX, refactor check into two stages
-//    lob_free(m->out[0]);
-    memmove(m->out,m->out+1,(sizeof (lob_t)) * (c->reliable - 1));
-    m->out[c->reliable-1] = 0;
-    m->nextack++;
-  }
-
-  // track any miss packets if we have them and resend
-  if(!miss) return;
-  for(i=0;(id = lob_get_istr(miss,i));i++)
-  {
-    ack = (uint32_t)strtol(id,NULL,10);
-    offset = ack - m->nextack;
-    if(offset >= 0 && offset < c->reliable && m->out[offset]) switch_send(c->s,lob_copy(m->out[offset]));
-  }
-}
-
-// resends all
-void channel3_miss_resend(channel3_t c)
-{
-  int i;
-  miss_t m = (miss_t)c->miss;
-  for(i=0;i<c->reliable;i++) if(m->out[i]) switch_send(c->s,lob_copy(m->out[i]));
-}
-
-*/

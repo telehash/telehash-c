@@ -13,6 +13,14 @@ unsigned long platform_seconds()
   return (unsigned long)time(0);
 }
 
+unsigned long long platform_ms(unsigned long epoch)
+{
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  if(epoch > (unsigned long)tv.tv_sec) return 0;
+  return (unsigned long long)(tv.tv_sec - epoch) * 1000 + (unsigned long long)(tv.tv_usec) / 1000;
+}
+
 unsigned short platform_short(unsigned short x)
 {
   return ntohs(x);
