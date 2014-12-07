@@ -167,12 +167,7 @@ uint8_t channel3_receive(channel3_t c, lob_t inner)
   uint32_t ack;
 
   if(!c || !inner) return 1;
-  if(!c->in)
-  {
-    c->in = inner;
-    return 0;
-  }
-  
+
   // TODO timer checks
   if(inner == c->timer)
   {
@@ -209,6 +204,7 @@ uint8_t channel3_receive(channel3_t c, lob_t inner)
       return 1;
     }
     c->in = lob_insert(c->in, prev, inner);
+//    LOG("inserted seq %d",c->in?c->in->id:-1);
   }
 
   // remove any from outgoing cache that have been ack'd
@@ -249,8 +245,12 @@ lob_t channel3_receiving(channel3_t c)
   lob_t ret;
   if(!c || !c->in) return NULL;
 
-  // reliable must be sorted
-  if(c->seq && c->in->id != c->ack + 1) return NULL; // there's a gap
+  // reliable must be sorted, catch when there's a gap
+  if(c->seq && c->in->id != c->ack + 1)
+  {
+    c->acked = c->ack - 1; // this forces an ack+miss on the next sending
+    return NULL;
+  }
 
   ret = lob_shift(c->in);
   c->in = ret->next;
@@ -266,7 +266,7 @@ lob_t channel3_oob(channel3_t c)
 {
   lob_t ret, cur;
   char *miss;
-  uint32_t len, last, delta;
+  uint32_t seq, len, last, delta;
   if(!c) return NULL;
 
   ret = lob_new();
@@ -288,14 +288,21 @@ lob_t channel3_oob(channel3_t c)
       len = 2;
       if(!(miss = malloc(len))) return lob_free(ret);
       len = snprintf(miss,len,"[");
-      while(cur)
+      for(seq=c->ack+1; cur; seq++)
       {
-        delta = cur->id - last;
-        last = cur->id;
+//        LOG("ack %d seq %d last %d cur %d",c->ack,seq,last,cur->id);
+        // if we have this seq, skip to next packet
+        if(cur->id <= seq)
+        {
+          cur = cur->next;
+          continue;
+        }
+        // insert this missing seq delta
+        delta = seq - last;
+        last = seq;
         len += snprintf(NULL, 0, "%u,", delta) + 1;
         if(!(miss = realloc(miss, len))) return lob_free(ret);
         sprintf(miss+strlen(miss),"%u,", delta);
-        cur = cur->next;
       }
       // add current window at the end
       delta = 100; // TODO calculate this from actual space avail
@@ -368,6 +375,8 @@ lob_t channel3_sending(channel3_t c)
     return ret;
   }
   
+  LOG("sending ack %d acked %d",c->ack,c->acked);
+
   // if we need to generate an ack/miss yet, do that
   if(c->ack != c->acked) return channel3_oob(c);
   

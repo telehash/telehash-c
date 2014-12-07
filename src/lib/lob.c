@@ -18,7 +18,7 @@ lob_t lob_new()
   memset(p,0,sizeof (struct lob_struct));
   if(!(p->raw = malloc(2))) return lob_free(p);
   memset(p->raw,0,2);
-//  DEBUG_PRINTF("packet +++ %d",p);
+//  LOG("LOB++ %d",p);
   return p;
 }
 
@@ -65,7 +65,7 @@ lob_t lob_linked(lob_t parent)
 lob_t lob_free(lob_t p)
 {
   if(!p) return NULL;
-//  DEBUG_PRINTF("packet --- %d",p);
+//  LOG("LOB-- %d",p);
   if(p->chain) lob_free(p->chain);
   if(p->cache) free(p->cache);
   if(p->raw) free(p->raw);
@@ -607,9 +607,10 @@ lob_t lob_splice(lob_t list, lob_t p)
 
 lob_t lob_insert(lob_t list, lob_t after, lob_t p)
 {
-  if(!after || !p) return list;
+  if(!p) return list;
   list = lob_splice(list, p);
-  if(!list) return LOG("usage error, empty list");
+  if(!list) return p;
+  if(!after) return LOG("bad args, need after");
 
   p->prev = after;
   p->next = after->next;

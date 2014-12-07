@@ -59,15 +59,15 @@ int main(int argc, char **argv)
   // receive an out of order packet
   lob_t ooo = lob_new();
   lob_set_int(ooo,"seq",10);
-  fail_unless(channel3_receive(chan, ooo) == 0);
+  fail_unless(channel3_receive(chan, lob_copy(ooo)) == 0);
   fail_unless(channel3_receive(chan, ooo) == 1); // dedup drop
   fail_unless(channel3_receiving(chan) == NULL); // nothing to receive yet
   lob_t oob = channel3_sending(chan); // should have triggered an ack/miss
   printf("OOB %s\n",lob_json(oob));
   fail_unless(oob);
-  fail_unless(lob_get_int(oob,"seq") == 1);
+  fail_unless(lob_get_int(oob,"c") == 1);
   fail_unless(util_cmp(lob_get(oob,"ack"),"0") == 0);
-  fail_unless(util_cmp(lob_get(oob,"miss"),"[10]") == 0);
+  fail_unless(util_cmp(lob_get(oob,"miss"),"[1,1,1,1,1,1,1,1,1,100]") == 0);
 
   return 0;
 }
