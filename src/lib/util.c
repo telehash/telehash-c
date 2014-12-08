@@ -9,6 +9,7 @@ char *util_hex(uint8_t *in, uint32_t len, char *out)
     uint32_t j;
     char *c = out;
     static char *hex = "0123456789abcdef";
+    if(!in || !out || !len) return NULL;
 
     for (j = 0; j < len; j++) {
       *c = hex[((in[j]&240)/16)];
@@ -37,6 +38,8 @@ uint8_t *util_unhex(char *in, uint32_t len, uint8_t *out)
 {
   uint32_t j;
   uint8_t *c = out;
+  if(!c || !in) return NULL;
+  if(!len) len = strlen(in);
   for(j=0; (j+1)<len; j+=2)
   {
     *c = ((hexcode(in[j]) * 16) & 0xF0) + (hexcode(in[j+1]) & 0xF);
