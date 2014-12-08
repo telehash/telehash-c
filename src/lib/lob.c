@@ -533,24 +533,35 @@ static const uint8_t _cloak_key[32] = {0xd7, 0xf0, 0xe5, 0x55, 0x54, 0x62, 0x41,
 // handles cloaking conveniently, len is lob_len()+(8*rounds)
 uint8_t *lob_cloak(lob_t p, uint8_t rounds)
 {
-  uint8_t *ret, len;
+  uint8_t *ret, *cur, len;
   if(!p || !rounds) return lob_raw(p);
   len = lob_len(p);
   len += 8*rounds;
   if(!(ret = malloc(len))) return LOG("OOM needed %d",len);
-  // TODO rounds
-  e3x_rand(ret, 8);
-  memcpy(ret+8,lob_raw(p),lob_len(p));
-  chacha20((uint8_t*)_cloak_key, ret, ret+8, lob_len(p));
+  memset(ret,0,len);
+  memcpy(ret+(8*rounds),lob_raw(p),lob_len(p));
+
+  while(rounds)
+  {
+    cur = ret+(8*(rounds-1));
+    e3x_rand(cur, 8);
+    if(cur[0] == 0) continue; // re-random until not a 0 byte to start
+    rounds--;
+    chacha20((uint8_t*)_cloak_key, cur, cur+8, len-((8*rounds)+8));
+  }
+
   return ret;
 }
 
-// decloaks and parses
+// recursively decloaks and parses
 lob_t lob_decloak(uint8_t *cloaked, uint32_t len)
 {
   if(!cloaked || !len) return LOG("bad args");
-  // TODO
-  return NULL;
+  if(len < 8 || cloaked[0] == 0) return lob_parse(cloaked, len);
+
+  len -= 8;
+  chacha20((uint8_t*)_cloak_key, cloaked, cloaked+8, len);
+  return lob_decloak(cloaked+8, len);
 }
 
 // linked list utilities

@@ -1,4 +1,5 @@
 #include "lib.h"
+#include "e3x.h"
 #include "unit_test.h"
 
 int main(int argc, char **argv)
@@ -54,15 +55,14 @@ int main(int argc, char **argv)
   fail_unless(lob_cmp(a,b) != 0);
 
   // test cloaking
+  fail_unless(e3x_init(NULL) == 0); // for real random numbers
   lob_t raw = lob_new();
   lob_set(raw,"test","cloaked");
-  char hexed[128];
-  util_hex(lob_cloak(raw,4),lob_len(raw)+(8*4),hexed);
-//  fail_unless(util_cmp(hexed,"67c6697351ff4aec595edb2689e6bc4f43bd49ffe739b84a8b941dda34337565697763657a74706e34726475777a636d6a717865") == 0);
-  uint8_t unhexed[64];
-  lob_t raw2 = lob_decloak(util_unhex(hexed,strlen(hexed),unhexed),strlen(hexed)/2);
-  fail_unless(!raw2);
-//  fail_unless(util_cmp(lob_get(raw2,"test"),"cloaked") == 0);
+  uint8_t *cloaked = lob_cloak(raw,4);
+  fail_unless(cloaked[0] != 0);
+  lob_t raw2 = lob_decloak(cloaked, lob_len(raw)+(8*4));
+  fail_unless(raw2);
+  fail_unless(util_cmp(lob_get(raw2,"test"),"cloaked") == 0);
 
   // lots of basic list testing
   lob_t list = lob_new();
