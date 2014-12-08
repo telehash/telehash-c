@@ -60,9 +60,15 @@ int main(int argc, char **argv)
   lob_set(raw,"test","cloaked");
   uint8_t *cloaked = lob_cloak(raw,4);
   fail_unless(cloaked[0] != 0);
+  char hexed[256];
+  util_hex(cloaked,lob_len(raw)+(8*4),hexed);
+  printf("cloaked: %s\n",hexed);
   lob_t raw2 = lob_decloak(cloaked, lob_len(raw)+(8*4));
   fail_unless(raw2);
   fail_unless(util_cmp(lob_get(raw2,"test"),"cloaked") == 0);
+  util_unhex("3a0e0c80506297887655",0,cloaked);
+  raw2 = lob_decloak(cloaked, 10);
+  fail_unless(raw2);
 
   // lots of basic list testing
   lob_t list = lob_new();
