@@ -66,11 +66,11 @@ libtelehash: $(FULL_OBJFILES)
 
 arduino: 
 	mkdir -p arduino/src/telehash
-	cp src/*.c src/*.h arduino/src/telehash/
+	cp src/*.c include/*.h arduino/src/telehash/
 	mkdir -p arduino/src/telehash/lib
-	cp src/lib/*.c src/lib/*.h arduino/src/telehash/lib/
+	cp src/lib/*.c include/lib/*.h arduino/src/telehash/lib/
 	mkdir -p arduino/src/telehash/e3x
-	cp src/e3x/*.c src/e3x/*.h arduino/src/telehash/e3x/
+	cp src/e3x/*.c include/e3x/*.h arduino/src/telehash/e3x/
 
 test: $(FULL_OBJFILES)
 	cd test; $(MAKE) $(MFLAGS)
