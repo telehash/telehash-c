@@ -557,12 +557,9 @@ uint8_t *lob_cloak(lob_t p, uint8_t rounds)
 lob_t lob_decloak(uint8_t *cloaked, uint32_t len)
 {
   if(!cloaked || !len) return LOG("bad args");
-//  char hex[256];
-//  LOG("decloak %d %s",len,util_hex(cloaked,len,hex));
   if(len < 8 || cloaked[0] == 0) return lob_parse(cloaked, len);
-  len -= 8;
-  chacha20((uint8_t*)_cloak_key, cloaked, cloaked+8, len);
-  return lob_decloak(cloaked+8, len);
+  chacha20((uint8_t*)_cloak_key, cloaked, cloaked+8, len-8);
+  return lob_decloak(cloaked+8, len-8);
 }
 
 // linked list utilities
