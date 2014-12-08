@@ -64,6 +64,7 @@ libtelehash: $(FULL_OBJFILES)
 
 .PHONY: arduino test
 
+# TODO this was just brute force to let the IDE build
 arduino: 
 	mkdir -p arduino/src/telehash
 	cp src/*.c include/*.h arduino/src/telehash/
@@ -71,11 +72,20 @@ arduino:
 	cp src/lib/*.c include/lib/*.h arduino/src/telehash/lib/
 	mkdir -p arduino/src/telehash/e3x
 	cp src/e3x/*.c include/e3x/*.h arduino/src/telehash/e3x/
+	cp include/e3x.h arduino/src/telehash/e3x/
+	cp include/e3x.h arduino/src/telehash/lib/
+	mkdir -p arduino/src/telehash/e3x/lib
+	cp include/lib/lob.h arduino/src/telehash/e3x/lib
+	mkdir -p arduino/src/telehash/e3x/e3x
+	cp include/e3x/*.h arduino/src/telehash/e3x/e3x
+	cp include/lib/*.h arduino/src/telehash/e3x/
+	mkdir -p arduino/src/telehash/lib/lib
+	cp include/lib/*.h arduino/src/telehash/lib/lib
+	mkdir -p arduino/src/telehash/lib/e3x
+	cp include/e3x.h include/e3x/*.h arduino/src/telehash/lib/e3x
 
 test: $(FULL_OBJFILES)
 	cd test; $(MAKE) $(MFLAGS)
-	
-# my make zen is not high enough right now, is yours?
 
 %.o : %.c $(HEADERS)
 	$(CC) $(INCLUDE) $(CFLAGS) -c $< -o $@
