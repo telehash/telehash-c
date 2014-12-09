@@ -144,6 +144,7 @@ pipe_t tcp4_pipe(net_tcp4_t net, char *ip, int port)
   inet_aton(ip, &(to->sa.sin_addr));
   to->sa.sin_port = htons(port);
   if(!(to->chunks = chunks_new(0))) return tcp4_free(pipe);
+//  chunks_cloak(to->chunks); // enable cloaking by default
 
   // set up pipe
   pipe->id = strdup(id);
