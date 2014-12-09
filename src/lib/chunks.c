@@ -32,6 +32,7 @@ chunks_t chunks_new(uint8_t size)
   }else{
     chunks->space = size-1;
   }
+
   return chunks;
 }
 
@@ -57,6 +58,8 @@ chunks_t _chunks_gc(chunks_t chunks)
   uint8_t len;
   if(!chunks) return NULL;
 
+//  LOG("CHUNK GC %d %d %s",chunks,chunks->writeat,util_hex(chunks->writing,chunks->writelen,NULL));
+
   // nothing to do
   if(!chunks->writing || !chunks->writeat || !chunks->writelen) return chunks;
 
@@ -80,10 +83,11 @@ chunks_t _chunks_gc(chunks_t chunks)
 chunks_t chunks_send(chunks_t chunks, lob_t out)
 {
   uint32_t start, len, at;
-  uint8_t *raw, size;
+  uint8_t *raw, size, rounds = 1; // TODO random rounds?
   
   // validate and gc first
   if(!_chunks_gc(chunks) || !(len = lob_len(out))) return chunks;
+  if(chunks->cloak) len += (8*rounds);
 
   start = chunks->writelen;
   chunks->writelen += len;
@@ -96,11 +100,8 @@ chunks_t chunks_send(chunks_t chunks, lob_t out)
   }
   
   raw = lob_raw(out);
-  if(chunks->cloak)
-  {
-    raw = lob_cloak(out, 1); // TODO random rounds?
-    len = len + 8;
-  }
+  if(chunks->cloak) raw = lob_cloak(out, rounds);
+  
   for(at = 0; at < len;)
   {
     size = ((len-at) < chunks->space) ? (len-at) : chunks->space;

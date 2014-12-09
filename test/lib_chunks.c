@@ -40,7 +40,7 @@ int main(int argc, char **argv)
   chunks_cloak(cloaked);
   fail_unless(chunks_send(cloaked, packet));
   printf("CLOAK %d\n",chunks_len(cloaked));
-  fail_unless(chunks_len(cloaked) == 109);
+  fail_unless(chunks_len(cloaked) == 117);
 
   // try send and receive by chunk
   chunks_t c1 = chunks_new(20);
