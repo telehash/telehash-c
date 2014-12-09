@@ -49,6 +49,7 @@ HEADERS=$(wildcard include/*.h)
 
 #all: libmesh libe3x idgen router
 all: idgen router static
+	@echo "TODO\t`git grep TODO | wc -l | tr -d ' '`"
 
 # TODO make these lib builds real
 
