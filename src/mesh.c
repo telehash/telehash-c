@@ -281,9 +281,9 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
 
       link = xht_get(mesh->index,from->hashname);
       if (!link) {
-	hashname_free(from);
-	lob_free(outer);
-	return 3;
+        hashname_free(from);
+        lob_free(outer);
+        return 3;
       }
     }
     hashname_free(from);
