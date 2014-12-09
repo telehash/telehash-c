@@ -11,6 +11,9 @@ chunks_t chunks_new(uint8_t size);
 
 chunks_t chunks_free(chunks_t chunks);
 
+// enable automatic cloaking
+chunks_t chunks_cloak(chunks_t chunks);
+
 // turn this packet into chunks and append
 chunks_t chunks_send(chunks_t chunks, lob_t out);
 

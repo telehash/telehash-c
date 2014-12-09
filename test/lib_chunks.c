@@ -35,6 +35,13 @@ int main(int argc, char **argv)
 
   fail_unless(!chunks_free(chunks));
 
+  // try cloaking
+  chunks_t cloaked = chunks_new(20);
+  chunks_cloak(cloaked);
+  fail_unless(chunks_send(cloaked, packet));
+  printf("CLOAK %d\n",chunks_len(cloaked));
+  fail_unless(chunks_len(cloaked) == 109);
+
   // try send and receive by chunk
   chunks_t c1 = chunks_new(20);
   fail_unless(chunks_send(c1, packet));

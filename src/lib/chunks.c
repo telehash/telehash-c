@@ -9,7 +9,7 @@
 
 struct chunks_struct
 {
-  uint8_t space;
+  uint8_t space, cloak;
 
   uint8_t *writing;
   uint32_t writelen, writeat;
@@ -42,6 +42,13 @@ chunks_t chunks_free(chunks_t chunks)
   if(chunks->reading) free(chunks->reading);
   free(chunks);
   return NULL;
+}
+
+// enable automatic cloaking
+chunks_t chunks_cloak(chunks_t chunks)
+{
+  if(chunks) chunks->cloak = 1;
+  return chunks;
 }
 
 // internal to clean up written data
@@ -89,6 +96,11 @@ chunks_t chunks_send(chunks_t chunks, lob_t out)
   }
   
   raw = lob_raw(out);
+  if(chunks->cloak)
+  {
+    raw = lob_cloak(out, 1); // TODO random rounds?
+    len = len + 8;
+  }
   for(at = 0; at < len;)
   {
     size = ((len-at) < chunks->space) ? (len-at) : chunks->space;
@@ -99,6 +111,8 @@ chunks_t chunks_send(chunks_t chunks, lob_t out)
     start += size;
   }
   chunks->writing[start] = 0; // end of chunks, full packet
+  
+  if(chunks->cloak) free(raw);
   
   return chunks;
 }
