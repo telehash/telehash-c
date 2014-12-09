@@ -76,6 +76,7 @@ pipe_t tcp4_flush(pipe_t pipe)
       LOG("wrote %d bytes to %s",len,pipe->id);
     }
   }
+
   while((len = read(to->client, buf, 256)) > 0)
   {
     LOG("reading %d bytes from %s",len,pipe->id);
@@ -100,7 +101,6 @@ void tcp4_send(pipe_t pipe, lob_t packet, link_t link)
 {
   pipe_tcp4_t to = tcp4_to(pipe);
   if(!to || !packet || !link) return;
-  LOG("tcp4 to %s",link->id->hashname);
 
   chunks_send(to->chunks, packet);
   tcp4_flush(pipe);
@@ -113,7 +113,6 @@ pipe_t tcp4_free(pipe_t pipe)
   to = (pipe_tcp4_t)pipe->arg;
   if(!to) return LOG("internal error, invalid pipe, leaking it");
 
-  LOG("removing %d");
   xht_set(to->net->pipes,pipe->id,NULL);
   pipe_free(pipe);
   if(to->client > 0) close(to->client);
@@ -133,8 +132,6 @@ pipe_t tcp4_pipe(net_tcp4_t net, char *ip, int port)
   pipe = xht_get(net->pipes,id);
   if(pipe) return pipe;
 
-  LOG("new pipe to %s",id);
-
   // create new tcp4 pipe
   if(!(pipe = pipe_new("tcp4"))) return NULL;
   if(!(pipe->arg = to = malloc(sizeof (struct pipe_tcp4_struct)))) return pipe_free(pipe);
@@ -144,7 +141,7 @@ pipe_t tcp4_pipe(net_tcp4_t net, char *ip, int port)
   inet_aton(ip, &(to->sa.sin_addr));
   to->sa.sin_port = htons(port);
   if(!(to->chunks = chunks_new(0))) return tcp4_free(pipe);
-//  chunks_cloak(to->chunks); // enable cloaking by default
+  chunks_cloak(to->chunks); // enable cloaking by default
 
   // set up pipe
   pipe->id = strdup(id);
