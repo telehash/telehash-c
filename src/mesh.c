@@ -322,7 +322,7 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
     
   }
   
-  LOG("dropping unknown outer packet with header %d %.*s",outer->head_len,outer->head_len,outer->head);
+  LOG("dropping unknown outer packet with header %d %s",outer->head_len,util_hex(outer->head,outer->head_len,NULL));
   lob_free(outer);
 
   return 10;
