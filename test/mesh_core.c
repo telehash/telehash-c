@@ -46,7 +46,6 @@ int main(int argc, char **argv)
   fail_unless(util_cmp(pipe->type,"test") == 0);
   fail_unless(link->pipes);
 
-
   return 0;
 }
 

@@ -30,6 +30,15 @@ int main(int argc, char **argv)
   lob_set(uri->keys,"0a","test");
   fail_unless(util_cmp(uri_encode(uri),"foo://bar/?0a=test&1a=foo&2a=bar") == 0);
 
+  // load test
+  int i;
+  for(i=0;i<100;i++)
+  {
+    uri = uri_new("link://127.0.0.1:52402/?1a=ao6yg5zcxxrptsmbyefd74qkwq6tudxkse", NULL);
+    fail_unless(uri_encode(uri));
+    uri_free(uri);
+  }
+
   return 0;
 }
 
