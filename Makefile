@@ -53,7 +53,7 @@ all: idgen router static
 
 # TODO make these lib builds real
 
-static: libe3x libtelehash
+static: libe3x libtelehash libtelehash_unix
 
 libe3x: $(E3X_OBJFILES) $(LIB_OBJFILES)
 	rm -f libe3x.a
@@ -62,6 +62,10 @@ libe3x: $(E3X_OBJFILES) $(LIB_OBJFILES)
 libtelehash: $(FULL_OBJFILES)
 	rm -f libtelehash.a
 	ar crs libtelehash.a $(FULL_OBJFILES)
+
+libtelehash_unix: unix/util.o unix/net_tcp4.o unix/net_udp4.o
+	rm -f libtelehash_unix.a
+	ar crs libtelehash_unix.a unix/util.o unix/net_tcp4.o unix/net_udp4.o
 
 .PHONY: arduino test
 
