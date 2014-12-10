@@ -148,6 +148,7 @@ char *uri_encode(uri_t uri)
   len += strlen(uri->address);
   len += 11;
   len += uri->session?strlen(uri->session):0;
+  len += uri->keys?lob_len(uri->keys):0;
   len += uri->token?strlen(uri->token):0;
   if(!(uri->encoded = malloc(len))) return LOG("OOM %d",len);
   memset(uri->encoded,0,len);
