@@ -61,39 +61,5 @@ void mesh_link(mesh_t mesh, link_t link);
 void mesh_on_open(mesh_t mesh, char *id, lob_t (*open)(link_t link, lob_t open));
 lob_t mesh_open(mesh_t mesh, link_t link, lob_t open);
 
-/*
-
-// add hashname as a seed, will automatically trigger a query to it
-void mesh_seed(mesh_t s, hashname_t hn);
-
-// this is already called implicitly by mesh_sending, handles timers
-void mesh_loop(mesh_t s);
-
-// generate a broadcast/handshake ping packet, only send these locally
-lob_t mesh_ping(mesh_t s);
-
-// get a packet to be sent, NULL if none
-lob_t mesh_sending(mesh_t s);
-
-// get a channel that has packets to be processed, NULL if none
-chan_t mesh_pop(mesh_t s);
-
-// encrypts a packet and adds it to the sending queue, mostly internal use
-void mesh_send(mesh_t s, lob_t p);
-// adds to sending queue, internal only
-void mesh_sendingQ(mesh_t s, lob_t p);
-
-// adjust/set the cap of how many lines to maintain (256) and reliable window packet buffer size (32)
-void mesh_capwin(mesh_t s, int cap, int window);
-
-// processes incoming packet, it will free p, leaves in alone (is reusable)
-void mesh_receive(mesh_t s, lob_t p, path_t in);
-
-// tries to send an open (if we need to), mostly internal
-void mesh_open(mesh_t s, hashname_t to, path_t direct);
-
-// sends a note packet to it's channel if it can, !0 for error
-int mesh_note(mesh_t s, lob_t note);
-*/
 
 #endif
