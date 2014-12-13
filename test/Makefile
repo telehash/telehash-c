@@ -83,4 +83,4 @@ bin/test_% : %.o $(FULL_OBJFILES)
 clean:
 	rm -rf bin/*
 	rm -f id.json
-	rm *.o
+	rm -f *.o

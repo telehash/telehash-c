@@ -110,3 +110,4 @@ clean:
 	rm -f id.json
 	cd test; $(MAKE) clean
 	find . -name "*.o" -exec rm -f {} \;
+	rm -f lib*.a
