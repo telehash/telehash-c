@@ -5,6 +5,8 @@
 #include <stdlib.h>
 
 #include "util_sys.h"
+#include "util_uri.h"
+#include "util_chunks.h"
 
 // make sure out is 2*len + 1
 char *util_hex(uint8_t *in, uint32_t len, char *out);

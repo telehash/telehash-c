@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <ctype.h>
 #include "util.h"
-#include "uri.h"
 
 // this is a very verbose/explicit single-pass telehash uri parser, no magic
 uri_t uri_new(char *encoded, char *protocol)
