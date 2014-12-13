@@ -9,7 +9,7 @@ INCLUDE+=-I../unix -I../include -I../include/lib
 
 LIB = src/lib/util.c src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/lib/chunks.c src/lib/chacha.c src/lib/uri.c
 E3X = src/e3x/e3x.c src/e3x/channel3.c src/e3x/self3.c src/e3x/exchange3.c src/e3x/event3.c src/e3x/cipher3.c
-MESH = src/mesh.c src/link.c src/links.c src/pipe.c
+MESH = src/mesh.c src/link.c src/pipe.c
 EXT = src/ext/link.c src/ext/block.c
 
 CS1a = src/e3x/cs1a/aes.c src/e3x/cs1a/hmac.c src/e3x/cs1a/aes128.c src/e3x/cs1a/cs1a.c src/e3x/cs1a/uECC.c src/e3x/cs1a/sha256.c
