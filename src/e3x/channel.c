@@ -8,21 +8,21 @@
 static uint32_t _uids = 0;
 
 // internal only structure, always use accessors
-struct channel3_struct
+struct e3x_channel_struct
 {
   uint32_t id; // wire id (not unique)
   char c[12]; // str of id
   char uid[9]; // process hex id (unique)
   char *type;
   lob_t open; // cached for convenience
-  enum channel3_states state;
+  enum e3x_channel_states state;
   uint32_t capacity, max; // totals for windowing
 
   // timer stuff
   uint32_t tsent, trecv; // last send, recv from util_sys_seconds
   uint32_t tsince, timeout; // tsince=start, timeout is how many seconds before auto-err
   lob_t timer; // the timer that has been sent to ev
-  event3_t ev; // the event manager to update our timer with
+  e3x_event_t ev; // the event manager to update our timer with
   
   // reliable tracking
   lob_t out, sent;
@@ -30,12 +30,12 @@ struct channel3_struct
   uint32_t seq, ack, acked, window;
 };
 
-// open must be channel3_receive or channel3_send next yet
-channel3_t channel3_new(lob_t open)
+// open must be e3x_channel_receive or e3x_channel_send next yet
+e3x_channel_t e3x_channel_new(lob_t open)
 {
   uint32_t id;
   char *type;
-  channel3_t c;
+  e3x_channel_t c;
 
   if(!open) return LOG("open packet required");
   id = (uint32_t)lob_get_int(open,"c");
@@ -43,8 +43,8 @@ channel3_t channel3_new(lob_t open)
   type = lob_get(open,"type");
   if(!type) return LOG("missing channel type");
 
-  c = malloc(sizeof (struct channel3_struct));
-  memset(c,0,sizeof (struct channel3_struct));
+  c = malloc(sizeof (struct e3x_channel_struct));
+  memset(c,0,sizeof (struct e3x_channel_struct));
   c->state = OPENING;
   c->id = id;
   sprintf(c->c,"%u",id);
@@ -66,11 +66,11 @@ channel3_t channel3_new(lob_t open)
   return c;
 }
 
-void channel3_free(channel3_t c)
+void e3x_channel_free(e3x_channel_t c)
 {
   if(!c) return;
   // cancel timeouts
-  channel3_timeout(c,NULL,0);
+  e3x_channel_timeout(c,NULL,0);
   // free cached packet
   lob_free(c->open);
   // free any other queued packets
@@ -80,27 +80,27 @@ void channel3_free(channel3_t c)
 };
 
 // return its unique id in hex
-char *channel3_uid(channel3_t c)
+char *e3x_channel_uid(e3x_channel_t c)
 {
   if(!c) return NULL;
   return c->uid;
 }
 
 // return the numeric per-exchange id
-uint32_t channel3_id(channel3_t c)
+uint32_t e3x_channel_id(e3x_channel_t c)
 {
   if(!c) return 0;
   return c->id;
 }
 
-char *channel3_c(channel3_t c)
+char *e3x_channel_c(e3x_channel_t c)
 {
   if(!c) return NULL;
   return c->c;
 }
 
 // internally calculate until timeout
-uint32_t _time_left(channel3_t c)
+uint32_t _time_left(e3x_channel_t c)
 {
   uint32_t at = util_sys_seconds();
   if(!c) return 0;
@@ -111,7 +111,7 @@ uint32_t _time_left(channel3_t c)
 }
 
 // this will set the default inactivity timeout using this event timer and our uid
-uint32_t channel3_timeout(channel3_t c, event3_t ev, uint32_t timeout)
+uint32_t e3x_channel_timeout(e3x_channel_t c, e3x_event_t ev, uint32_t timeout)
 {
   if(!c) return 0;
 
@@ -120,7 +120,7 @@ uint32_t channel3_timeout(channel3_t c, event3_t ev, uint32_t timeout)
   {
     // cancel and clearn any previous timer state
     c->timeout = 0;
-    if(c->ev) event3_set(c->ev,NULL,c->uid,0);
+    if(c->ev) e3x_event_set(c->ev,NULL,c->uid,0);
     c->ev = NULL;
     lob_free(c->timer);
     c->timer = NULL;
@@ -140,18 +140,18 @@ uint32_t channel3_timeout(channel3_t c, event3_t ev, uint32_t timeout)
   lob_set_int(c->timer,"c",c->id);
   lob_set(c->timer, "id", c->uid);
   lob_set(c->timer, "err", "timeout");
-  event3_set(c->ev, c->timer, lob_get(c->timer, "id"), timeout*1000); // ms in the future
+  e3x_event_set(c->ev, c->timer, lob_get(c->timer, "id"), timeout*1000); // ms in the future
   return _time_left(c);
 }
 
 // returns the open packet (always cached)
-lob_t channel3_open(channel3_t c)
+lob_t e3x_channel_open(e3x_channel_t c)
 {
   if(!c) return NULL;
   return c->open;
 }
 
-enum channel3_states channel3_state(channel3_t c)
+enum e3x_channel_states e3x_channel_state(e3x_channel_t c)
 {
   if(!c) return ENDED;
   return c->state;
@@ -160,7 +160,7 @@ enum channel3_states channel3_state(channel3_t c)
 // incoming packets
 
 // usually sets/updates event timer, ret if accepted/valid into receiving queue
-uint8_t channel3_receive(channel3_t c, lob_t inner)
+uint8_t e3x_channel_receive(e3x_channel_t c, lob_t inner)
 {
   lob_t prev, miss;
   uint32_t ack;
@@ -232,14 +232,14 @@ uint8_t channel3_receive(channel3_t c, lob_t inner)
 }
 
 // false to force start timers (any new handshake), true to cancel and resend last packet (after any e3x_sync)
-void channel3_sync(channel3_t c, uint8_t sync)
+void e3x_channel_sync(e3x_channel_t c, uint8_t sync)
 {
   if(!c) return;
   LOG("%s sync %d TODO",c->uid,sync);
 }
 
 // get next avail packet in order, null if nothing
-lob_t channel3_receiving(channel3_t c)
+lob_t e3x_channel_receiving(e3x_channel_t c)
 {
   lob_t ret;
   if(!c || !c->in) return NULL;
@@ -261,7 +261,7 @@ lob_t channel3_receiving(channel3_t c)
 // outgoing packets
 
 // ack/miss only base packet
-lob_t channel3_oob(channel3_t c)
+lob_t e3x_channel_oob(e3x_channel_t c)
 {
   lob_t ret, cur;
   char *miss;
@@ -318,12 +318,12 @@ lob_t channel3_oob(channel3_t c)
 }
 
 // creates a packet w/ necessary json, best way to get valid packet for this channel
-lob_t channel3_packet(channel3_t c)
+lob_t e3x_channel_packet(e3x_channel_t c)
 {
   lob_t ret;
   if(!c) return NULL;
   
-  ret = channel3_oob(c);
+  ret = e3x_channel_oob(c);
 
   // if reliable, add seq here too
   if(c->seq)
@@ -336,7 +336,7 @@ lob_t channel3_packet(channel3_t c)
 }
 
 // adds to sending queue, expects valid packet
-uint8_t channel3_send(channel3_t c, lob_t inner)
+uint8_t e3x_channel_send(e3x_channel_t c, lob_t inner)
 {
   if(!c || !inner) return 1;
   
@@ -347,7 +347,7 @@ uint8_t channel3_send(channel3_t c, lob_t inner)
 }
 
 // must be called after every send or receive, pass pkt to e3x_encrypt before sending
-lob_t channel3_sending(channel3_t c)
+lob_t e3x_channel_sending(e3x_channel_t c)
 {
   lob_t ret;
   uint32_t now;
@@ -377,13 +377,13 @@ lob_t channel3_sending(channel3_t c)
   LOG("sending ack %d acked %d",c->ack,c->acked);
 
   // if we need to generate an ack/miss yet, do that
-  if(c->ack != c->acked) return channel3_oob(c);
+  if(c->ack != c->acked) return e3x_channel_oob(c);
   
   return NULL;
 }
 
 // size (in bytes) of buffered data in or out
-uint32_t channel3_size(channel3_t c, uint32_t max)
+uint32_t e3x_channel_size(e3x_channel_t c, uint32_t max)
 {
   uint32_t size = 0;
   lob_t cur;

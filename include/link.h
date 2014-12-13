@@ -10,7 +10,7 @@ struct link_struct
 {
   // public link data
   hashname_t id;
-  exchange3_t x;
+  e3x_exchange_t x;
   mesh_t mesh;
   lob_t key;
   uint8_t csid;
@@ -57,13 +57,13 @@ link_t link_resync(link_t link);
 link_t link_ready(link_t link);
 
 // create/track a new channel for this open
-channel3_t link_channel(link_t link, lob_t open);
+e3x_channel_t link_channel(link_t link, lob_t open);
 
 // set up internal handler for all incoming packets on this channel
-link_t link_handle(link_t link, channel3_t c3, void (*handle)(link_t link, channel3_t c3, void *arg), void *arg);
+link_t link_handle(link_t link, e3x_channel_t c3, void (*handle)(link_t link, e3x_channel_t c3, void *arg), void *arg);
 
 // encrpt and send any outgoing packets for this channel, send the inner if given
-link_t link_flush(link_t link, channel3_t c3, lob_t inner);
+link_t link_flush(link_t link, e3x_channel_t c3, lob_t inner);
 
 /*
 // default channel inactivity timeout in seconds

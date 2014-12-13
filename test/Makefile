@@ -1,5 +1,5 @@
 TESTS = lib_base32 lib_lob lib_hashname lib_murmur lib_chunks lib_util \
-		e3x_core e3x_cs1a e3x_self3 e3x_exchange3 e3x_event3 e3x_channel3 \
+		e3x_core e3x_cs1a e3x_self e3x_exchange e3x_event e3x_channel \
 		mesh_core net_loopback net_udp4 net_tcp4 ext_link lib_chacha \
 		ext_block lib_uri
 
@@ -8,7 +8,7 @@ CFLAGS+=-g -Wall -Wextra -Wno-unused-parameter -DDEBUG
 INCLUDE+=-I../unix -I../include -I../include/lib
 
 LIB = src/util/util.c src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/util/chunks.c src/lib/chacha.c src/util/uri.c
-E3X = src/e3x/e3x.c src/e3x/channel3.c src/e3x/self3.c src/e3x/exchange3.c src/e3x/event3.c src/e3x/cipher3.c
+E3X = src/e3x/e3x.c src/e3x/channel.c src/e3x/self.c src/e3x/exchange.c src/e3x/event.c src/e3x/cipher.c
 MESH = src/mesh.c src/link.c src/pipe.c
 EXT = src/ext/link.c src/ext/block.c
 

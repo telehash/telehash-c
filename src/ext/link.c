@@ -1,13 +1,13 @@
 #include "ext.h"
 
 // handle incoming packets for the built-in link channel
-void link_chan_handler(link_t link, channel3_t chan, void *arg)
+void link_chan_handler(link_t link, e3x_channel_t chan, void *arg)
 {
   lob_t status, open, packet;
   if(!link) return;
 
-  open = channel3_open(chan);
-  while((packet = channel3_receiving(chan)))
+  open = e3x_channel_open(chan);
+  while((packet = e3x_channel_receiving(chan)))
   {
     lob_free(lob_unlink(open));
     if(lob_get(packet,"err"))
@@ -28,7 +28,7 @@ void link_chan_handler(link_t link, channel3_t chan, void *arg)
 // new incoming link channel, set up handler
 lob_t link_on_open(link_t link, lob_t open)
 {
-  channel3_t chan;
+  e3x_channel_t chan;
   if(!link) return open;
   if(lob_get_cmp(open,"type","link")) return open;
   
@@ -40,7 +40,7 @@ lob_t link_on_open(link_t link, lob_t open)
   chan = link_channel(link, open);
   link_handle(link,chan,link_chan_handler,NULL);
   xht_set(link->index,"link",chan);
-  channel3_receive(chan,open);
+  e3x_channel_receive(chan,open);
   link_chan_handler(link,chan,NULL);
   return NULL;
 }
@@ -48,11 +48,11 @@ lob_t link_on_open(link_t link, lob_t open)
 // get/set/change the link status (err to mark down)
 lob_t ext_link_status(link_t link, lob_t status)
 {
-  channel3_t chan;
+  e3x_channel_t chan;
   lob_t open, wrap;
 
   if(!link) return LOG("bad args");
-  chan = (channel3_t)xht_get(link->index, "link");
+  chan = (e3x_channel_t)xht_get(link->index, "link");
   if(!chan)
   {
     if(!status) return LOG("link down");
@@ -67,7 +67,7 @@ lob_t ext_link_status(link_t link, lob_t status)
     return NULL;
   }
   
-  open = channel3_open(chan);
+  open = e3x_channel_open(chan);
   if(!open) return LOG("internal error");
 
   if(status)
@@ -90,16 +90,16 @@ lob_t ext_link_status(link_t link, lob_t status)
 // auto-link
 void link_on_link(link_t link)
 {
-  channel3_t chan;
+  e3x_channel_t chan;
   if(!link_ready(link)) return;
 
-  chan = (channel3_t)xht_get(link->index, "link");
-  if(lob_get(channel3_open(chan),"auto")) return; // already sent
+  chan = (e3x_channel_t)xht_get(link->index, "link");
+  if(lob_get(e3x_channel_open(chan),"auto")) return; // already sent
 
   LOG("auto-linking");
   ext_link_status(link,lob_new());
-  chan = (channel3_t)xht_get(link->index, "link"); // chan may have been created by status
-  lob_set(channel3_open(chan),"auto","true");
+  chan = (e3x_channel_t)xht_get(link->index, "link"); // chan may have been created by status
+  lob_set(e3x_channel_open(chan),"auto","true");
 }
 
 mesh_t ext_link_auto(mesh_t mesh)

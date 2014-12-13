@@ -1,20 +1,20 @@
-#ifndef self3_h
-#define self3_h
+#ifndef e3x_self_h
+#define e3x_self_h
 
 #include "e3x_cipher.h"
 
-typedef struct self3_struct
+typedef struct e3x_self_struct
 {
   lob_t keys[CS_MAX];
   local_t locals[CS_MAX];
-} *self3_t;
+} *e3x_self_t;
 
 // load id secrets/keys to create a new local endpoint
-self3_t self3_new(lob_t secrets, lob_t keys);
-void self3_free(self3_t self); // any exchanges must have been free'd first
+e3x_self_t e3x_self_new(lob_t secrets, lob_t keys);
+void e3x_self_free(e3x_self_t self); // any exchanges must have been free'd first
 
 // try to decrypt any message sent to us, returns the inner
-lob_t self3_decrypt(self3_t self, lob_t message);
+lob_t e3x_self_decrypt(e3x_self_t self, lob_t message);
 
 
 #endif

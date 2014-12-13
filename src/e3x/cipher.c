@@ -5,38 +5,38 @@
 #include "e3x.h"
 #include "util.h"
 
-cipher3_t cipher3_sets[CS_MAX];
-cipher3_t cipher3_default = NULL;
+e3x_cipher_t e3x_cipher_sets[CS_MAX];
+e3x_cipher_t e3x_cipher_default = NULL;
 
-uint8_t cipher3_init(lob_t options)
+uint8_t e3x_cipher_init(lob_t options)
 {
-  cipher3_default = NULL;
-  memset(cipher3_sets, 0, CS_MAX * sizeof(cipher3_t));
+  e3x_cipher_default = NULL;
+  memset(e3x_cipher_sets, 0, CS_MAX * sizeof(e3x_cipher_t));
   
-  cipher3_sets[CS_1a] = cs1a_init(options);
-  if(cipher3_sets[CS_1a]) cipher3_default = cipher3_sets[CS_1a];
+  e3x_cipher_sets[CS_1a] = cs1a_init(options);
+  if(e3x_cipher_sets[CS_1a]) e3x_cipher_default = e3x_cipher_sets[CS_1a];
   if(lob_get(options, "err")) return 1;
 
-  cipher3_sets[CS_2a] = cs2a_init(options);
-  if(cipher3_sets[CS_2a]) cipher3_default = cipher3_sets[CS_2a];
+  e3x_cipher_sets[CS_2a] = cs2a_init(options);
+  if(e3x_cipher_sets[CS_2a]) e3x_cipher_default = e3x_cipher_sets[CS_2a];
   if(lob_get(options, "err")) return 1;
 
-  cipher3_sets[CS_3a] = cs3a_init(options);
-  if(cipher3_sets[CS_3a]) cipher3_default = cipher3_sets[CS_3a];
+  e3x_cipher_sets[CS_3a] = cs3a_init(options);
+  if(e3x_cipher_sets[CS_3a]) e3x_cipher_default = e3x_cipher_sets[CS_3a];
   if(lob_get(options, "err")) return 1;
 
   return 0;
 }
 
-cipher3_t cipher3_set(uint8_t csid, char *hex)
+e3x_cipher_t e3x_cipher_set(uint8_t csid, char *hex)
 {
   uint8_t i;
 
   for(i=0; i<CS_MAX; i++)
   {
-    if(!cipher3_sets[i]) continue;
-    if(cipher3_sets[i]->csid == csid) return cipher3_sets[i];
-    if(hex && strcasecmp(cipher3_sets[i]->hex,hex) == 0) return cipher3_sets[i];
+    if(!e3x_cipher_sets[i]) continue;
+    if(e3x_cipher_sets[i]->csid == csid) return e3x_cipher_sets[i];
+    if(hex && strcasecmp(e3x_cipher_sets[i]->hex,hex) == 0) return e3x_cipher_sets[i];
   }
 
   return NULL;

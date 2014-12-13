@@ -5,25 +5,25 @@
 #include "util_sys.h"
 
 // load secrets/keys to create a new local endpoint
-self3_t self3_new(lob_t secrets, lob_t keys)
+e3x_self_t e3x_self_new(lob_t secrets, lob_t keys)
 {
   uint8_t i, csids = 0, hash[32];
-  self3_t self;
+  e3x_self_t self;
   if(!keys) keys = lob_linked(secrets); // convenience
   if(!keys) return NULL;
 
-  if(!(self = malloc(sizeof (struct self3_struct)))) return NULL;
-  memset(self,0,sizeof (struct self3_struct));
+  if(!(self = malloc(sizeof (struct e3x_self_struct)))) return NULL;
+  memset(self,0,sizeof (struct e3x_self_struct));
 
   // give each cset a chance to make a local
   for(i=0; i<CS_MAX; i++)
   {
-    if(!cipher3_sets[i] || !cipher3_sets[i]->local_new) continue;
-    self->locals[i] = cipher3_sets[i]->local_new(keys, secrets);
+    if(!e3x_cipher_sets[i] || !e3x_cipher_sets[i]->local_new) continue;
+    self->locals[i] = e3x_cipher_sets[i]->local_new(keys, secrets);
     if(!self->locals[i]) continue;
     // make a copy of the binary and encoded keys
-    self->keys[i] = lob_get_base32(keys, cipher3_sets[i]->hex);
-    lob_set(self->keys[i],"key",lob_get(keys,cipher3_sets[i]->hex));
+    self->keys[i] = lob_get_base32(keys, e3x_cipher_sets[i]->hex);
+    lob_set(self->keys[i],"key",lob_get(keys,e3x_cipher_sets[i]->hex));
     // make a hash for the intermediate form for hashnames
     e3x_hash(self->keys[i]->body,self->keys[i]->body_len,hash);
     lob_set_base32(self->keys[i],"hash",hash,32);
@@ -32,7 +32,7 @@ self3_t self3_new(lob_t secrets, lob_t keys)
 
   if(!csids)
   {
-    self3_free(self);
+    e3x_self_free(self);
     return LOG("self failed for %.*s",keys->head_len,keys->head);
   }
 
@@ -41,7 +41,7 @@ self3_t self3_new(lob_t secrets, lob_t keys)
 }
 
 // any exchanges must have been free'd first
-void self3_free(self3_t self)
+void e3x_self_free(e3x_self_t self)
 {
   uint8_t i;
   if(!self) return;
@@ -50,7 +50,7 @@ void self3_free(self3_t self)
   for(i=0; i<CS_MAX; i++)
   {
     if(!self->locals[i]) continue;
-    cipher3_sets[i]->local_free(self->locals[i]);
+    e3x_cipher_sets[i]->local_free(self->locals[i]);
     lob_free(self->keys[i]);
   }
 
@@ -59,12 +59,12 @@ void self3_free(self3_t self)
 }
 
 // try to decrypt any message sent to us, returns the inner
-lob_t self3_decrypt(self3_t self, lob_t message)
+lob_t e3x_self_decrypt(e3x_self_t self, lob_t message)
 {
-  cipher3_t cs;
+  e3x_cipher_t cs;
   if(!self || !message) return LOG("bad args");
   if(message->head_len != 1) return LOG("invalid message");
-  cs = cipher3_set(message->head[0],NULL);
+  cs = e3x_cipher_set(message->head[0],NULL);
   if(!cs) return LOG("no cipherset %2x",message->head[0]);
   return cs->local_decrypt(self->locals[cs->id],message);
 }

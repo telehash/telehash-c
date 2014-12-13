@@ -6,21 +6,21 @@
 
 // make a new exchange
 // packet must contain the raw key in the body
-exchange3_t exchange3_new(self3_t self, uint8_t csid, lob_t key)
+e3x_exchange_t e3x_exchange_new(e3x_self_t self, uint8_t csid, lob_t key)
 {
   uint8_t i, token[16];
-  exchange3_t x;
+  e3x_exchange_t x;
   remote_t remote;
-  cipher3_t cs = NULL;
+  e3x_cipher_t cs = NULL;
 
   if(!self || !csid || !key || !key->body_len) return LOG("bad args");
 
   // find matching csid
   for(i=0; i<CS_MAX; i++)
   {
-    if(cipher3_sets[i]->csid != csid) continue;
+    if(e3x_cipher_sets[i]->csid != csid) continue;
     if(!self->locals[i]) continue;
-    cs = cipher3_sets[i];
+    cs = e3x_cipher_sets[i];
     break;
   }
 
@@ -28,8 +28,8 @@ exchange3_t exchange3_new(self3_t self, uint8_t csid, lob_t key)
   remote = cs->remote_new(key, token);
   if(!remote) return LOG("failed to create %x remote %s",csid,cs->err());
 
-  if(!(x = malloc(sizeof (struct exchange3_struct)))) return NULL;
-  memset(x,0,sizeof (struct exchange3_struct));
+  if(!(x = malloc(sizeof (struct e3x_exchange_struct)))) return NULL;
+  memset(x,0,sizeof (struct e3x_exchange_struct));
 
   x->csid = csid;
   x->remote = remote;
@@ -49,7 +49,7 @@ exchange3_t exchange3_new(self3_t self, uint8_t csid, lob_t key)
   return x;
 }
 
-void exchange3_free(exchange3_t x)
+void e3x_exchange_free(e3x_exchange_t x)
 {
   if(!x) return;
   x->cs->remote_free(x->remote);
@@ -59,21 +59,21 @@ void exchange3_free(exchange3_t x)
 
 // these require a self (local) and an exchange (remote) but are exchange independent
 // will safely set/increment at if 0
-lob_t exchange3_message(exchange3_t x, lob_t inner)
+lob_t e3x_exchange_message(e3x_exchange_t x, lob_t inner)
 {
   if(!x || !inner) return LOG("bad args");
   return x->cs->remote_encrypt(x->remote,x->self->locals[x->cs->id],inner);
 }
 
 // any handshake verify fail (lower seq), always resend handshake
-uint8_t exchange3_verify(exchange3_t x, lob_t outer)
+uint8_t e3x_exchange_verify(e3x_exchange_t x, lob_t outer)
 {
   if(!x || !outer) return 1;
   return x->cs->remote_verify(x->remote,x->self->locals[x->cs->id],outer);
 }
 
 // will return the current outgoing at value, optional arg to update it
-uint32_t exchange3_out(exchange3_t x, uint32_t at)
+uint32_t e3x_exchange_out(e3x_exchange_t x, uint32_t at)
 {
   if(!x) return 0;
 
@@ -94,7 +94,7 @@ uint32_t exchange3_out(exchange3_t x, uint32_t at)
 }
 
 // return the current incoming at value, optional arg to update it
-uint32_t exchange3_in(exchange3_t x, uint32_t at)
+uint32_t e3x_exchange_in(e3x_exchange_t x, uint32_t at)
 {
   if(!x) return 0;
 
@@ -105,7 +105,7 @@ uint32_t exchange3_in(exchange3_t x, uint32_t at)
 }
 
 // synchronize to incoming ephemeral key and set out at = in at, returns x if success, NULL if not
-exchange3_t exchange3_sync(exchange3_t x, lob_t outer)
+e3x_exchange_t e3x_exchange_sync(e3x_exchange_t x, lob_t outer)
 {
   ephemeral_t ephem;
   if(!x || !outer) return LOG("bad args");
@@ -128,8 +128,8 @@ exchange3_t exchange3_sync(exchange3_t x, lob_t outer)
   return x;
 }
 
-// just a convenience, generates handshake w/ current exchange3_at value
-lob_t exchange3_handshake(exchange3_t x)
+// just a convenience, generates handshake w/ current e3x_exchange_at value
+lob_t e3x_exchange_handshake(e3x_exchange_t x)
 {
   lob_t inner, key;
   uint8_t i;
@@ -145,19 +145,19 @@ lob_t exchange3_handshake(exchange3_t x)
   {
     if(!(key = x->self->keys[i])) continue;
     // this csid's key is the body, rest is intermediate in json
-    if(cipher3_sets[i] == x->cs)
+    if(e3x_cipher_sets[i] == x->cs)
     {
       lob_body(inner,key->body,key->body_len);
     }else{
-      lob_set(inner,cipher3_sets[i]->hex,lob_get(key,"hash"));
+      lob_set(inner,e3x_cipher_sets[i]->hex,lob_get(key,"hash"));
     }
   }
 
-  return exchange3_message(x, inner);
+  return e3x_exchange_message(x, inner);
 }
 
 // simple encrypt/decrypt conversion of any packet for channels
-lob_t exchange3_receive(exchange3_t x, lob_t outer)
+lob_t e3x_exchange_receive(e3x_exchange_t x, lob_t outer)
 {
   lob_t inner;
   if(!x || !outer) return LOG("invalid args");
@@ -169,7 +169,7 @@ lob_t exchange3_receive(exchange3_t x, lob_t outer)
 }
 
 // comes from channel 
-lob_t exchange3_send(exchange3_t x, lob_t inner)
+lob_t e3x_exchange_send(e3x_exchange_t x, lob_t inner)
 {
   lob_t outer;
   if(!x || !inner) return LOG("invalid args");
@@ -181,7 +181,7 @@ lob_t exchange3_send(exchange3_t x, lob_t inner)
 }
 
 // validate the next incoming channel id from the packet, or return the next avail outgoing channel id
-uint32_t exchange3_cid(exchange3_t x, lob_t incoming)
+uint32_t e3x_exchange_cid(e3x_exchange_t x, lob_t incoming)
 {
   uint32_t cid;
   if(!x) return 0;
@@ -203,7 +203,7 @@ uint32_t exchange3_cid(exchange3_t x, lob_t incoming)
   return cid;
 }
 
-uint8_t *exchange3_token(exchange3_t x)
+uint8_t *e3x_exchange_token(e3x_exchange_t x)
 {
   if(!x) return NULL;
   return x->token;

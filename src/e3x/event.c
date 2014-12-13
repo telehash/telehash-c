@@ -3,7 +3,7 @@
 #include "xht.h"
 #include "util_sys.h"
 
-struct event3_struct
+struct e3x_event_struct
 {
   lob_t events;
   xht_t ids;
@@ -11,12 +11,12 @@ struct event3_struct
 };
 
 // track a list of of future-scheduled events
-event3_t event3_new(uint32_t prime, uint64_t now)
+e3x_event_t e3x_event_new(uint32_t prime, uint64_t now)
 {
-  event3_t ev;
+  e3x_event_t ev;
 
-  if(!(ev = malloc(sizeof (struct event3_struct)))) return NULL;
-  memset(ev,0,sizeof (struct event3_struct));
+  if(!(ev = malloc(sizeof (struct e3x_event_struct)))) return NULL;
+  memset(ev,0,sizeof (struct e3x_event_struct));
   
   ev->now = now;
   if(prime) ev->ids = xht_new(prime);
@@ -24,7 +24,7 @@ event3_t event3_new(uint32_t prime, uint64_t now)
   return ev;
 }
 
-void event3_free(event3_t ev)
+void e3x_event_free(e3x_event_t ev)
 {
   if(!ev) return;
   // free all events in the list
@@ -35,7 +35,7 @@ void event3_free(event3_t ev)
 }
 
 // the next lowest at value, or 0 if none
-uint32_t event3_at(event3_t ev, uint64_t now)
+uint32_t e3x_event_at(e3x_event_t ev, uint64_t now)
 {
   if(!ev || !ev->events) return UINT32_MAX;
   // TODO rebase!
@@ -44,7 +44,7 @@ uint32_t event3_at(event3_t ev, uint64_t now)
 }
 
 // remove and return the lowest lob packet below the given at
-lob_t event3_get(event3_t ev)
+lob_t e3x_event_get(e3x_event_t ev)
 {
   lob_t ret;
   // no events waiting or none due yet
@@ -54,7 +54,7 @@ lob_t event3_get(event3_t ev)
 }
 
 // 0 is delete, event is unique per id
-void event3_set(event3_t ev, lob_t event, char *id, uint32_t at)
+void e3x_event_set(e3x_event_t ev, lob_t event, char *id, uint32_t at)
 {
   lob_t existing;
   if(!ev) return;

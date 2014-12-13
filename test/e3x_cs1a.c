@@ -15,9 +15,9 @@ int main(int argc, char **argv)
   fail_unless(e3x_init(opts) == 0);
   fail_unless(!e3x_err());
 
-  cipher3_t cs = cipher3_set(0x1a,NULL);
+  e3x_cipher_t cs = e3x_cipher_set(0x1a,NULL);
   fail_unless(cs);
-  cs = cipher3_set(0,"1a");
+  cs = e3x_cipher_set(0,"1a");
   fail_unless(cs);
   fail_unless(cs->id == CS_1a);
   

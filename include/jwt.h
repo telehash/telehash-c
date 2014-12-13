@@ -21,7 +21,7 @@ uint8_t *jwt_raw(lob_t token); // lob-encoded raw bytes of whole thing
 uint32_t jwt_len(lob_t token); // length of raw bytes
 
 // TODO, WIP as to _how_ to do this yet
-lob_t jwt_verify(lob_t token, lob_t key); // probably use exchange3_verify and have it recognize?
-lob_t jwt_sign(lob_t token, lob_t key); // probably add self3_sign?
+lob_t jwt_verify(lob_t token, lob_t key); // probably use e3x_exchange_verify and have it recognize?
+lob_t jwt_sign(lob_t token, lob_t key); // probably add e3x_self_sign?
 
 #endif

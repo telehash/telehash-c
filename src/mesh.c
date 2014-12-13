@@ -58,7 +58,7 @@ mesh_t mesh_free(mesh_t mesh)
 
   xht_free(mesh->index);
   lob_free(mesh->keys);
-  self3_free(mesh->self);
+  e3x_self_free(mesh->self);
   if(mesh->uri) free(mesh->uri);
   if(mesh->ipv4_local) free(mesh->ipv4_local);
   if(mesh->ipv4_public) free(mesh->ipv4_public);
@@ -71,7 +71,7 @@ mesh_t mesh_free(mesh_t mesh)
 uint8_t mesh_load(mesh_t mesh, lob_t secrets, lob_t keys)
 {
   if(!mesh || !secrets || !keys) return 1;
-  if(!(mesh->self = self3_new(secrets, keys))) return 2;
+  if(!(mesh->self = e3x_self_new(secrets, keys))) return 2;
   mesh->keys = lob_copy(keys);
   mesh->id = hashname_keys(mesh->keys);
   return 0;
@@ -235,7 +235,7 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
   if(outer->head_len == 1)
   {
     util_hex(outer->head,1,hex);
-    inner = self3_decrypt(mesh->self, outer);
+    inner = e3x_self_decrypt(mesh->self, outer);
     if(!inner)
     {
       LOG("%s handshake failed %s",hex,e3x_err());
@@ -309,7 +309,7 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
       return 6;
     }
 
-    inner = exchange3_receive(link->x, outer);
+    inner = e3x_exchange_receive(link->x, outer);
     if(!inner)
     {
       LOG("channel decryption fail for link %s %s",link->id->hashname,e3x_err());

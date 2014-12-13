@@ -8,7 +8,7 @@ int main(int argc, char **argv)
   lob_t id = e3x_generate();
   fail_unless(id);
 
-  self3_t self = self3_new(id,NULL);
+  e3x_self_t self = e3x_self_new(id,NULL);
   fail_unless(self);
   fail_unless(self->locals[CS_1a]);
   fail_unless(self->keys[CS_1a]);

@@ -42,8 +42,8 @@ int main(int argc, char **argv)
     net_tcp4_loop(netB);
     net_tcp4_loop(netA);
   }
-  fail_unless(exchange3_out(linkBA->x,0) >= exchange3_out(linkAB->x,0));
-  fail_unless(exchange3_out(linkBA->x,0) == exchange3_out(linkAB->x,0));
+  fail_unless(e3x_exchange_out(linkBA->x,0) >= e3x_exchange_out(linkAB->x,0));
+  fail_unless(e3x_exchange_out(linkBA->x,0) == e3x_exchange_out(linkAB->x,0));
 
   return 0;
 }
