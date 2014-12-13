@@ -1,7 +1,7 @@
 #ifndef self3_h
 #define self3_h
 
-#include "cipher3.h"
+#include "e3x_cipher.h"
 
 typedef struct self3_struct
 {

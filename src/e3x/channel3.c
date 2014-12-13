@@ -1,7 +1,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "../lib/util.h"
+#include "util.h"
 #include "e3x.h"
 #include "platform.h"
 

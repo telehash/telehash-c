@@ -1,5 +1,5 @@
 #include "e3x.h"
-#include "e3x/cipher3.h"
+#include "e3x_cipher.h"
 #include "platform.h"
 #include <string.h>
 

@@ -2,8 +2,8 @@
 #define exchange3_h
 
 #include <stdint.h>
-#include "cipher3.h"
-#include "self3.h"
+#include "e3x_cipher.h"
+#include "e3x_self.h"
 
 // apps should only use accessor functions for values in this struct
 typedef struct exchange3_struct

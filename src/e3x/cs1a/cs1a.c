@@ -5,7 +5,7 @@
 
 #include "sha256.h"
 #include "e3x.h"
-#include "e3x/cipher3.h"
+#include "e3x_cipher.h"
 #include "platform.h"
 
 // cs1a local ones

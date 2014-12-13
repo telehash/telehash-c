@@ -1,7 +1,7 @@
 #ifndef cipher3_h
 #define cipher3_h
 
-#include "../lib/lob.h"
+#include "lob.h"
 
 // these are unique to each cipher set implementation
 #define local_t void*
