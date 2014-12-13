@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include "base32.h"
-#include "platform.h"
 #include "util.h"
 #include "e3x.h" // for sha256 e3x_hash()
 
@@ -356,7 +355,7 @@ path_t hashname_path(hashname_t hn, path_t p, int valid)
   if(ret && valid)
   {
     hn->last = ret;
-    ret->tin = platform_seconds();    
+    ret->tin = util_sys_seconds();    
   }
 
   return ret;

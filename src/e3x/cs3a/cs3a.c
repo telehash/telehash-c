@@ -3,11 +3,11 @@
 #include <stdint.h>
 #include <sodium.h>
 
-cipher3_t cs3a_init(lob_t options)
+e3x_cipher_t cs3a_init(lob_t options)
 {
-  cipher3_t ret = malloc(sizeof(struct cipher3_struct));
+  e3x_cipher_t ret = malloc(sizeof(struct e3x_cipher_struct));
   if(!ret) return NULL;
-  memset(ret,0,sizeof (struct cipher3_struct));
+  memset(ret,0,sizeof (struct e3x_cipher_struct));
   
   // identifying markers
   ret->id = CS_3a;

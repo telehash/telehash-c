@@ -2,7 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "lib/util.h"
+#include "util.h"
 
 // a default prime number for the internal hashtable used to track all active hashnames/lines
 #define MAXPRIME 4211
@@ -58,7 +58,7 @@ mesh_t mesh_free(mesh_t mesh)
 
   xht_free(mesh->index);
   lob_free(mesh->keys);
-  self3_free(mesh->self);
+  e3x_self_free(mesh->self);
   if(mesh->uri) free(mesh->uri);
   if(mesh->ipv4_local) free(mesh->ipv4_local);
   if(mesh->ipv4_public) free(mesh->ipv4_public);
@@ -71,7 +71,7 @@ mesh_t mesh_free(mesh_t mesh)
 uint8_t mesh_load(mesh_t mesh, lob_t secrets, lob_t keys)
 {
   if(!mesh || !secrets || !keys) return 1;
-  if(!(mesh->self = self3_new(secrets, keys))) return 2;
+  if(!(mesh->self = e3x_self_new(secrets, keys))) return 2;
   mesh->keys = lob_copy(keys);
   mesh->id = hashname_keys(mesh->keys);
   return 0;
@@ -91,25 +91,25 @@ lob_t mesh_generate(mesh_t mesh)
 // return the best current URI to this endpoint, optional override protocol
 char *mesh_uri(mesh_t mesh, char *protocol)
 {
-  uri_t uri;
+  util_uri_t uri;
   if(!mesh) return LOG("bad args");
 
   // load existing or create new
-  uri = (mesh->uri) ? uri_new(mesh->uri, protocol) : uri_new("127.0.0.1", protocol);
+  uri = (mesh->uri) ? util_uri_new(mesh->uri, protocol) : util_uri_new("127.0.0.1", protocol);
   
   // TODO don't override a router-provided base
 
   // set best current values
-  uri_keys(uri, mesh->keys);
-  if(mesh->port_local) uri_port(uri, mesh->port_local);
-  if(mesh->port_public) uri_port(uri, mesh->port_public);
-  if(mesh->ipv4_local) uri_address(uri, mesh->ipv4_local);
-  if(mesh->ipv4_public) uri_address(uri, mesh->ipv4_public);
+  util_uri_keys(uri, mesh->keys);
+  if(mesh->port_local) util_uri_port(uri, mesh->port_local);
+  if(mesh->port_public) util_uri_port(uri, mesh->port_public);
+  if(mesh->ipv4_local) util_uri_address(uri, mesh->ipv4_local);
+  if(mesh->ipv4_public) util_uri_address(uri, mesh->ipv4_public);
 
   // save/return new encoded output
   if(mesh->uri) free(mesh->uri);
-  mesh->uri = strdup(uri_encode(uri));
-  uri_free(uri);
+  mesh->uri = strdup(util_uri_encode(uri));
+  util_uri_free(uri);
   return mesh->uri;
 }
 
@@ -235,7 +235,7 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
   if(outer->head_len == 1)
   {
     util_hex(outer->head,1,hex);
-    inner = self3_decrypt(mesh->self, outer);
+    inner = e3x_self_decrypt(mesh->self, outer);
     if(!inner)
     {
       LOG("%s handshake failed %s",hex,e3x_err());
@@ -309,7 +309,7 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
       return 6;
     }
 
-    inner = exchange3_receive(link->x, outer);
+    inner = e3x_exchange_receive(link->x, outer);
     if(!inner)
     {
       LOG("channel decryption fail for link %s %s",link->id->hashname,e3x_err());

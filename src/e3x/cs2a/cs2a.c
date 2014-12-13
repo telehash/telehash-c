@@ -8,8 +8,8 @@
 
 #include "sha256.h"
 #include "e3x.h"
-#include "e3x/cipher3.h"
-#include "platform.h"
+#include "e3x/e3x_cipher.h"
+#include "util_sys.h"
 
 // undefine the void* aliases so we can define them locally
 #undef local_t
@@ -34,7 +34,7 @@ typedef struct ephemeral_struct
   uint32_t seq;
 } *ephemeral_t;
 
-// these are all the locally implemented handlers defined in cipher3.h
+// these are all the locally implemented handlers defined in e3x_cipher.h
 
 static uint8_t *cipher_hash(uint8_t *input, uint32_t len, uint8_t *output);
 static uint8_t *cipher_err(void);
@@ -61,11 +61,11 @@ static int RNG(uint8_t *p_dest, unsigned p_size)
   return 1;
 }
 
-cipher3_t cs2a_init(lob_t options)
+e3x_cipher_t cs2a_init(lob_t options)
 {
-  cipher3_t ret = malloc(sizeof(struct cipher3_struct));
+  e3x_cipher_t ret = malloc(sizeof(struct e3x_cipher_struct));
   if(!ret) return NULL;
-  memset(ret,0,sizeof (struct cipher3_struct));
+  memset(ret,0,sizeof (struct e3x_cipher_struct));
   
   // identifying markers
   ret->id = CS_2a;

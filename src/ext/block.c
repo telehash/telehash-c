@@ -1,19 +1,17 @@
 #include "ext.h"
 
-#define MUID "ext_block"
-
 // individual pipe local info
 typedef struct ext_block_struct
 {
   link_t link;
-  channel3_t chan;
+  e3x_channel_t chan;
   uint32_t min;
   lob_t cache;
   struct ext_block_struct *next;
 } *ext_block_t;
 
 // handle incoming packets for the built-in block channel
-void block_chan_handler(link_t link, channel3_t chan, void *arg)
+void block_chan_handler(link_t link, e3x_channel_t chan, void *arg)
 {
   lob_t packet, last;
   ext_block_t block = arg;
@@ -22,7 +20,7 @@ void block_chan_handler(link_t link, channel3_t chan, void *arg)
   // just append all packets, processed during block_receive()
   last = block->cache;
   while(last && last->next) last = last->next;
-  while((packet = channel3_receiving(chan)))
+  while((packet = e3x_channel_receiving(chan)))
   {
     if(!last)
     {
@@ -81,7 +79,7 @@ lob_t ext_block_receive(mesh_t mesh)
 // creates/reuses a single default block channel on the link
 link_t ext_block_send(link_t link, lob_t block)
 {
-  channel3_t chan;
+  e3x_channel_t chan;
   if(!link || !block) return LOG("bad args");
   
   if(!(chan = xht_get(link->index,"block")))
@@ -98,6 +96,6 @@ link_t ext_block_send(link_t link, lob_t block)
 mesh_t ext_block(mesh_t mesh)
 {
   // set up built-in block channel handler
-  mesh_on_open(mesh, MUID, block_on_open);
+  mesh_on_open(mesh, "ext_block", block_on_open);
   return mesh;
 }

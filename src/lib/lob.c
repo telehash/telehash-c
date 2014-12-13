@@ -4,12 +4,11 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdarg.h>
+#include "util.h" // util_sort(), util_sys_short()
+#include "e3x.h" // e3x_rand()
 #include "js0n.h"
-#include "platform.h" // platform_short()
-#include "util.h" // util_sort()
 #include "base32.h"
 #include "chacha.h"
-#include "e3x.h" // e3x_rand()
 
 lob_t lob_new()
 {
@@ -94,7 +93,7 @@ lob_t lob_parse(uint8_t *raw, uint32_t len)
   // make sure is at least size valid
   if(!raw || len < 2) return NULL;
   memcpy(&nlen,raw,2);
-  hlen = platform_short(nlen);
+  hlen = util_sys_short(nlen);
   if(hlen > len-2) return NULL;
 
   // copy in and update pointers
@@ -130,7 +129,7 @@ uint8_t *lob_head(lob_t p, uint8_t *head, uint16_t len)
   // copy in new head
   memcpy(p->head,head,len);
   p->head_len = len;
-  nlen = platform_short(len);
+  nlen = util_sys_short(len);
   memcpy(p->raw,&nlen,2);
   free(p->cache);
   p->cache = NULL;

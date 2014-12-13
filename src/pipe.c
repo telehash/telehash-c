@@ -2,8 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
-#include "lib/util.h"
-#include "platform.h"
+#include "util.h"
 #include "pipe.h"
 
 pipe_t pipe_new(char *type)

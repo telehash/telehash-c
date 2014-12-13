@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
   char *hn;
   struct sockaddr_in sin;
 
-  platform_debugging(1);
+  util_sys_debugging(1);
   crypt_init();
   s = switch_new(0);
 

@@ -5,17 +5,16 @@ typedef struct mesh_struct *mesh_t;
 
 #include "e3x.h"
 #include "lib.h"
+#include "util.h"
 #include "pipe.h"
 #include "link.h"
-#include "links.h"
-#include "platform.h"
 
 struct mesh_struct
 {
   hashname_t id;
   char *uri;
   lob_t keys;
-  self3_t self;
+  e3x_self_t self;
   xht_t index;
   void *on; // internal list of triggers
   // shared network info
