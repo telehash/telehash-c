@@ -2,7 +2,7 @@ CC=gcc
 CFLAGS+=-g -Wall -Wextra -Wno-unused-parameter -DDEBUG
 INCLUDE+=-Iinclude -Iinclude/lib -Iunix
 
-LIB = src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/lib/chacha.c
+LIB = src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/lib/chacha.c src/lib/murmur.c
 E3X = src/e3x/e3x.c src/e3x/channel.c src/e3x/self.c src/e3x/exchange.c src/e3x/event.c src/e3x/cipher.c
 MESH = src/mesh.c src/link.c src/pipe.c
 EXT = src/ext/link.c src/ext/block.c
@@ -53,7 +53,7 @@ HEADERS=$(wildcard include/*.h)
 all: idgen router static
 	@echo "TODO\t`git grep TODO | wc -l | tr -d ' '`"
 	@cat $(LIB) $(E3X) $(MESH) $(EXT) $(NET) $(UTIL) $(CS1a) > telehash.c
-	@cat include/*.h > telehash.h
+	@cat $(HEADERS) > telehash.h
 
 static: libtelehash
 
