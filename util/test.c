@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <sys/time.h>
-#include "platform.h"
+#include "util_sys.h"
 
 #include "crypt.h"
 #include "ecc.h"

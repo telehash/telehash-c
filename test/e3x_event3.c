@@ -1,6 +1,6 @@
 #include "e3x.h"
 #include "util.h"
-#include "platform.h"
+#include "util_sys.h"
 #include "unit_test.h"
 
 int main(int argc, char **argv)

@@ -1,5 +1,5 @@
 #include "net_tcp4.h"
-#include "platform.h"
+#include "util_sys.h"
 #include "util_unix.h"
 #include "unit_test.h"
 

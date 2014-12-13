@@ -1,7 +1,7 @@
 #include "e3x.h"
 #include "util.h"
 #include "unit_test.h"
-#include "platform.h"
+#include "util_sys.h"
 
 // fixtures
 #define A_KEY "anfpjrveyyloypswpqzlfkjpwynahohffy";

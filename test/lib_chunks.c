@@ -1,6 +1,6 @@
 #include "chunks.h"
 #include "unit_test.h"
-#include "platform.h"
+#include "util_sys.h"
 
 int main(int argc, char **argv)
 {

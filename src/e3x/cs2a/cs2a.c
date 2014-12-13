@@ -9,7 +9,7 @@
 #include "sha256.h"
 #include "e3x.h"
 #include "e3x/cipher3.h"
-#include "platform.h"
+#include "util_sys.h"
 
 // undefine the void* aliases so we can define them locally
 #undef local_t
