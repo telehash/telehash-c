@@ -1,3 +1,5 @@
+#if !defined(_WIN32) && (defined(__unix__) || defined(__unix) || (defined(__APPLE__) && defined(__MACH__)))
+
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -251,3 +253,5 @@ net_tcp4_t net_tcp4_loop(net_tcp4_t net)
   xht_walk(net->pipes, _walkflush, NULL);
   return net;
 }
+
+#endif

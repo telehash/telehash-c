@@ -1,3 +1,5 @@
+#if !defined(_WIN32) && (defined(__unix__) || defined(__unix) || (defined(__APPLE__) && defined(__MACH__)))
+
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -72,3 +74,5 @@ void *util_sys_log(const char *file, int line, const char *function, const char 
   va_end (args);
   return NULL;
 }
+
+#endif

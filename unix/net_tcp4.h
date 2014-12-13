@@ -1,6 +1,8 @@
 #ifndef net_tcp4_h
 #define net_tcp4_h
 
+#if !defined(_WIN32) && (defined(__unix__) || defined(__unix) || (defined(__APPLE__) && defined(__MACH__)))
+
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <stdio.h>
@@ -24,5 +26,7 @@ void net_tcp4_free(net_tcp4_t net);
 
 // check all sockets for work (just for testing, use libuv or such for production instead)
 net_tcp4_t net_tcp4_loop(net_tcp4_t net);
+
+#endif
 
 #endif

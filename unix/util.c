@@ -1,3 +1,5 @@
+#if !defined(_WIN32) && (defined(__unix__) || defined(__unix) || (defined(__APPLE__) && defined(__MACH__)))
+
 #include <stdio.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -61,3 +63,5 @@ int util_sock_timeout(int sock, uint32_t ms)
 
   return sock;
 }
+
+#endif

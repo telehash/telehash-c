@@ -1,3 +1,5 @@
+#if !defined(_WIN32) && (defined(__unix__) || defined(__unix) || (defined(__APPLE__) && defined(__MACH__)))
+
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
@@ -159,3 +161,5 @@ net_udp4_t net_udp4_receive(net_udp4_t net)
   
   return net;
 }
+
+#endif
