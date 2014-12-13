@@ -19,7 +19,7 @@ typedef struct pipe_tcp4_struct
   struct sockaddr_in sa;
   int client;
   net_tcp4_t net;
-  chunks_t chunks;
+  util_chunks_t chunks;
 } *pipe_tcp4_t;
 
 // just make sure it's connected
@@ -65,11 +65,11 @@ pipe_t tcp4_flush(pipe_t pipe)
   pipe_tcp4_t to = tcp4_to(pipe);
   if(!to) return NULL;
 
-  if(chunks_len(to->chunks))
+  if(util_chunks_len(to->chunks))
   {
-    while((len = write(to->client, chunks_write(to->chunks), chunks_len(to->chunks))) > 0)
+    while((len = write(to->client, util_chunks_write(to->chunks), util_chunks_len(to->chunks))) > 0)
     {
-      chunks_written(to->chunks, len);
+      util_chunks_written(to->chunks, len);
       LOG("wrote %d bytes to %s",len,pipe->id);
     }
   }
@@ -77,11 +77,11 @@ pipe_t tcp4_flush(pipe_t pipe)
   while((len = read(to->client, buf, 256)) > 0)
   {
     LOG("reading %d bytes from %s",len,pipe->id);
-    chunks_read(to->chunks, buf, len);
+    util_chunks_read(to->chunks, buf, len);
   }
 
   // any incoming full packets can be received
-  while((packet = chunks_receive(to->chunks))) mesh_receive(to->net->mesh, packet, pipe);
+  while((packet = util_chunks_receive(to->chunks))) mesh_receive(to->net->mesh, packet, pipe);
 
   if(len < 0 && errno != EWOULDBLOCK && errno != EINPROGRESS)
   {
@@ -99,7 +99,7 @@ void tcp4_send(pipe_t pipe, lob_t packet, link_t link)
   pipe_tcp4_t to = tcp4_to(pipe);
   if(!to || !packet || !link) return;
 
-  chunks_send(to->chunks, packet);
+  util_chunks_send(to->chunks, packet);
   tcp4_flush(pipe);
 }
 
@@ -113,7 +113,7 @@ pipe_t tcp4_free(pipe_t pipe)
   xht_set(to->net->pipes,pipe->id,NULL);
   pipe_free(pipe);
   if(to->client > 0) close(to->client);
-  chunks_free(to->chunks);
+  util_chunks_free(to->chunks);
   free(to);
   return NULL;
 }
@@ -137,8 +137,8 @@ pipe_t tcp4_pipe(net_tcp4_t net, char *ip, int port)
   to->sa.sin_family = AF_INET;
   inet_aton(ip, &(to->sa.sin_addr));
   to->sa.sin_port = htons(port);
-  if(!(to->chunks = chunks_new(0))) return tcp4_free(pipe);
-  chunks_cloak(to->chunks); // enable cloaking by default
+  if(!(to->chunks = util_chunks_new(0))) return tcp4_free(pipe);
+  util_chunks_cloak(to->chunks); // enable cloaking by default
 
   // set up pipe
   pipe->id = strdup(id);

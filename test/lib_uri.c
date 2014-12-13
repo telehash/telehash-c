@@ -1,4 +1,3 @@
-#include "uri.h"
 #include "util.h"
 #include "unit_test.h"
 

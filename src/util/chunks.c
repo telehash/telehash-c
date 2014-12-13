@@ -5,7 +5,7 @@
 
 #define CEIL(a, b) (((a) / (b)) + (((a) % (b)) > 0 ? 1 : 0))
 
-struct chunks_struct
+struct util_chunks_struct
 {
   uint8_t space, cloak;
 
@@ -16,11 +16,11 @@ struct chunks_struct
   uint32_t readlen, readat;
 };
 
-chunks_t chunks_new(uint8_t size)
+util_chunks_t util_chunks_new(uint8_t size)
 {
-  chunks_t chunks;
-  if(!(chunks = malloc(sizeof (struct chunks_struct)))) return LOG("OOM");
-  memset(chunks,0,sizeof (struct chunks_struct));
+  util_chunks_t chunks;
+  if(!(chunks = malloc(sizeof (struct util_chunks_struct)))) return LOG("OOM");
+  memset(chunks,0,sizeof (struct util_chunks_struct));
 
   if(!size)
   {
@@ -34,7 +34,7 @@ chunks_t chunks_new(uint8_t size)
   return chunks;
 }
 
-chunks_t chunks_free(chunks_t chunks)
+util_chunks_t util_chunks_free(util_chunks_t chunks)
 {
   if(!chunks) return NULL;
   if(chunks->writing) free(chunks->writing);
@@ -44,14 +44,14 @@ chunks_t chunks_free(chunks_t chunks)
 }
 
 // enable automatic cloaking
-chunks_t chunks_cloak(chunks_t chunks)
+util_chunks_t util_chunks_cloak(util_chunks_t chunks)
 {
   if(chunks) chunks->cloak = 1;
   return chunks;
 }
 
 // internal to clean up written data
-chunks_t _chunks_gc(chunks_t chunks)
+util_chunks_t _util_chunks_gc(util_chunks_t chunks)
 {
   uint8_t len;
   if(!chunks) return NULL;
@@ -74,17 +74,17 @@ chunks_t _chunks_gc(chunks_t chunks)
   chunks->writing = util_reallocf(chunks->writing, chunks->writelen);
 
   // tail recurse to eat any more chunks
-  return _chunks_gc(chunks);
+  return _util_chunks_gc(chunks);
 }
 
 // turn this packet into chunks
-chunks_t chunks_send(chunks_t chunks, lob_t out)
+util_chunks_t util_chunks_send(util_chunks_t chunks, lob_t out)
 {
   uint32_t start, len, at;
   uint8_t *raw, size, rounds = 1; // TODO random rounds?
   
   // validate and gc first
-  if(!_chunks_gc(chunks) || !(len = lob_len(out))) return chunks;
+  if(!_util_chunks_gc(chunks) || !(len = lob_len(out))) return chunks;
   if(chunks->cloak) len += (8*rounds);
 
   start = chunks->writelen;
@@ -117,7 +117,7 @@ chunks_t chunks_send(chunks_t chunks, lob_t out)
 }
 
 // get any packets that have been reassembled from incoming chunks
-lob_t chunks_receive(chunks_t chunks)
+lob_t util_chunks_receive(util_chunks_t chunks)
 {
   uint32_t at, len;
   uint8_t *buf, *append;
@@ -147,11 +147,11 @@ lob_t chunks_receive(chunks_t chunks)
 }
 
 // get the next chunk, put its length in len
-uint8_t *chunks_out(chunks_t chunks, uint8_t *len)
+uint8_t *util_chunks_out(util_chunks_t chunks, uint8_t *len)
 {
   uint8_t *ret;
   if(!chunks || !len) return NULL;
-  if(!_chunks_gc(chunks)) return NULL; // try to clean up any done chunks
+  if(!_util_chunks_gc(chunks)) return NULL; // try to clean up any done chunks
 
   if(chunks->writeat == chunks->writelen)
   {
@@ -171,7 +171,7 @@ uint8_t *chunks_out(chunks_t chunks, uint8_t *len)
 }
 
 // internal to append read data
-chunks_t _chunks_append(chunks_t chunks, uint8_t *block, uint32_t len)
+util_chunks_t _util_chunks_append(util_chunks_t chunks, uint8_t *block, uint32_t len)
 {
   if(!chunks || !block || !len) return chunks;
   if(!chunks->reading) chunks->readlen = chunks->readat = 0; // be paranoid
@@ -182,42 +182,42 @@ chunks_t _chunks_append(chunks_t chunks, uint8_t *block, uint32_t len)
 }
 
 // process an incoming individual chunk
-chunks_t chunks_in(chunks_t chunks, uint8_t *chunk, uint8_t len)
+util_chunks_t util_chunks_in(util_chunks_t chunks, uint8_t *chunk, uint8_t len)
 {
   if(!chunks || !chunk || !len) return chunks;
   if(len < (*chunk + 1)) return LOG("invalid chunk len %d < %d+1",len,*chunk);
-  return _chunks_append(chunks,chunk,len);
+  return _util_chunks_append(chunks,chunk,len);
 }
 
 // how many bytes are there in total to be sent
-uint32_t chunks_len(chunks_t chunks)
+uint32_t util_chunks_len(util_chunks_t chunks)
 {
   if(!chunks || !chunks->writing || chunks->writeat >= chunks->writelen) return 0;
   return chunks->writelen - chunks->writeat;
 }
 
 // return the next block of data to be written to the stream transport
-uint8_t *chunks_write(chunks_t chunks)
+uint8_t *util_chunks_write(util_chunks_t chunks)
 {
-  if(!chunks_len(chunks)) return NULL;
+  if(!util_chunks_len(chunks)) return NULL;
   return chunks->writing+chunks->writeat;
 }
 
 // advance the write pointer this far
-chunks_t chunks_written(chunks_t chunks, uint32_t len)
+util_chunks_t util_chunks_written(util_chunks_t chunks, uint32_t len)
 {
   if(!chunks || (len+chunks->writeat) > chunks->writelen) return NULL;
   chunks->writeat += len;
   // try a cleanup
-  return _chunks_gc(chunks);
+  return _util_chunks_gc(chunks);
 
 }
 
 // process incoming stream data into any packets, returns NULL until a chunk was received and ensures there's data to write
-chunks_t chunks_read(chunks_t chunks, uint8_t *block, uint32_t len)
+util_chunks_t util_chunks_read(util_chunks_t chunks, uint8_t *block, uint32_t len)
 {
   uint32_t at, good;
-  if(!_chunks_append(chunks,block,len)) return NULL;
+  if(!_util_chunks_append(chunks,block,len)) return NULL;
   if(!chunks->reading || !chunks->readlen) return NULL; // paranoid
 
   // walk through read data to skip whole chunks, stop at incomplete one
