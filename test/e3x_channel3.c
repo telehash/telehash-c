@@ -29,7 +29,7 @@ int main(int argc, char **argv)
   fail_unless(util_cmp(lob_get(channel3_open(chan),"type"),"test") == 0);
   
   // set up timeout
-  event3_t ev = event3_new(1, platform_ms(0));
+  event3_t ev = event3_new(1, util_sys_ms(0));
   fail_unless(channel3_timeout(chan,ev,1) == 1);
 
   // receive packets

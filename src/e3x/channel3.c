@@ -19,7 +19,7 @@ struct channel3_struct
   uint32_t capacity, max; // totals for windowing
 
   // timer stuff
-  uint32_t tsent, trecv; // last send, recv from platform_seconds
+  uint32_t tsent, trecv; // last send, recv from util_sys_seconds
   uint32_t tsince, timeout; // tsince=start, timeout is how many seconds before auto-err
   lob_t timer; // the timer that has been sent to ev
   event3_t ev; // the event manager to update our timer with
@@ -102,7 +102,7 @@ char *channel3_c(channel3_t c)
 // internally calculate until timeout
 uint32_t _time_left(channel3_t c)
 {
-  uint32_t at = platform_seconds();
+  uint32_t at = util_sys_seconds();
   if(!c) return 0;
   if(!c->timeout) return 1; // never timeout
   // some seconds left yet
@@ -133,7 +133,7 @@ uint32_t channel3_timeout(channel3_t c, event3_t ev, uint32_t timeout)
   if(!timeout) return _time_left(c);
 
   // add/update new timeout
-  c->tsince = platform_seconds(); // start timer now
+  c->tsince = util_sys_seconds(); // start timer now
   c->timeout = timeout;
   c->ev = ev;
   c->timer = lob_new();
@@ -364,7 +364,7 @@ lob_t channel3_sending(channel3_t c)
   }
   
   // check sent list for any flagged to resend
-  now = platform_seconds();
+  now = util_sys_seconds();
   for(ret = c->sent; ret; ret = ret->next)
   {
     if(!ret->id) continue;

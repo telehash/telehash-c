@@ -43,7 +43,7 @@ int main(int argc, char *argv[])
   const int fcflags = fcntl(fd,F_GETFL);
   fcntl(fd,F_SETFL,fcflags | O_NONBLOCK);
 
-  if(argc > 1) platform_debugging(1);
+  if(argc > 1) util_sys_debugging(1);
 
   crypt_init();
   s = switch_new(0);
@@ -158,7 +158,7 @@ int main(int argc, char *argv[])
         // TODO test freeing all
         return 0;
       }else if(strcmp(buf,"/debug") == 0){
-        platform_debugging(-1); // toggle
+        util_sys_debugging(-1); // toggle
         logg("");
       }else if(strncmp(buf,"/get ",5) == 0){
         logg("get %s\n",buf+5);

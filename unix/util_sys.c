@@ -8,12 +8,12 @@
 
 #include "util_sys.h"
 
-unsigned long platform_seconds()
+unsigned long util_sys_seconds()
 {
   return (unsigned long)time(0);
 }
 
-unsigned long long platform_ms(unsigned long epoch)
+unsigned long long util_sys_ms(unsigned long epoch)
 {
   struct timeval tv;
   gettimeofday(&tv, NULL);
@@ -21,12 +21,12 @@ unsigned long long platform_ms(unsigned long epoch)
   return (unsigned long long)(tv.tv_sec - epoch) * 1000 + (unsigned long long)(tv.tv_usec) / 1000;
 }
 
-unsigned short platform_short(unsigned short x)
+unsigned short util_sys_short(unsigned short x)
 {
   return ntohs(x);
 }
 
-void platform_random_init(void)
+void util_sys_random_init(void)
 {
   struct timeval tv;
   unsigned int seed;
@@ -37,7 +37,7 @@ void platform_random_init(void)
   srandom(seed);
 }
 
-long platform_random(void)
+long util_sys_random(void)
 {
   // TODO, use ifdef for arc4random
   return random();
@@ -49,7 +49,7 @@ int _logging = 1;
 int _logging = 0;
 #endif
 
-void platform_logging(int enabled)
+void util_sys_logging(int enabled)
 {
   if(enabled < 0)
   {
@@ -60,7 +60,7 @@ void platform_logging(int enabled)
   LOG("log output enabled");
 }
 
-void *platform_log(const char *file, int line, const char *function, const char * format, ...)
+void *util_sys_log(const char *file, int line, const char *function, const char * format, ...)
 {
   char buffer[256];
   va_list args;

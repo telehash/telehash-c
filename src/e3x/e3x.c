@@ -10,7 +10,7 @@ uint8_t e3x_init(lob_t options)
 {
   uint8_t err;
   if(_initialized) return 0;
-  platform_random_init();
+  util_sys_random_init();
   err = cipher3_init(options);
   if(err) return err;
   _initialized = 1;
@@ -56,7 +56,7 @@ uint8_t *e3x_rand(uint8_t *bytes, uint32_t len)
   // crypto lib didn't provide one, use platform's RNG
   while(len-- > 0)
   {
-    *x = (uint8_t)platform_random();
+    *x = (uint8_t)util_sys_random();
     x++;
   }
   return bytes;

@@ -355,7 +355,7 @@ path_t hashname_path(hashname_t hn, path_t p, int valid)
   if(ret && valid)
   {
     hn->last = ret;
-    ret->tin = platform_seconds();    
+    ret->tin = util_sys_seconds();    
   }
 
   return ret;

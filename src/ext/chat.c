@@ -157,7 +157,7 @@ lob_t chat_message(chat_t chat)
   char id[32];
   unsigned char buf[4];
   uint16_t step;
-  unsigned long at = platform_seconds();
+  unsigned long at = util_sys_seconds();
 
   if(!chat || !chat->seq) return NULL;
 
@@ -170,7 +170,7 @@ lob_t chat_message(chat_t chat)
   lob_set_str(p,"id",id);
   lob_set_str(p,"type","chat");
   if(chat->after) lob_set_str(p,"after",chat->after);
-  if(at > 1396184861) lob_set_int(p,"at",at); // only if platform_seconds() is epoch
+  if(at > 1396184861) lob_set_int(p,"at",at); // only if util_sys_seconds() is epoch
   return p;
 }
 
