@@ -7,3 +7,5 @@ arduino/src/telehash
 arduino/build
 test/bin/*
 node_modules/
+telehash.c
+telehash.h
