@@ -49,14 +49,12 @@ ROUTER_OBJFILES = $(CORE_OBJFILES) $(CS1a_OBJFILES) $(ARCH_OBJFILES) util/router
 
 HEADERS=$(wildcard include/*.h)
 
-#all: libmesh libe3x idgen router
 all: idgen router static
 	@echo "TODO\t`git grep TODO | wc -l | tr -d ' '`"
 
 
 static: libtelehash
-	@cat $(LIB) $(E3X) $(MESH) $(EXT) $(NET) $(UTIL) $(CS1a) > telehash.c
-	@cat $(HEADERS) > telehash.h
+	@cat $(LIB) $(E3X) $(MESH) $(EXT) $(NET) $(UTIL) > telehash.c
 
 libtelehash: $(FULL_OBJFILES)
 	rm -f libtelehash.a
@@ -65,8 +63,8 @@ libtelehash: $(FULL_OBJFILES)
 .PHONY: arduino test
 
 arduino: static
-	cp telehash.c arduino/src/
-	cp telehash.h arduino/src/
+	cp telehash.c arduino/src/telehash/
+	cp $(HEADERS) arduino/src/telehash/
 
 test: $(FULL_OBJFILES)
 	cd test; $(MAKE) $(MFLAGS)

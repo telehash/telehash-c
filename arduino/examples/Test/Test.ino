@@ -1,8 +1,5 @@
 #include <AESLib.h>
-
-extern "C" {
-#include <mesh.h>
-}
+#include <telehash.h>
 
 #define sp Serial.print
 #define speol Serial.println
