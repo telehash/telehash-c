@@ -52,10 +52,11 @@ HEADERS=$(wildcard include/*.h)
 #all: libmesh libe3x idgen router
 all: idgen router static
 	@echo "TODO\t`git grep TODO | wc -l | tr -d ' '`"
-	@cat $(LIB) $(E3X) $(MESH) $(EXT) $(NET) $(UTIL) $(CS1a) > telehash.c
-	@cat $(HEADERS) > telehash.h
+
 
 static: libtelehash
+	@cat $(LIB) $(E3X) $(MESH) $(EXT) $(NET) $(UTIL) $(CS1a) > telehash.c
+	@cat $(HEADERS) > telehash.h
 
 libtelehash: $(FULL_OBJFILES)
 	rm -f libtelehash.a
@@ -63,25 +64,9 @@ libtelehash: $(FULL_OBJFILES)
 
 .PHONY: arduino test
 
-# TODO this was just brute force to let the IDE build
-arduino: 
-	mkdir -p arduino/src/telehash
-	cp src/*.c include/*.h arduino/src/telehash/
-	mkdir -p arduino/src/telehash/lib
-	cp src/lib/*.c include/lib/*.h arduino/src/telehash/lib/
-	mkdir -p arduino/src/telehash/e3x
-	cp src/e3x/*.c include/e3x/*.h arduino/src/telehash/e3x/
-	cp include/e3x.h arduino/src/telehash/e3x/
-	cp include/e3x.h arduino/src/telehash/lib/
-	mkdir -p arduino/src/telehash/e3x/lib
-	cp include/lib/lob.h arduino/src/telehash/e3x/lib
-	mkdir -p arduino/src/telehash/e3x/e3x
-	cp include/e3x/*.h arduino/src/telehash/e3x/e3x
-	cp include/lib/*.h arduino/src/telehash/e3x/
-	mkdir -p arduino/src/telehash/lib/lib
-	cp include/lib/*.h arduino/src/telehash/lib/lib
-	mkdir -p arduino/src/telehash/lib/e3x
-	cp include/e3x.h include/e3x/*.h arduino/src/telehash/lib/e3x
+arduino: static
+	cp telehash.c arduino/src/
+	cp telehash.h arduino/src/
 
 test: $(FULL_OBJFILES)
 	cd test; $(MAKE) $(MFLAGS)
