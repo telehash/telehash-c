@@ -3,9 +3,6 @@
 #include <unistd.h>
 #include "net_udp4.h"
 
-// our unique id per mesh
-#define MUID "net_udp4"
-
 // individual pipe local info
 typedef struct pipe_udp4_struct
 {
@@ -71,7 +68,7 @@ pipe_t udp4_path(link_t link, lob_t path)
 
   // just sanity check the path first
   if(!link || !path) return NULL;
-  if(!(net = xht_get(link->mesh->index, MUID))) return NULL;
+  if(!(net = xht_get(link->mesh->index, "net_udp4"))) return NULL;
   if(util_cmp("udp4",lob_get(path,"type"))) return NULL;
   if(!(ip = lob_get(path,"ip"))) return LOG("missing ip");
   if((port = lob_get_int(path,"port")) <= 0) return LOG("missing port");
@@ -110,8 +107,8 @@ net_udp4_t net_udp4_new(mesh_t mesh, lob_t options)
 
   // connect us to this mesh
   net->mesh = mesh;
-  xht_set(mesh->index, MUID, net);
-  mesh_on_path(mesh, MUID, udp4_path);
+  xht_set(mesh->index, "net_udp4", net);
+  mesh_on_path(mesh, "net_udp4", udp4_path);
   
   // convenience
   net->path = lob_new();

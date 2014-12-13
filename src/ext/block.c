@@ -1,7 +1,5 @@
 #include "ext.h"
 
-#define MUID "ext_block"
-
 // individual pipe local info
 typedef struct ext_block_struct
 {
@@ -98,6 +96,6 @@ link_t ext_block_send(link_t link, lob_t block)
 mesh_t ext_block(mesh_t mesh)
 {
   // set up built-in block channel handler
-  mesh_on_open(mesh, MUID, block_on_open);
+  mesh_on_open(mesh, "ext_block", block_on_open);
   return mesh;
 }

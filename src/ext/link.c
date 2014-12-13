@@ -1,7 +1,5 @@
 #include "ext.h"
 
-#define MUID "ext_link"
-
 // handle incoming packets for the built-in link channel
 void link_chan_handler(link_t link, channel3_t chan, void *arg)
 {
@@ -108,13 +106,13 @@ mesh_t ext_link_auto(mesh_t mesh)
 {
   ext_link(mesh);
   // watch link events to auto create/respond to link channel
-  mesh_on_link(mesh, MUID, link_on_link);
+  mesh_on_link(mesh, "ext_link", link_on_link);
   return mesh;
 }
 
 mesh_t ext_link(mesh_t mesh)
 {
   // set up built-in link channel handler
-  mesh_on_open(mesh, MUID, link_on_open);
+  mesh_on_open(mesh, "ext_link", link_on_open);
   return mesh;
 }

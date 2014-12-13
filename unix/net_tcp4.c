@@ -13,9 +13,6 @@
 
 // this is just a minimal tcp4 transport backing for testing, it should only serve as an example for using a real socket event lib
 
-// our unique id per mesh
-#define MUID "net_tcp4"
-
 // individual pipe local info
 typedef struct pipe_tcp4_struct
 {
@@ -160,7 +157,7 @@ pipe_t tcp4_path(link_t link, lob_t path)
 
   // just sanity check the path first
   if(!link || !path) return NULL;
-  if(!(net = xht_get(link->mesh->index, MUID))) return NULL;
+  if(!(net = xht_get(link->mesh->index, "net_tcp4"))) return NULL;
   if(util_cmp("tcp4",lob_get(path,"type"))) return NULL;
   if(!(ip = lob_get(path,"ip"))) return LOG("missing ip");
   if((port = lob_get_int(path,"port")) <= 0) return LOG("missing port");
@@ -199,8 +196,8 @@ net_tcp4_t net_tcp4_new(mesh_t mesh, lob_t options)
 
   // connect us to this mesh
   net->mesh = mesh;
-  xht_set(mesh->index, MUID, net);
-  mesh_on_path(mesh, MUID, tcp4_path);
+  xht_set(mesh->index, "net_tcp4", net);
+  mesh_on_path(mesh, "net_tcp4", tcp4_path);
   
   // convenience
   net->path = lob_new();
