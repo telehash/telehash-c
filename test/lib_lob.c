@@ -1,4 +1,5 @@
 #include "lib.h"
+#include "util.h"
 #include "e3x.h"
 #include "unit_test.h"
 
