@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "e3x.h"
-#include "platform.h"
+#include "util_sys.h"
 
 // load secrets/keys to create a new local endpoint
 self3_t self3_new(lob_t secrets, lob_t keys)

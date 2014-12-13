@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include "util.h"
-#include "platform.h"
 
 #define CEIL(a, b) (((a) / (b)) + (((a) % (b)) > 0 ? 1 : 0))
 

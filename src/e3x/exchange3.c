@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "e3x.h"
-#include "platform.h"
+#include "util_sys.h"
 
 // make a new exchange
 // packet must contain the raw key in the body

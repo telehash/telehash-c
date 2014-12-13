@@ -5,10 +5,9 @@ typedef struct mesh_struct *mesh_t;
 
 #include "e3x.h"
 #include "lib.h"
+#include "util.h"
 #include "pipe.h"
 #include "link.h"
-#include "links.h"
-#include "platform.h"
 
 struct mesh_struct
 {

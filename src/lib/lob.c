@@ -4,12 +4,11 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdarg.h>
+#include "util.h" // util_sort(), util_sys_short()
+#include "e3x.h" // e3x_rand()
 #include "js0n.h"
-#include "platform.h" // platform_short()
-#include "util.h" // util_sort()
 #include "base32.h"
 #include "chacha.h"
-#include "e3x.h" // e3x_rand()
 
 lob_t lob_new()
 {

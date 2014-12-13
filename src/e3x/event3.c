@@ -1,7 +1,7 @@
 #include <string.h>
 #include "e3x.h"
 #include "xht.h"
-#include "platform.h"
+#include "util_sys.h"
 
 struct event3_struct
 {

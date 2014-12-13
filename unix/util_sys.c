@@ -6,7 +6,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 
-#include "platform.h"
+#include "util_sys.h"
 
 unsigned long platform_seconds()
 {

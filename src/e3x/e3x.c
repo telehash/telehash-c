@@ -1,6 +1,6 @@
 #include "e3x.h"
 #include "e3x_cipher.h"
-#include "platform.h"
+#include "util_sys.h"
 #include <string.h>
 
 static uint8_t _initialized = 0;

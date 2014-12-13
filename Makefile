@@ -12,7 +12,7 @@ CS2a = -ltomcrypt -ltommath -DLTM_DESC -DCS_2a src/e3x/cs2a/crypt_libtom_*.c
 CS3a = -Ics1a -lsodium -DCS_3a src/e3x/cs3a/crypt_3a.c
 
 # this is CS1a only
-UNIX1a = unix/platform.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c
+UNIX1a = unix/util_sys.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c
 
 # this is CS3a only
 #ARCH = -DNOCS_1a unix/platform.c cs3a/crypt_base.c cs1a/base64*.c $(JSON) $(CS3a) $(INCLUDE) $(LIBS)
@@ -50,6 +50,7 @@ HEADERS=$(wildcard include/*.h)
 #all: libmesh libe3x idgen router
 all: idgen router static
 	@echo "TODO\t`git grep TODO | wc -l | tr -d ' '`"
+	@cat $(LIB) $(E3X) $(MESH) $(EXT) > telehash.c
 
 # TODO make these lib builds real
 

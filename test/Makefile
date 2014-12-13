@@ -17,7 +17,7 @@ CS2a = -ltomcrypt -ltommath -DLTM_DESC -DCS_2a src/e3x/cs2a/crypt_libtom_*.c
 CS3a = -Ics1a -lsodium -DCS_3a src/e3x/cs3a/crypt_3a.c
 
 # this is CS1a only
-UNIX1a = unix/platform.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c
+UNIX1a = unix/util_sys.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c
 
 # this is CS3a only
 #ARCH = -DNOCS_1a unix/platform.c cs3a/crypt_base.c cs1a/base64*.c $(JSON) $(CS3a) $(INCLUDE) $(LIBS)
@@ -50,30 +50,7 @@ OTHER_TEST_OBJFILES=$(patsubst %.c,%.o,$(OTHER_TEST_FILES))
 
 FULL_OBJFILES = $(CORE_OBJFILES) $(CS1a_OBJFILES) $(ARCH_OBJFILES) $(OTHER_TEST_FILES)
 
-#all: libmesh libe3x idgen router
 all: test
-
-# TODO make these lib builds real
-
-libe3x:
-	rm -f libe3x.a
-	ar cru libe3x.a unix/platform.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c  $(LIB) $(E3X) $(CS1a)
-	ranlib libe3x.a
-
-libmesh:
-	rm -f libmesh.a
-	ar cru libmesh.a libe3x.a $(MESH)
-	ranlib libmesh.a
-
-.PHONY: arduino
-
-arduino: 
-	mkdir -p arduino/src/telehash
-	cp src/*.c src/*.h arduino/src/telehash/
-	mkdir -p arduino/src/telehash/lib
-	cp src/lib/*.c src/lib/*.h arduino/src/telehash/lib/
-	mkdir -p arduino/src/telehash/e3x
-	cp src/e3x/*.c src/e3x/*.h arduino/src/telehash/e3x/
 
 test: tests test-interop
 

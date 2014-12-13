@@ -6,7 +6,7 @@
 #include "sha256.h"
 #include "e3x.h"
 #include "e3x_cipher.h"
-#include "platform.h"
+#include "util_sys.h"
 
 // cs1a local ones
 #include "uECC.h"

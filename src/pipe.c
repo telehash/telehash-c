@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <stdint.h>
 #include "util.h"
-#include "platform.h"
 #include "pipe.h"
 
 pipe_t pipe_new(char *type)

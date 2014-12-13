@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#include "util_sys.h"
+
 // make sure out is 2*len + 1
 char *util_hex(uint8_t *in, uint32_t len, char *out);
 // out must be len/2

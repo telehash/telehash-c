@@ -1,8 +1,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <ctype.h>
-
-#include "platform.h"
+#include "util.h"
 #include "uri.h"
 
 // this is a very verbose/explicit single-pass telehash uri parser, no magic
