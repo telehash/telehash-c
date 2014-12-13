@@ -4,9 +4,9 @@
 #include "util.h"
 
 // this is a very verbose/explicit single-pass telehash uri parser, no magic
-uri_t uri_new(char *encoded, char *protocol)
+util_uri_t util_uri_new(char *encoded, char *protocol)
 {
-  uri_t uri;
+  util_uri_t uri;
   uint32_t plen, ulen, alen, klen, vlen;
   char *at, *user, *address, *val;
   char pdef[] = "link";
@@ -44,8 +44,8 @@ uri_t uri_new(char *encoded, char *protocol)
   // ensure there's at least an address
   if(!alen || !isalnum(address[0])) return LOG("invalid address: '%s'",address);
 
-  if(!(uri = malloc(sizeof(struct uri_struct)))) return LOG("OOM");
-  memset(uri,0,sizeof (struct uri_struct));
+  if(!(uri = malloc(sizeof(struct util_uri_struct)))) return LOG("OOM");
+  memset(uri,0,sizeof (struct util_uri_struct));
 
   uri->protocol = strndup(protocol,plen);
   if(ulen) uri->user = strndup(user,ulen);
@@ -57,7 +57,7 @@ uri_t uri_new(char *encoded, char *protocol)
   }else{
     uri->canonical = strdup(encoded);
   }
-  uri_canonical(uri,NULL);
+  util_uri_canonical(uri,NULL);
 
   // optional session
   if((at = strchr(encoded,'/')))
@@ -118,7 +118,7 @@ uri_t uri_new(char *encoded, char *protocol)
   return uri;
 }
 
-uri_t uri_free(uri_t uri)
+util_uri_t util_uri_free(util_uri_t uri)
 {
   if(!uri) return NULL;
   free(uri->protocol);
@@ -133,7 +133,7 @@ uri_t uri_free(uri_t uri)
 }
 
 // produces string safe to use until next encode or free
-char *uri_encode(uri_t uri)
+char *util_uri_encode(util_uri_t uri)
 {
   uint32_t len, i;
   char *key;
@@ -171,7 +171,7 @@ char *uri_encode(uri_t uri)
   return uri->encoded;
 }
 
-uri_t uri_protocol(uri_t uri, char *protocol)
+util_uri_t util_uri_protocol(util_uri_t uri, char *protocol)
 {
   if(!uri || !protocol) return LOG("bad args");
   if(uri->protocol) free(uri->protocol);
@@ -179,7 +179,7 @@ uri_t uri_protocol(uri_t uri, char *protocol)
   return uri;
 }
 
-uri_t uri_user(uri_t uri, char *user)
+util_uri_t util_uri_user(util_uri_t uri, char *user)
 {
   if(!uri) return LOG("bad args");
   if(uri->user) free(uri->user);
@@ -187,7 +187,7 @@ uri_t uri_user(uri_t uri, char *user)
   return uri;
 }
 
-uri_t uri_canonical(uri_t uri, char *canonical)
+util_uri_t util_uri_canonical(util_uri_t uri, char *canonical)
 {
   char *at;
   if(!uri) return LOG("bad args");
@@ -211,7 +211,7 @@ uri_t uri_canonical(uri_t uri, char *canonical)
   return uri;
 }
 
-uri_t uri_address(uri_t uri, char *address)
+util_uri_t util_uri_address(util_uri_t uri, char *address)
 {
   if(!uri || !address) return LOG("bad args");
   if(uri->address) free(uri->address);
@@ -219,14 +219,14 @@ uri_t uri_address(uri_t uri, char *address)
   return uri;
 }
 
-uri_t uri_port(uri_t uri, uint32_t port)
+util_uri_t util_uri_port(util_uri_t uri, uint32_t port)
 {
   if(!uri) return LOG("bad args");
   uri->port = port;
   return uri;
 }
 
-uri_t uri_session(uri_t uri, char *session)
+util_uri_t util_uri_session(util_uri_t uri, char *session)
 {
   if(!uri) return LOG("bad args");
   if(uri->session) free(uri->session);
@@ -234,7 +234,7 @@ uri_t uri_session(uri_t uri, char *session)
   return uri;
 }
 
-uri_t uri_keys(uri_t uri, lob_t keys)
+util_uri_t util_uri_keys(util_uri_t uri, lob_t keys)
 {
   if(!uri || !keys) return LOG("bad args");
   if(uri->keys) lob_free(uri->keys);
@@ -242,7 +242,7 @@ uri_t uri_keys(uri_t uri, lob_t keys)
   return uri;
 }
 
-uri_t uri_token(uri_t uri, char *token)
+util_uri_t util_uri_token(util_uri_t uri, char *token)
 {
   if(!uri) return LOG("bad args");
   if(uri->token) free(uri->token);

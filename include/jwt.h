@@ -1,5 +1,5 @@
-#ifndef uri_h
-#define uri_h
+#ifndef util_uri_h
+#define util_uri_h
 
 #include <stdint.h>
 #include "lob.h"
