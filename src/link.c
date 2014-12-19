@@ -29,7 +29,11 @@ link_t link_new(mesh_t mesh, hashname_t id)
   if(!mesh || !id) return LOG("invalid args");
 
   LOG("adding link %s",id->hashname);
-  if(!(link = malloc(sizeof (struct link_struct)))) return (link_t)hashname_free(id);
+  if(!(link = malloc(sizeof (struct link_struct))))
+  {
+    hashname_free(id);
+    return NULL;
+  }
   memset(link,0,sizeof (struct link_struct));
   
   link->id = id;

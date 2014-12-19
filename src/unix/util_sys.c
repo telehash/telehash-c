@@ -46,9 +46,9 @@ long util_sys_random(void)
 }
 
 #ifdef DEBUG
-int _logging = 1;
+static int _logging = 1;
 #else
-int _logging = 0;
+static int _logging = 0;
 #endif
 
 void util_sys_logging(int enabled)

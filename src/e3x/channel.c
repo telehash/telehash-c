@@ -77,7 +77,7 @@ void e3x_channel_free(e3x_channel_t c)
   lob_freeall(c->in);
   lob_freeall(c->out);
   free(c);
-};
+}
 
 // return its unique id in hex
 char *e3x_channel_uid(e3x_channel_t c)

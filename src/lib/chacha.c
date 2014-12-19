@@ -116,7 +116,6 @@ chacha20_xor(unsigned char* c,
     m += 64;
     c += 64;
   }
-  return 0;
 }
 
 int
