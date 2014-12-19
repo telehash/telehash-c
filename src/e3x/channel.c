@@ -137,7 +137,7 @@ uint32_t e3x_channel_timeout(e3x_channel_t c, e3x_event_t ev, uint32_t timeout)
   c->timeout = timeout;
   c->ev = ev;
   c->timer = lob_new();
-  lob_set_int(c->timer,"c",c->id);
+  lob_set_uint(c->timer,"c",c->id);
   lob_set(c->timer, "id", c->uid);
   lob_set(c->timer, "err", "timeout");
   e3x_event_set(c->ev, c->timer, lob_get(c->timer, "id"), timeout*1000); // ms in the future
@@ -182,7 +182,7 @@ uint8_t e3x_channel_receive(e3x_channel_t c, lob_t inner)
   }
 
   // reliability
-  inner->id = lob_get_int(inner, "seq");
+  inner->id = lob_get_uint(inner, "seq");
 
   // if there's an id, it's content
   if(inner->id)
@@ -207,7 +207,7 @@ uint8_t e3x_channel_receive(e3x_channel_t c, lob_t inner)
   }
 
   // remove any from outgoing cache that have been ack'd
-  if((ack = lob_get_int(inner, "ack")))
+  if((ack = lob_get_uint(inner, "ack")))
   {
     prev = c->out;
     while(prev && prev->id <= ack)
@@ -265,18 +265,19 @@ lob_t e3x_channel_oob(e3x_channel_t c)
 {
   lob_t ret, cur;
   char *miss;
-  uint32_t seq, len, last, delta;
+  uint32_t seq, last, delta;
+  size_t len;
   if(!c) return NULL;
 
   ret = lob_new();
-  lob_set_int(ret,"c",c->id);
+  lob_set_uint(ret,"c",c->id);
   
   if(!c->seq) return ret;
   
   // check for ack/miss
   if(c->ack != c->acked)
   {
-    lob_set_int(ret,"ack",c->ack);
+    lob_set_uint(ret,"ack",c->ack);
 
     // also check to include misses
     cur = c->in;
@@ -286,7 +287,7 @@ lob_t e3x_channel_oob(e3x_channel_t c)
       // I'm so tired of strings in c
       len = 2;
       if(!(miss = malloc(len))) return lob_free(ret);
-      len = snprintf(miss,len,"[");
+      len = (size_t)snprintf(miss,len,"[");
       for(seq=c->ack+1; cur; seq++)
       {
 //        LOG("ack %d seq %d last %d cur %d",c->ack,seq,last,cur->id);
@@ -299,13 +300,13 @@ lob_t e3x_channel_oob(e3x_channel_t c)
         // insert this missing seq delta
         delta = seq - last;
         last = seq;
-        len += snprintf(NULL, 0, "%u,", delta) + 1;
+        len += (size_t)snprintf(NULL, 0, "%u,", delta) + 1;
         if(!(miss = realloc(miss, len))) return lob_free(ret);
         sprintf(miss+strlen(miss),"%u,", delta);
       }
       // add current window at the end
       delta = 100; // TODO calculate this from actual space avail
-      len += snprintf(NULL, 0, "%u]", delta) + 1;
+      len += (size_t)snprintf(NULL, 0, "%u]", delta) + 1;
       if(!(miss = realloc(miss, len))) return lob_free(ret);
       sprintf(miss+strlen(miss),"%u]", delta);
       lob_set_raw(ret,"miss",4,miss,strlen(miss));
@@ -329,7 +330,7 @@ lob_t e3x_channel_packet(e3x_channel_t c)
   if(c->seq)
   {
     ret->id = c->seq; // use the lob id for convenience/checks
-    lob_set_int(ret,"seq",c->seq++);
+    lob_set_uint(ret,"seq",c->seq++);
   }
 
   return ret;

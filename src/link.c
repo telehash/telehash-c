@@ -213,7 +213,7 @@ link_t link_handshake(link_t link, lob_t inner, lob_t outer, pipe_t pipe)
   ready = link_ready(link);
 
   // if bad at, always send current handshake
-  if(e3x_exchange_in(link->x, lob_get_int(inner,"at")) < out)
+  if(e3x_exchange_in(link->x, lob_get_uint(inner,"at")) < out)
   {
     LOG("old/bad at: %s (%d,%d,%d)",lob_json(inner),lob_get_int(inner,"at"),e3x_exchange_in(link->x,0),e3x_exchange_out(link->x,0));
     if(pipe) pipe->send(pipe,e3x_exchange_handshake(link->x),link);
@@ -326,7 +326,7 @@ e3x_channel_t link_channel(link_t link, lob_t open)
   if(!link || !open) return LOG("bad args");
 
   // add an outgoing cid if none set
-  if(!lob_get_int(open,"c")) lob_set_int(open,"c",e3x_exchange_cid(link->x, NULL));
+  if(!lob_get_int(open,"c")) lob_set_uint(open,"c",e3x_exchange_cid(link->x, NULL));
   c3 = e3x_channel_new(open);
   if(!c3) return LOG("invalid open %s",lob_json(open));
   LOG("new outgoing channel open: %s",lob_get(open,"type"));

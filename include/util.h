@@ -10,9 +10,9 @@
 #include "util_unix.h"
 
 // make sure out is 2*len + 1
-char *util_hex(uint8_t *in, uint32_t len, char *out);
+char *util_hex(uint8_t *in, size_t len, char *out);
 // out must be len/2
-uint8_t *util_unhex(char *in, uint32_t len, uint8_t *out);
+uint8_t *util_unhex(char *in, size_t len, uint8_t *out);
 // hex string validator, NULL is invalid, else returns str
 char *util_ishex(char *str, uint32_t len);
 
@@ -20,7 +20,7 @@ char *util_ishex(char *str, uint32_t len);
 int util_cmp(char *a, char *b);
 
 // portable sort
-void util_sort(void *base, int nel, int width, int (*comp)(void *, const void *, const void *), void *arg);
+void util_sort(void *base, unsigned int nel, unsigned int width, int (*comp)(void *, const void *, const void *), void *arg);
 
 // portable reallocf
 void *util_reallocf(void *ptr, size_t size);

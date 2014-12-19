@@ -21,7 +21,7 @@ ld32(const unsigned char* x)
 static void st32(unsigned char *x,unsigned int u)
 {
   int i;
-  for (i=0; i < 4; ++i) { x[i] = u; u >>= 8; }
+  for (i=0; i < 4; ++i) { x[i] = (0xff & u); u >>= 8; }
 }
 
 static void

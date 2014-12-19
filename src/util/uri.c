@@ -7,8 +7,8 @@
 util_uri_t util_uri_new(char *encoded, char *protocol)
 {
   util_uri_t uri;
-  uint32_t plen, ulen, alen, klen, vlen;
-  char *at, *user, *address, *val;
+  size_t plen, ulen, alen, klen, vlen;
+  char *at, *user = NULL, *address, *val;
   char pdef[] = "link";
 
   if(!encoded) return LOG("bad args");
@@ -19,7 +19,7 @@ util_uri_t util_uri_new(char *encoded, char *protocol)
     if(!protocol) protocol = (char*)pdef; // default to "link://"
     plen = strlen(protocol);
   }else{
-    plen = at - encoded;
+    plen = (size_t)(at - encoded);
     // enforce if specified
     if(protocol && (plen != strlen(protocol) || strncmp(encoded,protocol,plen))) return LOG("protocol mismatch %s != %.*s",protocol,plen,encoded);
     protocol = encoded;
@@ -29,7 +29,7 @@ util_uri_t util_uri_new(char *encoded, char *protocol)
   // check for user@ prefix next
   if((at = strchr(encoded,'@')))
   {
-    ulen = at - encoded;
+    ulen = (size_t)(at - encoded);
     user = encoded;
     if(!ulen || !islower(user[0])) return LOG("invalid user: '%.*s'",ulen,user);
     // TODO decode optional .base32 alternative
@@ -53,7 +53,7 @@ util_uri_t util_uri_new(char *encoded, char *protocol)
   // copy in canonical and parse address/port
   if((at = strchr(encoded,'/')) || (at = strchr(encoded,'?')) || (at = strchr(encoded,'#')))
   {
-    uri->canonical = strndup(encoded, at - encoded);
+    uri->canonical = strndup(encoded, (size_t)(at - encoded));
   }else{
     uri->canonical = strdup(encoded);
   }
@@ -65,7 +65,7 @@ util_uri_t util_uri_new(char *encoded, char *protocol)
     encoded = at+1;
     if((at = strchr(encoded,'?')) || (at = strchr(encoded,'#')))
     {
-      uri->session = strndup(encoded, at - encoded);
+      uri->session = strndup(encoded, (size_t)(at - encoded));
     }else{
       uri->session = strdup(encoded);
     }
@@ -84,7 +84,7 @@ util_uri_t util_uri_new(char *encoded, char *protocol)
     encoded = at+1;
     if((at = strchr(encoded,'#')))
     {
-      klen = at - encoded;
+      klen = (size_t)(at - encoded);
     }else{
       klen = strlen(encoded);
     }
@@ -101,13 +101,13 @@ util_uri_t util_uri_new(char *encoded, char *protocol)
       val++;
       if((at = strchr(val,'&')))
       {
-        vlen = at - val;
+        vlen = (size_t)(at - val);
       }else{
         vlen = strlen(val);
       }
-      lob_set_raw(uri->keys, encoded, (val-encoded)-1, val, vlen);
+      lob_set_raw(uri->keys, encoded, (size_t)(val-encoded)-1, val, vlen);
       // skip past whole block
-      klen -= ((val+vlen) - encoded);
+      klen -= (size_t)((val+vlen) - encoded);
       encoded = val + vlen;
     }
 
@@ -201,8 +201,8 @@ util_uri_t util_uri_canonical(util_uri_t uri, char *canonical)
   
   if((at = strchr(uri->canonical,':')))
   {
-    uri->address = strndup(uri->canonical, at - uri->canonical);
-    uri->port = strtol(at+1,NULL,10);
+    uri->address = strndup(uri->canonical, (size_t)(at - uri->canonical));
+    uri->port = (uint32_t)strtoul(at+1,NULL,10);
   }else{
     uri->address = strdup(uri->canonical);
     uri->port = 0;

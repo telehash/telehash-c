@@ -10,16 +10,16 @@
 
 #include "util_sys.h"
 
-unsigned long util_sys_seconds()
+at_t util_sys_seconds()
 {
-  return (unsigned long)time(0);
+  return (at_t)time(0);
 }
 
-unsigned long long util_sys_ms(unsigned long epoch)
+unsigned long long util_sys_ms(long epoch)
 {
   struct timeval tv;
   gettimeofday(&tv, NULL);
-  if(epoch > (unsigned long)tv.tv_sec) return 0;
+  if(epoch > tv.tv_sec) return 0;
   return (unsigned long long)(tv.tv_sec - epoch) * 1000 + (unsigned long long)(tv.tv_usec) / 1000;
 }
 
@@ -35,7 +35,7 @@ void util_sys_random_init(void)
 
   // TODO ifdef for srandomdev when avail
   gettimeofday(&tv, NULL);
-  seed = (getpid() << 16) ^ tv.tv_sec ^ tv.tv_usec;
+  seed = ((unsigned int)getpid() << 16) ^ (unsigned int)tv.tv_sec ^ (unsigned int)tv.tv_usec;
   srandom(seed);
 }
 

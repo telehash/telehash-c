@@ -49,7 +49,7 @@ xhn _xht_node_find(xhn n, const char *key)
 }
 
 
-xht_t xht_new(int prime)
+xht_t xht_new(unsigned int prime)
 {
     xht_t xnew;
 
@@ -109,10 +109,10 @@ void xht_set(xht_t h, const char *key, void *val)
     _xht_set(h, key, val, 0);
 }
 
-void xht_store(xht_t h, const char *key, void *val, int vlen)
+void xht_store(xht_t h, const char *key, void *val, size_t vlen)
 {
     char *ckey, *cval;
-    int klen;
+    size_t klen;
 
     if(h == 0 || key == 0 || (klen = strlen(key)) == 0) return;
 

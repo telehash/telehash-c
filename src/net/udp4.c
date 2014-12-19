@@ -80,14 +80,15 @@ pipe_t udp4_path(link_t link, lob_t path)
 
 net_udp4_t net_udp4_new(mesh_t mesh, lob_t options)
 {
-  int port, sock, pipes;
+  int port, sock;
+  unsigned int pipes;
   net_udp4_t net;
   struct sockaddr_in sa;
   socklen_t size = sizeof(struct sockaddr_in);
   
   port = lob_get_int(options,"port");
   if(!port) port = mesh->port_local; // might be another in use
-  pipes = lob_get_int(options,"pipes");
+  pipes = lob_get_uint(options,"pipes");
   if(!pipes) pipes = 11; // hashtable for active pipes
 
   // create a udp socket
@@ -104,7 +105,7 @@ net_udp4_t net_udp4_new(mesh_t mesh, lob_t options)
   memset(net,0,sizeof (struct net_udp4_struct));
   net->server = sock;
   net->port = ntohs(sa.sin_port);
-  if(!mesh->port_local) mesh->port_local = net->port; // use ours as the default if no others
+  if(!mesh->port_local) mesh->port_local = (uint16_t)net->port; // use ours as the default if no others
   net->pipes = xht_new(pipes);
 
   // connect us to this mesh
@@ -135,7 +136,8 @@ net_udp4_t net_udp4_receive(net_udp4_t net)
 {
   unsigned char buf[2048];
   struct sockaddr_in sa;
-  int len, salen;
+  ssize_t len;
+  size_t salen;
   lob_t packet;
   pipe_t pipe;
   
@@ -148,7 +150,7 @@ net_udp4_t net_udp4_receive(net_udp4_t net)
   if(len < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) return net;
   if(len <= 0) return LOG("recvfrom error %s",strerror(errno));
 
-  packet = lob_decloak(buf,len);
+  packet = lob_decloak(buf, (size_t)len);
   if(!packet)
   {
     LOG("parse error from %s on %d bytes",inet_ntoa(sa.sin_addr),len);

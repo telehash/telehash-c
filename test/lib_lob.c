@@ -26,7 +26,7 @@ int main(int argc, char **argv)
   packet = lob_new();
   lob_set_base32(packet,"32",buf,len);
   fail_unless(lob_get(packet,"32"));
-  fail_unless((int)strlen(lob_get(packet,"32")) == (base32_encode_length(len)-1));
+  fail_unless(strlen(lob_get(packet,"32")) == (base32_encode_length(len)-1));
   lob_t bin = lob_get_base32(packet,"32");
   fail_unless(bin);
   fail_unless(bin->body_len == len);

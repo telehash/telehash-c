@@ -61,19 +61,20 @@ static unsigned char base32Lookup[BASE32_LOOKUP_MAX][2] =
     { 'Z', 0x19 }
 };
 
-int base32_encode_length(int rawLength)
+size_t base32_encode_length(size_t rawLength)
 {
     return ((rawLength * 8) / 5) + ((rawLength % 5) != 0) + 1;
 }
 
-int base32_decode_length(int base32Length)
+size_t base32_decode_length(size_t base32Length)
 {
     return ((base32Length * 5) / 8);
 }
 
-void base32_encode_into(const void *_buffer, unsigned int bufLen, char *base32Buffer)
+void base32_encode_into(const void *_buffer, size_t bufLen, char *base32Buffer)
 {
-    unsigned int i, index;
+    size_t i;
+    int index;
     unsigned char word;
     const unsigned char *buffer = _buffer;
 
@@ -105,16 +106,18 @@ void base32_encode_into(const void *_buffer, unsigned int bufLen, char *base32Bu
     *base32Buffer = 0;
 }
 
-char *base32_encode(const void *buf, unsigned int len)
+char *base32_encode(const void *buf, size_t len)
 {
     char *tmp = malloc(base32_encode_length(len));
     base32_encode_into(buf, len, tmp);
     return tmp;
 }
 
-int base32_decode_into(const char *base32Buffer, unsigned int base32BufLen, void *_buffer)
+size_t base32_decode_into(const char *base32Buffer, size_t base32BufLen, void *_buffer)
 {
-    int i, index, max, lookup, offset;
+    int lookup;
+    unsigned int i, index, offset;
+    size_t max;
     unsigned char  word;
     unsigned char *buffer = _buffer;
 
@@ -125,7 +128,7 @@ int base32_decode_into(const char *base32Buffer, unsigned int base32BufLen, void
         lookup = toupper(base32Buffer[i]) - '0';
         /* Check to make sure that the given word falls inside
            a valid range */
-        if ( lookup < 0 && lookup >= BASE32_LOOKUP_MAX)
+        if ( lookup < 0 || lookup >= BASE32_LOOKUP_MAX)
             word = 0xFF;
         else
             word = base32Lookup[lookup][1];
@@ -157,11 +160,11 @@ int base32_decode_into(const char *base32Buffer, unsigned int base32BufLen, void
     return offset;
 }
 
-void *base32_decode(const char *buf, unsigned int *outlen)
+void *base32_decode(const char *buf, size_t *outlen)
 {
-    unsigned int len = strlen(buf);
+    size_t len = strlen(buf);
     char *tmp = malloc(base32_decode_length(len));
-    unsigned int x = base32_decode_into(buf, len, tmp);
+    size_t x = base32_decode_into(buf, len, tmp);
     if(outlen)
         *outlen = x;
     return tmp;

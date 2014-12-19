@@ -361,7 +361,8 @@ void sha256_hmac_update( sha256_context *ctx, const unsigned char *input, size_t
  */
 void sha256_hmac_finish( sha256_context *ctx, unsigned char output[32] )
 {
-    int is224, hlen;
+    int is224;
+    size_t hlen;
     unsigned char tmpbuf[32];
 
     is224 = ctx->is224;

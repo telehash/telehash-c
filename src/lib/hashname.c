@@ -47,7 +47,7 @@ hashname_t hashname_str(char *str)
 // create hashname from intermediate values as hex/base32 key/value pairs
 hashname_t hashname_key(lob_t key)
 {
-  int i, start;
+  unsigned int i, start;
   uint8_t hash[64];
   char *id, *value;
   hashname_t hn = NULL;
@@ -107,7 +107,7 @@ hashname_t hashname_free(hashname_t hn)
 uint8_t hashname_id(lob_t a, lob_t b)
 {
   uint8_t id, best;
-  int i;
+  uint32_t i;
   char *key;
 
   if(!a || !b) return 0;
@@ -128,7 +128,8 @@ uint8_t hashname_id(lob_t a, lob_t b)
 // packet-format w/ intermediate hashes in the json
 lob_t hashname_im(lob_t keys, uint8_t id)
 {
-  int i,len;
+  uint32_t i;
+  size_t len;
   uint8_t *buf, hash[32];
   char *key, *value, hex[3];
   lob_t im;

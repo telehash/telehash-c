@@ -33,10 +33,10 @@ uint8_t *e3x_err(void);
 lob_t e3x_generate(void);
 
 // random bytes, from a supported cipher set
-uint8_t *e3x_rand(uint8_t *bytes, uint32_t len);
+uint8_t *e3x_rand(uint8_t *bytes, size_t len);
 
 // sha256 hashing, from one of the cipher sets
-uint8_t *e3x_hash(uint8_t *in, uint32_t len, uint8_t *out32);
+uint8_t *e3x_hash(uint8_t *in, size_t len, uint8_t *out32);
 
 
 // local endpoint state management

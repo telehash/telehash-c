@@ -14,7 +14,7 @@
 lob_t util_fjson(char *file)
 {
   unsigned char *buf;
-  int len;
+  size_t len;
   struct stat fs;
   FILE *fd;
   lob_t p;
@@ -23,10 +23,10 @@ lob_t util_fjson(char *file)
   if(!fd) return LOG("fopen error %s: %s",file,strerror(errno));
   if(fstat(fileno(fd),&fs) < 0) return LOG("fstat error %s: %s",file,strerror(errno));
   
-  buf = malloc(fs.st_size);
-  len = fread(buf,1,fs.st_size,fd);
+  buf = malloc((size_t)fs.st_size);
+  len = fread(buf,1,(size_t)fs.st_size,fd);
   fclose(fd);
-  if(len != fs.st_size)
+  if(len != (size_t)fs.st_size)
   {
     free(buf);
     return LOG("fread %d != %d for %s: %s",len,fs.st_size,file,strerror(errno));

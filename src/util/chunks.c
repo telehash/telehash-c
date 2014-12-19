@@ -80,7 +80,8 @@ util_chunks_t _util_chunks_gc(util_chunks_t chunks)
 // turn this packet into chunks
 util_chunks_t util_chunks_send(util_chunks_t chunks, lob_t out)
 {
-  uint32_t start, len, at;
+  uint32_t start, at;
+  size_t len;
   uint8_t *raw, size, rounds = 1; // TODO random rounds?
   
   // validate and gc first
@@ -102,7 +103,7 @@ util_chunks_t util_chunks_send(util_chunks_t chunks, lob_t out)
   
   for(at = 0; at < len;)
   {
-    size = ((len-at) < chunks->space) ? (len-at) : chunks->space;
+    size = ((len-at) < chunks->space) ? (uint8_t)(len-at) : chunks->space;
     chunks->writing[start] = size;
     start++;
     memcpy(chunks->writing+start,raw+at,size);
@@ -171,7 +172,7 @@ uint8_t *util_chunks_out(util_chunks_t chunks, uint8_t *len)
 }
 
 // internal to append read data
-util_chunks_t _util_chunks_append(util_chunks_t chunks, uint8_t *block, uint32_t len)
+util_chunks_t _util_chunks_append(util_chunks_t chunks, uint8_t *block, size_t len)
 {
   if(!chunks || !block || !len) return chunks;
   if(!chunks->reading) chunks->readlen = chunks->readat = 0; // be paranoid
@@ -204,7 +205,7 @@ uint8_t *util_chunks_write(util_chunks_t chunks)
 }
 
 // advance the write pointer this far
-util_chunks_t util_chunks_written(util_chunks_t chunks, uint32_t len)
+util_chunks_t util_chunks_written(util_chunks_t chunks, size_t len)
 {
   if(!chunks || (len+chunks->writeat) > chunks->writelen) return NULL;
   chunks->writeat += len;
@@ -214,9 +215,9 @@ util_chunks_t util_chunks_written(util_chunks_t chunks, uint32_t len)
 }
 
 // process incoming stream data into any packets, returns NULL until a chunk was received and ensures there's data to write
-util_chunks_t util_chunks_read(util_chunks_t chunks, uint8_t *block, uint32_t len)
+util_chunks_t util_chunks_read(util_chunks_t chunks, uint8_t *block, size_t len)
 {
-  uint32_t at, good;
+  uint32_t at, good = 0;
   if(!_util_chunks_append(chunks,block,len)) return NULL;
   if(!chunks->reading || !chunks->readlen) return NULL; // paranoid
 
