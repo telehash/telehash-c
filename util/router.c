@@ -17,7 +17,8 @@ int main(int argc, char *argv[])
   net_udp4_t udp4;
   net_tcp4_t tcp4;
   char *paths;
-  int port = 0, len;
+  int port = 0;
+  size_t len;
 
   if(argc==2)
   {
