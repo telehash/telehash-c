@@ -1,3 +1,5 @@
+#include <stddef.h>
+
 #ifndef xht_h
 #define xht_h
 
@@ -6,14 +8,14 @@
 typedef struct xht_struct *xht_t;
 
 // must pass a prime#
-xht_t xht_new(int prime);
+xht_t xht_new(unsigned int prime);
 
 // caller responsible for key storage, no copies made (don't free it b4 xht_free()!)
 // set val to NULL to clear an entry, memory is reused but never free'd (# of keys only grows to peak usage)
 void xht_set(xht_t h, const char *key, void *val);
 
 // ooh! unlike set where key/val is in caller's mem, here they are copied into xht_t and free'd when val is 0 or xht_free()
-void xht_store(xht_t h, const char *key, void *val, int vlen);
+void xht_store(xht_t h, const char *key, void *val, size_t vlen);
 
 // returns value of val if found, or NULL
 void *xht_get(xht_t h, const char *key);

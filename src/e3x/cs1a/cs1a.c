@@ -38,7 +38,7 @@ typedef struct ephemeral_struct
 
 // these are all the locally implemented handlers defined in e3x_cipher.h
 
-static uint8_t *cipher_hash(uint8_t *input, uint32_t len, uint8_t *output);
+static uint8_t *cipher_hash(uint8_t *input, size_t len, uint8_t *output);
 static uint8_t *cipher_err(void);
 static uint8_t cipher_generate(lob_t keys, lob_t secrets);
 
@@ -98,7 +98,7 @@ e3x_cipher_t cs1a_init(lob_t options)
   return ret;
 }
 
-uint8_t *cipher_hash(uint8_t *input, uint32_t len, uint8_t *output)
+uint8_t *cipher_hash(uint8_t *input, size_t len, uint8_t *output)
 {
   sha256(input,len,output,0);
   return output;
@@ -253,7 +253,7 @@ lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
 {
   uint8_t shared[uECC_BYTES+4], iv[16], hash[32], csid = 0x1a;
   lob_t outer;
-  uint32_t inner_len;
+  size_t inner_len;
 
   outer = lob_new();
   lob_head(outer,&csid,1);
@@ -330,7 +330,7 @@ lob_t ephemeral_encrypt(ephemeral_t ephem, lob_t inner)
 {
   lob_t outer;
   uint8_t iv[16], hmac[32];
-  uint32_t inner_len;
+  size_t inner_len;
 
   outer = lob_new();
   inner_len = lob_len(inner);

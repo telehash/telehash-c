@@ -138,7 +138,7 @@ lob_t e3x_exchange_handshake(e3x_exchange_t x)
 
   // create new handshake inner from all supported csets
   inner = lob_new();
-  lob_set_int(inner,"at",x->out);
+  lob_set_uint(inner,"at",x->out);
   
   // loop through all ciphersets for any keys
   for(i=0; i<CS_MAX; i++)
@@ -195,7 +195,7 @@ uint32_t e3x_exchange_cid(e3x_exchange_t x, lob_t incoming)
   }
 
   // incoming mode, verify it
-  if(!(cid = lob_get_int(incoming,"c"))) return 0;
+  if(!(cid = lob_get_uint(incoming,"c"))) return 0;
   if(cid <= x->last) return 0; // can't re-use old ones
   // make sure it's even/odd properly
   if((cid % 2) == (x->cid % 2)) return 0;

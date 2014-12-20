@@ -61,7 +61,7 @@ pipe_tcp4_t tcp4_to(pipe_t pipe)
 // do all chunk/socket stuff
 pipe_t tcp4_flush(pipe_t pipe)
 {
-  int len;
+  ssize_t len;
   lob_t packet;
   uint8_t buf[256];
   pipe_tcp4_t to = tcp4_to(pipe);
@@ -71,7 +71,7 @@ pipe_t tcp4_flush(pipe_t pipe)
   {
     while((len = write(to->client, util_chunks_write(to->chunks), util_chunks_len(to->chunks))) > 0)
     {
-      util_chunks_written(to->chunks, len);
+      util_chunks_written(to->chunks, (size_t)len);
       LOG("wrote %d bytes to %s",len,pipe->id);
     }
   }
@@ -79,7 +79,7 @@ pipe_t tcp4_flush(pipe_t pipe)
   while((len = read(to->client, buf, 256)) > 0)
   {
     LOG("reading %d bytes from %s",len,pipe->id);
-    util_chunks_read(to->chunks, buf, len);
+    util_chunks_read(to->chunks, buf, (size_t)len);
   }
 
   // any incoming full packets can be received
@@ -168,13 +168,14 @@ pipe_t tcp4_path(link_t link, lob_t path)
 
 net_tcp4_t net_tcp4_new(mesh_t mesh, lob_t options)
 {
-  int port, sock, pipes, opt = 1;
+  int port, sock, opt = 1;
+  unsigned int pipes;
   net_tcp4_t net;
   struct sockaddr_in sa;
   socklen_t size = sizeof(struct sockaddr_in);
   
   port = lob_get_int(options,"port");
-  pipes = lob_get_int(options,"pipes");
+  pipes = lob_get_uint(options,"pipes");
   if(!pipes) pipes = 11; // hashtable for active pipes
 
   // create a udp socket

@@ -15,8 +15,8 @@ typedef struct e3x_cipher_struct
   char hex[3];
 
   // these are common functions each one needs to support
-  uint8_t *(*rand)(uint8_t *bytes, uint32_t len); // write len random bytes, returns bytes as well for convenience
-  uint8_t *(*hash)(uint8_t *in, uint32_t len, uint8_t *out32); // sha256's the in, out32 must be [32] from caller
+  uint8_t *(*rand)(uint8_t *bytes, size_t len); // write len random bytes, returns bytes as well for convenience
+  uint8_t *(*hash)(uint8_t *in, size_t len, uint8_t *out32); // sha256's the in, out32 must be [32] from caller
   uint8_t *(*err)(void); // last known crypto error string, if any
 
   // create a new keypair, save encoded to csid in each

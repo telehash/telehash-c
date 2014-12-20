@@ -42,9 +42,9 @@ uint32_t util_chunks_len(util_chunks_t chunks);
 uint8_t *util_chunks_write(util_chunks_t chunks);
 
 // advance the write this far, don't mix with util_chunks_out() usage
-util_chunks_t util_chunks_written(util_chunks_t chunks, uint32_t len);
+util_chunks_t util_chunks_written(util_chunks_t chunks, size_t len);
 
 // process incoming stream data into any packets, returns NULL until a chunk was received and there's data to write
-util_chunks_t util_chunks_read(util_chunks_t chunks, uint8_t *block, uint32_t len);
+util_chunks_t util_chunks_read(util_chunks_t chunks, uint8_t *block, size_t len);
 
 #endif

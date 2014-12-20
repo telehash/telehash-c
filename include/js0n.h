@@ -7,4 +7,4 @@
 // jlen = length of json
 // vlen = where to store return value length
 // returns pointer to value and sets len to value length, or 0 if not found or any error
-char *js0n(char *key, int klen, char *json, int jlen, int *vlen);
+char *js0n(char *key, size_t klen, char *json, size_t jlen, size_t *vlen);

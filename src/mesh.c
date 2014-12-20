@@ -167,7 +167,7 @@ void mesh_on_path(mesh_t mesh, char *id, pipe_t (*path)(link_t link, lob_t path)
 pipe_t mesh_path(mesh_t mesh, link_t link, lob_t path)
 {
   on_t on;
-  pipe_t pipe;
+  pipe_t pipe = NULL;
   if(!mesh || !link || !path) return NULL;
 
   for(on = mesh->on; on; on = on->next)

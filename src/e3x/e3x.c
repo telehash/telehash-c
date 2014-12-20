@@ -33,7 +33,7 @@ uint8_t *e3x_err(void)
 // generate all the keypairs
 lob_t e3x_generate(void)
 {
-  uint8_t i, err;
+  uint8_t i, err = 0;
   lob_t keys, secrets;
   keys = lob_new();
   secrets = lob_chain(keys);
@@ -47,7 +47,7 @@ lob_t e3x_generate(void)
 }
 
 // random bytes, from a supported cipher set
-uint8_t *e3x_rand(uint8_t *bytes, uint32_t len)
+uint8_t *e3x_rand(uint8_t *bytes, size_t len)
 {
   uint8_t *x = bytes;
   if(!bytes || !len) return bytes;
@@ -63,7 +63,7 @@ uint8_t *e3x_rand(uint8_t *bytes, uint32_t len)
 }
 
 // sha256 hashing, from one of the cipher sets
-uint8_t *e3x_hash(uint8_t *in, uint32_t len, uint8_t *out32)
+uint8_t *e3x_hash(uint8_t *in, size_t len, uint8_t *out32)
 {
   if(!in || !len || !out32) return out32;
   if(!e3x_cipher_default)

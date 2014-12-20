@@ -49,7 +49,7 @@ void e3x_self_free(e3x_self_t self)
   // free any locals created
   for(i=0; i<CS_MAX; i++)
   {
-    if(!self->locals[i]) continue;
+    if(!self->locals[i] || !e3x_cipher_sets[i]) continue;
     e3x_cipher_sets[i]->local_free(self->locals[i]);
     lob_free(self->keys[i]);
   }

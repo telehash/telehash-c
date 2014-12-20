@@ -1,5 +1,6 @@
 /* Copyright 2014, Kenneth MacKay. Licensed under the BSD 2-clause license. */
 
+#include <stddef.h>
 #include "uECC.h"
 
 #ifndef uECC_PLATFORM
@@ -360,10 +361,10 @@ static int default_RNG(uint8_t *p_dest, unsigned p_size)
     }
     
     char *l_ptr = (char *)p_dest;
-    size_t l_left = p_size;
+    ssize_t l_left = p_size;
     while(l_left > 0)
     {
-        int l_read = read(l_fd, l_ptr, l_left);
+        ssize_t l_read = read(l_fd, l_ptr, (size_t)l_left);
         if(l_read <= 0)
         { // read failed
             close(l_fd);
@@ -445,11 +446,11 @@ static wordcount_t vli_numDigits(const uECC_word_t *p_vli, wordcount_t p_maxWord
     swordcount_t i;
     /* Search from the end until we find a non-zero digit.
        We do it in reverse because we expect that most digits will be nonzero. */
-    for(i = p_maxWords-1; i >= 0 && p_vli[i] == 0; --i)
+    for(i = (swordcount_t)p_maxWords-1; i >= 0 && p_vli[i] == 0; --i)
     {
     }
 
-    return (i + 1);
+    return (wordcount_t)(i + 1);
 }
 
 /* Counts the number of bits required to represent p_vli. */
@@ -470,7 +471,7 @@ static bitcount_t vli_numBits(const uECC_word_t *p_vli, wordcount_t p_maxWords)
         l_digit >>= 1;
     }
     
-    return ((bitcount_t)(l_numDigits - 1) * uECC_WORD_BITS + i);
+    return ((bitcount_t)(l_numDigits - 1) * uECC_WORD_BITS + (bitcount_t)i);
 }
 #endif /* !asm_numBits */
 
@@ -1721,10 +1722,10 @@ static void vli_nativeToBytes(uint8_t *p_bytes, const uint32_t *p_native)
     for(i=0; i<uECC_WORDS; ++i)
     {
         uint8_t *p_digit = p_bytes + 4 * (uECC_WORDS - 1 - i);
-        p_digit[0] = p_native[i] >> 24;
-        p_digit[1] = p_native[i] >> 16;
-        p_digit[2] = p_native[i] >> 8;
-        p_digit[3] = p_native[i];
+        p_digit[0] = (uint8_t)(p_native[i] >> 24);
+        p_digit[1] = (uint8_t)(p_native[i] >> 16);
+        p_digit[2] = (uint8_t)(p_native[i] >> 8);
+        p_digit[3] = (uint8_t)(p_native[i]);
     }
 }
 
@@ -2303,7 +2304,7 @@ int uECC_verify(const uint8_t p_publicKey[uECC_BYTES*2], const uint8_t p_hash[uE
     {
         EccPoint_double_jacobian(rx, ry, z);
         
-        uECC_word_t l_index = (!!vli_testBit(u1, i)) | ((!!vli_testBit(u2, i)) << 1);
+        uECC_word_t l_index = (!!vli_testBit(u1, i)) | (uECC_word_t)((!!vli_testBit(u2, i)) << 1);
         l_point = l_points[l_index];
         if(l_point)
         {

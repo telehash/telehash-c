@@ -78,17 +78,17 @@ uint8_t *lob_raw(lob_t p)
   return p->raw;
 }
 
-uint32_t lob_len(lob_t p)
+size_t lob_len(lob_t p)
 {
   if(!p) return 0;
   return 2+p->head_len+p->body_len;
 }
 
-lob_t lob_parse(uint8_t *raw, uint32_t len)
+lob_t lob_parse(const uint8_t *raw, size_t len)
 {
   lob_t p;
   uint16_t nlen, hlen;
-  int jtest;
+  size_t jtest;
 
   // make sure is at least size valid
   if(!raw || len < 2) return NULL;
@@ -113,7 +113,7 @@ lob_t lob_parse(uint8_t *raw, uint32_t len)
   return p;
 }
 
-uint8_t *lob_head(lob_t p, uint8_t *head, uint16_t len)
+uint8_t *lob_head(lob_t p, uint8_t *head, size_t len)
 {
   uint16_t nlen;
   void *ptr;
@@ -129,14 +129,14 @@ uint8_t *lob_head(lob_t p, uint8_t *head, uint16_t len)
   // copy in new head
   memcpy(p->head,head,len);
   p->head_len = len;
-  nlen = util_sys_short(len);
+  nlen = util_sys_short((uint16_t)len);
   memcpy(p->raw,&nlen,2);
   free(p->cache);
   p->cache = NULL;
   return p->head;
 }
 
-uint8_t *lob_body(lob_t p, uint8_t *body, uint32_t len)
+uint8_t *lob_body(lob_t p, uint8_t *body, size_t len)
 {
   void *ptr;
   if(!p) return NULL;
@@ -149,7 +149,7 @@ uint8_t *lob_body(lob_t p, uint8_t *body, uint32_t len)
   return p->body;
 }
 
-lob_t lob_append(lob_t p, uint8_t *chunk, uint32_t len)
+lob_t lob_append(lob_t p, uint8_t *chunk, size_t len)
 {
   void *ptr;
   if(!p || !chunk || !len) return LOG("bad args");
@@ -163,11 +163,10 @@ lob_t lob_append(lob_t p, uint8_t *chunk, uint32_t len)
 }
 
 // TODO allow empty val to remove existing
-lob_t lob_set_raw(lob_t p, char *key, uint16_t klen, char *val, uint16_t vlen)
+lob_t lob_set_raw(lob_t p, char *key, size_t klen, char *val, size_t vlen)
 {
   char *json, *at, *eval;
-  uint16_t len;
-  int evlen;
+  size_t len, evlen;
 
   if(!p || !key || !val) return LOG("bad args (%d,%d,%d)",p,key,val);
   if(p->head_len < 2) lob_head(p, (uint8_t*)"{}", 2);
@@ -207,7 +206,7 @@ lob_t lob_set_raw(lob_t p, char *key, uint16_t klen, char *val, uint16_t vlen)
     *at = ':'; at++;
     memcpy(at,val,vlen); at+=vlen;
     *at = '}'; at++;
-    len = at - json;
+    len = (size_t)(at - json);
   }
   lob_head(p, (uint8_t*)json, len);
   free(json);
@@ -217,7 +216,7 @@ lob_t lob_set_raw(lob_t p, char *key, uint16_t klen, char *val, uint16_t vlen)
 lob_t lob_set_printf(lob_t p, char *key, const char *format, ...)
 {
   va_list ap, cp;
-  int len;
+  size_t len;
   char *val;
 
   if(!p || !key || !format) return LOG("bad args");
@@ -225,7 +224,7 @@ lob_t lob_set_printf(lob_t p, char *key, const char *format, ...)
   va_start(ap, format);
   va_copy(cp, ap);
 
-  len = vsnprintf(NULL, 0, format, cp);
+  len = (size_t) vsnprintf(NULL, 0, format, cp);
   if((val = malloc(len))) vsprintf(val, format, ap);
   va_end(ap);
   va_end(cp);
@@ -243,10 +242,20 @@ lob_t lob_set_int(lob_t p, char *key, int val)
   return p;
 }
 
+lob_t lob_set_uint(lob_t p, char *key, unsigned int val)
+{
+  char num[32];
+  if(!p || !key) return LOG("bad args");
+  sprintf(num,"%u",val);
+  lob_set_raw(p, key, 0, num, 0);
+  return p;
+}
+
 lob_t lob_set(lob_t p, char *key, char *val)
 {
   char *escaped;
-  int i, len, vlen = strlen(val);
+  size_t i, len;
+  size_t vlen = strlen(val);
   if(!p || !key || !val) return LOG("bad args");
   // TODO escape key too
   if(!(escaped = malloc(vlen*2+2))) return LOG("OOM"); // enough space worst case
@@ -263,11 +272,11 @@ lob_t lob_set(lob_t p, char *key, char *val)
   return p;
 }
 
-lob_t lob_set_base32(lob_t p, char *key, uint8_t *bin, uint16_t blen)
+lob_t lob_set_base32(lob_t p, char *key, uint8_t *bin, size_t blen)
 {
   char *val;
   if(!p || !key || !bin || !blen) return LOG("bad args");
-  uint16_t vlen = base32_encode_length(blen)-1; // remove the auto-added \0 space
+  size_t vlen = base32_encode_length(blen)-1; // remove the auto-added \0 space
   if(!(val = malloc(vlen+2))) return LOG("OOM"); // include surrounding quotes
   val[0] = '"';
   base32_encode_into(bin, blen, val+1);
@@ -290,7 +299,7 @@ char *lob_json(lob_t p)
 
 
 // unescape any json string in place
-char *unescape(lob_t p, char *start, int len)
+char *unescape(lob_t p, char *start, size_t len)
 {
   char *str, *cursor;
 
@@ -327,7 +336,7 @@ char *unescape(lob_t p, char *start, int len)
 char *lob_get(lob_t p, char *key)
 {
   char *val;
-  int len = 0;
+  size_t len = 0;
   if(!p || !key || p->head_len < 5) return NULL;
   val = js0n(key,0,(char*)p->head,p->head_len,&len);
   return unescape(p,val,len);
@@ -336,7 +345,7 @@ char *lob_get(lob_t p, char *key)
 char *lob_get_raw(lob_t p, char *key)
 {
   char *val;
-  int len = 0;
+  size_t len = 0;
   if(!p || !key || p->head_len < 5) return NULL;
   val = js0n(key,0,(char*)p->head,p->head_len,&len);
   if(!val) return NULL;
@@ -346,10 +355,10 @@ char *lob_get_raw(lob_t p, char *key)
   return val;
 }
 
-uint32_t lob_get_len(lob_t p, char *key)
+size_t lob_get_len(lob_t p, char *key)
 {
   char *val;
-  int len = 0;
+  size_t len = 0;
   if(!p || !key || p->head_len < 5) return 0;
   val = js0n(key,0,(char*)p->head,p->head_len,&len);
   if(!val) return 0;
@@ -366,11 +375,18 @@ int lob_get_int(lob_t p, char *key)
   return (int)strtol(val,NULL,10);
 }
 
+unsigned int lob_get_uint(lob_t p, char *key)
+{
+  char *val = lob_get(p,key);
+  if(!val) return 0;
+  return (unsigned int)strtoul(val,NULL,10);
+}
+
 // returns ["0","1","2"] 
 char *lob_get_index(lob_t p, uint32_t i)
 {
   char *val;
-  int len = 0;
+  size_t len = 0;
   if(!p) return NULL;
   val = js0n(NULL,i,(char*)p->head,p->head_len,&len);
   return unescape(p,val,len);
@@ -381,7 +397,7 @@ lob_t lob_get_json(lob_t p, char *key)
 {
   lob_t pp;
   char *val;
-  int len = 0;
+  size_t len = 0;
   if(!p || !key) return NULL;
 
   val = js0n(key,0,(char*)p->head,p->head_len,&len);
@@ -395,10 +411,10 @@ lob_t lob_get_json(lob_t p, char *key)
 // list of packet->next from key:[{},{}]
 lob_t lob_get_array(lob_t p, char *key)
 {
-  int i;
+  size_t i;
   char *val;
-  int len = 0;
-  lob_t parr, pent, plast, pret = NULL;
+  size_t len = 0;
+  lob_t parr, pent, plast = NULL, pret = NULL;
   if(!p || !key) return NULL;
 
   parr = lob_get_json(p, key);
@@ -427,7 +443,7 @@ lob_t lob_get_base32(lob_t p, char *key)
 {
   lob_t ret;
   char *val;
-  int len = 0;
+  size_t len = 0;
   if(!p || !key) return NULL;
 
   val = js0n(key,0,(char*)p->head,p->head_len,&len);
@@ -437,7 +453,7 @@ lob_t lob_get_base32(lob_t p, char *key)
   // make space to decode into the body
   if(!lob_body(ret,NULL,base32_decode_length(len))) return lob_free(ret);
   // if the decoding wasn't successful, fail
-  if(base32_decode_into(val,len,ret->body) < (int)ret->body_len) return lob_free(ret);
+  if(base32_decode_into(val,len,ret->body) < ret->body_len) return lob_free(ret);
   return ret;
 }
 
@@ -449,18 +465,18 @@ int lob_get_cmp(lob_t p, char *key, char *val)
 
 
 // count of keys
-int lob_keys(lob_t p)
+unsigned int lob_keys(lob_t p)
 {
-  int i, len = 0;
+  size_t i, len = 0;
   if(!p) return 0;
   for(i=0;js0n(NULL,i,(char*)p->head,p->head_len,&len);i++);
   if(i % 2) return 0; // must be even number for key:val pairs
-  return i/2;
+  return (unsigned int)i/2;
 }
 
 lob_t lob_sort(lob_t p)
 {
-  int i, len;
+  unsigned int i, len;
   char **keys;
   lob_t tmp;
 
@@ -496,7 +512,7 @@ lob_t lob_sort(lob_t p)
 
 int lob_cmp(lob_t a, lob_t b)
 {
-  int i = 0;
+  unsigned int i = 0;
   char *str;
   if(!a || !b) return -1;
   if(a->body_len != b->body_len) return -1;
@@ -516,7 +532,7 @@ int lob_cmp(lob_t a, lob_t b)
 lob_t lob_set_json(lob_t p, lob_t json)
 {
   char *part;
-  int i = 0;
+  uint32_t i = 0;
 
   while((part = lob_get_index(json,i)))
   {
@@ -534,7 +550,7 @@ uint8_t *lob_cloak(lob_t p, uint8_t rounds)
 {
   uint8_t *ret, *cur, len;
   if(!p || !rounds) return lob_raw(p);
-  len = lob_len(p);
+  len = (uint8_t)lob_len(p);
   len += 8*rounds;
   if(!(ret = malloc(len))) return LOG("OOM needed %d",len);
   memset(ret,0,len);
@@ -553,11 +569,11 @@ uint8_t *lob_cloak(lob_t p, uint8_t rounds)
 }
 
 // recursively decloaks and parses
-lob_t lob_decloak(uint8_t *cloaked, uint32_t len)
+lob_t lob_decloak(uint8_t *cloaked, size_t len)
 {
   if(!cloaked || !len) return LOG("bad args");
   if(len < 8 || cloaked[0] == 0) return lob_parse(cloaked, len);
-  chacha20((uint8_t*)_cloak_key, cloaked, cloaked+8, len-8);
+  chacha20((uint8_t*)_cloak_key, cloaked, cloaked+8, (uint32_t)len-8);
   return lob_decloak(cloaked+8, len-8);
 }
 

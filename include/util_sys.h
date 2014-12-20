@@ -1,11 +1,13 @@
 #ifndef util_sys_h
 #define util_sys_h
 
+typedef uint32_t at_t;
+
 // returns a number that increments in seconds for comparison (epoch or just since boot)
-unsigned long util_sys_seconds();
+at_t util_sys_seconds();
 
 // number of milliseconds since given epoch seconds value
-unsigned long long util_sys_ms(unsigned long epoch);
+unsigned long long util_sys_ms(long epoch);
 
 unsigned short util_sys_short(unsigned short x);
 
