@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include "mesh.h"
 
-#include "ext_link.h"
+#include "ext_stream.h"
 #include "ext_block.h"
 
 //#include "chat.h"

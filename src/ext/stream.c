@@ -1,7 +1,7 @@
 #include "ext.h"
 
-// handle incoming packets for the built-in link channel
-void link_chan_handler(link_t link, e3x_channel_t chan, void *arg)
+// handle incoming packets for the built-in stream channel
+void stream_chan_handler(link_t link, e3x_channel_t chan, void *arg)
 {
   lob_t status, open, packet;
   if(!link) return;
@@ -25,28 +25,30 @@ void link_chan_handler(link_t link, e3x_channel_t chan, void *arg)
   }
 }
 
-// new incoming link channel, set up handler
-lob_t link_on_open(link_t link, lob_t open)
+// new incoming stream channel, set up handler
+lob_t stream_on_open(link_t link, lob_t open)
 {
   e3x_channel_t chan;
   if(!link) return open;
-  if(lob_get_cmp(open,"type","link")) return open;
+  if(lob_get_cmp(open,"type","stream")) return open;
   
-  if(xht_get(link->index, "link")) LOG("note: new incoming link channel replacing existing one");
+//  if(xht_get(link->index, "link")) LOG("note: new incoming link channel replacing existing one");
 
-  LOG("incoming link channel open");
+  LOG("incoming stream channel open");
 
   // create new channel, set it up, then receive this open
   chan = link_channel(link, open);
-  link_handle(link,chan,link_chan_handler,NULL);
-  xht_set(link->index,"link",chan);
+  link_handle(link,chan,stream_chan_handler,NULL);
+//  xht_set(link->index,"link",chan);
   e3x_channel_receive(chan,open);
-  link_chan_handler(link,chan,NULL);
+  stream_chan_handler(link,chan,NULL);
   return NULL;
 }
 
+/* old code from link channel, to be reused for stream support
+
 // get/set/change the link status (err to mark down)
-lob_t ext_link_status(link_t link, lob_t status)
+lob_t ext_stream_status(link_t link, lob_t status)
 {
   e3x_channel_t chan;
   lob_t open, wrap;
@@ -97,22 +99,23 @@ void link_on_link(link_t link)
   if(lob_get(e3x_channel_open(chan),"auto")) return; // already sent
 
   LOG("auto-linking");
-  ext_link_status(link,lob_new());
+  ext_stream_status(link,lob_new());
   chan = (e3x_channel_t)xht_get(link->index, "link"); // chan may have been created by status
   lob_set(e3x_channel_open(chan),"auto","true");
 }
 
-mesh_t ext_link_auto(mesh_t mesh)
+mesh_t ext_stream_auto(mesh_t mesh)
 {
-  ext_link(mesh);
+  ext_stream(mesh);
   // watch link events to auto create/respond to link channel
-  mesh_on_link(mesh, "ext_link", link_on_link);
+  mesh_on_link(mesh, "ext_stream", link_on_link);
   return mesh;
 }
+*/
 
-mesh_t ext_link(mesh_t mesh)
+mesh_t ext_stream(mesh_t mesh)
 {
   // set up built-in link channel handler
-  mesh_on_open(mesh, "ext_link", link_on_open);
+  mesh_on_open(mesh, "ext_stream", stream_on_open);
   return mesh;
 }
