@@ -53,8 +53,8 @@ link_t link_sync(link_t link);
 // trigger a new sync
 link_t link_resync(link_t link);
 
-// can channel data be sent/received
-link_t link_ready(link_t link);
+// is the other endpoint connected and the link available, NULL if not
+link_t link_up(link_t link);
 
 // create/track a new channel for this open
 e3x_channel_t link_channel(link_t link, lob_t open);

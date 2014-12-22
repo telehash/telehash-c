@@ -15,7 +15,7 @@ static uint8_t status = 0;
 // exit as soon as the link is up
 void link_check(link_t link)
 {
-  status = (link && link->x) ? 1 : 0;
+  status = link_up(link) ? 1 : 0;
 }
 
 int main(int argc, char *argv[])
@@ -28,7 +28,7 @@ int main(int argc, char *argv[])
   mesh = mesh_new(0);
   fail_unless(mesh_generate(mesh));
   mesh_on_discover(mesh,"auto",mesh_add); // accept anyone
-  mesh_on_link(mesh, "test", link_check);
+  mesh_on_link(mesh, "test", link_check); // testing the event being triggered
   status = 0;
 
   udp4 = net_udp4_new(mesh, NULL);

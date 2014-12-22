@@ -195,8 +195,8 @@ link_t link_pipe(link_t link, pipe_t pipe)
   return link_sync(link);
 }
 
-// can channel data be sent/received
-link_t link_ready(link_t link)
+// is the link ready/available
+link_t link_up(link_t link)
 {
   if(!link) return NULL;
   if(!link->x) return NULL;
@@ -214,7 +214,7 @@ link_t link_handshake(link_t link, lob_t inner, lob_t outer, pipe_t pipe)
   if(!link || !inner || !outer) return LOG("bad args");
   if(!link->key && link_key(link->mesh,inner) != link) return LOG("invalid/mismatch handshake key");
   out = e3x_exchange_out(link->x,0);
-  ready = link_ready(link);
+  ready = link_up(link);
 
   // if bad at, always send current handshake
   if(e3x_exchange_in(link->x, lob_get_uint(inner,"at")) < out)
@@ -234,7 +234,7 @@ link_t link_handshake(link_t link, lob_t inner, lob_t outer, pipe_t pipe)
   if(out != e3x_exchange_out(link->x,0)) link_sync(link);
   
   // notify of ready state change
-  if(!ready && link_ready(link))
+  if(!ready && link_up(link))
   {
     LOG("link ready");
     mesh_link(link->mesh, link);

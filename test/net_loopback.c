@@ -22,8 +22,8 @@ int main(int argc, char **argv)
   fail_unless(linkBA);
 
   fail_unless(link_sync(linkAB));
-  fail_unless(link_ready(linkAB));
-  fail_unless(link_ready(linkBA));
+  fail_unless(link_up(linkAB));
+  fail_unless(link_up(linkBA));
 
   return 0;
 }
