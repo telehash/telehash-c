@@ -51,7 +51,7 @@ link_t link_send(link_t link, lob_t inner);
 link_t link_sync(link_t link);
 
 // trigger a new sync
-link_t link_resync(link_t link);
+link_t link_resync(link_t link, lob_t handshake);
 
 // is the other endpoint connected and the link available, NULL if not
 link_t link_up(link_t link);

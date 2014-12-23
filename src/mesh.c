@@ -215,6 +215,18 @@ void mesh_discover(mesh_t mesh, lob_t discovered, pipe_t pipe)
   for(on = mesh->on; on; on = on->next) if(on->discover) on->discover(mesh, discovered, pipe);
 }
 
+link_t mesh_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe)
+{
+  // normalize handshake, set type and at, and cached_at
+  // generate id from token/peer + type
+  // add to handshakes list, replace any older matching ids, remove older
+  // scan handshakes for all matching at's + id
+  // require a key type or bail
+  // remove handshakes from the cache, create a discovered packet and link to it
+  // if no link, put back in cache
+  return NULL;
+}
+
 // processes incoming packet, it will take ownership of p
 uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
 {

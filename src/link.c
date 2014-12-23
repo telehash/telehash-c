@@ -220,6 +220,7 @@ link_t link_handshake(link_t link, lob_t inner, lob_t outer, pipe_t pipe)
   if(e3x_exchange_in(link->x, lob_get_uint(inner,"at")) < out)
   {
     LOG("old/bad at: %s (%d,%d,%d)",lob_json(inner),lob_get_int(inner,"at"),e3x_exchange_in(link->x,0),e3x_exchange_out(link->x,0));
+    // TODO just change pipe seen and call link_sync?
     if(pipe) pipe->send(pipe,e3x_exchange_handshake(link->x),link);
     return NULL;
   }
@@ -297,6 +298,7 @@ link_t link_sync(link_t link)
   if(!link) return LOG("bad args");
   if(!link->x) return LOG("no exchange");
 
+  // TODO send multiple handshakes
   at = e3x_exchange_out(link->x,0);
   LOG("link sync at %d",at);
   for(seen = link->pipes;seen;seen = seen->next)
@@ -312,10 +314,12 @@ link_t link_sync(link_t link)
 }
 
 // trigger a new exchange sync
-link_t link_resync(link_t link)
+link_t link_resync(link_t link, lob_t handshake)
 {
   if(!link) return LOG("bad args");
   if(!link->x) return LOG("no exchange");
+
+  // TODO, cache/insert custom handshake types
 
   // force a higher at, triggers all to sync
   e3x_exchange_out(link->x,e3x_exchange_out(link->x,0)+1);
