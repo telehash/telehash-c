@@ -90,7 +90,18 @@ int main(int argc, char **argv)
   fail_unless(lob_splice(list,insert));
   fail_unless(list->next == item);
   fail_unless(lob_freeall(list) == NULL);
-  
+
+  // simple index testing
+  lob_t index = lob_new();
+  lob_t c1 = lob_new();
+  lob_t c2 = lob_new();
+  fail_unless(lob_link_lob(index,c1,"c1"));
+  fail_unless(lob_linked_lob(index,"c1") == c1);
+  fail_unless(lob_link_lob(index,c2,"c2"));
+  fail_unless(lob_linked_lob(index,"c2") == c2);
+  fail_unless(lob_link_lob(index,c2,"c1"));
+  fail_unless(lob_linked_lob(index,"c1") == c2);
+
   return 0;
 }
 

@@ -61,6 +61,51 @@ lob_t lob_linked(lob_t parent)
   return parent->chain;
 }
 
+// uses given packet like an index, links the child under a name and uses it's ->id, pass NULL to remove/free it
+lob_t lob_link_lob(lob_t parent, lob_t child, char *name)
+{
+  uint32_t id;
+  lob_t iter, existing;
+  if(!parent || !name) return NULL;
+  if(!parent->id) parent->id = 1;
+
+  // check for existing
+  if((id = lob_get_uint(parent,name)))
+  {
+    iter = parent;
+    while(iter->chain && iter->chain->id != id) iter = iter->chain;
+    existing = iter->chain;
+    if(existing && existing->id == id)
+    {
+      iter->chain = existing->chain;
+      existing->chain = NULL;
+      lob_free(existing);
+    }
+  }else{
+    // new id
+    id = parent->id;
+    parent->id++;
+    lob_set_uint(parent,name,id);
+  }
+
+  // set the id and save the child in the chain
+  child->id = id;
+  child->chain = parent->chain;
+  parent->chain = child;
+  return parent;
+}
+
+// gets a linked lob from the parent by name
+lob_t lob_linked_lob(lob_t parent, char *name)
+{
+  uint32_t id;
+  lob_t iter;
+  if(!parent || !name) return NULL;
+  if(!(id = lob_get_uint(parent,name))) return NULL;
+  for(iter = parent->chain; iter; iter = iter->next) if(iter->id == id) return iter;
+  return NULL;
+}
+
 lob_t lob_free(lob_t p)
 {
   if(!p) return NULL;
