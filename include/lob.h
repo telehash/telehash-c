@@ -39,10 +39,6 @@ lob_t lob_link(lob_t parent, lob_t child);
 lob_t lob_linked(lob_t parent);
 // returns child, unlinked
 lob_t lob_unlink(lob_t parent);
-// uses given packet like an index, links the child under a name and uses it's ->id, pass NULL to remove/free it
-lob_t lob_link_lob(lob_t parent, lob_t child, char *name);
-// gets a linked lob from the parent by name
-lob_t lob_linked_lob(lob_t parent, char *name);
 
 // initialize head/body from raw, parses json
 lob_t lob_parse(const uint8_t *raw, size_t len);
@@ -115,5 +111,6 @@ lob_t lob_unshift(lob_t list, lob_t prepend); // adds item, returns new list
 lob_t lob_splice(lob_t list, lob_t extract); // removes item from list, returns new list
 lob_t lob_insert(lob_t list, lob_t after, lob_t p); // inserts item in list after other item, returns new list
 lob_t lob_freeall(lob_t list); // frees all
+lob_t lob_match(lob_t list, char *key, char *value); // find the first packet in the list w/ the matching key/value
 
 #endif
