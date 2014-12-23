@@ -39,7 +39,7 @@ pipe_t link_path(link_t link, lob_t path);
 link_t link_pipe(link_t link, pipe_t pipe);
 
 // process an incoming handshake
-link_t link_handshake(link_t link, lob_t inner, lob_t outer, pipe_t pipe);
+link_t link_handshake(link_t link, lob_t handshake, pipe_t pipe);
 
 // process a decrypted channel packet
 link_t link_receive(link_t link, lob_t inner, pipe_t pipe);

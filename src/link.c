@@ -206,10 +206,11 @@ link_t link_up(link_t link)
 }
 
 // process an incoming handshake
-link_t link_handshake(link_t link, lob_t inner, lob_t outer, pipe_t pipe)
+link_t link_handshake(link_t link, lob_t inner, pipe_t pipe)
 {
   link_t ready;
   uint32_t out;
+  lob_t outer = lob_linked(inner);
 
   if(!link || !inner || !outer) return LOG("bad args");
   if(!link->key && link_key(link->mesh,inner) != link) return LOG("invalid/mismatch handshake key");

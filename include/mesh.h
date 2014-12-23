@@ -20,6 +20,7 @@ struct mesh_struct
   // shared network info
   uint16_t port_local, port_public;
   char *ipv4_local, *ipv4_public;
+  lob_t cached; // handshakes
 };
 
 // pass in a prime for the main index of hashnames+links+channels, 0 to use compiled default
@@ -40,6 +41,12 @@ link_t mesh_add(mesh_t mesh, lob_t json, pipe_t pipe);
 
 // processes incoming packet, it will take ownership of packet
 uint8_t mesh_receive(mesh_t mesh, lob_t packet, pipe_t pipe);
+
+// query the cache of handshakes for a matching one with a specific type
+lob_t mesh_handshakes(mesh_t mesh, lob_t handshake, char *type);
+
+// process any unencrypted handshake packet, cache if needed
+link_t mesh_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe);
 
 // callback when the mesh is free'd
 void mesh_on_free(mesh_t mesh, char *id, void (*free)(mesh_t mesh));
