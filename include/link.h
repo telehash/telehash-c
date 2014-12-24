@@ -13,6 +13,7 @@ struct link_struct
   e3x_exchange_t x;
   mesh_t mesh;
   lob_t key;
+  lob_t handshake;
   uint8_t csid;
   xht_t index, channels;
   char token[33];
@@ -38,11 +39,14 @@ pipe_t link_path(link_t link, lob_t path);
 // just add a pipe directly
 link_t link_pipe(link_t link, pipe_t pipe);
 
-// process an incoming handshake
-link_t link_handshake(link_t link, lob_t handshake, pipe_t pipe);
+// add a custom outgoing handshake packet for this link
+link_t link_handshake(link_t link, lob_t handshake);
 
 // process a decrypted channel packet
 link_t link_receive(link_t link, lob_t inner, pipe_t pipe);
+
+// process an incoming handshake
+link_t link_receive_handshake(link_t link, lob_t handshake, pipe_t pipe);
 
 // try to deliver this packet to the best pipe
 link_t link_send(link_t link, lob_t inner);
@@ -51,7 +55,7 @@ link_t link_send(link_t link, lob_t inner);
 link_t link_sync(link_t link);
 
 // trigger a new sync
-link_t link_resync(link_t link, lob_t handshake);
+link_t link_resync(link_t link);
 
 // is the other endpoint connected and the link available, NULL if not
 link_t link_up(link_t link);

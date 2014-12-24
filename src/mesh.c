@@ -215,6 +215,16 @@ void mesh_discover(mesh_t mesh, lob_t discovered, pipe_t pipe)
   for(on = mesh->on; on; on = on->next) if(on->discover) on->discover(mesh, discovered, pipe);
 }
 
+// add a custom outgoing handshake packet to all links
+mesh_t mesh_handshake(mesh_t mesh, lob_t handshake)
+{
+  if(!mesh) return NULL;
+  if(handshake && !lob_get(handshake,"type")) return LOG("handshake missing a type: %s",lob_json(handshake));
+  lob_free(mesh->handshake);
+  mesh->handshake = handshake;
+  return mesh;
+}
+
 // query the cache of handshakes for a matching one with a specific type
 lob_t mesh_handshakes(mesh_t mesh, lob_t handshake, char *type)
 {
@@ -232,7 +242,7 @@ lob_t mesh_handshakes(mesh_t mesh, lob_t handshake, char *type)
 }
 
 // process any unencrypted handshake packet
-link_t mesh_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe)
+link_t mesh_receive_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe)
 {
   uint32_t now;
   lob_t iter, tmp, outer;
@@ -269,7 +279,7 @@ link_t mesh_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe)
     hashname_free(from);
 
     // short-cut, if it's a key from an existing link, pass it on
-    if((link = xht_get(mesh->index,lob_get(handshake,"hashname")))) return link_handshake(link, handshake, pipe);
+    if((link = xht_get(mesh->index,lob_get(handshake,"hashname")))) return link_receive_handshake(link, handshake, pipe);
     
     // extend the key json to make it compatible w/ normal patterns
     tmp = lob_new();
@@ -340,7 +350,7 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
     lob_set(inner,"id",hex);
 
     // process the handshake
-    return mesh_handshake(mesh, inner, pipe) ? 0 : 3;
+    return mesh_receive_handshake(mesh, inner, pipe) ? 0 : 3;
   }
 
   // handle channel packets

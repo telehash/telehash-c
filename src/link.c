@@ -205,11 +205,22 @@ link_t link_up(link_t link)
   return link;
 }
 
+// add a custom outgoing handshake packet
+link_t link_handshake(link_t link, lob_t handshake)
+{
+  if(!link) return NULL;
+  if(handshake && !lob_get(handshake,"type")) return LOG("handshake missing a type: %s",lob_json(handshake));
+  lob_free(link->handshake);
+  link->handshake = handshake;
+  return link;
+}
+
 // process an incoming handshake
-link_t link_handshake(link_t link, lob_t inner, pipe_t pipe)
+link_t link_receive_handshake(link_t link, lob_t inner, pipe_t pipe)
 {
   link_t ready;
   uint32_t out;
+  seen_t seen;
   lob_t outer = lob_linked(inner);
 
   if(!link || !inner || !outer) return LOG("bad args");
@@ -221,8 +232,9 @@ link_t link_handshake(link_t link, lob_t inner, pipe_t pipe)
   if(e3x_exchange_in(link->x, lob_get_uint(inner,"at")) < out)
   {
     LOG("old/bad at: %s (%d,%d,%d)",lob_json(inner),lob_get_int(inner,"at"),e3x_exchange_in(link->x,0),e3x_exchange_out(link->x,0));
-    // TODO just change pipe seen and call link_sync?
-    if(pipe) pipe->send(pipe,e3x_exchange_handshake(link->x),link);
+    // just reset pipe seen and call link_sync to resend handshake
+    for(seen = link->pipes;pipe && seen;seen = seen->next) if(seen->pipe == pipe) seen->at = 0;
+    link_sync(link);
     return NULL;
   }
 
@@ -305,9 +317,16 @@ link_t link_sync(link_t link)
   for(seen = link->pipes;seen;seen = seen->next)
   {
     if(!seen->pipe || !seen->pipe->send || seen->at == at) continue;
-    if(!handshake) handshake = e3x_exchange_handshake(link->x); // only create if we have to
+      // only create if we have to
+    if(!handshake)
+    {
+      handshake = e3x_exchange_handshake(link->x);
+      if(link->handshake) lob_set_uint(link->handshake,"at",at);
+    }
     seen->at = at;
     seen->pipe->send(seen->pipe,lob_copy(handshake),link);
+    // send any custom handshake too
+    if(link->handshake) seen->pipe->send(seen->pipe,lob_copy(link->handshake),link);
   }
 
   lob_free(handshake);
@@ -315,12 +334,10 @@ link_t link_sync(link_t link)
 }
 
 // trigger a new exchange sync
-link_t link_resync(link_t link, lob_t handshake)
+link_t link_resync(link_t link)
 {
   if(!link) return LOG("bad args");
   if(!link->x) return LOG("no exchange");
-
-  // TODO, cache/insert custom handshake types
 
   // force a higher at, triggers all to sync
   e3x_exchange_out(link->x,e3x_exchange_out(link->x,0)+1);
