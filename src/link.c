@@ -307,11 +307,14 @@ link_t link_sync(link_t link)
 {
   uint32_t at;
   seen_t seen;
-  lob_t handshake = NULL;
+  lob_t handshake = NULL, custom = NULL;
   if(!link) return LOG("bad args");
   if(!link->x) return LOG("no exchange");
 
-  // TODO send multiple handshakes
+  // grab any custom extra handshake
+  custom = link->handshake;
+  if(!custom) custom = link->mesh->handshake;
+
   at = e3x_exchange_out(link->x,0);
   LOG("link sync at %d",at);
   for(seen = link->pipes;seen;seen = seen->next)
@@ -321,12 +324,12 @@ link_t link_sync(link_t link)
     if(!handshake)
     {
       handshake = e3x_exchange_handshake(link->x);
-      if(link->handshake) lob_set_uint(link->handshake,"at",at);
+      lob_set_uint(custom,"at",at);
     }
     seen->at = at;
     seen->pipe->send(seen->pipe,lob_copy(handshake),link);
     // send any custom handshake too
-    if(link->handshake) seen->pipe->send(seen->pipe,lob_copy(link->handshake),link);
+    if(custom) seen->pipe->send(seen->pipe,lob_copy(custom),link);
   }
 
   lob_free(handshake);
