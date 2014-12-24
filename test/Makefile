@@ -1,7 +1,7 @@
 TESTS = lib_base32 lib_lob lib_hashname lib_murmur lib_chunks lib_util \
 		e3x_core e3x_cs1a e3x_self e3x_exchange e3x_event e3x_channel \
 		mesh_core net_loopback net_udp4 net_tcp4 ext_stream lib_chacha \
-		ext_block lib_uri
+		ext_block lib_uri net_handshake
 
 CC=gcc
 CFLAGS+=-g -Wall -Wextra -Wno-unused-parameter -DDEBUG
