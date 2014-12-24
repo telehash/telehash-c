@@ -324,7 +324,12 @@ link_t link_sync(link_t link)
     if(!handshake)
     {
       handshake = e3x_exchange_handshake(link->x);
-      lob_set_uint(custom,"at",at);
+      // update/encrypt custom handshake
+      if(custom)
+      {
+        lob_set_uint(custom,"at",at);
+        custom = e3x_exchange_message(link->x,custom);
+      }
     }
     seen->at = at;
     seen->pipe->send(seen->pipe,lob_copy(handshake),link);
