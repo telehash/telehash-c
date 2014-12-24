@@ -195,8 +195,8 @@ link_t link_pipe(link_t link, pipe_t pipe)
   return link_sync(link);
 }
 
-// can channel data be sent/received
-link_t link_ready(link_t link)
+// is the link ready/available
+link_t link_up(link_t link)
 {
   if(!link) return NULL;
   if(!link->x) return NULL;
@@ -205,22 +205,36 @@ link_t link_ready(link_t link)
   return link;
 }
 
+// add a custom outgoing handshake packet
+link_t link_handshake(link_t link, lob_t handshake)
+{
+  if(!link) return NULL;
+  if(handshake && !lob_get(handshake,"type")) return LOG("handshake missing a type: %s",lob_json(handshake));
+  lob_free(link->handshake);
+  link->handshake = handshake;
+  return link;
+}
+
 // process an incoming handshake
-link_t link_handshake(link_t link, lob_t inner, lob_t outer, pipe_t pipe)
+link_t link_receive_handshake(link_t link, lob_t inner, pipe_t pipe)
 {
   link_t ready;
   uint32_t out;
+  seen_t seen;
+  lob_t outer = lob_linked(inner);
 
   if(!link || !inner || !outer) return LOG("bad args");
   if(!link->key && link_key(link->mesh,inner) != link) return LOG("invalid/mismatch handshake key");
   out = e3x_exchange_out(link->x,0);
-  ready = link_ready(link);
+  ready = link_up(link);
 
   // if bad at, always send current handshake
   if(e3x_exchange_in(link->x, lob_get_uint(inner,"at")) < out)
   {
     LOG("old/bad at: %s (%d,%d,%d)",lob_json(inner),lob_get_int(inner,"at"),e3x_exchange_in(link->x,0),e3x_exchange_out(link->x,0));
-    if(pipe) pipe->send(pipe,e3x_exchange_handshake(link->x),link);
+    // just reset pipe seen and call link_sync to resend handshake
+    for(seen = link->pipes;pipe && seen;seen = seen->next) if(seen->pipe == pipe) seen->at = 0;
+    link_sync(link);
     return NULL;
   }
 
@@ -234,7 +248,7 @@ link_t link_handshake(link_t link, lob_t inner, lob_t outer, pipe_t pipe)
   if(out != e3x_exchange_out(link->x,0)) link_sync(link);
   
   // notify of ready state change
-  if(!ready && link_ready(link))
+  if(!ready && link_up(link))
   {
     LOG("link ready");
     mesh_link(link->mesh, link);
@@ -293,18 +307,34 @@ link_t link_sync(link_t link)
 {
   uint32_t at;
   seen_t seen;
-  lob_t handshake = NULL;
+  lob_t handshake = NULL, custom = NULL;
   if(!link) return LOG("bad args");
   if(!link->x) return LOG("no exchange");
+
+  // grab any custom extra handshake
+  custom = link->handshake;
+  if(!custom) custom = link->mesh->handshake;
 
   at = e3x_exchange_out(link->x,0);
   LOG("link sync at %d",at);
   for(seen = link->pipes;seen;seen = seen->next)
   {
     if(!seen->pipe || !seen->pipe->send || seen->at == at) continue;
-    if(!handshake) handshake = e3x_exchange_handshake(link->x); // only create if we have to
+      // only create if we have to
+    if(!handshake)
+    {
+      handshake = e3x_exchange_handshake(link->x);
+      // update/encrypt custom handshake
+      if(custom)
+      {
+        lob_set_uint(custom,"at",at);
+        custom = e3x_exchange_message(link->x,custom);
+      }
+    }
     seen->at = at;
     seen->pipe->send(seen->pipe,lob_copy(handshake),link);
+    // send any custom handshake too
+    if(custom) seen->pipe->send(seen->pipe,lob_copy(custom),link);
   }
 
   lob_free(handshake);

@@ -111,5 +111,6 @@ lob_t lob_unshift(lob_t list, lob_t prepend); // adds item, returns new list
 lob_t lob_splice(lob_t list, lob_t extract); // removes item from list, returns new list
 lob_t lob_insert(lob_t list, lob_t after, lob_t p); // inserts item in list after other item, returns new list
 lob_t lob_freeall(lob_t list); // frees all
+lob_t lob_match(lob_t list, char *key, char *value); // find the first packet in the list w/ the matching key/value
 
 #endif

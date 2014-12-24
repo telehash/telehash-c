@@ -651,3 +651,12 @@ lob_t lob_freeall(lob_t list)
   lob_free(list);
   return lob_freeall(next);
 }
+
+// find the first packet in the list w/ the matching key/value
+lob_t lob_match(lob_t list, char *key, char *value)
+{
+  if(!list || !key || !value) return NULL;
+  if(lob_get_cmp(list,key,value) == 0) return list;
+  return lob_match(list->next,key,value);
+}
+

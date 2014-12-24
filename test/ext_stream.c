@@ -8,13 +8,13 @@ int main(int argc, char **argv)
   fail_unless(meshA);
   lob_t secretsA = mesh_generate(meshA);
   fail_unless(secretsA);
-  fail_unless(ext_link_auto(meshA));
+  fail_unless(ext_stream(meshA));
 
   mesh_t meshB = mesh_new(3);
   fail_unless(meshB);
   lob_t secretsB = mesh_generate(meshB);
   fail_unless(secretsB);
-  fail_unless(ext_link_auto(meshB));
+  fail_unless(ext_stream(meshB));
 
   net_loopback_t pair = net_loopback_new(meshA,meshB);
   fail_unless(pair);

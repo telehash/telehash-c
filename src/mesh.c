@@ -215,13 +215,113 @@ void mesh_discover(mesh_t mesh, lob_t discovered, pipe_t pipe)
   for(on = mesh->on; on; on = on->next) if(on->discover) on->discover(mesh, discovered, pipe);
 }
 
+// add a custom outgoing handshake packet to all links
+mesh_t mesh_handshake(mesh_t mesh, lob_t handshake)
+{
+  if(!mesh) return NULL;
+  if(handshake && !lob_get(handshake,"type")) return LOG("handshake missing a type: %s",lob_json(handshake));
+  lob_free(mesh->handshake);
+  mesh->handshake = handshake;
+  return mesh;
+}
+
+// query the cache of handshakes for a matching one with a specific type
+lob_t mesh_handshakes(mesh_t mesh, lob_t handshake, char *type)
+{
+  lob_t matched;
+  char *id;
+  
+  if(!mesh || !type || !(id = lob_get(handshake,"id"))) return LOG("bad args");
+  
+  for(matched = mesh->cached;matched;matched = lob_match(matched->next,"id",id))
+  {
+    if(lob_get_cmp(matched,"type",type) == 0) return matched;
+  }
+  
+  return NULL;
+}
+
+// process any unencrypted handshake packet
+link_t mesh_receive_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe)
+{
+  uint32_t now;
+  lob_t iter, tmp, outer;
+  hashname_t from;
+  char hexid[3], *paths;
+  link_t link;
+
+  if(!mesh || !handshake) return LOG("bad args");
+  if(!lob_get(handshake,"id"))
+  {
+    lob_free(handshake);
+    return LOG("bad handshake, no id");
+  }
+  now = util_sys_seconds();
+  
+  // normalize handshake
+  handshake->id = now; // save when we cached it
+  if(!lob_get(handshake,"type")) lob_set(handshake,"type","key"); // default to key type
+  if(!lob_get_uint(handshake,"at")) lob_set_uint(handshake,"at",now); // require an at
+  
+  // validate/extend key handshakes immediately
+  if(util_cmp(lob_get(handshake,"type"),"key") == 0 && (outer = lob_linked(handshake)))
+  {
+    // make sure csid is set to get the hashname
+    util_hex(outer->head,1,hexid);
+    lob_set_raw(handshake,hexid,0,"true",4);
+    if(!(from = hashname_key(handshake)))
+    {
+      LOG("bad key handshake, no hashname: %s",lob_json(handshake));
+      lob_free(handshake);
+      return NULL;
+    }
+    lob_set(handshake,"hashname",from->hashname);
+    hashname_free(from);
+
+    // short-cut, if it's a key from an existing link, pass it on
+    if((link = xht_get(mesh->index,lob_get(handshake,"hashname")))) return link_receive_handshake(link, handshake, pipe);
+    
+    // extend the key json to make it compatible w/ normal patterns
+    tmp = lob_new();
+    lob_set_base32(tmp,hexid,handshake->body,handshake->body_len);
+    lob_set_raw(handshake,"keys",0,(char*)tmp->head,tmp->head_len);
+    lob_free(tmp);
+    // add the path if one
+    if(pipe && pipe->path)
+    {
+      paths = malloc(pipe->path->head_len+3);
+      sprintf(paths,"[%.*s]",(int)pipe->path->head_len,(char*)pipe->path->head);
+      lob_set_raw(handshake,"paths",0,paths,pipe->path->head_len+2);
+      free(paths);
+    }
+  }
+
+  // always add to the front of the cached list if needed in the future
+  mesh->cached = lob_unshift(mesh->cached, handshake);
+
+  // tell anyone listening about the newly discovered handshake
+  mesh_discover(mesh, handshake, pipe);
+  
+  // cull/gc the cache for anything older than 5 seconds
+  iter = mesh->cached;
+  while(iter)
+  {
+    tmp = iter;
+    iter = iter->next;
+    if(tmp->id >= (now-5)) continue; // 5 seconds
+    mesh->cached = lob_splice(mesh->cached, tmp);
+    lob_free(tmp);
+  }
+
+  return NULL;
+}
+
 // processes incoming packet, it will take ownership of p
 uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
 {
-  lob_t inner, discovered, key;
-  hashname_t from;
+  lob_t inner;
   link_t link;
-  char hex[33], *paths;
+  char hex[33];
 
   if(!mesh || !outer || !pipe)
   {
@@ -234,62 +334,23 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
   // process handshakes
   if(outer->head_len == 1)
   {
-    util_hex(outer->head,1,hex);
     inner = e3x_self_decrypt(mesh->self, outer);
     if(!inner)
     {
-      LOG("%s handshake failed %s",hex,e3x_err());
+      LOG("%02x handshake failed %s",outer->head[0],e3x_err());
       lob_free(outer);
       return 2;
     }
     
-    // couple the two together, outer->inner
-    lob_link(outer,inner);
+    // couple the two together, inner->outer
+    lob_link(inner,outer);
 
-    // make sure csid is set on the handshake to get the hashname
-    lob_set_raw(inner,hex,0,"true",4);
-    from = hashname_key(inner);
-    if(!from)
-    {
-      LOG("no hashname in %.*s",inner->head_len,inner->head);
-      lob_free(outer);
-      return 2;
-      
-    }
-    
-    link = xht_get(mesh->index,from->hashname);
-    if(!link)
-    {
-      LOG("no link for hashname %s",from->hashname);
-      // serialize all the new hashname's info into json for the app to access/handle
-      discovered = lob_new();
-      lob_set(discovered,"hashname",from->hashname);
-      // add the key
-      key = lob_new();
-      lob_set_base32(key,hex,inner->body,inner->body_len);
-      lob_set_raw(discovered,"keys",0,(char*)key->head,key->head_len);
-      lob_free(key);
-      // add the path if one
-      if(pipe && pipe->path)
-      {
-        paths = malloc(pipe->path->head_len+2);
-        sprintf(paths,"[%s]",lob_json(pipe->path));
-        lob_set_raw(discovered,"paths",0,paths,pipe->path->head_len+2);
-        free(paths);
-      }
-      mesh_discover(mesh, discovered, pipe);
+    // set the unique id string based on the first 16 (routing token) bytes in the body
+    util_hex(outer->body,16,hex);
+    lob_set(inner,"id",hex);
 
-      link = xht_get(mesh->index,from->hashname);
-      if (!link) {
-        hashname_free(from);
-        lob_free(outer);
-        return 3;
-      }
-    }
-    hashname_free(from);
-
-    LOG("incoming handshake for link %s",link->id->hashname);
-    return link_handshake(link,inner,outer,pipe) ? 0 : 4;
+    // process the handshake
+    return mesh_receive_handshake(mesh, inner, pipe) ? 0 : 3;
   }
 
   // handle channel packets
