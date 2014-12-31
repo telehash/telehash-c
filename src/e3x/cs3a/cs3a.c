@@ -71,17 +71,17 @@ e3x_cipher_t cs3a_init(lob_t options)
   ret->generate = cipher_generate;
 
   // need to cast these to map our struct types to voids
-//  ret->local_new = (void *(*)(lob_t, lob_t))local_new;
-//  ret->local_free = (void (*)(void *))local_free;
-//  ret->local_decrypt = (lob_t (*)(void *, lob_t))local_decrypt;
-//  ret->remote_new = (void *(*)(lob_t, uint8_t *))remote_new;
-//  ret->remote_free = (void (*)(void *))remote_free;
-//  ret->remote_verify = (uint8_t (*)(void *, void *, lob_t))remote_verify;
-//  ret->remote_encrypt = (lob_t (*)(void *, void *, lob_t))remote_encrypt;
-//  ret->ephemeral_new = (void *(*)(void *, lob_t))ephemeral_new;
-//  ret->ephemeral_free = (void (*)(void *))ephemeral_free;
-//  ret->ephemeral_encrypt = (lob_t (*)(void *, lob_t))ephemeral_encrypt;
-//  ret->ephemeral_decrypt = (lob_t (*)(void *, lob_t))ephemeral_decrypt;
+  ret->local_new = (void *(*)(lob_t, lob_t))local_new;
+  ret->local_free = (void (*)(void *))local_free;
+  ret->local_decrypt = (lob_t (*)(void *, lob_t))local_decrypt;
+  ret->remote_new = (void *(*)(lob_t, uint8_t *))remote_new;
+  ret->remote_free = (void (*)(void *))remote_free;
+  ret->remote_verify = (uint8_t (*)(void *, void *, lob_t))remote_verify;
+  ret->remote_encrypt = (lob_t (*)(void *, void *, lob_t))remote_encrypt;
+  ret->ephemeral_new = (void *(*)(void *, lob_t))ephemeral_new;
+  ret->ephemeral_free = (void (*)(void *))ephemeral_free;
+  ret->ephemeral_encrypt = (lob_t (*)(void *, lob_t))ephemeral_encrypt;
+  ret->ephemeral_decrypt = (lob_t (*)(void *, lob_t))ephemeral_decrypt;
 
   return ret;
 }
@@ -124,17 +124,19 @@ local_t local_new(lob_t keys, lob_t secrets)
 
   if(!keys) keys = lob_linked(secrets); // for convenience
   key = lob_get_base32(keys,"3a");
-//  if(!key || key->body_len != uECC_BYTES+1) return LOG("invalid key %d != %d",(key)?key->body_len:0,uECC_BYTES+1);
+  if(!key) return LOG("missing key");
+  if(key->body_len != crypto_box_PUBLICKEYBYTES) return LOG("invalid key %d != %d",key->body_len,crypto_box_PUBLICKEYBYTES);
 
   secret = lob_get_base32(secrets,"3a");
-//  if(!secret || secret->body_len != uECC_BYTES) return LOG("invalid secret len %d",(secret)?secret->body_len:0);
+  if(!secret) return LOG("missing secret");
+  if(secret->body_len != crypto_box_SECRETKEYBYTES) return LOG("invalid secret %d != %d",secret->body_len,crypto_box_SECRETKEYBYTES);
   
   if(!(local = malloc(sizeof(struct local_struct)))) return NULL;
   memset(local,0,sizeof (struct local_struct));
 
   // copy in key/secret data
-//  uECC_decompress(key->body,local->key);
-//  memcpy(local->secret,secret->body,secret->body_len);
+  memcpy(local->key,key->body,key->body_len);
+  memcpy(local->secret,secret->body,secret->body_len);
   lob_free(key);
   lob_free(secret);
 
@@ -147,31 +149,30 @@ void local_free(local_t local)
   return;
 }
 
-/*
 lob_t local_decrypt(local_t local, lob_t outer)
 {
-  uint8_t key[uECC_BYTES*2], shared[uECC_BYTES], iv[16], hash[32];
+  uint8_t nonce[crypto_box_NONCEBYTES], secret[crypto_box_BEFORENMBYTES];
   lob_t inner, tmp;
 
-//  * `KEY` - 21 bytes, the sender's ephemeral exchange public key in compressed format
-//  * `IV` - 4 bytes, a random but unique value determined by the sender
-//  * `INNER` - (minimum 21+2 bytes) the AES-128-CTR encrypted inner packet ciphertext
-//  * `HMAC` - 4 bytes, the calculated HMAC of all of the previous KEY+INNER bytes
+//  * `KEY` - 32 bytes, the sending exchange's ephemeral public key
+//  * `NONCE` - 24 bytes, randomly generated
+//  * `CIPHERTEXT` - the inner packet bytes encrypted using secretbox() using the `NONCE` as the nonce and the shared secret (derived from the recipients endpoint key and the included ephemeral key) as the key
+//  * `AUTH` - 16 bytes, the calculated onetimeauth(`KEY` + `INNER`, SHA256(`NONCE` + secret)) using the shared secret derived from both endpoint keys, the hashing is to minimize the chance that the same key input is ever used twice
 
-  if(outer->body_len <= (21+4+0+4)) return NULL;
+  if(outer->body_len <= (32+24+0+16)) return NULL;
   tmp = lob_new();
-  if(!lob_body(tmp,NULL,outer->body_len-(4+21+4))) return lob_free(tmp);
+  if(!lob_body(tmp,NULL,outer->body_len-(32+24+0+16))) return lob_free(tmp);
 
-  // get the shared secret to create the iv+key for the open aes
-  uECC_decompress(outer->body,key);
-  if(!uECC_shared_secret(key, local->secret, shared)) return lob_free(tmp);
-  e3x_hash(shared,uECC_BYTES,hash);
-  fold1(hash,hash);
-  memset(iv,0,16);
-  memcpy(iv,outer->body+21,4);
+  // get the shared secret
+  crypto_box_beforenm(secret, outer->body, local->secret);
+  memcpy(nonce,outer->body+crypto_box_PUBLICKEYBYTES,crypto_box_NONCEBYTES);
 
   // decrypt the inner
-  aes_128_ctr(hash,tmp->body_len,iv,outer->body+4+21,tmp->body);
+  crypto_secretbox_open_easy(tmp->body,
+    outer->body+crypto_box_PUBLICKEYBYTES+crypto_box_NONCEBYTES,
+    outer->body_len,
+    nonce,
+    secret);
 
   // load inner packet
   inner = lob_parse(tmp->body,tmp->body_len);
@@ -179,27 +180,28 @@ lob_t local_decrypt(local_t local, lob_t outer)
   return inner;
 }
 
+
 remote_t remote_new(lob_t key, uint8_t *token)
 {
   uint8_t hash[32];
   remote_t remote;
-  if(!key || key->body_len != uECC_BYTES+1) return LOG("invalid key %d != %d",(key)?key->body_len:0,uECC_BYTES+1);
+
+  if(!key) return LOG("missing key");
+  if(key->body_len != crypto_box_PUBLICKEYBYTES) return LOG("invalid key %d != %d",key->body_len,crypto_box_PUBLICKEYBYTES);
   
   if(!(remote = malloc(sizeof(struct remote_struct)))) return NULL;
   memset(remote,0,sizeof (struct remote_struct));
 
   // copy in key and make ephemeral ones
-  uECC_decompress(key->body,remote->key);
-  uECC_make_key(remote->ekey, remote->esecret);
-  uECC_compress(remote->ekey, remote->ecomp);
+  memcpy(remote->key,key->body,key->body_len);
+  crypto_box_keypair(remote->ekey,remote->esecret);
+
+  // set token if wanted
   if(token)
   {
-    cipher_hash(remote->ecomp,16,hash);
+    cipher_hash(remote->ekey,16,hash);
     memcpy(token,hash,16);
   }
-
-  // generate a random seq starting point for message IV's
-  e3x_rand((uint8_t*)&(remote->seq),4);
   
   return remote;
 }
@@ -211,22 +213,21 @@ void remote_free(remote_t remote)
 
 uint8_t remote_verify(remote_t remote, local_t local, lob_t outer)
 {
-  uint8_t shared[uECC_BYTES+4], hash[32];
+  uint8_t secret[crypto_box_BEFORENMBYTES];
 
   if(!remote || !local || !outer) return 1;
-  if(outer->head_len != 1 || outer->head[0] != 0x1a) return 2;
+  if(outer->head_len != 1 || outer->head[0] != 0x3a) return 2;
 
-  // generate the key for the hmac, combining the shared secret and IV
-  if(!uECC_shared_secret(remote->key, local->secret, shared)) return 3;
-  memcpy(shared+uECC_BYTES,outer->body+21,4);
-
-  // verify
-  hmac_256(shared,uECC_BYTES+4,outer->body,outer->body_len-4,hash);
-  fold3(hash,hash);
-  if(memcmp(hash,outer->body+(outer->body_len-4),4) != 0)
+  // generate secret and verify
+  crypto_box_beforenm(secret, outer->body, local->secret);
+  if(crypto_onetimeauth_verify(outer->body+(outer->body_len-crypto_onetimeauth_BYTES),
+    outer->body,
+    outer->body_len-crypto_onetimeauth_BYTES,
+    secret))
   {
-    LOG("hmac failed");
-    return 4;
+    LOG("OTA verify failed");
+    lob_free(outer);
+    return 1;
   }
 
   return 0;
@@ -234,6 +235,8 @@ uint8_t remote_verify(remote_t remote, local_t local, lob_t outer)
 
 lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
 {
+  return NULL;
+  /*
   uint8_t shared[uECC_BYTES+4], iv[16], hash[32], csid = 0x1a;
   lob_t outer;
   size_t inner_len;
@@ -266,10 +269,13 @@ lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
   fold3(hash,outer->body+21+4+inner_len); // write into last 4 bytes
 
   return outer;
+  */
 }
 
 ephemeral_t ephemeral_new(remote_t remote, lob_t outer)
 {
+  return NULL;
+/*
   uint8_t ekey[uECC_BYTES*2], shared[uECC_BYTES+((uECC_BYTES+1)*2)], hash[32];
   ephemeral_t ephem;
 
@@ -302,6 +308,7 @@ ephemeral_t ephemeral_new(remote_t remote, lob_t outer)
   fold1(hash,ephem->deckey);
 
   return ephem;
+  */
 }
 
 void ephemeral_free(ephemeral_t ephem)
@@ -311,6 +318,8 @@ void ephemeral_free(ephemeral_t ephem)
 
 lob_t ephemeral_encrypt(ephemeral_t ephem, lob_t inner)
 {
+  return NULL;
+  /*
   lob_t outer;
   uint8_t iv[16], hmac[32];
   size_t inner_len;
@@ -336,10 +345,13 @@ lob_t ephemeral_encrypt(ephemeral_t ephem, lob_t inner)
   fold3(hmac,outer->body+16+4+inner_len);
 
   return outer;
+  */
 }
 
 lob_t ephemeral_decrypt(ephemeral_t ephem, lob_t outer)
 {
+  return NULL;
+  /*
   uint8_t iv[16], hmac[32];
 
   memset(iv,0,16);
@@ -358,9 +370,10 @@ lob_t ephemeral_decrypt(ephemeral_t ephem, lob_t outer)
 
   // return parse attempt
   return lob_parse(outer->body+16+4, outer->body_len-(16+4+4));
+  */
 }
 
-
+/*
 int crypt_new_3a(crypt_t c, unsigned char *key, int len)
 {
   unsigned char hash[32];

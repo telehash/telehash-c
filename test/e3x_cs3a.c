@@ -36,7 +36,6 @@ int main(int argc, char **argv)
   fail_unless(lob_get(keys,"3a"));
   LOG("generated key %s secret %s",lob_get(keys,"3a"),lob_get(secrets,"3a"));
 
-  /*
   local_t localA = cs->local_new(keys,secrets);
   fail_unless(localA);
 
@@ -49,7 +48,7 @@ int main(int argc, char **argv)
   printf("XX %s\n",lob_json(lob_linked(secretsB)));
   local_t localB = cs->local_new(lob_linked(secretsB),secretsB);
   fail_unless(localB);
-  remote_t remoteB = cs->remote_new(lob_get_base32(lob_linked(secretsB),"1a"), NULL);
+  remote_t remoteB = cs->remote_new(lob_get_base32(lob_linked(secretsB),"3a"), NULL);
   fail_unless(remoteB);
 
   // generate a message
@@ -82,7 +81,6 @@ int main(int argc, char **argv)
   lob_t cinnerAB = cs->ephemeral_decrypt(ephemAB,couterBA);
   fail_unless(cinnerAB);
   fail_unless(util_cmp(lob_get(cinnerAB,"type"),"foo") == 0);
-*/
 
   return 0;
 }
