@@ -105,12 +105,13 @@ uint8_t *cipher_rand(uint8_t *bytes, size_t len)
 
 uint8_t cipher_generate(lob_t keys, lob_t secrets)
 {
-//  uint8_t secret[uECC_BYTES], key[uECC_BYTES*2], comp[uECC_BYTES+1];
+  uint8_t secret[crypto_box_SECRETKEYBYTES], key[crypto_box_PUBLICKEYBYTES];
 
-//  if(!uECC_make_key(key, secret)) return 1;
-//  uECC_compress(key,comp);
-//  lob_set_base32(keys,"1a",comp,uECC_BYTES+1);
-//  lob_set_base32(secrets,"1a",secret,uECC_BYTES);
+  // create identity keypair
+  crypto_box_keypair(key,secret);
+
+  lob_set_base32(keys,"3a",key,crypto_box_PUBLICKEYBYTES);
+  lob_set_base32(secrets,"3a",secret,crypto_box_SECRETKEYBYTES);
 
   return 0;
 }

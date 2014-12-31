@@ -4,10 +4,10 @@
 #include "util_sys.h"
 
 // fixtures
-#define A_KEY "anfpjrveyyloypswpqzlfkjpwynahohffy";
-#define A_SEC "cgcsbs7yphotlb5fxls5ogy2lrc7yxbg";
-#define B_KEY "amhofcnwgmolf3owg2kipr5vus7uifydsy";
-#define B_SEC "ge4i7h3jln4kltngwftg2yqtjjvemerw";
+#define A_KEY "zgekyeqcjrgnat2dlmqn36fnucz6vk4uzz3funoi7jsfawthpfga";
+#define A_SEC "krxnha4pbst2jhnps4vxiybrb6d5onn4mvufg6c766kgsd5eudnq";
+#define B_KEY "cufysukisshi5bpbsoshkbdx6s5k6qakakyfona6hfaxio3egjta";
+#define B_SEC "3wbj6fd5wb2bljdqi4bwklcc5m5y2vrotk25ee4rywy37ngopffa";
 
 int main(int argc, char **argv)
 {
@@ -36,13 +36,13 @@ int main(int argc, char **argv)
   fail_unless(lob_get(keys,"3a"));
   LOG("generated key %s secret %s",lob_get(keys,"3a"),lob_get(secrets,"3a"));
 
+  /*
   local_t localA = cs->local_new(keys,secrets);
   fail_unless(localA);
 
   remote_t remoteA = cs->remote_new(lob_get_base32(keys,"3a"), NULL);
   fail_unless(remoteA);
 
-  /*
   // create another to start testing real packets
   lob_t secretsB = e3x_generate();
   fail_unless(lob_linked(secretsB));
