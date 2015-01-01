@@ -243,7 +243,7 @@ uint8_t remote_verify(remote_t remote, local_t local, lob_t outer)
 
 lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
 {
-  uint8_t secret[crypto_box_BEFORENMBYTES], nonce[crypto_box_NONCEBYTES], hash[32], csid = 0x3a;
+  uint8_t secret[crypto_box_BEFORENMBYTES], nonce[crypto_box_NONCEBYTES], csid = 0x3a;
   lob_t outer;
   size_t inner_len;
 

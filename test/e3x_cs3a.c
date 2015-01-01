@@ -56,7 +56,7 @@ int main(int argc, char **argv)
   lob_set_int(messageAB,"a",42);
   lob_t outerAB = cs->remote_encrypt(remoteB,localA,messageAB);
   fail_unless(outerAB);
-  fail_unless(lob_len(outerAB) == 42);
+  fail_unless(lob_len(outerAB) == 85);
 
   // decrypt and verify it
   lob_t innerAB = cs->local_decrypt(localB,outerAB);
