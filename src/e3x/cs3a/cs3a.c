@@ -311,59 +311,36 @@ void ephemeral_free(ephemeral_t ephem)
 
 lob_t ephemeral_encrypt(ephemeral_t ephem, lob_t inner)
 {
-  return NULL;
-  /*
   lob_t outer;
-  uint8_t iv[16], hmac[32];
   size_t inner_len;
 
   outer = lob_new();
   inner_len = lob_len(inner);
-  if(!lob_body(outer,NULL,16+4+inner_len+4)) return lob_free(outer);
+  if(!lob_body(outer,NULL,16+16+inner_len+crypto_secretbox_MACBYTES)) return lob_free(outer);
 
-  // copy in token and create/copy iv
+  // copy in token and create nonce
   memcpy(outer->body,ephem->token,16);
-  memset(iv,0,16);
-  memcpy(iv,&(ephem->seq),4);
-  ephem->seq++;
-  memcpy(outer->body+16,iv,4);
+  randombytes(outer->body+16,16);
 
-  // encrypt full inner into the outer
-  aes_128_ctr(ephem->enckey,inner_len,iv,lob_raw(inner),outer->body+16+4);
-
-  // generate mac key and mac the ciphertext
-  memcpy(hmac,ephem->enckey,16);
-  memcpy(hmac+16,iv,4);
-  hmac_256(hmac,16+4,outer->body+16+4,inner_len,hmac);
-  fold3(hmac,outer->body+16+4+inner_len);
+  crypto_secretbox_easy(outer->body+16+16,
+    lob_raw(inner),
+    lob_len(inner),
+    outer->body+16,
+    ephem->enckey);
 
   return outer;
-  */
+
 }
 
 lob_t ephemeral_decrypt(ephemeral_t ephem, lob_t outer)
 {
-  return NULL;
-  /*
-  uint8_t iv[16], hmac[32];
-
-  memset(iv,0,16);
-  memcpy(iv,outer->body+16,4);
-
-  memcpy(hmac,ephem->deckey,16);
-  memcpy(hmac+16,iv,4);
-  // mac just the ciphertext
-  hmac_256(hmac,16+4,outer->body+16+4,outer->body_len-(4+16+4),hmac);
-  fold3(hmac,hmac);
-
-  if(memcmp(hmac,outer->body+(outer->body_len-4),4) != 0) return LOG("hmac failed");
-
-  // decrypt in place
-  aes_128_ctr(ephem->deckey,outer->body_len-(16+4+4),iv,outer->body+16+4,outer->body+16+4);
-
-  // return parse attempt
-  return lob_parse(outer->body+16+4, outer->body_len-(16+4+4));
-  */
+  crypto_secretbox_open_easy(outer->body+16+16,
+    outer->body+16+16,
+    outer->body_len-(16+16),
+    outer->body+16,
+    ephem->deckey);
+  
+  return lob_parse(outer->body+16+16, outer->body_len-(16+16+crypto_secretbox_MACBYTES));
 }
 
 /*
