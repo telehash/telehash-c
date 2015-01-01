@@ -276,13 +276,11 @@ lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
 
 ephemeral_t ephemeral_new(remote_t remote, lob_t outer)
 {
-  return NULL;
-/*
-  uint8_t ekey[uECC_BYTES*2], shared[uECC_BYTES+((uECC_BYTES+1)*2)], hash[32];
+  uint8_t shared[crypto_box_PUBLICKEYBYTES*2], secret[crypto_box_BEFORENMBYTES], hash[32];
   ephemeral_t ephem;
-
+  
   if(!remote) return NULL;
-  if(!outer || outer->body_len < (uECC_BYTES+1)) return LOG("invalid outer");
+  if(!outer || outer->body_len < crypto_box_PUBLICKEYBYTES) return LOG("invalid outer");
 
   if(!(ephem = malloc(sizeof(struct ephemeral_struct)))) return NULL;
   memset(ephem,0,sizeof (struct ephemeral_struct));
@@ -291,26 +289,19 @@ ephemeral_t ephemeral_new(remote_t remote, lob_t outer)
   e3x_hash(outer->body,16,hash);
   memcpy(ephem->token,hash,16);
 
-  // generate a random seq starting point for channel IV's
-  e3x_rand((uint8_t*)&(ephem->seq),4);
+  // do the diffie hellman
+  crypto_box_beforenm(secret, outer->body, remote->esecret);
 
-  // decompress the exchange key and get the shared secret
-  uECC_decompress(outer->body,ekey);
-  if(!uECC_shared_secret(ekey, remote->esecret, shared)) return LOG("ECDH failed");
+  // combine inputs to create the digest-derived keys
+  memcpy(shared,remote->ekey,crypto_box_PUBLICKEYBYTES);
+  memcpy(shared+crypto_box_PUBLICKEYBYTES,outer->body,crypto_box_PUBLICKEYBYTES);
+  e3x_hash(shared,crypto_box_PUBLICKEYBYTES*2,ephem->enckey);
 
-  // combine inputs to create the digest
-  memcpy(shared+uECC_BYTES,remote->ecomp,uECC_BYTES+1);
-  memcpy(shared+uECC_BYTES+uECC_BYTES+1,outer->body,uECC_BYTES+1);
-  e3x_hash(shared,uECC_BYTES+((uECC_BYTES+1)*2),hash);
-  fold1(hash,ephem->enckey);
-
-  memcpy(shared+uECC_BYTES,outer->body,uECC_BYTES+1);
-  memcpy(shared+uECC_BYTES+uECC_BYTES+1,remote->ecomp,uECC_BYTES+1);
-  e3x_hash(shared,uECC_BYTES+((uECC_BYTES+1)*2),hash);
-  fold1(hash,ephem->deckey);
+  memcpy(shared,outer->body,crypto_box_PUBLICKEYBYTES);
+  memcpy(shared+crypto_box_PUBLICKEYBYTES,remote->ekey,crypto_box_PUBLICKEYBYTES);
+  e3x_hash(shared,crypto_box_PUBLICKEYBYTES*2,ephem->deckey);
 
   return ephem;
-  */
 }
 
 void ephemeral_free(ephemeral_t ephem)
