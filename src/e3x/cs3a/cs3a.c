@@ -52,7 +52,15 @@ static lob_t ephemeral_decrypt(ephemeral_t ephemeral, lob_t outer);
 
 e3x_cipher_t cs3a_init(lob_t options)
 {
-  e3x_cipher_t ret = malloc(sizeof(struct e3x_cipher_struct));
+  e3x_cipher_t ret;
+
+  // sanity check
+  if(crypto_box_NONCEBYTES != 24 || crypto_box_PUBLICKEYBYTES != 32 || crypto_onetimeauth_BYTES != 16)
+  {
+    return LOG("libsodium version error, defined header sizes don't match expectations");
+  }
+
+  ret = malloc(sizeof(struct e3x_cipher_struct));
   if(!ret) return NULL;
   memset(ret,0,sizeof (struct e3x_cipher_struct));
   
@@ -235,41 +243,35 @@ uint8_t remote_verify(remote_t remote, local_t local, lob_t outer)
 
 lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
 {
-  return NULL;
-  /*
-  uint8_t shared[uECC_BYTES+4], iv[16], hash[32], csid = 0x1a;
+  uint8_t secret[crypto_box_BEFORENMBYTES], nonce[crypto_box_NONCEBYTES], hash[32], csid = 0x3a;
   lob_t outer;
   size_t inner_len;
 
   outer = lob_new();
   lob_head(outer,&csid,1);
   inner_len = lob_len(inner);
-  if(!lob_body(outer,NULL,21+4+inner_len+4)) return lob_free(outer);
+  if(!lob_body(outer,NULL,32+24+inner_len+16)) return lob_free(outer);
 
-  // copy in the ephemeral public key
-  memcpy(outer->body, remote->ecomp, uECC_BYTES+1);
+  // copy in the ephemeral public key/nonce
+  memcpy(outer->body, remote->ekey, crypto_box_PUBLICKEYBYTES);
+  randombytes(nonce,crypto_box_NONCEBYTES);
+  memcpy(outer->body+32, nonce, crypto_box_NONCEBYTES);
 
-  // get the shared secret to create the iv+key for the open aes
-  if(!uECC_shared_secret(remote->key, remote->esecret, shared)) return lob_free(outer);
-  e3x_hash(shared,uECC_BYTES,hash);
-  fold1(hash,hash);
-  memset(iv,0,16);
-  memcpy(iv,&(remote->seq),4);
-  remote->seq++; // increment seq after every use
-  memcpy(outer->body+21,iv,4); // send along the used IV
+  // get the shared secret to create the nonce+key for the open aes
+  crypto_box_beforenm(secret, remote->key, remote->esecret);
 
-  // encrypt the inner into the outer
-  aes_128_ctr(hash,inner_len,iv,lob_raw(inner),outer->body+21+4);
+  // encrypt the inner
+  crypto_secretbox_easy(outer->body+32+24,
+    lob_raw(inner),
+    inner_len,
+    nonce,
+    secret);
 
   // generate secret for hmac
-  if(!uECC_shared_secret(remote->key, local->secret, shared)) return lob_free(outer);
-  memcpy(shared+uECC_BYTES,outer->body+21,4); // use the IV too
-
-  hmac_256(shared,uECC_BYTES+4,outer->body,21+4+inner_len,hash);
-  fold3(hash,outer->body+21+4+inner_len); // write into last 4 bytes
+  crypto_box_beforenm(secret, remote->key, local->secret);
+  crypto_onetimeauth(outer->body+32+24+inner_len, outer->body, outer->body_len-16, secret);
 
   return outer;
-  */
 }
 
 ephemeral_t ephemeral_new(remote_t remote, lob_t outer)
