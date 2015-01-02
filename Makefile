@@ -67,6 +67,7 @@ arduino: static
 	cp $(HEADERS) arduino/src/telehash/
 
 test: $(FULL_OBJFILES)
+	npm install
 	cd test; $(MAKE) $(MFLAGS)
 
 %.o : %.c $(HEADERS)
