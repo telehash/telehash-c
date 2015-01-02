@@ -20,14 +20,14 @@ CS2a = -ltomcrypt -ltommath -DLTM_DESC -DCS_2a src/e3x/cs2a/crypt_libtom_*.c
 CS3a = src/e3x/cs3a/cs3a.c
 
 # this is CS1a only
-#ARCH = src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c $(CS1a)
-#TESTS += e3x_cs1a
+ARCH = src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c $(CS1a)
+TESTS += e3x_cs1a
 
 # this is CS3a only
-ARCH = src/e3x/cs2a_disabled.c src/e3x/cs1a_disabled.c $(CS3a)
-LDFLAGS += ../node_modules/libsodium-c/src/libsodium/.libs/libsodium.a
-INCLUDE += -I../node_modules/libsodium-c/src/libsodium/include
-TESTS += e3x_cs3a
+#ARCH = src/e3x/cs2a_disabled.c src/e3x/cs1a_disabled.c $(CS3a)
+#LDFLAGS += ../node_modules/libsodium-c/src/libsodium/.libs/libsodium.a
+#INCLUDE += -I../node_modules/libsodium-c/src/libsodium/include
+#TESTS += e3x_cs3a
 
 # CS1a and CS2a
 #ARCH = unix/platform.c $(JSON) $(CS1a) $(CS2a) $(INCLUDE) $(LIBS)
