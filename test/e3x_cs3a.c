@@ -45,7 +45,6 @@ int main(int argc, char **argv)
   // create another to start testing real packets
   lob_t secretsB = e3x_generate();
   fail_unless(lob_linked(secretsB));
-  printf("XX %s\n",lob_json(lob_linked(secretsB)));
   local_t localB = cs->local_new(lob_linked(secretsB),secretsB);
   fail_unless(localB);
   remote_t remoteB = cs->remote_new(lob_get_base32(lob_linked(secretsB),"3a"), NULL);
@@ -56,7 +55,7 @@ int main(int argc, char **argv)
   lob_set_int(messageAB,"a",42);
   lob_t outerAB = cs->remote_encrypt(remoteB,localA,messageAB);
   fail_unless(outerAB);
-  fail_unless(lob_len(outerAB) == 85);
+  fail_unless(lob_len(outerAB) == 101);
 
   // decrypt and verify it
   lob_t innerAB = cs->local_decrypt(localB,outerAB);
@@ -71,7 +70,7 @@ int main(int argc, char **argv)
   lob_set(channelBA,"type","foo");
   lob_t couterBA = cs->ephemeral_encrypt(ephemBA,channelBA);
   fail_unless(couterBA);
-  fail_unless(lob_len(couterBA) == 42);
+  fail_unless(lob_len(couterBA) == 74);
 
   lob_t outerBA = cs->remote_encrypt(remoteA,localB,messageAB);
   fail_unless(outerBA);

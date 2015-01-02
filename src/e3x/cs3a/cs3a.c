@@ -159,7 +159,7 @@ void local_free(local_t local)
 
 lob_t local_decrypt(local_t local, lob_t outer)
 {
-  uint8_t nonce[crypto_box_NONCEBYTES], secret[crypto_box_BEFORENMBYTES];
+  uint8_t secret[crypto_box_BEFORENMBYTES];
   lob_t inner, tmp;
 
 //  * `KEY` - 32 bytes, the sending exchange's ephemeral public key
@@ -167,24 +167,24 @@ lob_t local_decrypt(local_t local, lob_t outer)
 //  * `CIPHERTEXT` - the inner packet bytes encrypted using secretbox() using the `NONCE` as the nonce and the shared secret (derived from the recipients endpoint key and the included ephemeral key) as the key
 //  * `AUTH` - 16 bytes, the calculated onetimeauth(`KEY` + `INNER`, SHA256(`NONCE` + secret)) using the shared secret derived from both endpoint keys, the hashing is to minimize the chance that the same key input is ever used twice
 
-  if(outer->body_len <= (32+24+0+16)) return NULL;
+  if(outer->body_len <= (32+24+crypto_secretbox_MACBYTES+16)) return NULL;
   tmp = lob_new();
-  if(!lob_body(tmp,NULL,outer->body_len-(32+24+0+16))) return lob_free(tmp);
+  if(!lob_body(tmp,NULL,outer->body_len-(32+24+crypto_secretbox_MACBYTES+16))) return lob_free(tmp);
 
   // get the shared secret
   crypto_box_beforenm(secret, outer->body, local->secret);
-  memcpy(nonce,outer->body+crypto_box_PUBLICKEYBYTES,crypto_box_NONCEBYTES);
 
   // decrypt the inner
-  crypto_secretbox_open_easy(tmp->body,
-    outer->body+crypto_box_PUBLICKEYBYTES+crypto_box_NONCEBYTES,
-    outer->body_len,
-    nonce,
-    secret);
+  if(crypto_secretbox_open_easy(tmp->body,
+    outer->body+32+24,
+    tmp->body_len+crypto_secretbox_MACBYTES,
+    outer->body+32,
+    secret) != 0) return lob_free(tmp);
 
   // load inner packet
   inner = lob_parse(tmp->body,tmp->body_len);
   lob_free(tmp);
+
   return inner;
 }
 
@@ -250,7 +250,7 @@ lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
   outer = lob_new();
   lob_head(outer,&csid,1);
   inner_len = lob_len(inner);
-  if(!lob_body(outer,NULL,32+24+inner_len+16)) return lob_free(outer);
+  if(!lob_body(outer,NULL,32+24+inner_len+crypto_secretbox_MACBYTES+16)) return lob_free(outer);
 
   // copy in the ephemeral public key/nonce
   memcpy(outer->body, remote->ekey, crypto_box_PUBLICKEYBYTES);
@@ -261,15 +261,15 @@ lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
   crypto_box_beforenm(secret, remote->key, remote->esecret);
 
   // encrypt the inner
-  crypto_secretbox_easy(outer->body+32+24,
+  if(crypto_secretbox_easy(outer->body+32+24,
     lob_raw(inner),
     inner_len,
     nonce,
-    secret);
+    secret) != 0) return lob_free(outer);
 
   // generate secret for hmac
-  crypto_box_beforenm(secret, remote->key, local->secret);
-  crypto_onetimeauth(outer->body+32+24+inner_len, outer->body, outer->body_len-16, secret);
+  crypto_box_beforenm(secret, remote->key, remote->esecret);
+  crypto_onetimeauth(outer->body+32+24+inner_len+crypto_secretbox_MACBYTES, outer->body, outer->body_len-16, secret);
 
   return outer;
 }
@@ -316,13 +316,13 @@ lob_t ephemeral_encrypt(ephemeral_t ephem, lob_t inner)
 
   outer = lob_new();
   inner_len = lob_len(inner);
-  if(!lob_body(outer,NULL,16+16+inner_len+crypto_secretbox_MACBYTES)) return lob_free(outer);
+  if(!lob_body(outer,NULL,16+24+inner_len+crypto_secretbox_MACBYTES)) return lob_free(outer);
 
   // copy in token and create nonce
   memcpy(outer->body,ephem->token,16);
-  randombytes(outer->body+16,16);
+  randombytes(outer->body+16,24);
 
-  crypto_secretbox_easy(outer->body+16+16,
+  crypto_secretbox_easy(outer->body+16+24,
     lob_raw(inner),
     lob_len(inner),
     outer->body+16,
@@ -334,13 +334,13 @@ lob_t ephemeral_encrypt(ephemeral_t ephem, lob_t inner)
 
 lob_t ephemeral_decrypt(ephemeral_t ephem, lob_t outer)
 {
-  crypto_secretbox_open_easy(outer->body+16+16,
-    outer->body+16+16,
-    outer->body_len-(16+16),
+  crypto_secretbox_open_easy(outer->body+16+24,
+    outer->body+16+24,
+    outer->body_len-(16+24),
     outer->body+16,
     ephem->deckey);
   
-  return lob_parse(outer->body+16+16, outer->body_len-(16+16+crypto_secretbox_MACBYTES));
+  return lob_parse(outer->body+16+24, outer->body_len-(16+24+crypto_secretbox_MACBYTES));
 }
 
 /*
