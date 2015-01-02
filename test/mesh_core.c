@@ -27,7 +27,7 @@ int main(int argc, char **argv)
   fail_unless(link->csid == 0);
   
   fail_unless(link_keys(mesh,lob_linked(idB)) == link);
-  fail_unless(link->csid == 0x1a);
+  fail_unless(link->csid);
   fail_unless(link->x);
   
   lob_t open = lob_new();

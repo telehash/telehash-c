@@ -37,7 +37,7 @@ int main(int argc, char **argv)
   fail_unless(msgAB);
   fail_unless(msgAB->head_len == 1);
   fail_unless(msgAB->head[0] == csid);
-  fail_unless(msgAB->body_len == 42);
+  fail_unless(msgAB->body_len >= 42);
 
   // decrypt
   lob_t innerAB2 = e3x_self_decrypt(selfB,msgAB);
@@ -56,7 +56,7 @@ int main(int argc, char **argv)
   fail_unless(hsAB);
   fail_unless(hsAB->head_len == 1);
   fail_unless(hsAB->head[0] == csid);
-  fail_unless(hsAB->body_len == 60);
+  fail_unless(hsAB->body_len >= 60);
 
   // sync w/ handshake both ways
   lob_t inAB = e3x_self_decrypt(selfB,hsAB);
@@ -73,7 +73,7 @@ int main(int argc, char **argv)
   fail_unless(e3x_exchange_cid(xBA, chanAB)); // verify incoming
   lob_t coutAB = e3x_exchange_send(xAB,chanAB);
   fail_unless(coutAB);
-  fail_unless(coutAB->body_len == 33);
+  fail_unless(coutAB->body_len >= 33);
   lob_t cinAB = e3x_exchange_receive(xBA,coutAB);
   fail_unless(cinAB);
   fail_unless(lob_get_int(cinAB,"c") == lob_get_int(chanAB,"c"));
