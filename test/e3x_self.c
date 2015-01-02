@@ -11,8 +11,8 @@ int main(int argc, char **argv)
   e3x_self_t self = e3x_self_new(id,NULL);
   fail_unless(self);
   
-  int count = 0;
-  for(int i = 0; i < CS_MAX; i++)
+  int i, count = 0;
+  for(i = 0; i < CS_MAX; i++)
   {
     if(!self->locals[i]) continue;
     LOG("self testing CS %d",i);
