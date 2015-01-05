@@ -10,12 +10,20 @@ int main(int argc, char **argv)
 
   e3x_self_t self = e3x_self_new(id,NULL);
   fail_unless(self);
-  fail_unless(self->locals[CS_1a]);
-  fail_unless(self->keys[CS_1a]);
-  fail_unless(self->keys[CS_1a]->body_len);
-  fail_unless(lob_get(self->keys[CS_1a],"key"));
-  fail_unless(lob_get(self->keys[CS_1a],"hash"));
-  fail_unless(strlen(lob_get(self->keys[CS_1a],"hash")) == 52);
+  
+  int i, count = 0;
+  for(i = 0; i < CS_MAX; i++)
+  {
+    if(!self->locals[i]) continue;
+    LOG("self testing CS %d",i);
+    count++;
+    fail_unless(self->locals[i]);
+    fail_unless(self->keys[i]);
+    fail_unless(self->keys[i]->body_len);
+    fail_unless(lob_get(self->keys[i],"key"));
+    fail_unless(lob_get(self->keys[i],"hash"));
+    fail_unless(strlen(lob_get(self->keys[i],"hash")) == 52);
+  }
 
   return 0;
 }

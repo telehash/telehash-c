@@ -18,6 +18,7 @@ e3x_exchange_t e3x_exchange_new(e3x_self_t self, uint8_t csid, lob_t key)
   // find matching csid
   for(i=0; i<CS_MAX; i++)
   {
+    if(!e3x_cipher_sets[i]) continue;
     if(e3x_cipher_sets[i]->csid != csid) continue;
     if(!self->locals[i]) continue;
     cs = e3x_cipher_sets[i];
