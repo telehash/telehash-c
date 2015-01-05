@@ -276,7 +276,7 @@ lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
 
 ephemeral_t ephemeral_new(remote_t remote, lob_t outer)
 {
-  uint8_t shared[crypto_box_PUBLICKEYBYTES*2], secret[crypto_box_BEFORENMBYTES], hash[32];
+  uint8_t shared[crypto_box_BEFORENMBYTES+(crypto_box_PUBLICKEYBYTES*2)], hash[32];
   ephemeral_t ephem;
   
   if(!remote) return NULL;
@@ -290,16 +290,16 @@ ephemeral_t ephemeral_new(remote_t remote, lob_t outer)
   memcpy(ephem->token,hash,16);
 
   // do the diffie hellman
-  crypto_box_beforenm(secret, outer->body, remote->esecret);
+  crypto_box_beforenm(shared, outer->body, remote->esecret);
 
   // combine inputs to create the digest-derived keys
-  memcpy(shared,remote->ekey,crypto_box_PUBLICKEYBYTES);
-  memcpy(shared+crypto_box_PUBLICKEYBYTES,outer->body,crypto_box_PUBLICKEYBYTES);
-  e3x_hash(shared,crypto_box_PUBLICKEYBYTES*2,ephem->enckey);
+  memcpy(shared+crypto_box_BEFORENMBYTES,remote->ekey,crypto_box_PUBLICKEYBYTES);
+  memcpy(shared+crypto_box_BEFORENMBYTES+crypto_box_PUBLICKEYBYTES,outer->body,crypto_box_PUBLICKEYBYTES);
+  e3x_hash(shared,crypto_box_BEFORENMBYTES+(crypto_box_PUBLICKEYBYTES*2),ephem->enckey);
 
-  memcpy(shared,outer->body,crypto_box_PUBLICKEYBYTES);
-  memcpy(shared+crypto_box_PUBLICKEYBYTES,remote->ekey,crypto_box_PUBLICKEYBYTES);
-  e3x_hash(shared,crypto_box_PUBLICKEYBYTES*2,ephem->deckey);
+  memcpy(shared+crypto_box_BEFORENMBYTES,outer->body,crypto_box_PUBLICKEYBYTES);
+  memcpy(shared+crypto_box_BEFORENMBYTES+crypto_box_PUBLICKEYBYTES,remote->ekey,crypto_box_PUBLICKEYBYTES);
+  e3x_hash(shared,crypto_box_BEFORENMBYTES+(crypto_box_PUBLICKEYBYTES*2),ephem->deckey);
 
   return ephem;
 }
