@@ -221,17 +221,20 @@ void remote_free(remote_t remote)
 
 uint8_t remote_verify(remote_t remote, local_t local, lob_t outer)
 {
-  uint8_t secret[crypto_box_BEFORENMBYTES];
+  uint8_t secret[crypto_box_BEFORENMBYTES], shared[24+crypto_box_BEFORENMBYTES], hash[32];
 
   if(!remote || !local || !outer) return 1;
   if(outer->head_len != 1 || outer->head[0] != 0x3a) return 2;
 
   // generate secret and verify
   crypto_box_beforenm(secret, outer->body, local->secret);
+  memcpy(shared,outer->body+32,24); // nonce
+  memcpy(shared+24,secret,crypto_box_BEFORENMBYTES);
+  e3x_hash(shared,24+crypto_box_BEFORENMBYTES,hash);
   if(crypto_onetimeauth_verify(outer->body+(outer->body_len-crypto_onetimeauth_BYTES),
     outer->body,
     outer->body_len-crypto_onetimeauth_BYTES,
-    secret))
+    hash))
   {
     LOG("OTA verify failed");
     lob_free(outer);
@@ -243,7 +246,7 @@ uint8_t remote_verify(remote_t remote, local_t local, lob_t outer)
 
 lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
 {
-  uint8_t secret[crypto_box_BEFORENMBYTES], nonce[crypto_box_NONCEBYTES], csid = 0x3a;
+  uint8_t secret[crypto_box_BEFORENMBYTES], nonce[24], shared[24+crypto_box_BEFORENMBYTES], hash[32], csid = 0x3a;
   lob_t outer;
   size_t inner_len;
 
@@ -253,9 +256,9 @@ lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
   if(!lob_body(outer,NULL,32+24+inner_len+crypto_secretbox_MACBYTES+16)) return lob_free(outer);
 
   // copy in the ephemeral public key/nonce
-  memcpy(outer->body, remote->ekey, crypto_box_PUBLICKEYBYTES);
-  randombytes(nonce,crypto_box_NONCEBYTES);
-  memcpy(outer->body+32, nonce, crypto_box_NONCEBYTES);
+  memcpy(outer->body, remote->ekey, 32);
+  randombytes(nonce,24);
+  memcpy(outer->body+32, nonce, 24);
 
   // get the shared secret to create the nonce+key for the open aes
   crypto_box_beforenm(secret, remote->key, remote->esecret);
@@ -269,7 +272,10 @@ lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
 
   // generate secret for hmac
   crypto_box_beforenm(secret, remote->key, remote->esecret);
-  crypto_onetimeauth(outer->body+32+24+inner_len+crypto_secretbox_MACBYTES, outer->body, outer->body_len-16, secret);
+  memcpy(shared,nonce,24);
+  memcpy(shared+24,secret,crypto_box_BEFORENMBYTES);
+  e3x_hash(shared,24+crypto_box_BEFORENMBYTES,hash);
+  crypto_onetimeauth(outer->body+32+24+inner_len+crypto_secretbox_MACBYTES, outer->body, outer->body_len-16, hash);
 
   return outer;
 }
