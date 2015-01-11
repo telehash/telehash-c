@@ -1,5 +1,5 @@
-#ifndef util_uri_h
-#define util_uri_h
+#ifndef jwt_h
+#define jwt_h
 
 #include <stdint.h>
 #include "lob.h"
