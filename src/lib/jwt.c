@@ -1,3 +1,6 @@
+#include <string.h>
+#include "util.h"
+#include "base64.h"
 #include "jwt.h"
 
 // one JWT is two chained LOB packets
@@ -7,13 +10,43 @@
 //  claims->body is the JWT signature
 
 // base64
-lob_t jwt_decode(char *encoded)
+lob_t jwt_decode(char *encoded, size_t len)
 {
-  return NULL;
+  lob_t header, payload;
+  char *dot1, *dot2, *end;
+  size_t dlen;
+
+  if(!encoded) return NULL;
+  if(!len) len = strlen(encoded);
+  end = encoded+(len-1);
+  
+  dot1 = strchr(encoded,'.');
+  if(!dot1 || dot1+1 >= end) return LOG("missing/bad first separator");
+  dot1++;
+  dot2 = strchr(dot1,'.');
+  if(!dot2 || (dot2+1) >= end) return LOG("missing/bad second separator");
+  dot2++;
+
+  payload = lob_new();
+  header = lob_link(NULL, payload);
+  
+  // decode payload body first
+  dlen = base64_decode(dot2, (end-dot2)+1, (uint8_t*)dot2);
+  lob_body(payload, (uint8_t*)dot2, dlen);
+
+  // decode payload json
+  dlen = base64_decode(dot1, (dot2-dot1), (uint8_t*)dot1);
+  lob_head(payload, (uint8_t*)dot1, dlen);
+
+  // decode header json
+  dlen = base64_decode(encoded, (dot1-encoded), (uint8_t*)encoded);
+  lob_head(header, (uint8_t*)encoded, dlen);
+
+  return header;
 }
 
 // from raw lobs
-lob_t jwt_parse(uint8_t *raw, uint32_t len)
+lob_t jwt_parse(uint8_t *raw, size_t len)
 {
   return NULL;
 }

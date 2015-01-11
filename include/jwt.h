@@ -12,8 +12,8 @@
 //  claims->head is the JWT claims JSON
 //  claims->body is the JWT signature
 
-lob_t jwt_decode(char *encoded); // base64
-lob_t jwt_parse(uint8_t *raw, uint32_t len); // from raw lobs
+lob_t jwt_decode(char *encoded, size_t len); // base64
+lob_t jwt_parse(uint8_t *raw, size_t len); // from raw lobs
 lob_t jwt_claims(lob_t token); // just returns the token->chain
 
 char *jwt_encode(lob_t token); // char* is cached/freed inside token
