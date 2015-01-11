@@ -45,11 +45,13 @@ static uint8_t cipher_generate(lob_t keys, lob_t secrets);
 static local_t local_new(lob_t keys, lob_t secrets);
 static void local_free(local_t local);
 static lob_t local_decrypt(local_t local, lob_t outer);
+static lob_t local_sign(local_t local, lob_t args);
 
 static remote_t remote_new(lob_t key, uint8_t *token);
 static void remote_free(remote_t remote);
 static uint8_t remote_verify(remote_t remote, local_t local, lob_t outer);
 static lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner);
+static uint8_t remote_validate(remote_t remote, lob_t args, lob_t sig);
 
 static ephemeral_t ephemeral_new(remote_t remote, lob_t outer);
 static void ephemeral_free(ephemeral_t ephemeral);
@@ -86,10 +88,12 @@ e3x_cipher_t cs1a_init(lob_t options)
   ret->local_new = (void *(*)(lob_t, lob_t))local_new;
   ret->local_free = (void (*)(void *))local_free;
   ret->local_decrypt = (lob_t (*)(void *, lob_t))local_decrypt;
+  ret->local_sign = (lob_t (*)(void *, lob_t))local_sign;
   ret->remote_new = (void *(*)(lob_t, uint8_t *))remote_new;
   ret->remote_free = (void (*)(void *))remote_free;
   ret->remote_verify = (uint8_t (*)(void *, void *, lob_t))remote_verify;
   ret->remote_encrypt = (lob_t (*)(void *, void *, lob_t))remote_encrypt;
+  ret->remote_validate = (uint8_t (*)(void *, lob_t, lob_t))remote_validate;
   ret->ephemeral_new = (void *(*)(void *, lob_t))ephemeral_new;
   ret->ephemeral_free = (void (*)(void *))ephemeral_free;
   ret->ephemeral_encrypt = (lob_t (*)(void *, lob_t))ephemeral_encrypt;
@@ -196,6 +200,11 @@ lob_t local_decrypt(local_t local, lob_t outer)
   return inner;
 }
 
+lob_t local_sign(local_t local, lob_t args)
+{
+  return NULL;
+}
+
 remote_t remote_new(lob_t key, uint8_t *token)
 {
   uint8_t hash[32];
@@ -283,6 +292,12 @@ lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
   fold3(hash,outer->body+21+4+inner_len); // write into last 4 bytes
 
   return outer;
+}
+
+uint8_t remote_validate(remote_t remote, lob_t args, lob_t sig)
+{
+  if(!remote || !args || !sig || sig->body_len != uECC_BYTES*2) return 1;
+  return 2;
 }
 
 ephemeral_t ephemeral_new(remote_t remote, lob_t outer)
