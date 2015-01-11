@@ -26,12 +26,14 @@ typedef struct e3x_cipher_struct
   local_t (*local_new)(lob_t keys, lob_t secrets);
   void (*local_free)(local_t local);
   lob_t (*local_decrypt)(local_t local, lob_t outer);
+  lob_t (*local_sign)(local_t local, lob_t args);
   
   // a remote endpoint identity
   remote_t (*remote_new)(lob_t key, uint8_t *token);
   void (*remote_free)(remote_t remote);
   uint8_t (*remote_verify)(remote_t remote, local_t local, lob_t outer);
   lob_t (*remote_encrypt)(remote_t remote, local_t local, lob_t inner);
+  lob_t (*remote_validate)(remote_t remote, lob_t sig);
   
   // an active session to a remote for channel packets
   ephemeral_t (*ephemeral_new)(remote_t remote, lob_t outer);
