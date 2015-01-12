@@ -1,4 +1,5 @@
 #include "base64.h"
+#include "e3x.h"
 #include "unit_test.h"
 
 /*
@@ -32,10 +33,21 @@ int main(int argc, char **argv)
   fail_unless(strcmp(jtest,jfix) == 0);
   char *btest = malloc(base64_encode_length(strlen(jfix)));
   len = base64_encode((uint8_t*)jfix,strlen(jfix),btest);
-  printf("len %d %d %s",len,strlen(bfix),btest);
+//  printf("len %d %d %s",len,strlen(bfix),btest);
   fail_unless(len == strlen(bfix));
   fail_unless(strncmp(btest,bfix,len) == 0);
 
+  uint8_t *rand = malloc(32);
+  e3x_rand(rand, 32);
+  char *rtest = malloc(base64_encode_length(32));
+  base64_encode(rand,32,rtest);
+  uint8_t *rand2 = malloc(32);
+  base64_decode(rtest,0,rand2);
+  char *rtest2 = malloc(base64_encode_length(32));
+  base64_encode(rand2,32,rtest2);
+  printf("%s\n%s\n",rtest,rtest2);
+  fail_unless(memcmp(rand,rand2,32) == 0);
+  
   return 0;
 }
 

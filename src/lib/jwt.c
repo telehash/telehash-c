@@ -12,7 +12,7 @@
 // base64
 lob_t jwt_decode(char *encoded, size_t len)
 {
-  lob_t header, payload;
+  lob_t header, claims;
   char *dot1, *dot2, *end;
   size_t dlen;
 
@@ -27,16 +27,16 @@ lob_t jwt_decode(char *encoded, size_t len)
   if(!dot2 || (dot2+1) >= end) return LOG("missing/bad second separator");
   dot2++;
 
-  payload = lob_new();
-  header = lob_link(NULL, payload);
+  claims = lob_new();
+  header = lob_link(NULL, claims);
   
-  // decode payload body first
+  // decode claims sig first
   dlen = base64_decode(dot2, (end-dot2)+1, (uint8_t*)dot2);
-  lob_body(payload, (uint8_t*)dot2, dlen);
+  lob_body(claims, (uint8_t*)dot2, dlen);
 
-  // decode payload json
+  // decode claims json
   dlen = base64_decode(dot1, (dot2-dot1), (uint8_t*)dot1);
-  lob_head(payload, (uint8_t*)dot1, dlen);
+  lob_head(claims, (uint8_t*)dot1, dlen);
 
   // decode header json
   dlen = base64_decode(encoded, (dot1-encoded), (uint8_t*)encoded);
@@ -54,13 +54,31 @@ lob_t jwt_parse(uint8_t *raw, size_t len)
 // just returns the token->chain
 lob_t jwt_claims(lob_t token)
 {
-  return NULL;
+  return lob_linked(token);
 }
 
 // char* is cached/freed inside token
 char *jwt_encode(lob_t token)
 {
-  return NULL;
+  size_t hlen, clen, slen;
+  char *encoded;
+  lob_t payload = lob_linked(token);
+  if(!payload) return NULL;
+  
+  // allocates space in the token body
+  slen = base64_encode_length(payload->body_len);
+  clen = base64_encode_length(payload->head_len);
+  hlen = base64_encode_length(token->head_len);
+  encoded = (char*)lob_body(token,NULL,3+hlen+clen+slen);
+  
+  hlen = base64_encode(token->head,token->head_len,encoded);
+  encoded[hlen] = '.';
+  clen = base64_encode(payload->head,payload->head_len,encoded+hlen+1);
+  encoded[hlen+1+clen] = '.';
+  slen = base64_encode(payload->body,payload->body_len,encoded+hlen+1+clen+1);
+  encoded[hlen+1+clen+1+slen] = 0;
+
+  return encoded;
 }
 
 // lob-encoded raw bytes of whole thing
