@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
   printf("%s\n",lob_json(id));
   fflush(stdout);
 
-  while(net_udp4_receive(udp4) && !status);
+  while(status && net_udp4_receive(udp4));
 
   return 0;
 }
