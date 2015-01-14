@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "lob.h"
+#include "e3x.h"
 
 // utils to parse and generate JWTs to/from LOBs
 
