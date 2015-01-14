@@ -50,7 +50,7 @@ int main(int argc, char **argv)
     base64_encode(rand,i,rtest);
     base64_decode(rtest,0,rand2);
     base64_encode(rand2,i,rtest2);
-    printf("%s\n%s\n",rtest,rtest2);
+//    printf("%s\n%s\n",rtest,rtest2);
     fail_unless(memcmp(rand,rand2,i) == 0);
   }
   

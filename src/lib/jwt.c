@@ -93,15 +93,15 @@ uint32_t jwt_len(lob_t token)
   return 0;
 }
 
-// TODO, WIP as to _how_ to do this yet
-// probably use e3x_exchange_verify and have it recognize?
-lob_t jwt_verify(lob_t token, lob_t key)
+
+lob_t jwt_verify(lob_t token, e3x_exchange_t x)
 {
+  // use e3x_exchange_validate
   return NULL;
 }
 
-// probably add e3x_self_sign?
-lob_t jwt_sign(lob_t token, lob_t key)
+lob_t jwt_sign(lob_t token, e3x_self_t self)
 {
+  // use e3x_self_sign
   return NULL;
 }

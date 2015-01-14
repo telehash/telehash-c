@@ -16,5 +16,7 @@ void e3x_self_free(e3x_self_t self); // any exchanges must have been free'd firs
 // try to decrypt any message sent to us, returns the inner
 lob_t e3x_self_decrypt(e3x_self_t self, lob_t message);
 
+// generate a signature for the data
+lob_t e3x_self_sign(e3x_self_t self, lob_t args, uint8_t *data, size_t len);
 
 #endif
