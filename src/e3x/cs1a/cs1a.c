@@ -45,7 +45,7 @@ static uint8_t cipher_generate(lob_t keys, lob_t secrets);
 static local_t local_new(lob_t keys, lob_t secrets);
 static void local_free(local_t local);
 static lob_t local_decrypt(local_t local, lob_t outer);
-static lob_t local_sign(local_t local, lob_t args);
+static lob_t local_sign(local_t local, lob_t args, uint8_t *data, size_t len);
 
 static remote_t remote_new(lob_t key, uint8_t *token);
 static void remote_free(remote_t remote);
@@ -88,7 +88,7 @@ e3x_cipher_t cs1a_init(lob_t options)
   ret->local_new = (void *(*)(lob_t, lob_t))local_new;
   ret->local_free = (void (*)(void *))local_free;
   ret->local_decrypt = (lob_t (*)(void *, lob_t))local_decrypt;
-  ret->local_sign = (lob_t (*)(void *, lob_t))local_sign;
+  ret->local_sign = (lob_t (*)(void *, lob_t, uint8_t *, size_t))local_sign;
   ret->remote_new = (void *(*)(lob_t, uint8_t *))remote_new;
   ret->remote_free = (void (*)(void *))remote_free;
   ret->remote_verify = (uint8_t (*)(void *, void *, lob_t))remote_verify;
@@ -200,8 +200,27 @@ lob_t local_decrypt(local_t local, lob_t outer)
   return inner;
 }
 
-lob_t local_sign(local_t local, lob_t args)
+lob_t local_sign(local_t local, lob_t args, uint8_t *data, size_t len)
 {
+  uint8_t hash[32], sig[uECC_BYTES*2];
+
+  if(lob_get_cmp(args,"alg","HS256") == 0)
+  {
+    hmac_256(args->body,args->body_len,data,len,hash);
+    lob_body(args,NULL,32);
+    memcpy(args->body,hash,32);
+    return args;
+  }
+
+  if(lob_get_cmp(args,"alg","ES160") == 0)
+  {
+    // hash
+//    uECC_sign(args->body,args->body_len,data,len,hash);
+    lob_body(args,NULL,uECC_BYTES*2);
+    memcpy(args->body,sig,uECC_BYTES*2);
+    return args;
+    
+  }
   return NULL;
 }
 

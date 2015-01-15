@@ -26,7 +26,7 @@ typedef struct e3x_cipher_struct
   local_t (*local_new)(lob_t keys, lob_t secrets);
   void (*local_free)(local_t local);
   lob_t (*local_decrypt)(local_t local, lob_t outer);
-  lob_t (*local_sign)(local_t local, lob_t args);
+  lob_t (*local_sign)(local_t local, lob_t args, uint8_t *data, size_t len);
   
   // a remote endpoint identity
   remote_t (*remote_new)(lob_t key, uint8_t *token);

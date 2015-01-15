@@ -69,3 +69,16 @@ lob_t e3x_self_decrypt(e3x_self_t self, lob_t message)
   return cs->local_decrypt(self->locals[cs->id],message);
 }
 
+// generate a signature for the data
+lob_t e3x_self_sign(e3x_self_t self, lob_t args, uint8_t *data, size_t len)
+{
+  e3x_cipher_t cs = NULL;
+  if(!self || !data || !len) return LOG("bad args");
+  if(lob_get_cmp(args,"alg","HS256") == 0) cs = e3x_cipher_set(0x1a,NULL);
+  if(lob_get_cmp(args,"alg","ES160") == 0) cs = e3x_cipher_set(0x1a,NULL);
+  if(lob_get_cmp(args,"alg","RS256") == 0) cs = e3x_cipher_set(0x2a,NULL);
+  if(lob_get_cmp(args,"alg","ES256") == 0) cs = e3x_cipher_set(0x2a,NULL);
+  if(lob_get_cmp(args,"alg","ED25519") == 0) cs = e3x_cipher_set(0x3a,NULL);
+  if(!cs || !cs->local_sign) return LOG("no signing support for %s",lob_get(args,"alg"));
+  return cs->local_sign(self->locals[cs->id],args,data,len);
+}
