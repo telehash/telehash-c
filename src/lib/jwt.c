@@ -3,13 +3,15 @@
 #include "base64.h"
 #include "jwt.h"
 
-// one JWT is two chained LOB packets
+// this lib implements basic JWT support using the crypto/lob utilities in telehash-c
+
+// one JWT is two chained packets using lob.c
 //  token->head is the JWT header JSON
 //  token->body is a raw LOB for the claims
 //  claims->head is the JWT claims JSON
 //  claims->body is the JWT signature
 
-// base64
+// decode base64 into the pair of lob packets
 lob_t jwt_decode(char *encoded, size_t len)
 {
   lob_t header, claims;
@@ -20,6 +22,7 @@ lob_t jwt_decode(char *encoded, size_t len)
   if(!len) len = strlen(encoded);
   end = encoded+(len-1);
   
+  // make sure the dot separators are there
   dot1 = strchr(encoded,'.');
   if(!dot1 || dot1+1 >= end) return LOG("missing/bad first separator");
   dot1++;
@@ -45,19 +48,19 @@ lob_t jwt_decode(char *encoded, size_t len)
   return header;
 }
 
-// from raw lobs
+// util to parse token from binary lob-encoding
 lob_t jwt_parse(uint8_t *raw, size_t len)
 {
   return NULL;
 }
 
-// just returns the token->chain
+// just returns the token->chain payload claim
 lob_t jwt_claims(lob_t token)
 {
   return lob_linked(token);
 }
 
-// char* is cached/freed inside token
+// returns the base64 encoded token from a packet (return is cached/freed inside token)
 char *jwt_encode(lob_t token)
 {
   size_t hlen, clen, slen;
@@ -69,8 +72,9 @@ char *jwt_encode(lob_t token)
   slen = base64_encode_length(payload->body_len);
   clen = base64_encode_length(payload->head_len);
   hlen = base64_encode_length(token->head_len);
-  encoded = (char*)lob_body(token,NULL,3+hlen+clen+slen);
+  encoded = (char*)lob_body(token,NULL,hlen+1+clen+1+slen+1);
   
+  // append all the base64 encoding
   hlen = base64_encode(token->head,token->head_len,encoded);
   encoded[hlen] = '.';
   clen = base64_encode(payload->head,payload->head_len,encoded+hlen+1);
@@ -81,7 +85,7 @@ char *jwt_encode(lob_t token)
   return encoded;
 }
 
-// lob-encoded raw bytes of whole thing
+// lob-encoded raw bytes of a token
 uint8_t *jwt_raw(lob_t token)
 {
   return NULL;
@@ -93,7 +97,7 @@ uint32_t jwt_len(lob_t token)
   return 0;
 }
 
-
+// verify the signature on this token, optionally using key loaded in this exchange
 lob_t jwt_verify(lob_t token, e3x_exchange_t x)
 {
   size_t hlen, clen;
@@ -123,6 +127,7 @@ lob_t jwt_verify(lob_t token, e3x_exchange_t x)
   return token;
 }
 
+// sign this token, adds signature to the claims body
 lob_t jwt_sign(lob_t token, e3x_self_t self)
 {
   size_t hlen, clen;
