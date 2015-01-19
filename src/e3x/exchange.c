@@ -73,6 +73,12 @@ uint8_t e3x_exchange_verify(e3x_exchange_t x, lob_t outer)
   return x->cs->remote_verify(x->remote,x->self->locals[x->cs->id],outer);
 }
 
+uint8_t e3x_exchange_validate(e3x_exchange_t x, lob_t sig, uint8_t *data, size_t len)
+{
+  if(!x || !sig || !data || !len) return 1;
+  return x->cs->remote_validate(x->remote,sig,data,len);
+}
+
 // will return the current outgoing at value, optional arg to update it
 uint32_t e3x_exchange_out(e3x_exchange_t x, uint32_t at)
 {

@@ -33,7 +33,7 @@ typedef struct e3x_cipher_struct
   void (*remote_free)(remote_t remote);
   uint8_t (*remote_verify)(remote_t remote, local_t local, lob_t outer);
   lob_t (*remote_encrypt)(remote_t remote, local_t local, lob_t inner);
-  uint8_t (*remote_validate)(remote_t remote, lob_t args, lob_t sig);
+  uint8_t (*remote_validate)(remote_t remote, lob_t sig, uint8_t *data, size_t len);
   
   // an active session to a remote for channel packets
   ephemeral_t (*ephemeral_new)(remote_t remote, lob_t outer);

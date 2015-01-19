@@ -96,12 +96,29 @@ uint32_t jwt_len(lob_t token)
 
 lob_t jwt_verify(lob_t token, e3x_exchange_t x)
 {
-  // use e3x_exchange_validate
-  return NULL;
+  uint8_t err;
+  lob_t payload = lob_linked(token);
+  if(!token || !payload || !x) return LOG("bad args");
+  // copy the sig to the token body and use that as the arg
+  lob_body(token,payload->body,payload->body_len);
+  if((err = e3x_exchange_validate(x, token, payload->head, payload->head_len)))
+  {
+    LOG("validate failed: %d",err);
+    return NULL;
+  }
+  return token;
 }
 
 lob_t jwt_sign(lob_t token, e3x_self_t self)
 {
-  // use e3x_self_sign
-  return NULL;
+  lob_t sig;
+  lob_t payload = lob_linked(token);
+  if(!token || !payload || !self) return LOG("bad args");
+
+  // e3x returns packet w/ signature
+  if(!(sig = e3x_self_sign(self, token, payload->head, payload->head_len))) return LOG("signing failed");
+  
+  lob_body(payload,sig->body,sig->body_len);
+  lob_free(sig);
+  return token;
 }
