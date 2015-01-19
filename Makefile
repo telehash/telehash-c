@@ -74,13 +74,13 @@ test: $(FULL_OBJFILES)
 	$(CC) $(INCLUDE) $(CFLAGS) -c $< -o $@
 
 idgen: $(IDGEN_OBJFILES)
-	$(CC) $(CFLAGS) $(LDFLAGS)  -o bin/idgen $(IDGEN_OBJFILES)
+	$(CC) $(CFLAGS) -o bin/idgen $(IDGEN_OBJFILES) $(LDFLAGS) 
 
 ping:
 	$(CC) $(CFLAGS) -o bin/ping util/ping.c src/*.c unix/util.c $(ARCH)
 
 router: $(ROUTER_OBJFILES)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o bin/router $(ROUTER_OBJFILES)
+	$(CC) $(CFLAGS) -o bin/router $(ROUTER_OBJFILES) $(LDFLAGS) 
 
 mesh:
 	$(CC) $(CFLAGS) -o bin/mesh util/mesh.c src/*.c unix/util.c src/ext/*.c $(ARCH)
