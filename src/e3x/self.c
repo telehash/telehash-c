@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "e3x.h"
-#include "util_sys.h"
+#include "util.h"
 
 // load secrets/keys to create a new local endpoint
 e3x_self_t e3x_self_new(lob_t secrets, lob_t keys)
@@ -72,13 +72,16 @@ lob_t e3x_self_decrypt(e3x_self_t self, lob_t message)
 // generate a signature for the data
 lob_t e3x_self_sign(e3x_self_t self, lob_t args, uint8_t *data, size_t len)
 {
+  local_t local = NULL;
   e3x_cipher_t cs = NULL;
-  if(!self || !data || !len) return LOG("bad args");
-  if(lob_get_cmp(args,"alg","HS256") == 0) cs = e3x_cipher_set(0x1a,NULL);
-  if(lob_get_cmp(args,"alg","ES160") == 0) cs = e3x_cipher_set(0x1a,NULL);
-  if(lob_get_cmp(args,"alg","RS256") == 0) cs = e3x_cipher_set(0x2a,NULL);
-  if(lob_get_cmp(args,"alg","ES256") == 0) cs = e3x_cipher_set(0x2a,NULL);
-  if(lob_get_cmp(args,"alg","ED25519") == 0) cs = e3x_cipher_set(0x3a,NULL);
-  if(!cs || !cs->local_sign) return LOG("no signing support for %s",lob_get(args,"alg"));
-  return cs->local_sign(self->locals[cs->id],args,data,len);
+  char *alg = lob_get(args,"alg");
+  if(!data || !len || !alg) return LOG("bad args");
+  if(util_cmp(alg,"HS256") == 0) cs = e3x_cipher_set(0x1a,NULL);
+  if(util_cmp(alg,"ES160") == 0) cs = e3x_cipher_set(0x1a,NULL);
+  if(util_cmp(alg,"RS256") == 0) cs = e3x_cipher_set(0x2a,NULL);
+  if(util_cmp(alg,"ES256") == 0) cs = e3x_cipher_set(0x2a,NULL);
+  if(util_cmp(alg,"ED25519") == 0) cs = e3x_cipher_set(0x3a,NULL);
+  if(!cs || !cs->local_sign) return LOG("no signing support for %s",alg);
+  if(self) local = self->locals[cs->id];
+  return cs->local_sign(local,args,data,len);
 }

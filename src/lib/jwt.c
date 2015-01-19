@@ -111,14 +111,13 @@ lob_t jwt_verify(lob_t token, e3x_exchange_t x)
 
 lob_t jwt_sign(lob_t token, e3x_self_t self)
 {
-  lob_t sig;
   lob_t payload = lob_linked(token);
-  if(!token || !payload || !self) return LOG("bad args");
+  if(!token || !payload) return LOG("bad args");
 
   // e3x returns packet w/ signature
-  if(!(sig = e3x_self_sign(self, token, payload->head, payload->head_len))) return LOG("signing failed");
+  if(!e3x_self_sign(self, token, payload->head, payload->head_len)) return LOG("signing failed");
   
-  lob_body(payload,sig->body,sig->body_len);
-  lob_free(sig);
+  // copy sig to payload
+  lob_body(payload,token->body,token->body_len);
   return token;
 }

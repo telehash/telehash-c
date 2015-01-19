@@ -32,6 +32,34 @@ int main(int argc, char **argv)
   fail_unless(enc);
   fail_unless(util_cmp(orig,enc) == 0);
   
+  // test signing
+  fail_unless(e3x_init(NULL) == 0);
+
+  lob_t hs256 = lob_new();
+  lob_set(hs256,"alg","HS256");
+  lob_set(hs256,"typ","JWT");
+  lob_t hsp = lob_new();
+  lob_set_int(hsp,"sub",42);
+  lob_link(hs256,hsp);
+  // set hmac secret on token body
+  lob_body(hs256,(uint8_t*)"secret",6);
+  fail_unless(jwt_sign(hs256,NULL));
+  fail_unless(hsp->body_len == 32);
+  printf("signed JWT: %s\n",jwt_encode(hs256));
+
+  // test real signing using generated keys
+  e3x_self_t self = e3x_self_new(e3x_generate(),NULL);
+  fail_unless(self);
+  lob_t es160 = lob_new();
+  lob_set(es160,"alg","ES160");
+  lob_set(es160,"typ","JWT");
+  lob_t esp = lob_new();
+  lob_set_int(esp,"sub",42);
+  lob_link(es160,esp);
+  fail_unless(jwt_sign(es160,self));
+  fail_unless(esp->body_len == 40);
+
+
   return 0;
 }
 

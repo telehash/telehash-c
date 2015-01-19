@@ -214,6 +214,7 @@ lob_t local_sign(local_t local, lob_t args, uint8_t *data, size_t len)
 
   if(lob_get_cmp(args,"alg","ES160") == 0)
   {
+    if(!local) return NULL;
     // hash data first, then sign it
     e3x_hash(data,len,hash);
     uECC_sign(local->secret,hash,sig);
