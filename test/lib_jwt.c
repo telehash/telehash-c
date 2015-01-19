@@ -46,6 +46,8 @@ int main(int argc, char **argv)
   fail_unless(jwt_sign(hs256,NULL));
   fail_unless(hsp->body_len == 32);
   printf("signed JWT: %s\n",jwt_encode(hs256));
+  lob_body(hs256,(uint8_t*)"secret",6);
+  fail_unless(jwt_verify(hs256,NULL));
 
   // test real signing using generated keys
   e3x_self_t self = e3x_self_new(e3x_generate(),NULL);

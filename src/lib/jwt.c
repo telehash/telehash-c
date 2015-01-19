@@ -96,26 +96,51 @@ uint32_t jwt_len(lob_t token)
 
 lob_t jwt_verify(lob_t token, e3x_exchange_t x)
 {
+  size_t hlen, clen;
+  char *encoded;
   uint8_t err;
   lob_t payload = lob_linked(token);
-  if(!token || !payload || !x) return LOG("bad args");
-  // copy the sig to the token body and use that as the arg
-  lob_body(token,payload->body,payload->body_len);
-  if((err = e3x_exchange_validate(x, token, payload->head, payload->head_len)))
+  if(!token || !payload) return LOG("bad args");
+
+  // generate the temporary encoded data
+  clen = base64_encode_length(payload->head_len);
+  hlen = base64_encode_length(token->head_len);
+  encoded = (char*)malloc(hlen+1+clen);
+  hlen = base64_encode(token->head,token->head_len,encoded);
+  encoded[hlen] = '.';
+  clen = base64_encode(payload->head,payload->head_len,encoded+hlen+1);
+
+  // do the validation
+  err = e3x_exchange_validate(x, token, payload, (uint8_t*)encoded, hlen+1+clen);
+  free(encoded);
+
+  if(err)
   {
     LOG("validate failed: %d",err);
     return NULL;
   }
+
   return token;
 }
 
 lob_t jwt_sign(lob_t token, e3x_self_t self)
 {
+  size_t hlen, clen;
+  char *encoded;
   lob_t payload = lob_linked(token);
   if(!token || !payload) return LOG("bad args");
 
+  // allocates space in the payload body for the encoded data to be signed
+  clen = base64_encode_length(payload->head_len);
+  hlen = base64_encode_length(token->head_len);
+  encoded = (char*)lob_body(payload,NULL,hlen+1+clen);
+  
+  hlen = base64_encode(token->head,token->head_len,encoded);
+  encoded[hlen] = '.';
+  clen = base64_encode(payload->head,payload->head_len,encoded+hlen+1);
+
   // e3x returns packet w/ signature
-  if(!e3x_self_sign(self, token, payload->head, payload->head_len)) return LOG("signing failed");
+  if(!e3x_self_sign(self, token, payload->body, hlen+1+clen)) return LOG("signing failed");
   
   // copy sig to payload
   lob_body(payload,token->body,token->body_len);

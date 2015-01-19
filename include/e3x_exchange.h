@@ -27,7 +27,7 @@ void e3x_exchange_free(e3x_exchange_t x);
 // these are stateless async encryption and verification
 lob_t e3x_exchange_message(e3x_exchange_t x, lob_t inner);
 uint8_t e3x_exchange_verify(e3x_exchange_t x, lob_t outer);
-uint8_t e3x_exchange_validate(e3x_exchange_t x, lob_t sig, uint8_t *data, size_t len);
+uint8_t e3x_exchange_validate(e3x_exchange_t x, lob_t args, lob_t sig, uint8_t *data, size_t len);
 
 // return the current incoming at value, optional arg to update it
 uint32_t e3x_exchange_in(e3x_exchange_t x, uint32_t at);

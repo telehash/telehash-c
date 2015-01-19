@@ -51,7 +51,7 @@ static remote_t remote_new(lob_t key, uint8_t *token);
 static void remote_free(remote_t remote);
 static uint8_t remote_verify(remote_t remote, local_t local, lob_t outer);
 static lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner);
-static uint8_t remote_validate(remote_t remote, lob_t args, uint8_t *data, size_t len);
+static uint8_t remote_validate(remote_t remote, lob_t args, lob_t sig, uint8_t *data, size_t len);
 
 static ephemeral_t ephemeral_new(remote_t remote, lob_t outer);
 static void ephemeral_free(ephemeral_t ephemeral);
@@ -93,7 +93,7 @@ e3x_cipher_t cs1a_init(lob_t options)
   ret->remote_free = (void (*)(void *))remote_free;
   ret->remote_verify = (uint8_t (*)(void *, void *, lob_t))remote_verify;
   ret->remote_encrypt = (lob_t (*)(void *, void *, lob_t))remote_encrypt;
-  ret->remote_validate = (uint8_t (*)(void *, lob_t, uint8_t *, size_t))remote_validate;
+  ret->remote_validate = (uint8_t (*)(void *, lob_t, lob_t, uint8_t *, size_t))remote_validate;
   ret->ephemeral_new = (void *(*)(void *, lob_t))ephemeral_new;
   ret->ephemeral_free = (void (*)(void *))ephemeral_free;
   ret->ephemeral_encrypt = (lob_t (*)(void *, lob_t))ephemeral_encrypt;
@@ -206,6 +206,7 @@ lob_t local_sign(local_t local, lob_t args, uint8_t *data, size_t len)
 
   if(lob_get_cmp(args,"alg","HS256") == 0)
   {
+//    LOG("[%.*s] [%.*s]",args->body_len,args->body,len,data);
     hmac_256(args->body,args->body_len,data,len,hash);
     lob_body(args,NULL,32);
     memcpy(args->body,hash,32);
@@ -315,24 +316,25 @@ lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
   return outer;
 }
 
-uint8_t remote_validate(remote_t remote, lob_t args, uint8_t *data, size_t len)
+uint8_t remote_validate(remote_t remote, lob_t args, lob_t sig, uint8_t *data, size_t len)
 {
   uint8_t hash[32];
-  if(!remote || !args || !data || !len) return 1;
+  if(!args || !sig || !data || !len) return 1;
 
   if(lob_get_cmp(args,"alg","HS256") == 0)
   {
-    if(args->body_len != 32) return 2;
+    if(sig->body_len != 32 || !args->body_len) return 2;
+//    LOG("[%d] [%.*s]",args->body_len,len,data);
     hmac_256(args->body,args->body_len,data,len,hash);
-    return (memcmp(args->body,hash,32) == 0) ? 0 : 3;
+    return (memcmp(sig->body,hash,32) == 0) ? 0 : 3;
   }
 
   if(lob_get_cmp(args,"alg","ES160") == 0)
   {
-    if(args->body_len != uECC_BYTES*2) return 2;
+    if(!remote || sig->body_len != uECC_BYTES*2) return 2;
     // hash data first
     e3x_hash(data,len,hash);
-    return (uECC_verify(remote->key, hash, args->body) == 1) ? 0 : 3;
+    return (uECC_verify(remote->key, hash, sig->body) == 1) ? 0 : 3;
   }
 
   return 3;
