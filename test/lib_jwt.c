@@ -50,7 +50,8 @@ int main(int argc, char **argv)
   fail_unless(jwt_verify(hs256,NULL));
 
   // test real signing using generated keys
-  e3x_self_t self = e3x_self_new(e3x_generate(),NULL);
+  lob_t id = e3x_generate();
+  e3x_self_t self = e3x_self_new(id,NULL);
   fail_unless(self);
   lob_t es160 = lob_new();
   lob_set(es160,"alg","ES160");
@@ -60,6 +61,12 @@ int main(int argc, char **argv)
   lob_link(es160,esp);
   fail_unless(jwt_sign(es160,self));
   fail_unless(esp->body_len == 40);
+  printf("signed JWT: %s\n",jwt_encode(es160));
+
+  lob_t key = lob_get_base32(lob_linked(id),"1a");
+  e3x_exchange_t x = e3x_exchange_new(self, 0x1a, key);
+  fail_unless(x);
+  fail_unless(jwt_verify(es160,x));
 
 
   return 0;
