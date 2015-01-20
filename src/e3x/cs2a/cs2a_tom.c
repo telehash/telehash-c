@@ -150,6 +150,123 @@ uint8_t cipher_generate(lob_t keys, lob_t secrets)
   return 0;
 }
 
+local_t local_new(lob_t keys, lob_t secrets)
+{
+  local_t local;
+  lob_t key, secret;
+
+  if(!keys) keys = lob_linked(secrets); // for convenience
+  key = lob_get_base32(keys,"2a");
+  secret = lob_get_base32(secrets,"2a");
+  if(!key || !secret) return LOG("invalid 2a key/secret");
+  
+  if(!(local = malloc(sizeof(struct local_struct)))) return NULL;
+  memset(local,0,sizeof (struct local_struct));
+
+  TOM_IF(rsa_import(secret->body, secret->body_len, &(local->rsa)))
+  {
+    LOG("invalid rsa key");
+    free(local);
+    local = NULL;
+  }
+  lob_free(key);
+  lob_free(secret);
+
+  return local;
+}
+
+void local_free(local_t local)
+{
+  free(local);
+  return;
+}
+
+lob_t local_decrypt(local_t local, lob_t outer)
+{
+  return NULL;
+
+  /*
+  uint8_t key[uECC_BYTES*2], shared[uECC_BYTES], iv[16], hash[32];
+  lob_t inner, tmp;
+
+//  * `KEY` - 21 bytes, the sender's ephemeral exchange public key in compressed format
+//  * `IV` - 4 bytes, a random but unique value determined by the sender
+//  * `INNER` - (minimum 21+2 bytes) the AES-128-CTR encrypted inner packet ciphertext
+//  * `HMAC` - 4 bytes, the calculated HMAC of all of the previous KEY+INNER bytes
+
+  if(outer->body_len <= (21+4+0+4)) return NULL;
+  tmp = lob_new();
+  if(!lob_body(tmp,NULL,outer->body_len-(4+21+4))) return lob_free(tmp);
+
+  // get the shared secret to create the iv+key for the open aes
+  uECC_decompress(outer->body,key);
+  if(!uECC_shared_secret(key, local->secret, shared)) return lob_free(tmp);
+  e3x_hash(shared,uECC_BYTES,hash);
+  fold1(hash,hash);
+  memset(iv,0,16);
+  memcpy(iv,outer->body+21,4);
+
+  // decrypt the inner
+  aes_128_ctr(hash,tmp->body_len,iv,outer->body+4+21,tmp->body);
+
+  // load inner packet
+  inner = lob_parse(tmp->body,tmp->body_len);
+  lob_free(tmp);
+  return inner;
+
+  unsigned char key[32], iv[16], buf[260], upub[65], *hline;
+  unsigned long len, len2;
+  int res;
+  gcm_state gcm;
+  rsa_key rsa;
+  lob_t inner, tmp;
+  crypt_libtom_t cs = (crypt_libtom_t)self->cs;
+
+  if(open->body_len <= (256+260)) return NULL;
+  inner = lob_new();
+  lob_body(inner,NULL,open->body_len-(256+260+16));
+
+  // decrypt the open
+  len = sizeof(upub);
+  if((_libtom_err = rsa_decrypt_key(open->body, 256, upub, &len, 0, 0, find_hash("sha1"), &res, &(cs->rsa))) != CRYPT_OK || len != 64) return lob_free(inner);
+
+  // create the aes key/iv to decipher the body
+  util_unhex((unsigned char*)"00000000000000000000000000000001",32,iv);
+  len = 32;
+  if((_libtom_err = hash_memory(find_hash("sha256"),upub,64,key,&len)) != CRYPT_OK) return lob_free(inner);
+
+  // decrypt
+  if((_libtom_err = gcm_init(&gcm, find_cipher("aes"), key, 32)) != CRYPT_OK) return lob_free(inner);
+  if((_libtom_err = gcm_add_iv(&gcm, iv, 16)) != CRYPT_OK) return lob_free(inner);
+  gcm_add_aad(&gcm,NULL,0);
+  if((_libtom_err = gcm_process(&gcm,inner->body,inner->body_len,open->body+256+260,GCM_DECRYPT)) != CRYPT_OK) return lob_free(inner);
+  len = 16;
+  if((_libtom_err = gcm_done(&gcm, open->body+256+260+inner->body_len, &len)) != CRYPT_OK) return lob_free(inner);
+  if((tmp = lob_parse(inner->body,inner->body_len)) == NULL) return lob_free(inner);
+  lob_free(inner);
+  inner = tmp;
+
+  // decipher/verify the signature
+  if((_libtom_err = rsa_import(inner->body, inner->body_len, &rsa)) != CRYPT_OK) return lob_free(inner);
+  hline = (unsigned char*)lob_get_str(inner,"line");
+  if(!hline) return lob_free(inner);
+  memcpy(buf,upub,64);
+  util_unhex(hline,32,buf+64);
+  len = 32;
+  len2 = 4;
+  if((_libtom_err = hash_memory(find_hash("sha256"),buf,64+16,key,&len)) != CRYPT_OK
+    || (_libtom_err = gcm_init(&gcm, find_cipher("aes"), key, 32)) != CRYPT_OK
+    || (_libtom_err = gcm_add_iv(&gcm, iv, 16)) != CRYPT_OK
+    || (_libtom_err = gcm_add_aad(&gcm, NULL, 0)) != CRYPT_OK
+    || (_libtom_err = gcm_process(&gcm,open->body+256,256,open->body+256,GCM_DECRYPT)) != CRYPT_OK
+    || (_libtom_err = gcm_done(&gcm, open->body+256+256, &len2)) != CRYPT_OK
+    || (_libtom_err = hash_memory(find_hash("sha256"),open->body+256+260,open->body_len-(256+260),key,&len)) != CRYPT_OK
+    || (_libtom_err = rsa_verify_hash_ex(open->body+256, 256, key, len, LTC_PKCS_1_V1_5, find_hash("sha256"), 0, &res, &rsa)) != CRYPT_OK
+    || res != 1) return lob_free(inner);
+  */
+
+}
+
 /*
 
 int crypt_new_2a(crypt_t c, unsigned char *key, int len)
@@ -195,71 +312,7 @@ int crypt_new_2a(crypt_t c, unsigned char *key, int len)
 
 
 
-int crypt_keygen_2a(lob_t p)
-{
-  unsigned long len, len2;
-  unsigned char *buf, *b64;
-  rsa_key rsa;
 
-  if ((_libtom_err = rsa_make_key(&_libtom_prng, find_prng("yarrow"), 256, 65537, &rsa)) != CRYPT_OK) return -1;
-
-  // this determines the size needed into len;
-  len = 1;
-  buf = malloc(len);
-  rsa_export(buf, &len, PK_PRIVATE, &rsa);
-  buf = realloc(buf,len);
-  len2 = len*1.4;
-  b64 = malloc(len2);
-
-  // export/base64 private
-  if((_libtom_err = rsa_export(buf, &len, PK_PRIVATE, &rsa)) != CRYPT_OK)
-  {
-    free(buf);
-    free(b64);
-    return -1;
-  }
-  if((_libtom_err = base64_encode(buf, len, b64, &len2)) != CRYPT_OK) {
-    free(buf);
-    free(b64);
-    return -1;
-  }
-  b64[len2] = 0;
-  lob_set_str(p,"2a_secret",(char*)b64);
-
-  if((_libtom_err = rsa_export(buf, &len, PK_PUBLIC, &rsa)) != CRYPT_OK)
-  {
-    free(buf);
-    free(b64);
-    return -1;
-  }
-  if((_libtom_err = base64_encode(buf, len, b64, &len2)) != CRYPT_OK) {
-    free(buf);
-    free(b64);
-    return -1;
-  }
-  b64[len2] = 0;
-  lob_set_str(p,"2a",(char*)b64);
-  return 0;
-}
-
-int crypt_private_2a(crypt_t c, unsigned char *key, int len)
-{
-  unsigned long der_len = 4096;
-  unsigned char der[der_len];
-  crypt_libtom_t cs = (crypt_libtom_t)c->cs;
-  
-  if(len > (int)der_len) return 1;
-
-  // try to base64 decode in case that's the incoming format
-  if(base64_decode(key, len, der, &der_len) != CRYPT_OK) {
-    memcpy(der,key,len);
-    der_len = len;
-  }
-  
-  if((_libtom_err = rsa_import(der, der_len, &(cs->rsa))) != CRYPT_OK) return 1;
-  c->isprivate = 1;
-  return 0;
-}
 
 lob_t crypt_lineize_2a(crypt_t c, lob_t p)
 {
@@ -453,72 +506,7 @@ lob_t crypt_deopenize_2a(crypt_t self, lob_t open)
 
 */
 
-local_t local_new(lob_t keys, lob_t secrets)
-{
-  /*
-  local_t local;
-  lob_t key, secret;
 
-  if(!keys) keys = lob_linked(secrets); // for convenience
-  key = lob_get_base32(keys,"1a");
-  if(!key || key->body_len != uECC_BYTES+1) return LOG("invalid key %d != %d",(key)?key->body_len:0,uECC_BYTES+1);
-
-  secret = lob_get_base32(secrets,"1a");
-  if(!secret || secret->body_len != uECC_BYTES) return LOG("invalid secret len %d",(secret)?secret->body_len:0);
-  
-  if(!(local = malloc(sizeof(struct local_struct)))) return NULL;
-  memset(local,0,sizeof (struct local_struct));
-
-  // copy in key/secret data
-  uECC_decompress(key->body,local->key);
-  memcpy(local->secret,secret->body,secret->body_len);
-  lob_free(key);
-  lob_free(secret);
-
-  return local;
-  */
-  return NULL;
-}
-
-void local_free(local_t local)
-{
-//  free(local);
-  return;
-}
-
-lob_t local_decrypt(local_t local, lob_t outer)
-{
-  /*
-  uint8_t key[uECC_BYTES*2], shared[uECC_BYTES], iv[16], hash[32];
-  lob_t inner, tmp;
-
-//  * `KEY` - 21 bytes, the sender's ephemeral exchange public key in compressed format
-//  * `IV` - 4 bytes, a random but unique value determined by the sender
-//  * `INNER` - (minimum 21+2 bytes) the AES-128-CTR encrypted inner packet ciphertext
-//  * `HMAC` - 4 bytes, the calculated HMAC of all of the previous KEY+INNER bytes
-
-  if(outer->body_len <= (21+4+0+4)) return NULL;
-  tmp = lob_new();
-  if(!lob_body(tmp,NULL,outer->body_len-(4+21+4))) return lob_free(tmp);
-
-  // get the shared secret to create the iv+key for the open aes
-  uECC_decompress(outer->body,key);
-  if(!uECC_shared_secret(key, local->secret, shared)) return lob_free(tmp);
-  e3x_hash(shared,uECC_BYTES,hash);
-  fold1(hash,hash);
-  memset(iv,0,16);
-  memcpy(iv,outer->body+21,4);
-
-  // decrypt the inner
-  aes_128_ctr(hash,tmp->body_len,iv,outer->body+4+21,tmp->body);
-
-  // load inner packet
-  inner = lob_parse(tmp->body,tmp->body_len);
-  lob_free(tmp);
-  return inner;
-  */
-  return NULL;
-}
 
 remote_t remote_new(lob_t key, uint8_t *token)
 {
