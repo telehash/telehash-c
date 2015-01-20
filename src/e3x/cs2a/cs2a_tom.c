@@ -6,9 +6,8 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#include "sha256.h"
 #include "e3x.h"
-#include "e3x/e3x_cipher.h"
+#include "e3x_cipher.h"
 #include "util_sys.h"
 
 // undefine the void* aliases so we can define them locally
@@ -18,20 +17,20 @@
 
 typedef struct local_struct
 {
-  uint8_t secret[uECC_BYTES], key[uECC_BYTES *2];
+//  uint8_t secret[uECC_BYTES], key[uECC_BYTES *2];
 } *local_t;
 
 typedef struct remote_struct
 {
-  uint8_t key[uECC_BYTES *2];
-  uint8_t esecret[uECC_BYTES], ekey[uECC_BYTES *2], ecomp[uECC_BYTES+1];
-  uint32_t seq;
+//  uint8_t key[uECC_BYTES *2];
+//  uint8_t esecret[uECC_BYTES], ekey[uECC_BYTES *2], ecomp[uECC_BYTES+1];
+//  uint32_t seq;
 } *remote_t;
 
 typedef struct ephemeral_struct
 {
-  uint8_t enckey[16], deckey[16], token[16];
-  uint32_t seq;
+//  uint8_t enckey[16], deckey[16], token[16];
+//  uint32_t seq;
 } *ephemeral_t;
 
 // these are all the locally implemented handlers defined in e3x_cipher.h
@@ -55,12 +54,6 @@ static lob_t ephemeral_encrypt(ephemeral_t ephemeral, lob_t inner);
 static lob_t ephemeral_decrypt(ephemeral_t ephemeral, lob_t outer);
 
 
-static int RNG(uint8_t *p_dest, unsigned p_size)
-{
-  e3x_rand(p_dest,p_size);
-  return 1;
-}
-
 e3x_cipher_t cs2a_init(lob_t options)
 {
   e3x_cipher_t ret = malloc(sizeof(struct e3x_cipher_struct));
@@ -79,7 +72,7 @@ e3x_cipher_t cs2a_init(lob_t options)
 
 uint8_t *cipher_hash(uint8_t *input, uint32_t len, uint8_t *output)
 {
-  sha256(input,len,output,0);
+//  sha256(input,len,output,0);
   return output;
 }
 
@@ -90,32 +83,15 @@ uint8_t *cipher_err(void)
 
 uint8_t cipher_generate(lob_t keys, lob_t secrets)
 {
-  uint8_t secret[uECC_BYTES], key[uECC_BYTES*2], comp[uECC_BYTES+1];
-
-  if(!uECC_make_key(key, secret)) return 1;
-  uECC_compress(key,comp);
-  lob_set_base32(keys,"1a",comp,uECC_BYTES+1);
-  lob_set_base32(secrets,"1a",secret,uECC_BYTES);
+//  lob_set_base32(keys,"1a",comp,uECC_BYTES+1);
+//  lob_set_base32(secrets,"1a",secret,uECC_BYTES);
 
   return 0;
 }
 
-static void fold1(uint8_t in[32], uint8_t out[16])
-{
-  uint8_t i;
-  for(i=0;i<16;i++) out[i] = in[i] ^ in[i+16];
-}
-
-static void fold3(uint8_t in[32], uint8_t out[4])
-{
-  uint8_t i, buf[16];
-  for(i=0;i<16;i++) buf[i] = in[i] ^ in[i+16];
-  for(i=0;i<8;i++) buf[i] ^= buf[i+8];
-  for(i=0;i<4;i++) out[i] = buf[i] ^ buf[i+4];
-}
-
 local_t local_new(lob_t keys, lob_t secrets)
 {
+  /*
   local_t local;
   lob_t key, secret;
 
@@ -136,16 +112,19 @@ local_t local_new(lob_t keys, lob_t secrets)
   lob_free(secret);
 
   return local;
+  */
+  return NULL;
 }
 
 void local_free(local_t local)
 {
-  free(local);
+//  free(local);
   return;
 }
 
 lob_t local_decrypt(local_t local, lob_t outer)
 {
+  /*
   uint8_t key[uECC_BYTES*2], shared[uECC_BYTES], iv[16], hash[32];
   lob_t inner, tmp;
 
@@ -173,10 +152,13 @@ lob_t local_decrypt(local_t local, lob_t outer)
   inner = lob_parse(tmp->body,tmp->body_len);
   lob_free(tmp);
   return inner;
+  */
+  return NULL;
 }
 
 remote_t remote_new(lob_t key, uint8_t *token)
 {
+  /*
   uint8_t hash[32];
   remote_t remote;
   if(!key || key->body_len != uECC_BYTES+1) return LOG("invalid key %d != %d",(key)?key->body_len:0,uECC_BYTES+1);
@@ -198,15 +180,18 @@ remote_t remote_new(lob_t key, uint8_t *token)
   e3x_rand((uint8_t*)&(remote->seq),4);
   
   return remote;
+  */
+  return NULL;
 }
 
 void remote_free(remote_t remote)
 {
-  free(remote);
+//  free(remote);
 }
 
 uint8_t remote_verify(remote_t remote, local_t local, lob_t outer)
 {
+  /*
   uint8_t shared[uECC_BYTES+4], hash[32];
 
   if(!remote || !local || !outer) return 1;
@@ -226,10 +211,13 @@ uint8_t remote_verify(remote_t remote, local_t local, lob_t outer)
   }
 
   return 0;
+  */
+  return 8;
 }
 
 lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
 {
+  /*
   uint8_t shared[uECC_BYTES+4], iv[16], hash[32], csid = 0x1a;
   lob_t outer;
   uint32_t inner_len;
@@ -262,10 +250,13 @@ lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
   fold3(hash,outer->body+21+4+inner_len); // write into last 4 bytes
 
   return outer;
+  */
+  return NULL;
 }
 
 ephemeral_t ephemeral_new(remote_t remote, lob_t outer)
 {
+  /*
   uint8_t ekey[uECC_BYTES*2], shared[uECC_BYTES+((uECC_BYTES+1)*2)], hash[32];
   ephemeral_t ephem;
 
@@ -298,15 +289,18 @@ ephemeral_t ephemeral_new(remote_t remote, lob_t outer)
   fold1(hash,ephem->deckey);
 
   return ephem;
+  */
+  return NULL;
 }
 
 void ephemeral_free(ephemeral_t ephem)
 {
-  free(ephem);
+//  free(ephem);
 }
 
 lob_t ephemeral_encrypt(ephemeral_t ephem, lob_t inner)
 {
+  /*
   lob_t outer;
   uint8_t iv[16], hmac[32];
   uint32_t inner_len;
@@ -332,10 +326,13 @@ lob_t ephemeral_encrypt(ephemeral_t ephem, lob_t inner)
   fold3(hmac,outer->body+16+4+inner_len);
 
   return outer;
+  */
+  return NULL;
 }
 
 lob_t ephemeral_decrypt(ephemeral_t ephem, lob_t outer)
 {
+  /*
   uint8_t iv[16], hmac[32];
 
   memset(iv,0,16);
@@ -354,6 +351,8 @@ lob_t ephemeral_decrypt(ephemeral_t ephem, lob_t outer)
 
   // return parse attempt
   return lob_parse(outer->body+16+4, outer->body_len-(16+4+4));
+  */
+  return NULL;
 }
 
 /*
