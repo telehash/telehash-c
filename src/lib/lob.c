@@ -127,7 +127,7 @@ uint8_t *lob_head(lob_t p, uint8_t *head, size_t len)
   // move the body forward to make space
   memmove(p->body,p->raw+(2+p->head_len),p->body_len);
   // copy in new head
-  memcpy(p->head,head,len);
+  if(head) memcpy(p->head,head,len);
   p->head_len = len;
   nlen = util_sys_short((uint16_t)len);
   memcpy(p->raw,&nlen,2);
