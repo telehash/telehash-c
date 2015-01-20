@@ -8,7 +8,7 @@
 
 #include "e3x.h"
 #include "e3x_cipher.h"
-#include "util_sys.h"
+#include "util.h"
 
 // undefine the void* aliases so we can define them locally
 #undef local_t
@@ -17,20 +17,19 @@
 
 typedef struct local_struct
 {
-//  uint8_t secret[uECC_BYTES], key[uECC_BYTES *2];
+  rsa_key rsa;
 } *local_t;
 
 typedef struct remote_struct
 {
-//  uint8_t key[uECC_BYTES *2];
-//  uint8_t esecret[uECC_BYTES], ekey[uECC_BYTES *2], ecomp[uECC_BYTES+1];
-//  uint32_t seq;
+  ecc_key ecc;
+  rsa_key rsa;
 } *remote_t;
 
 typedef struct ephemeral_struct
 {
-//  uint8_t enckey[16], deckey[16], token[16];
-//  uint32_t seq;
+  gcm_state enckey, deckey;
+  uint8_t token[16];
 } *ephemeral_t;
 
 // these are all the locally implemented handlers defined in e3x_cipher.h
@@ -57,7 +56,8 @@ static lob_t ephemeral_decrypt(ephemeral_t ephemeral, lob_t outer);
 static prng_state _libtom_prng;
 static int _libtom_err;
 
-#define TOM_RUN(x) if ((_libtom_err = x) != CRYPT_OK) return LOG("lobtom error: %s",error_to_string(_libtom_err))
+#define TOM_IF(x) if ((_libtom_err = x) != CRYPT_OK)
+#define TOM_OK(x) if ((_libtom_err = x) != CRYPT_OK) {return LOG("lobtom error: %s",error_to_string(_libtom_err));}
 
 e3x_cipher_t cs2a_init(lob_t options)
 {
@@ -76,7 +76,7 @@ e3x_cipher_t cs2a_init(lob_t options)
   register_prng(&yarrow_desc);
   register_hash(&sha256_desc);
   register_hash(&sha1_desc);
-  TOM_RUN(rng_make_prng(128, find_prng("yarrow"), &_libtom_prng, NULL));
+  TOM_OK(rng_make_prng(128, find_prng("yarrow"), &_libtom_prng, NULL));
 
   // configure our callbacks
   ret->hash = cipher_hash;
@@ -103,7 +103,7 @@ e3x_cipher_t cs2a_init(lob_t options)
 uint8_t *cipher_hash(uint8_t *input, size_t len, uint8_t *output)
 {
   unsigned long hlen = 32;
-  if((_libtom_err = hash_memory(find_hash("sha256"), input, len, output, &hlen)) != CRYPT_OK) return NULL;
+  TOM_OK(hash_memory(find_hash("sha256"), input, len, output, &hlen));
   return output;
 }
 
@@ -114,30 +114,43 @@ uint8_t *cipher_err(void)
 
 uint8_t *cipher_rand(uint8_t *bytes, size_t len)
 {
-  if((_libtom_err = yarrow_read((unsigned char*)bytes, len, &_libtom_prng)) != CRYPT_OK) return NULL;
+  TOM_OK(yarrow_read((unsigned char*)bytes, len, &_libtom_prng));
   return bytes;
 }
 
-/*
-
-unsigned char *crypt_rand(unsigned char *s, int len)
+uint8_t cipher_generate(lob_t keys, lob_t secrets)
 {
-  yarrow_read(s,len,&_libtom_prng);
-  return s;
-}
-
-
-typedef struct crypt_libtom_struct
-{
+  unsigned long len;
+  unsigned char *buf;
   rsa_key rsa;
-  ecc_key eccOut;
-  gcm_state gcmIn, gcmOut;
-} *crypt_libtom_t;
 
-int crypt_init_2a()
-{
-  return crypt_libtom_init();
+  TOM_IF(rsa_make_key(&_libtom_prng, find_prng("yarrow"), 256, 65537, &rsa)) return 2;
+
+  // this determines the size needed into len
+  len = 1;
+  buf = malloc(len);
+  rsa_export(buf, &len, PK_PRIVATE, &rsa);
+  if(!(buf = util_reallocf(buf,len))) return 2;
+
+  // export private
+  TOM_IF(rsa_export(buf, &len, PK_PRIVATE, &rsa))
+  {
+    free(buf);
+    return 3;
+  }
+  lob_set_base32(secrets,"2a",buf,len);
+
+  TOM_IF(rsa_export(buf, &len, PK_PUBLIC, &rsa))
+  {
+    free(buf);
+    return 4;
+  }
+  lob_set_base32(keys,"2a",buf,len);
+
+  return 0;
 }
+
+/*
 
 int crypt_new_2a(crypt_t c, unsigned char *key, int len)
 {
@@ -181,10 +194,6 @@ int crypt_new_2a(crypt_t c, unsigned char *key, int len)
 }
 
 
-void crypt_free_2a(crypt_t c)
-{
-  if(c->cs) free(c->cs);
-}
 
 int crypt_keygen_2a(lob_t p)
 {
@@ -443,15 +452,6 @@ lob_t crypt_deopenize_2a(crypt_t self, lob_t open)
 }
 
 */
-
-
-uint8_t cipher_generate(lob_t keys, lob_t secrets)
-{
-//  lob_set_base32(keys,"1a",comp,uECC_BYTES+1);
-//  lob_set_base32(secrets,"1a",secret,uECC_BYTES);
-
-  return 0;
-}
 
 local_t local_new(lob_t keys, lob_t secrets)
 {
