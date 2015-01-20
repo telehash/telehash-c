@@ -22,10 +22,9 @@ typedef struct local_struct
 
 typedef struct remote_struct
 {
-  uint8_t ekey[256];
+  uint8_t ekey[256], key[32], iv[12];
   ecc_key ecc;
   rsa_key rsa;
-  uint32_t seq;
 } *remote_t;
 
 typedef struct ephemeral_struct
@@ -277,8 +276,7 @@ lob_t local_decrypt(local_t local, lob_t outer)
 
 remote_t remote_new(lob_t key, uint8_t *token)
 {
-  uint8_t hash[32];
-  unsigned char upub[65];
+  uint8_t hash[32], upub[65+32];
   unsigned long ulen, elen;
   remote_t remote;
 
@@ -303,7 +301,7 @@ remote_t remote_new(lob_t key, uint8_t *token)
     return NULL;
   }
   
-  // encrypt the ephemeral uncompressed ecc key for the public bytes
+  // export the ephemeral uncompressed ecc key
   ulen = sizeof(upub);
   TOM_IF(ecc_ansi_x963_export(&(remote->ecc), upub, &ulen))
   {
@@ -311,17 +309,22 @@ remote_t remote_new(lob_t key, uint8_t *token)
     free(remote);
     return NULL;
   }
-  // rsa encrypt is PKCS1 OAEP v2 
+  
+  // generate/append a random secret key
+  e3x_rand(remote->key, 32);
+  memcpy(upub+ulen, remote->key, 32);
+
+  // rsa encrypt the keys (PKCS1 OAEP v2) 
   elen = sizeof(remote->ekey);
-  TOM_IF(rsa_encrypt_key(upub, ulen, remote->ekey, &elen, 0, 0, &_libtom_prng, find_prng("yarrow"), find_hash("sha1"), &(remote->rsa)))
+  TOM_IF(rsa_encrypt_key(upub, ulen+32, remote->ekey, &elen, 0, 0, &_libtom_prng, find_prng("yarrow"), find_hash("sha1"), &(remote->rsa)))
   {
     LOG("rsa encrypt error: %s",error_to_string(_libtom_err));
     free(remote);
     return NULL;
   }
-
+  
   // generate a random seq starting point for message IV's
-  e3x_rand((uint8_t*)&(remote->seq),4);
+  e3x_rand(remote->iv,12);
 
   // return token if requested
   if(token)
@@ -338,50 +341,145 @@ void remote_free(remote_t remote)
   free(remote);
 }
 
-/*
 
-int crypt_new_2a(crypt_t c, unsigned char *key, int len)
+uint8_t remote_verify(remote_t remote, local_t local, lob_t outer)
 {
-  int der_len = 512;
-  unsigned long fplen=32;
-  unsigned char der[der_len], fp[32];
-  crypt_libtom_t cs;
-  
-  if(!key || !len || len > der_len) return 1;
-  
-  c->cs = malloc(sizeof(struct crypt_libtom_struct));
-  memset(c->cs, 0, sizeof (struct crypt_libtom_struct));
-  cs = (crypt_libtom_t)c->cs;
+  /*
+  uint8_t shared[uECC_BYTES+4], hash[32];
 
-  // try to base64 decode in case that's the incoming format
-  if(base64_decode(key, len, der, (unsigned long*)&der_len) != CRYPT_OK) {
-    memcpy(der,key,len);
-    der_len = len;
+  if(!remote || !local || !outer) return 1;
+  if(outer->head_len != 1 || outer->head[0] != 0x1a) return 2;
+
+  // generate the key for the hmac, combining the shared secret and IV
+  if(!uECC_shared_secret(remote->key, local->secret, shared)) return 3;
+  memcpy(shared+uECC_BYTES,outer->body+21,4);
+
+  // verify
+  hmac_256(shared,uECC_BYTES+4,outer->body,outer->body_len-4,hash);
+  fold3(hash,hash);
+  if(memcmp(hash,outer->body+(outer->body_len-4),4) != 0)
+  {
+    LOG("hmac failed");
+    return 4;
   }
-  
-  // try to load rsa public key
-  if((_libtom_err = rsa_import(der, der_len, &(cs->rsa))) != CRYPT_OK) return 1;
-
-  // re-export it to be safe
-  if((_libtom_err = rsa_export(der, (unsigned long*)&der_len, PK_PUBLIC, &(cs->rsa))) != CRYPT_OK) return 1;
-  
-  // generate fingerprint
-  if((_libtom_err = hash_memory(find_hash("sha256"),der,der_len,fp,&fplen)) != CRYPT_OK) return 1;
-
-  // create line ephemeral key
-  if((_libtom_err = ecc_make_key(&_libtom_prng, find_prng("yarrow"), 32, &(cs->eccOut))) != CRYPT_OK) return 1;
-
-  // alloc/copy in the public values (free'd by crypt_free)  
-  c->part = malloc(65);
-  c->keylen = der_len;
-  c->key = malloc(c->keylen);
-  memcpy(c->key,der,der_len);
-  util_hex(fp,32,(unsigned char*)c->part);
 
   return 0;
+  */
+  return 8;
 }
 
+lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
+{
+  uint8_t hash[32], csid = 0x2a;
+  lob_t outer;
+  size_t inner_len;
+  unsigned long len;
 
+  outer = lob_new();
+  lob_head(outer,&csid,1);
+  inner_len = lob_len(inner);
+
+//  * `KEY` - 256 bytes, PKCS1 OAEP v2 RSA encrpyted ciphertext of the 65 byte uncompressed ECC P-256 ephemeral public key
+//  * `IV` - 12 bytes, a random but unique value determined by the sender for each message
+//  * `CIPHERTEXT` - AES-256-GCM encrypted inner packet and sender signature
+//  * `MAC` - 16 bytes, GCM 128-bit MAC/tag digest
+//  The `CIPHERTEXT` once deciphered contains:
+//  * `INNER` - inner packet raw bytes
+//  * `SIG` - 256 bytes, PKCS1 v1.5 RSA signature of the KEY+INNER
+
+  if(!lob_body(outer,NULL,256+12+inner_len+256+16)) return lob_free(outer);
+
+  // copy in the ephemeral encrypted public key
+  memcpy(outer->body, remote->ekey, 256);
+
+  // change the iv and copy it in too
+  (*(unsigned long *)remote->iv)++;
+  memcpy(outer->body+256,remote->iv,12);
+
+  // copy in the raw inner in order to generate the signature
+  memcpy(outer->body+256+12,lob_raw(inner),inner_len);
+  
+  // now, sign everything so far, appended after the raw inner
+  cipher_hash(outer->body,256+12+inner_len,hash);
+  len = 256;
+  TOM_OK(rsa_sign_hash_ex(hash, 32, outer->body+256+12+inner_len, &len, LTC_PKCS_1_V1_5, &_libtom_prng, find_prng("yarrow"), find_hash("sha256"), 12, &(local->rsa)));
+
+  // lastly, aes-gcm encrypt the inner+sig in place
+  /*
+
+  // get the shared secret to create the iv+key for the open aes
+  if(!uECC_shared_secret(remote->key, remote->esecret, shared)) return lob_free(outer);
+  e3x_hash(shared,uECC_BYTES,hash);
+  fold1(hash,hash);
+
+  // encrypt the inner into the outer
+  aes_128_ctr(hash,inner_len,iv,lob_raw(inner),outer->body+21+4);
+
+  // generate secret for hmac
+  if(!uECC_shared_secret(remote->key, local->secret, shared)) return lob_free(outer);
+  memcpy(shared+uECC_BYTES,outer->body+21,4); // use the IV too
+
+  hmac_256(shared,uECC_BYTES+4,outer->body,21+4+inner_len,hash);
+  fold3(hash,outer->body+21+4+inner_len); // write into last 4 bytes
+
+  return outer;
+
+  unsigned char key[32], iv[16], sig[256], buf[260], upub[65], *pub;
+  lob_t open;
+  unsigned long len, inner_len;
+  gcm_state gcm;
+  crypt_libtom_t cs = (crypt_libtom_t)c->cs, scs = (crypt_libtom_t)self->cs;
+
+  open = lob_chain(inner);
+  lob_json(open,&(self->csid),1);
+  inner_len = lob_len(inner);
+  lob_body(open,NULL,256+260+inner_len+16);
+
+  // create the aes iv and key from ecc
+  util_unhex((unsigned char*)"00000000000000000000000000000001",32,iv);
+  len = sizeof(upub);
+  if((_libtom_err = ecc_ansi_x963_export(&(cs->eccOut), upub, &len)) != CRYPT_OK) return lob_free(open);
+  pub = upub+1; // take off the 0x04 prefix
+  len = sizeof(key);
+  if((_libtom_err = hash_memory(find_hash("sha256"), pub, 64, key, &len)) != CRYPT_OK) return lob_free(open);
+
+  // create aes cipher now and encrypt the inner
+  len = 16;
+//  if((_libtom_err = gcm_memory(find_cipher("aes"), key, 32, iv, 16, NULL, 0, lob_raw(inner), inner_len, open->body+256+260, open->body+256+260+inner_len, &len, GCM_ENCRYPT)) != CRYPT_OK) return lob_free(open);
+  if((_libtom_err = gcm_init(&gcm, find_cipher("aes"), key, 32)) != CRYPT_OK) return lob_free(open);
+  if((_libtom_err = gcm_add_iv(&gcm, iv, 16)) != CRYPT_OK) return lob_free(open);
+  gcm_add_aad(&gcm,NULL,0);
+  if((_libtom_err = gcm_process(&gcm,lob_raw(inner),inner_len,open->body+256+260,GCM_ENCRYPT)) != CRYPT_OK) return lob_free(open);
+  if((_libtom_err = gcm_done(&gcm, open->body+256+260+inner_len, &len)) != CRYPT_OK) return lob_free(open);
+
+  // encrypt the ecc key and attach it
+  len = sizeof(buf);
+  if((_libtom_err = rsa_encrypt_key(pub, 64, open->body, &len, 0, 0, &_libtom_prng, find_prng("yarrow"), find_hash("sha1"), &(cs->rsa))) != CRYPT_OK) return lob_free(open);
+
+  // sign the inner packet
+  len = 32;
+  if((_libtom_err = hash_memory(find_hash("sha256"),open->body+256+260,inner_len+16,key,&len)) != CRYPT_OK) return lob_free(open);
+  len = sizeof(sig);
+  if((_libtom_err = rsa_sign_hash_ex(key, 32, sig, &len, LTC_PKCS_1_V1_5, &_libtom_prng, find_prng("yarrow"), find_hash("sha256"), 12, &(scs->rsa))) != CRYPT_OK) return lob_free(open);
+
+	// encrypt the signature, create the new aes key+cipher first
+  memcpy(buf,pub,64);
+  memcpy(buf+64,c->lineOut,16);
+  len = 32;
+  if((_libtom_err = hash_memory(find_hash("sha256"),buf,64+16,key,&len)) != CRYPT_OK) return lob_free(open);
+  len = 4;
+  if((_libtom_err = gcm_init(&gcm, find_cipher("aes"), key, 32)) != CRYPT_OK) return lob_free(open);
+  if((_libtom_err = gcm_add_iv(&gcm, iv, 16)) != CRYPT_OK) return lob_free(open);
+  gcm_add_aad(&gcm,NULL,0);
+  if((_libtom_err = gcm_process(&gcm,sig,256,open->body+256,GCM_ENCRYPT)) != CRYPT_OK) return lob_free(open);
+  if((_libtom_err = gcm_done(&gcm, open->body+256+256, &len)) != CRYPT_OK) return lob_free(open);
+
+
+  */
+  return NULL;
+}
+
+/*
 
 
 
@@ -580,71 +678,6 @@ lob_t crypt_deopenize_2a(crypt_t self, lob_t open)
 
 
 
-
-uint8_t remote_verify(remote_t remote, local_t local, lob_t outer)
-{
-  /*
-  uint8_t shared[uECC_BYTES+4], hash[32];
-
-  if(!remote || !local || !outer) return 1;
-  if(outer->head_len != 1 || outer->head[0] != 0x1a) return 2;
-
-  // generate the key for the hmac, combining the shared secret and IV
-  if(!uECC_shared_secret(remote->key, local->secret, shared)) return 3;
-  memcpy(shared+uECC_BYTES,outer->body+21,4);
-
-  // verify
-  hmac_256(shared,uECC_BYTES+4,outer->body,outer->body_len-4,hash);
-  fold3(hash,hash);
-  if(memcmp(hash,outer->body+(outer->body_len-4),4) != 0)
-  {
-    LOG("hmac failed");
-    return 4;
-  }
-
-  return 0;
-  */
-  return 8;
-}
-
-lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
-{
-  /*
-  uint8_t shared[uECC_BYTES+4], iv[16], hash[32], csid = 0x1a;
-  lob_t outer;
-  uint32_t inner_len;
-
-  outer = lob_new();
-  lob_head(outer,&csid,1);
-  inner_len = lob_len(inner);
-  if(!lob_body(outer,NULL,21+4+inner_len+4)) return lob_free(outer);
-
-  // copy in the ephemeral public key
-  memcpy(outer->body, remote->ecomp, uECC_BYTES+1);
-
-  // get the shared secret to create the iv+key for the open aes
-  if(!uECC_shared_secret(remote->key, remote->esecret, shared)) return lob_free(outer);
-  e3x_hash(shared,uECC_BYTES,hash);
-  fold1(hash,hash);
-  memset(iv,0,16);
-  memcpy(iv,&(remote->seq),4);
-  remote->seq++; // increment seq after every use
-  memcpy(outer->body+21,iv,4); // send along the used IV
-
-  // encrypt the inner into the outer
-  aes_128_ctr(hash,inner_len,iv,lob_raw(inner),outer->body+21+4);
-
-  // generate secret for hmac
-  if(!uECC_shared_secret(remote->key, local->secret, shared)) return lob_free(outer);
-  memcpy(shared+uECC_BYTES,outer->body+21,4); // use the IV too
-
-  hmac_256(shared,uECC_BYTES+4,outer->body,21+4+inner_len,hash);
-  fold3(hash,outer->body+21+4+inner_len); // write into last 4 bytes
-
-  return outer;
-  */
-  return NULL;
-}
 
 ephemeral_t ephemeral_new(remote_t remote, lob_t outer)
 {
