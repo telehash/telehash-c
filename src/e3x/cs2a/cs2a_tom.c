@@ -22,8 +22,10 @@ typedef struct local_struct
 
 typedef struct remote_struct
 {
+  uint8_t ekey[256];
   ecc_key ecc;
   rsa_key rsa;
+  uint32_t seq;
 } *remote_t;
 
 typedef struct ephemeral_struct
@@ -109,12 +111,13 @@ uint8_t *cipher_hash(uint8_t *input, size_t len, uint8_t *output)
 
 uint8_t *cipher_err(void)
 {
+  if(_libtom_err == CRYPT_OK) return 0;
   return (uint8_t*)error_to_string(_libtom_err);
 }
 
 uint8_t *cipher_rand(uint8_t *bytes, size_t len)
 {
-  TOM_OK(yarrow_read((unsigned char*)bytes, len, &_libtom_prng));
+  if(yarrow_read((unsigned char*)bytes, len, &_libtom_prng) != len) return LOG("couldn't get enough random");
   return bytes;
 }
 
@@ -183,16 +186,21 @@ void local_free(local_t local)
 
 lob_t local_decrypt(local_t local, lob_t outer)
 {
+  
+//  * `KEY` - 256 bytes, PKCS1 OAEP v2 RSA encrpyted ciphertext of the 65 byte uncompressed ECC P-256 ephemeral public key
+//  * `IV` - 4 bytes, a random but unique value determined by the sender for each message
+//  * `CIPHERTEXT` - AES-256-GCM encrypted inner packet and sender signature
+//  * `MAC` - 16 bytes, GCM 128-bit MAC/tag digest (some GCM implementations auto-append this)
+//  The `CIPHERTEXT` once deciphered contains:
+//  * `INNER` - inner packet raw bytes
+//  * `SIG` - 256 bytes, PKCS1 v1.5 RSA signature of the KEY+INNER
+
   return NULL;
 
   /*
   uint8_t key[uECC_BYTES*2], shared[uECC_BYTES], iv[16], hash[32];
   lob_t inner, tmp;
 
-//  * `KEY` - 21 bytes, the sender's ephemeral exchange public key in compressed format
-//  * `IV` - 4 bytes, a random but unique value determined by the sender
-//  * `INNER` - (minimum 21+2 bytes) the AES-128-CTR encrypted inner packet ciphertext
-//  * `HMAC` - 4 bytes, the calculated HMAC of all of the previous KEY+INNER bytes
 
   if(outer->body_len <= (21+4+0+4)) return NULL;
   tmp = lob_new();
@@ -265,6 +273,69 @@ lob_t local_decrypt(local_t local, lob_t outer)
     || res != 1) return lob_free(inner);
   */
 
+}
+
+remote_t remote_new(lob_t key, uint8_t *token)
+{
+  uint8_t hash[32];
+  unsigned char upub[65];
+  unsigned long ulen, elen;
+  remote_t remote;
+
+  if(!key || !key->body_len) return LOG("bad key");
+
+  if(!(remote = malloc(sizeof(struct remote_struct)))) return LOG("OOM");
+  memset(remote,0,sizeof (struct remote_struct));
+
+  // import given rsa key
+  TOM_IF(rsa_import(key->body, key->body_len, &(remote->rsa)))
+  {
+    LOG("rsa key import error: %s",error_to_string(_libtom_err));
+    free(remote);
+    return NULL;
+  }
+  
+  // create ephemeral key
+  TOM_IF(ecc_make_key(&_libtom_prng, find_prng("yarrow"), 32, &(remote->ecc)))
+  {
+    LOG("ephemeral key generation error: %s",error_to_string(_libtom_err));
+    free(remote);
+    return NULL;
+  }
+  
+  // encrypt the ephemeral uncompressed ecc key for the public bytes
+  ulen = sizeof(upub);
+  TOM_IF(ecc_ansi_x963_export(&(remote->ecc), upub, &ulen))
+  {
+    LOG("ephemeral key export error: %s",error_to_string(_libtom_err));
+    free(remote);
+    return NULL;
+  }
+  // rsa encrypt is PKCS1 OAEP v2 
+  elen = sizeof(remote->ekey);
+  TOM_IF(rsa_encrypt_key(upub, ulen, remote->ekey, &elen, 0, 0, &_libtom_prng, find_prng("yarrow"), find_hash("sha1"), &(remote->rsa)))
+  {
+    LOG("rsa encrypt error: %s",error_to_string(_libtom_err));
+    free(remote);
+    return NULL;
+  }
+
+  // generate a random seq starting point for message IV's
+  e3x_rand((uint8_t*)&(remote->seq),4);
+
+  // return token if requested
+  if(token)
+  {
+    cipher_hash(remote->ekey,16,hash);
+    memcpy(token,hash,16);
+  }
+
+  return remote;
+}
+
+void remote_free(remote_t remote)
+{
+  free(remote);
 }
 
 /*
@@ -508,38 +579,7 @@ lob_t crypt_deopenize_2a(crypt_t self, lob_t open)
 
 
 
-remote_t remote_new(lob_t key, uint8_t *token)
-{
-  /*
-  uint8_t hash[32];
-  remote_t remote;
-  if(!key || key->body_len != uECC_BYTES+1) return LOG("invalid key %d != %d",(key)?key->body_len:0,uECC_BYTES+1);
-  
-  if(!(remote = malloc(sizeof(struct remote_struct)))) return NULL;
-  memset(remote,0,sizeof (struct remote_struct));
 
-  // copy in key and make ephemeral ones
-  uECC_decompress(key->body,remote->key);
-  uECC_make_key(remote->ekey, remote->esecret);
-  uECC_compress(remote->ekey, remote->ecomp);
-  if(token)
-  {
-    cipher_hash(remote->ecomp,16,hash);
-    memcpy(token,hash,16);
-  }
-
-  // generate a random seq starting point for message IV's
-  e3x_rand((uint8_t*)&(remote->seq),4);
-  
-  return remote;
-  */
-  return NULL;
-}
-
-void remote_free(remote_t remote)
-{
-//  free(remote);
-}
 
 uint8_t remote_verify(remote_t remote, local_t local, lob_t outer)
 {
