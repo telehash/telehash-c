@@ -35,38 +35,45 @@ int main(int argc, char **argv)
   // test signing
   fail_unless(e3x_init(NULL) == 0);
 
-  lob_t hs256 = lob_new();
-  lob_set(hs256,"alg","HS256");
-  lob_set(hs256,"typ","JWT");
-  lob_t hsp = lob_new();
-  lob_set_int(hsp,"sub",42);
-  lob_link(hs256,hsp);
-  // set hmac secret on token body
-  lob_body(hs256,(uint8_t*)"secret",6);
-  fail_unless(jwt_sign(hs256,NULL));
-  fail_unless(hsp->body_len == 32);
-  printf("signed JWT: %s\n",jwt_encode(hs256));
-  lob_body(hs256,(uint8_t*)"secret",6);
-  fail_unless(jwt_verify(hs256,NULL));
+  if(jwt_alg("HS256"))
+  {
+    lob_t hs256 = lob_new();
+    lob_set(hs256,"alg","HS256");
+    lob_set(hs256,"typ","JWT");
+    lob_t hsp = lob_new();
+    lob_set_int(hsp,"sub",42);
+    lob_link(hs256,hsp);
+    // set hmac secret on token body
+    lob_body(hs256,(uint8_t*)"secret",6);
+    fail_unless(jwt_sign(hs256,NULL));
+    fail_unless(hsp->body_len == 32);
+    printf("signed JWT: %s\n",jwt_encode(hs256));
+    lob_body(hs256,(uint8_t*)"secret",6);
+    fail_unless(jwt_verify(hs256,NULL));
+  }
 
   // test real signing using generated keys
   lob_t id = e3x_generate();
   e3x_self_t self = e3x_self_new(id,NULL);
   fail_unless(self);
-  lob_t es160 = lob_new();
-  lob_set(es160,"alg","ES160");
-  lob_set(es160,"typ","JWT");
-  lob_t esp = lob_new();
-  lob_set_int(esp,"sub",42);
-  lob_link(es160,esp);
-  fail_unless(jwt_sign(es160,self));
-  fail_unless(esp->body_len == 40);
-  printf("signed JWT: %s\n",jwt_encode(es160));
 
-  lob_t key = lob_get_base32(lob_linked(id),"1a");
-  e3x_exchange_t x = e3x_exchange_new(self, 0x1a, key);
-  fail_unless(x);
-  fail_unless(jwt_verify(es160,x));
+  if(jwt_alg("ES160"))
+  {
+    lob_t es160 = lob_new();
+    lob_set(es160,"alg","ES160");
+    lob_set(es160,"typ","JWT");
+    lob_t esp = lob_new();
+    lob_set_int(esp,"sub",42);
+    lob_link(es160,esp);
+    fail_unless(jwt_sign(es160,self));
+    fail_unless(esp->body_len == 40);
+    printf("signed JWT: %s\n",jwt_encode(es160));
+
+    lob_t key = lob_get_base32(lob_linked(id),"1a");
+    e3x_exchange_t x = e3x_exchange_new(self, 0x1a, key);
+    fail_unless(x);
+    fail_unless(jwt_verify(es160,x));
+  }
 
 
   return 0;

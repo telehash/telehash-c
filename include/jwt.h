@@ -24,4 +24,7 @@ uint32_t jwt_len(lob_t token); // length of raw bytes
 lob_t jwt_verify(lob_t token, e3x_exchange_t x);
 lob_t jwt_sign(lob_t token, e3x_self_t self);
 
+// return >0 if this alg is supported
+uint8_t jwt_alg(char *alg);
+
 #endif

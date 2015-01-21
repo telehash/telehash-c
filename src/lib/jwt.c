@@ -151,3 +151,15 @@ lob_t jwt_sign(lob_t token, e3x_self_t self)
   lob_body(payload,token->body,token->body_len);
   return token;
 }
+
+// return >0 if this alg is supported
+uint8_t jwt_alg(char *alg)
+{
+  uint8_t err;
+  lob_t test = lob_new();
+  lob_set(test,"alg",alg);
+  // TODO refactor how this is checked
+  err = e3x_exchange_validate(NULL, test, NULL, (uint8_t*)"x", 1);
+  lob_free(test);
+  return (err == 1) ? 0 : 1;
+}
