@@ -34,6 +34,15 @@ int main(int argc, char **argv)
 
   fail_unless(!util_chunks_free(chunks));
 
+  // try large
+  util_chunks_t cbig = util_chunks_new(0);
+  lob_t pbig = lob_new();
+  lob_body(pbig,0,845);
+  fail_unless(util_chunks_send(cbig, pbig));
+  size_t lbig = util_chunks_len(cbig);
+  fail_unless(lbig == 852);
+  fail_unless(util_chunks_written(cbig,lbig));
+  
   // try cloaking
   util_chunks_t cloaked = util_chunks_new(20);
   util_chunks_cloak(cloaked);
