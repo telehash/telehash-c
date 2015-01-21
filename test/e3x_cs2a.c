@@ -16,7 +16,8 @@ int main(int argc, char **argv)
   fail_unless(!e3x_err());
 
   e3x_cipher_t cs = e3x_cipher_set(0x2a,NULL);
-  fail_unless(cs);
+  if(!cs) return 0;
+
   cs = e3x_cipher_set(0,"2a");
   fail_unless(cs);
   fail_unless(cs->id == CS_2a);
@@ -71,10 +72,13 @@ int main(int argc, char **argv)
   lob_t couterBA = cs->ephemeral_encrypt(ephemBA,channelBA);
   fail_unless(couterBA);
   printf("couterBA len %lu\n",lob_len(couterBA));
-  fail_unless(lob_len(couterBA) == 74);
+  fail_unless(lob_len(couterBA) == 66);
 
   lob_t outerBA = cs->remote_encrypt(remoteA,localB,messageAB);
   fail_unless(outerBA);
+  lob_t innerBA = cs->local_decrypt(localA,outerBA);
+  fail_unless(innerBA);
+  fail_unless(cs->remote_verify(remoteB,localA,outerBA) == 0);
   ephemeral_t ephemAB = cs->ephemeral_new(remoteB,outerBA);
   fail_unless(ephemAB);
 
