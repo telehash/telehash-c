@@ -61,10 +61,12 @@ int main(int argc, char **argv)
   // sync w/ handshake both ways
   lob_t inAB = e3x_self_decrypt(selfB,hsAB);
   fail_unless(inAB);
+  fail_unless(e3x_exchange_verify(xBA,hsAB) == 0);
   fail_unless(e3x_exchange_sync(xBA,hsAB));
   lob_t hsBA = e3x_exchange_handshake(xBA);
   lob_t inBA = e3x_self_decrypt(selfA,hsBA);
   fail_unless(inBA);
+  fail_unless(e3x_exchange_verify(xAB,hsBA) == 0);
   fail_unless(e3x_exchange_sync(xAB,hsBA));
   
   // send/receive channel packet

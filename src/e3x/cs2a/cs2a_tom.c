@@ -295,7 +295,11 @@ uint8_t remote_verify(remote_t remote, local_t local, lob_t outer)
   int res, sha = find_hash("sha256");
 
   if(!remote || !local || !outer) return 1;
-  if(outer->head_len != 1 || outer->head[0] != 0x2a) return 2;
+  if(outer->head_len != 1 || outer->head[0] != 0x2a)
+  {
+    LOG("invalid message header");
+    return 2;
+  }
 
   // get the decrypted bytes
   if(!(tmp = tmp_decrypt(local, outer))) return 4;
@@ -386,6 +390,7 @@ ephemeral_t ephemeral_new(remote_t remote, lob_t outer)
   memcpy(ephem->token,hash,16);
 
   // import ecc public key and do ECDH to get the shared secret
+//  LOG("cached %s",util_hex(remote->cached,65+32,NULL));
   TOM_OK2(ecc_ansi_x963_import(remote->cached, 65, &ecc), free(ephem));
   len = sizeof(secret);
   TOM_OK2(ecc_shared_secret(&(remote->ecc),&ecc,secret,&len), free(ephem));
