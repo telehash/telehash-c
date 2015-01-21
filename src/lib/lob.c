@@ -17,7 +17,7 @@ lob_t lob_new()
   memset(p,0,sizeof (struct lob_struct));
   if(!(p->raw = malloc(2))) return lob_free(p);
   memset(p->raw,0,2);
-//  LOG("LOB++ %d",p);
+//  LOG("LOB++ %p",p);
   return p;
 }
 
@@ -64,7 +64,7 @@ lob_t lob_linked(lob_t parent)
 lob_t lob_free(lob_t p)
 {
   if(!p) return NULL;
-//  LOG("LOB-- %d",p);
+//  LOG("LOB-- %p",p);
   if(p->chain) lob_free(p->chain);
   if(p->cache) free(p->cache);
   if(p->raw) free(p->raw);
@@ -548,9 +548,10 @@ static const uint8_t _cloak_key[32] = {0xd7, 0xf0, 0xe5, 0x55, 0x54, 0x62, 0x41,
 // handles cloaking conveniently, len is lob_len()+(8*rounds)
 uint8_t *lob_cloak(lob_t p, uint8_t rounds)
 {
-  uint8_t *ret, *cur, len;
+  uint8_t *ret, *cur;
+  size_t len;
   if(!p || !rounds) return lob_raw(p);
-  len = (uint8_t)lob_len(p);
+  len = lob_len(p);
   len += 8*rounds;
   if(!(ret = malloc(len))) return LOG("OOM needed %d",len);
   memset(ret,0,len);
