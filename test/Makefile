@@ -24,12 +24,12 @@ ARCH = src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c $(CS1a)
 TESTS += e3x_cs1a
 
 # this is CS2a only
-ARCH = src/e3x/cs1a_disabled.c src/e3x/cs3a_disabled.c $(CS2a)
-CFLAGS += -DLTM_DESC
-LDFLAGS += -L../node_modules/libtomcrypt-c -ltomcrypt -L../node_modules/libtommath-c -ltommath
+#ARCH = src/e3x/cs1a_disabled.c src/e3x/cs3a_disabled.c $(CS2a)
+#CFLAGS += -DLTM_DESC
+#LDFLAGS += -L../node_modules/libtomcrypt-c -ltomcrypt -L../node_modules/libtommath-c -ltommath
 #LDFLAGS += ../node_modules/libtomcrypt-c/libtomcrypt.a ../node_modules/libtommath-c/libtommath.a
-INCLUDE += -I../node_modules/libtomcrypt-c/src/headers -I../node_modules/libtommath-c
-TESTS += e3x_cs2a
+#INCLUDE += -I../node_modules/libtomcrypt-c/src/headers -I../node_modules/libtommath-c
+#TESTS += e3x_cs2a
 
 # this is CS3a only
 #ARCH = src/e3x/cs2a_disabled.c src/e3x/cs1a_disabled.c $(CS3a)

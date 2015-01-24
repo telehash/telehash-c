@@ -18,7 +18,7 @@ CS3a = src/e3x/cs3a/cs3a.c
 ARCH = src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c $(CS1a)
 
 # this is CS2a only
-ARCH = src/e3x/cs1a_disabled.c src/e3x/cs3a_disabled.c $(CS2a)
+#ARCH = src/e3x/cs1a_disabled.c src/e3x/cs3a_disabled.c $(CS2a)
 CFLAGS += -DLTM_DESC
 LDFLAGS += node_modules/libtomcrypt-c/libtomcrypt.a node_modules/libtommath-c/libtommath.a
 INCLUDE += -I./node_modules/libtomcrypt-c/src/headers -I./node_modules/libtommath-c
