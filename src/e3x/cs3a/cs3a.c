@@ -227,7 +227,7 @@ uint8_t remote_verify(remote_t remote, local_t local, lob_t outer)
   if(outer->head_len != 1 || outer->head[0] != 0x3a) return 2;
 
   // generate secret and verify
-  crypto_box_beforenm(secret, outer->body, local->secret);
+  crypto_box_beforenm(secret, remote->key, local->secret);
   memcpy(shared,outer->body+32,24); // nonce
   memcpy(shared+24,secret,crypto_box_BEFORENMBYTES);
   e3x_hash(shared,24+crypto_box_BEFORENMBYTES,hash);
@@ -271,7 +271,7 @@ lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
     secret) != 0) return lob_free(outer);
 
   // generate secret for hmac
-  crypto_box_beforenm(secret, remote->key, remote->esecret);
+  crypto_box_beforenm(secret, remote->key, local->secret);
   memcpy(shared,nonce,24);
   memcpy(shared+24,secret,crypto_box_BEFORENMBYTES);
   e3x_hash(shared,24+crypto_box_BEFORENMBYTES,hash);
