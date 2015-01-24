@@ -11,7 +11,8 @@ else
   echo "skipping node.js"
 fi
 
-found=`which test-net-link`
+# temporarily -disable
+found=`which test-net-link-disabled`
 if [ -f "$found" ]; then
   echo "go"
   ./bin/test_net_link | "$found"
