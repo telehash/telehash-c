@@ -32,7 +32,7 @@ typedef struct remote_struct
 typedef struct ephemeral_struct
 {
   gcm_state enc, dec;
-  uint8_t token[16];
+  uint8_t token[16], iv[12];
 } *ephemeral_t;
 
 // these are all the locally implemented handlers defined in e3x_cipher.h
@@ -384,6 +384,9 @@ ephemeral_t ephemeral_new(remote_t remote, lob_t outer)
 
   if(!(ephem = malloc(sizeof(struct ephemeral_struct)))) return NULL;
   memset(ephem,0,sizeof (struct ephemeral_struct));
+
+  // generate a random seq starting point for channel IV's
+  e3x_rand(ephem->iv,12);
   
   // create and copy in the exchange routing token
   e3x_hash(outer->body,16,hash);
@@ -427,19 +430,20 @@ lob_t ephemeral_encrypt(ephemeral_t ephem, lob_t inner)
 
   outer = lob_new();
   inner_len = lob_len(inner);
-  if(!lob_body(outer,NULL,16+16+inner_len+16)) return lob_free(outer);
+  if(!lob_body(outer,NULL,16+12+inner_len+16)) return lob_free(outer);
 
-  // copy in token and create/copy iv
+  // copy in token and update/copy iv
   memcpy(outer->body,ephem->token,16);
-  e3x_rand(outer->body+16,16);
+  (*(unsigned long *)ephem->iv)++;
+  memcpy(outer->body+16,ephem->iv,12);
 
   // aes gcm encrypt into outer
   TOM_OK2(gcm_reset(&(ephem->enc)), lob_free(outer));
-  TOM_OK2(gcm_add_iv(&(ephem->enc), outer->body+16, 16), lob_free(outer));
+  TOM_OK2(gcm_add_iv(&(ephem->enc), ephem->iv, 12), lob_free(outer));
   gcm_add_aad(&(ephem->enc), NULL, 0);
-  TOM_OK2(gcm_process(&(ephem->enc), lob_raw(inner), inner_len, outer->body+16+16, GCM_ENCRYPT), lob_free(outer));
+  TOM_OK2(gcm_process(&(ephem->enc), lob_raw(inner), inner_len, outer->body+16+12, GCM_ENCRYPT), lob_free(outer));
   len = 16;
-  TOM_OK2(gcm_done(&(ephem->enc), outer->body+16+16+inner_len, &len), lob_free(outer));
+  TOM_OK2(gcm_done(&(ephem->enc), outer->body+16+12+inner_len, &len), lob_free(outer));
   
   return outer;
 }
@@ -447,18 +451,18 @@ lob_t ephemeral_encrypt(ephemeral_t ephem, lob_t inner)
 lob_t ephemeral_decrypt(ephemeral_t ephem, lob_t outer)
 {
   unsigned long len;
-  size_t inner_len = outer->body_len-(16+16+16);
+  size_t inner_len = outer->body_len-(16+12+16);
 
   // decrypt in place
   TOM_OK(gcm_reset(&(ephem->dec)));
-  TOM_OK(gcm_add_iv(&(ephem->dec), outer->body+16, 16));
+  TOM_OK(gcm_add_iv(&(ephem->dec), outer->body+16, 12));
   gcm_add_aad(&(ephem->dec), NULL, 0);
-  TOM_OK(gcm_process(&(ephem->dec), outer->body+16+16, inner_len, outer->body+16+16, GCM_DECRYPT));
+  TOM_OK(gcm_process(&(ephem->dec), outer->body+16+12, inner_len, outer->body+16+12, GCM_DECRYPT));
   len = 16;
-  TOM_OK(gcm_done(&(ephem->dec), outer->body+16+16+inner_len, &len));
+  TOM_OK(gcm_done(&(ephem->dec), outer->body+16+12+inner_len, &len));
 
   // return parse attempt
-  return lob_parse(outer->body+16+16, inner_len);
+  return lob_parse(outer->body+16+12, inner_len);
 
 }
 

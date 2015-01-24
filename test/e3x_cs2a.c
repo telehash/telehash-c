@@ -72,7 +72,7 @@ int main(int argc, char **argv)
   lob_t couterBA = cs->ephemeral_encrypt(ephemBA,channelBA);
   fail_unless(couterBA);
   printf("couterBA len %lu\n",lob_len(couterBA));
-  fail_unless(lob_len(couterBA) == 66);
+  fail_unless(lob_len(couterBA) == 62);
 
   lob_t outerBA = cs->remote_encrypt(remoteA,localB,messageAB);
   fail_unless(outerBA);
