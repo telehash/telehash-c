@@ -69,6 +69,9 @@ e3x_cipher_t cs3a_init(lob_t options)
   ret->csid = 0x3a;
   memcpy(ret->hex,"3a",3);
 
+  // which alg's we support
+  ret->alg = "ED25519";
+
   // normal init stuff
   randombytes_stir();
 

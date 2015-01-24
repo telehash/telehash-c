@@ -74,6 +74,9 @@ e3x_cipher_t cs2a_init(lob_t options)
   ret->csid = 0x2a;
   memcpy(ret->hex,"2a",3);
 
+  // which alg's we support
+  ret->alg = "RS256 ES256";
+
   // normal init stuff
   ltc_mp = ltm_desc;
   register_cipher(&aes_desc);  
