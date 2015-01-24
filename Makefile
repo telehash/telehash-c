@@ -10,32 +10,27 @@ EXT = src/ext/stream.c src/ext/block.c
 NET = src/net/loopback.c src/net/udp4.c src/net/tcp4.c
 UTIL = src/util/util.c src/util/uri.c src/util/chunks.c src/unix/util.c src/unix/util_sys.c
 
-CS1a = src/e3x/cs1a/aes.c src/e3x/cs1a/hmac.c src/e3x/cs1a/aes128.c src/e3x/cs1a/cs1a.c src/e3x/cs1a/uECC.c src/e3x/cs1a/sha256.c
-CS2a = src/e3x/cs2a/cs2a_tom.c
-CS3a = src/e3x/cs3a/cs3a.c
+# CS1a by default
+CS = src/e3x/cs1a/aes.c src/e3x/cs1a/hmac.c src/e3x/cs1a/aes128.c src/e3x/cs1a/cs1a.c src/e3x/cs1a/uECC.c src/e3x/cs1a/sha256.c
 
-# this is CS1a only
-ARCH = src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c $(CS1a)
-
-# this is CS2a only
-#ARCH = src/e3x/cs1a_disabled.c src/e3x/cs3a_disabled.c $(CS2a)
+# check for CS2a deps
+ifneq ("$(wildcard node_modules/libtomcrypt-c/libtomcrypt.a)","")
+CS += src/e3x/cs2a/cs2a_tom.c
 CFLAGS += -DLTM_DESC
 LDFLAGS += node_modules/libtomcrypt-c/libtomcrypt.a node_modules/libtommath-c/libtommath.a
 INCLUDE += -I./node_modules/libtomcrypt-c/src/headers -I./node_modules/libtommath-c
+else
+CS += src/e3x/cs2a_disabled.c
+endif
 
-# this is CS3a only
-#ARCH = src/e3x/cs2a_disabled.c src/e3x/cs1a_disabled.c $(CS3a)
+# check for CS3a deps
+ifneq ("$(wildcard node_modules/libsodium-c/src/libsodium/.libs/libsodium.a)","")
+CS += src/e3x/cs3a/cs3a.c
 LDFLAGS += node_modules/libsodium-c/src/libsodium/.libs/libsodium.a
 INCLUDE += -I./node_modules/libsodium-c/src/libsodium/include
-
-# CS1a and CS2a
-#ARCH = unix/platform.c $(JSON) $(CS1a) $(CS2a) $(INCLUDE) $(LIBS)
-
-# CS1a and CS3a
-#ARCH = src/e3x/cs2a_disabled.c $(CS1a) $(CS3a)
-
-# all
-#ARCH = unix/platform.c $(JSON) $(CS1a) $(CS2a) $(CS3a) $(INCLUDE) $(LIBS)
+else
+CS += src/e3x/cs3a_disabled.c
+endif
 
 LIB_OBJFILES = $(patsubst %.c,%.o,$(LIB))
 E3X_OBJFILES = $(patsubst %.c,%.o,$(E3X))
@@ -43,21 +38,20 @@ MESH_OBJFILES = $(patsubst %.c,%.o,$(MESH))
 EXT_OBJFILES = $(patsubst %.c,%.o,$(EXT))
 NET_OBJFILES = $(patsubst %.c,%.o,$(NET))
 UTIL_OBJFILES = $(patsubst %.c,%.o,$(UTIL))
+CS_OBJFILES = $(patsubst %.c,%.o,$(CS))
 
-CORE_OBJFILES = $(LIB_OBJFILES) $(E3X_OBJFILES) $(MESH_OBJFILES) $(EXT_OBJFILES) $(NET_OBJFILES) $(UTIL_OBJFILES)
+FULL_OBJFILES = $(LIB_OBJFILES) $(E3X_OBJFILES) $(MESH_OBJFILES) $(EXT_OBJFILES) $(NET_OBJFILES) $(UTIL_OBJFILES) $(CS_OBJFILES)
 
-ARCH_OBJFILES = $(patsubst %.c,%.o,$(ARCH))
-
-FULL_OBJFILES = $(CORE_OBJFILES) $(ARCH_OBJFILES)
-
-IDGEN_OBJFILES = $(CORE_OBJFILES) $(ARCH_OBJFILES) util/idgen.o
-ROUTER_OBJFILES = $(CORE_OBJFILES) $(ARCH_OBJFILES) util/router.o
+IDGEN_OBJFILES = $(FULL_OBJFILES) util/idgen.o
+ROUTER_OBJFILES = $(FULL_OBJFILES) util/router.o
 
 HEADERS=$(wildcard include/*.h)
 
 all: idgen router static
 	@echo "TODO\t`git grep TODO | wc -l | tr -d ' '`"
 
+deps: 
+	npm install
 
 static: libtelehash
 	@cat $(LIB) $(E3X) $(MESH) $(EXT) $(NET) $(UTIL) > telehash.c
@@ -73,7 +67,6 @@ arduino: static
 	cp $(HEADERS) arduino/src/telehash/
 
 test: $(FULL_OBJFILES)
-	npm install
 	cd test; $(MAKE) $(MFLAGS)
 
 %.o : %.c $(HEADERS)
@@ -82,17 +75,17 @@ test: $(FULL_OBJFILES)
 idgen: $(IDGEN_OBJFILES)
 	$(CC) $(CFLAGS) -o bin/idgen $(IDGEN_OBJFILES) $(LDFLAGS) 
 
-ping:
-	$(CC) $(CFLAGS) -o bin/ping util/ping.c src/*.c unix/util.c $(ARCH)
+#ping:
+#	$(CC) $(CFLAGS) -o bin/ping util/ping.c src/*.c unix/util.c $(ARCH)
 
 router: $(ROUTER_OBJFILES)
 	$(CC) $(CFLAGS) -o bin/router $(ROUTER_OBJFILES) $(LDFLAGS) 
 
-mesh:
-	$(CC) $(CFLAGS) -o bin/mesh util/mesh.c src/*.c unix/util.c src/ext/*.c $(ARCH)
+#mesh:
+#	$(CC) $(CFLAGS) -o bin/mesh util/mesh.c src/*.c unix/util.c src/ext/*.c $(ARCH)
 
-port:
-	$(CC) $(CFLAGS) -o bin/port util/port.c src/*.c unix/util.c src/ext/*.c $(ARCH)
+#port:
+#	$(CC) $(CFLAGS) -o bin/port util/port.c src/*.c unix/util.c src/ext/*.c $(ARCH)
  
 clean:
 	rm -rf bin/*
