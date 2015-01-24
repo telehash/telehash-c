@@ -71,8 +71,8 @@ pipe_t tcp4_flush(pipe_t pipe)
   {
     while((len = write(to->client, util_chunks_write(to->chunks), util_chunks_len(to->chunks))) > 0)
     {
-      util_chunks_written(to->chunks, (size_t)len);
       LOG("wrote %d bytes to %s",len,pipe->id);
+      util_chunks_written(to->chunks, (size_t)len);
     }
   }
 

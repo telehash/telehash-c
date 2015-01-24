@@ -53,7 +53,7 @@ util_chunks_t util_chunks_cloak(util_chunks_t chunks)
 // internal to clean up written data
 util_chunks_t _util_chunks_gc(util_chunks_t chunks)
 {
-  uint8_t len;
+  size_t len;
   if(!chunks) return NULL;
 
 //  LOG("CHUNK GC %d %d %s",chunks,chunks->writeat,util_hex(chunks->writing,chunks->writelen,NULL));

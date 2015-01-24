@@ -16,12 +16,20 @@ NET = src/net/loopback.c src/net/udp4.c src/net/tcp4.c
 UTIL = src/util/util.c src/util/uri.c src/util/chunks.c src/unix/util.c src/unix/util_sys.c
 
 CS1a = src/e3x/cs1a/aes.c src/e3x/cs1a/hmac.c src/e3x/cs1a/aes128.c src/e3x/cs1a/cs1a.c src/e3x/cs1a/uECC.c src/e3x/cs1a/sha256.c
-CS2a = -ltomcrypt -ltommath -DLTM_DESC -DCS_2a src/e3x/cs2a/crypt_libtom_*.c
+CS2a = src/e3x/cs2a/cs2a_tom.c
 CS3a = src/e3x/cs3a/cs3a.c
 
 # this is CS1a only
 ARCH = src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c $(CS1a)
 TESTS += e3x_cs1a
+
+# this is CS2a only
+#ARCH = src/e3x/cs1a_disabled.c src/e3x/cs3a_disabled.c $(CS2a)
+#CFLAGS += -DLTM_DESC
+#LDFLAGS += -L../node_modules/libtomcrypt-c -ltomcrypt -L../node_modules/libtommath-c -ltommath
+#LDFLAGS += ../node_modules/libtomcrypt-c/libtomcrypt.a ../node_modules/libtommath-c/libtommath.a
+#INCLUDE += -I../node_modules/libtomcrypt-c/src/headers -I../node_modules/libtommath-c
+#TESTS += e3x_cs2a
 
 # this is CS3a only
 #ARCH = src/e3x/cs2a_disabled.c src/e3x/cs1a_disabled.c $(CS3a)
@@ -76,7 +84,7 @@ tests: build-tests
 build-tests: $(patsubst %,%.o,$(TESTS)) $(patsubst %,bin/test_%,$(TESTS))
 
 bin/test_% : %.o $(FULL_OBJFILES)
-	$(CC) $(INCLUDE) $(CFLAGS) $(LDFLAGS) $(patsubst bin/test_%,%.o,$@) -o $@ $(FULL_OBJFILES)
+	$(CC) $(INCLUDE) $(CFLAGS) -o $@ $(LDFLAGS) $(patsubst bin/test_%,%.o,$@) $(FULL_OBJFILES)
 
 %.o : %.c
 	$(CC) $(INCLUDE) $(CFLAGS) -c $< -o $@

@@ -3,7 +3,8 @@
    "version": "0.3.11",
    "dependencies": {
      "libsodium-c":"quartzjer/libsodium-c",
-     "libtomcrypt-c":"quartzjer/libtomcrypt-c#develop"
+     "libtomcrypt-c":"quartzjer/libtomcrypt-c#develop",
+     "libtommath-c": "quartzjer/libtommath-c#develop"
    },
    "devDependencies": {
    },
