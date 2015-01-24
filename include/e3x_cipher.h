@@ -12,7 +12,7 @@
 typedef struct e3x_cipher_struct
 {
   uint8_t id, csid;
-  char hex[3];
+  char hex[3], *alg;
 
   // these are common functions each one needs to support
   uint8_t *(*rand)(uint8_t *bytes, size_t len); // write len random bytes, returns bytes as well for convenience

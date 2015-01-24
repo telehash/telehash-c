@@ -75,6 +75,9 @@ e3x_cipher_t cs1a_init(lob_t options)
   ret->id = CS_1a;
   ret->csid = 0x1a;
   memcpy(ret->hex,"1a",3);
+  
+  // which alg's we support
+  ret->alg = "HS256 ES160";
 
   // normal init stuff
   uECC_set_rng(&RNG);

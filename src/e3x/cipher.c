@@ -28,7 +28,7 @@ uint8_t e3x_cipher_init(lob_t options)
   return 0;
 }
 
-e3x_cipher_t e3x_cipher_set(uint8_t csid, char *hex)
+e3x_cipher_t e3x_cipher_set(uint8_t csid, char *str)
 {
   uint8_t i;
 
@@ -36,7 +36,13 @@ e3x_cipher_t e3x_cipher_set(uint8_t csid, char *hex)
   {
     if(!e3x_cipher_sets[i]) continue;
     if(e3x_cipher_sets[i]->csid == csid) return e3x_cipher_sets[i];
-    if(hex && strcasecmp(e3x_cipher_sets[i]->hex,hex) == 0) return e3x_cipher_sets[i];
+    if(str)
+    {
+      // hex match
+      if(strcasecmp(e3x_cipher_sets[i]->hex,str) == 0) return e3x_cipher_sets[i];
+      // if they list alg's they support, match on that too
+      if(e3x_cipher_sets[i]->alg && strcasestr(e3x_cipher_sets[i]->alg,str)) return e3x_cipher_sets[i];
+    }
   }
 
   return NULL;

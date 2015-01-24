@@ -76,11 +76,7 @@ lob_t e3x_self_sign(e3x_self_t self, lob_t args, uint8_t *data, size_t len)
   e3x_cipher_t cs = NULL;
   char *alg = lob_get(args,"alg");
   if(!data || !len || !alg) return LOG("bad args");
-  if(util_cmp(alg,"HS256") == 0) cs = e3x_cipher_set(0x1a,NULL);
-  if(util_cmp(alg,"ES160") == 0) cs = e3x_cipher_set(0x1a,NULL);
-  if(util_cmp(alg,"RS256") == 0) cs = e3x_cipher_set(0x2a,NULL);
-  if(util_cmp(alg,"ES256") == 0) cs = e3x_cipher_set(0x2a,NULL);
-  if(util_cmp(alg,"ED25519") == 0) cs = e3x_cipher_set(0x3a,NULL);
+  cs = e3x_cipher_set(0,alg);
   if(!cs || !cs->local_sign) return LOG("no signing support for %s",alg);
   if(self) local = self->locals[cs->id];
   return cs->local_sign(local,args,data,len);

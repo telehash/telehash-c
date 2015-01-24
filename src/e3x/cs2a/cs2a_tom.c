@@ -45,11 +45,13 @@ static uint8_t *cipher_rand(uint8_t *bytes, size_t len);
 static local_t local_new(lob_t keys, lob_t secrets);
 static void local_free(local_t local);
 static lob_t local_decrypt(local_t local, lob_t outer);
+static lob_t local_sign(local_t local, lob_t args, uint8_t *data, size_t len);
 
 static remote_t remote_new(lob_t key, uint8_t *token);
 static void remote_free(remote_t remote);
 static uint8_t remote_verify(remote_t remote, local_t local, lob_t outer);
 static lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner);
+static uint8_t remote_validate(remote_t remote, lob_t args, lob_t sig, uint8_t *data, size_t len);
 
 static ephemeral_t ephemeral_new(remote_t remote, lob_t outer);
 static void ephemeral_free(ephemeral_t ephemeral);
@@ -74,6 +76,9 @@ e3x_cipher_t cs2a_init(lob_t options)
   ret->csid = 0x2a;
   memcpy(ret->hex,"2a",3);
 
+  // which alg's we support
+  ret->alg = "RS256 ES256";
+
   // normal init stuff
   ltc_mp = ltm_desc;
   register_cipher(&aes_desc);  
@@ -92,10 +97,12 @@ e3x_cipher_t cs2a_init(lob_t options)
   ret->local_new = (void *(*)(lob_t, lob_t))local_new;
   ret->local_free = (void (*)(void *))local_free;
   ret->local_decrypt = (lob_t (*)(void *, lob_t))local_decrypt;
+  ret->local_sign = (lob_t (*)(void *, lob_t, uint8_t *, size_t))local_sign;
   ret->remote_new = (void *(*)(lob_t, uint8_t *))remote_new;
   ret->remote_free = (void (*)(void *))remote_free;
   ret->remote_verify = (uint8_t (*)(void *, void *, lob_t))remote_verify;
   ret->remote_encrypt = (lob_t (*)(void *, void *, lob_t))remote_encrypt;
+  ret->remote_validate = (uint8_t (*)(void *, lob_t, lob_t, uint8_t *, size_t))remote_validate;
   ret->ephemeral_new = (void *(*)(void *, lob_t))ephemeral_new;
   ret->ephemeral_free = (void (*)(void *))ephemeral_free;
   ret->ephemeral_encrypt = (lob_t (*)(void *, lob_t))ephemeral_encrypt;
@@ -235,6 +242,33 @@ lob_t local_decrypt(local_t local, lob_t outer)
   return inner;
 }
 
+lob_t local_sign(local_t local, lob_t args, uint8_t *data, size_t len)
+{
+  uint8_t hash[32];
+  unsigned long len2; 
+
+  if(lob_get_cmp(args,"alg","RS256") == 0)
+  {
+    if(!lob_body(args,NULL,256)) return LOG("OOM");
+    cipher_hash(data,len,hash);
+    len2 = 256;
+    TOM_OK(rsa_sign_hash_ex(hash, 32, args->body, &len2, LTC_PKCS_1_V1_5, &_libtom_prng, find_prng("yarrow"), find_hash("sha256"), 12, &(local->rsa)));
+    return args;
+  }
+
+  if(lob_get_cmp(args,"alg","ES256") == 0)
+  {
+    // TODO pass in ecc private key to use
+//    if(!lob_body(args,NULL,32)) return LOG("OOM");
+//    cipher_hash(data,len,hash);
+//    len2 = 32;
+//    TOM_OK(ecc_sign_hash(hash, 32, args->body, &len2, &_libtom_prng, find_prng("yarrow"), find_hash("sha256"), 12, &(local->rsa)));
+//    return args;
+  }
+
+  return NULL;
+}
+
 remote_t remote_new(lob_t key, uint8_t *token)
 {
   uint8_t hash[32], upub[65+32];
@@ -313,7 +347,7 @@ uint8_t remote_verify(remote_t remote, local_t local, lob_t outer)
 
   TOM_IF(rsa_verify_hash_ex(tmp->body+inner_len, 256, hash, 32, LTC_PKCS_1_V1_5, find_hash("sha256"), 0, &res, &(remote->rsa)))
   {
-    LOG("rsa vererify failed: %s",error_to_string(_libtom_err));
+    LOG("rsa verify failed: %s",error_to_string(_libtom_err));
     lob_free(tmp);
     return 6;
   }
@@ -369,6 +403,27 @@ lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
   TOM_OK2(gcm_done(&(remote->enc), outer->body+256+12+inner_len+256, &len), lob_free(outer));
 
   return outer;
+}
+
+uint8_t remote_validate(remote_t remote, lob_t args, lob_t sig, uint8_t *data, size_t len)
+{
+  uint8_t hash[32];
+  int res;
+  if(!args || !sig || !data || !len) return 1;
+
+  if(lob_get_cmp(args,"alg","RS256") == 0)
+  {
+    if(!remote || sig->body_len != 256) return 2;
+    cipher_hash(data,len,hash);
+    TOM_IF(rsa_verify_hash_ex(sig->body, 256, hash, 32, LTC_PKCS_1_V1_5, find_hash("sha256"), 0, &res, &(remote->rsa)))
+    {
+      LOG("rsa verify failed: %s",error_to_string(_libtom_err));
+      return 3;
+    }
+    return 0;
+  }
+
+  return 4;
 }
 
 ephemeral_t ephemeral_new(remote_t remote, lob_t outer)

@@ -75,6 +75,24 @@ int main(int argc, char **argv)
     fail_unless(jwt_verify(es160,x));
   }
 
+  if(jwt_alg("RS256"))
+  {
+    lob_t test = lob_new();
+    lob_set(test,"alg","RS256");
+    lob_set(test,"typ","JWT");
+    lob_t testp = lob_new();
+    lob_set_int(testp,"sub",42);
+    lob_link(test,testp);
+    fail_unless(jwt_sign(test,self));
+    fail_unless(testp->body_len == 256);
+    printf("signed JWT: %s\n",jwt_encode(test));
+
+    lob_t key = lob_get_base32(lob_linked(id),"2a");
+    e3x_exchange_t x = e3x_exchange_new(self, 0x2a, key);
+    fail_unless(x);
+    fail_unless(jwt_verify(test,x));
+  }
+
 
   return 0;
 }
