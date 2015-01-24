@@ -23,7 +23,7 @@ else
 CS += src/e3x/cs2a_disabled.c
 endif
 
-# check for CS2a deps
+# check for CS3a deps
 ifneq ("$(wildcard node_modules/libsodium-c/src/libsodium/.libs/libsodium.a)","")
 CS += src/e3x/cs3a/cs3a.c
 LDFLAGS += node_modules/libsodium-c/src/libsodium/.libs/libsodium.a

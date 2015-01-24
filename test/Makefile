@@ -15,36 +15,31 @@ EXT = src/ext/stream.c src/ext/block.c
 NET = src/net/loopback.c src/net/udp4.c src/net/tcp4.c
 UTIL = src/util/util.c src/util/uri.c src/util/chunks.c src/unix/util.c src/unix/util_sys.c
 
-CS1a = src/e3x/cs1a/aes.c src/e3x/cs1a/hmac.c src/e3x/cs1a/aes128.c src/e3x/cs1a/cs1a.c src/e3x/cs1a/uECC.c src/e3x/cs1a/sha256.c
-CS2a = src/e3x/cs2a/cs2a_tom.c
-CS3a = src/e3x/cs3a/cs3a.c
-
-# this is CS1a only
-ARCH = src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c $(CS1a)
+# CS1a by default
+CS = src/e3x/cs1a/aes.c src/e3x/cs1a/hmac.c src/e3x/cs1a/aes128.c src/e3x/cs1a/cs1a.c src/e3x/cs1a/uECC.c src/e3x/cs1a/sha256.c
 TESTS += e3x_cs1a
 
-# this is CS2a only
-#ARCH = src/e3x/cs1a_disabled.c src/e3x/cs3a_disabled.c $(CS2a)
-#CFLAGS += -DLTM_DESC
-#LDFLAGS += -L../node_modules/libtomcrypt-c -ltomcrypt -L../node_modules/libtommath-c -ltommath
-#LDFLAGS += ../node_modules/libtomcrypt-c/libtomcrypt.a ../node_modules/libtommath-c/libtommath.a
-#INCLUDE += -I../node_modules/libtomcrypt-c/src/headers -I../node_modules/libtommath-c
-#TESTS += e3x_cs2a
+# check for CS2a deps
+ifneq ("$(wildcard ../node_modules/libtomcrypt-c/libtomcrypt.a)","")
+CS += src/e3x/cs2a/cs2a_tom.c
+CFLAGS += -DLTM_DESC
+LDFLAGS += ../node_modules/libtomcrypt-c/libtomcrypt.a ../node_modules/libtommath-c/libtommath.a
+INCLUDE += -I../node_modules/libtomcrypt-c/src/headers -I../node_modules/libtommath-c
+TESTS += e3x_cs2a
+else
+CS += src/e3x/cs2a_disabled.c
+endif
 
-# this is CS3a only
-#ARCH = src/e3x/cs2a_disabled.c src/e3x/cs1a_disabled.c $(CS3a)
-#LDFLAGS += ../node_modules/libsodium-c/src/libsodium/.libs/libsodium.a
-#INCLUDE += -I../node_modules/libsodium-c/src/libsodium/include
-#TESTS += e3x_cs3a
+# check for CS3a deps
+ifneq ("$(wildcard ../node_modules/libsodium-c/src/libsodium/.libs/libsodium.a)","")
+CS += src/e3x/cs3a/cs3a.c
+LDFLAGS += ../node_modules/libsodium-c/src/libsodium/.libs/libsodium.a
+INCLUDE += -I../node_modules/libsodium-c/src/libsodium/include
+TESTS += e3x_cs3a
+else
+CS += src/e3x/cs3a_disabled.c
+endif
 
-# CS1a and CS2a
-#ARCH = unix/platform.c $(JSON) $(CS1a) $(CS2a) $(INCLUDE) $(LIBS)
-
-# CS1a and CS3a
-#ARCH = unix/platform.c cs3a/crypt_base.c $(JSON) $(CS1a) $(CS3a) $(INCLUDE) $(LIBS)
-
-# all
-#ARCH = unix/platform.c $(JSON) $(CS1a) $(CS2a) $(CS3a) $(INCLUDE) $(LIBS)
 
 LIB_OBJFILES = $(patsubst %.c,../%.o,$(LIB))
 E3X_OBJFILES = $(patsubst %.c,../%.o,$(E3X))
@@ -52,12 +47,9 @@ MESH_OBJFILES = $(patsubst %.c,../%.o,$(MESH))
 EXT_OBJFILES = $(patsubst %.c,../%.o,$(EXT))
 NET_OBJFILES = $(patsubst %.c,../%.o,$(NET))
 UTIL_OBJFILES = $(patsubst %.c,../%.o,$(UTIL))
+CS_OBJFILES = $(patsubst %.c,../%.o,$(CS))
 
-CORE_OBJFILES = $(LIB_OBJFILES) $(E3X_OBJFILES) $(MESH_OBJFILES) $(EXT_OBJFILES) $(NET_OBJFILES) $(UTIL_OBJFILES)
-
-ARCH_OBJFILES = $(patsubst %.c,../%.o,$(ARCH))
-
-FULL_OBJFILES = $(CORE_OBJFILES) $(ARCH_OBJFILES)
+FULL_OBJFILES = $(LIB_OBJFILES) $(E3X_OBJFILES) $(MESH_OBJFILES) $(EXT_OBJFILES) $(NET_OBJFILES) $(UTIL_OBJFILES) $(CS_OBJFILES)
 
 all: test
 
