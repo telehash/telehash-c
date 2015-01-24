@@ -245,11 +245,24 @@ lob_t local_decrypt(local_t local, lob_t outer)
 lob_t local_sign(local_t local, lob_t args, uint8_t *data, size_t len)
 {
   uint8_t hash[32];
+  unsigned long len2; 
 
   if(lob_get_cmp(args,"alg","RS256") == 0)
   {
-//    lob_body(args,NULL,32);
-//    memcpy(args->body,hash,32);
+    if(!lob_body(args,NULL,256)) return LOG("OOM");
+    cipher_hash(data,len,hash);
+    len2 = 256;
+    TOM_OK(rsa_sign_hash_ex(hash, 32, args->body, &len2, LTC_PKCS_1_V1_5, &_libtom_prng, find_prng("yarrow"), find_hash("sha256"), 12, &(local->rsa)));
+    return args;
+  }
+
+  if(lob_get_cmp(args,"alg","ES256") == 0)
+  {
+    // TODO pass in ecc private key to use
+//    if(!lob_body(args,NULL,32)) return LOG("OOM");
+//    cipher_hash(data,len,hash);
+//    len2 = 32;
+//    TOM_OK(ecc_sign_hash(hash, 32, args->body, &len2, &_libtom_prng, find_prng("yarrow"), find_hash("sha256"), 12, &(local->rsa)));
 //    return args;
   }
 
@@ -334,7 +347,7 @@ uint8_t remote_verify(remote_t remote, local_t local, lob_t outer)
 
   TOM_IF(rsa_verify_hash_ex(tmp->body+inner_len, 256, hash, 32, LTC_PKCS_1_V1_5, find_hash("sha256"), 0, &res, &(remote->rsa)))
   {
-    LOG("rsa vererify failed: %s",error_to_string(_libtom_err));
+    LOG("rsa verify failed: %s",error_to_string(_libtom_err));
     lob_free(tmp);
     return 6;
   }
@@ -395,17 +408,22 @@ lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
 uint8_t remote_validate(remote_t remote, lob_t args, lob_t sig, uint8_t *data, size_t len)
 {
   uint8_t hash[32];
+  int res;
   if(!args || !sig || !data || !len) return 1;
 
   if(lob_get_cmp(args,"alg","RS256") == 0)
   {
-//    if(sig->body_len != 32 || !args->body_len) return 2;
-//    LOG("[%d] [%.*s]",args->body_len,len,data);
-//    hmac_256(args->body,args->body_len,data,len,hash);
-//    return (memcmp(sig->body,hash,32) == 0) ? 0 : 3;
+    if(!remote || sig->body_len != 256) return 2;
+    cipher_hash(data,len,hash);
+    TOM_IF(rsa_verify_hash_ex(sig->body, 256, hash, 32, LTC_PKCS_1_V1_5, find_hash("sha256"), 0, &res, &(remote->rsa)))
+    {
+      LOG("rsa verify failed: %s",error_to_string(_libtom_err));
+      return 3;
+    }
+    return 0;
   }
 
-  return 3;
+  return 4;
 }
 
 ephemeral_t ephemeral_new(remote_t remote, lob_t outer)
