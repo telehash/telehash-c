@@ -219,12 +219,14 @@ link_t link_handshake(link_t link, lob_t handshake)
 link_t link_receive_handshake(link_t link, lob_t inner, pipe_t pipe)
 {
   link_t ready;
-  uint32_t out;
+  uint32_t out, err;
   seen_t seen;
   lob_t outer = lob_linked(inner);
 
   if(!link || !inner || !outer) return LOG("bad args");
   if(!link->key && link_key(link->mesh,inner) != link) return LOG("invalid/mismatch handshake key");
+  if((err = e3x_exchange_verify(link->x,outer))) return LOG("handshake verification fail: %d",err);
+
   out = e3x_exchange_out(link->x,0);
   ready = link_up(link);
 
