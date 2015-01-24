@@ -38,11 +38,13 @@ static uint8_t *cipher_rand(uint8_t *bytes, size_t len);
 static local_t local_new(lob_t keys, lob_t secrets);
 static void local_free(local_t local);
 static lob_t local_decrypt(local_t local, lob_t outer);
+static lob_t local_sign(local_t local, lob_t args, uint8_t *data, size_t len);
 
 static remote_t remote_new(lob_t key, uint8_t *token);
 static void remote_free(remote_t remote);
 static uint8_t remote_verify(remote_t remote, local_t local, lob_t outer);
 static lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner);
+static uint8_t remote_validate(remote_t remote, lob_t args, lob_t sig, uint8_t *data, size_t len);
 
 static ephemeral_t ephemeral_new(remote_t remote, lob_t outer);
 static void ephemeral_free(ephemeral_t ephemeral);
@@ -85,10 +87,12 @@ e3x_cipher_t cs3a_init(lob_t options)
   ret->local_new = (void *(*)(lob_t, lob_t))local_new;
   ret->local_free = (void (*)(void *))local_free;
   ret->local_decrypt = (lob_t (*)(void *, lob_t))local_decrypt;
+  ret->local_sign = (lob_t (*)(void *, lob_t, uint8_t *, size_t))local_sign;
   ret->remote_new = (void *(*)(lob_t, uint8_t *))remote_new;
   ret->remote_free = (void (*)(void *))remote_free;
   ret->remote_verify = (uint8_t (*)(void *, void *, lob_t))remote_verify;
   ret->remote_encrypt = (lob_t (*)(void *, void *, lob_t))remote_encrypt;
+  ret->remote_validate = (uint8_t (*)(void *, lob_t, lob_t, uint8_t *, size_t))remote_validate;
   ret->ephemeral_new = (void *(*)(void *, lob_t))ephemeral_new;
   ret->ephemeral_free = (void (*)(void *))ephemeral_free;
   ret->ephemeral_encrypt = (lob_t (*)(void *, lob_t))ephemeral_encrypt;
@@ -191,6 +195,19 @@ lob_t local_decrypt(local_t local, lob_t outer)
   return inner;
 }
 
+lob_t local_sign(local_t local, lob_t args, uint8_t *data, size_t len)
+{
+  uint8_t hash[32];
+
+  if(lob_get_cmp(args,"alg","ED25519") == 0)
+  {
+//    lob_body(args,NULL,32);
+//    memcpy(args->body,hash,32);
+//    return args;
+  }
+
+  return NULL;
+}
 
 remote_t remote_new(lob_t key, uint8_t *token)
 {
@@ -281,6 +298,22 @@ lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
   crypto_onetimeauth(outer->body+32+24+inner_len+crypto_secretbox_MACBYTES, outer->body, outer->body_len-16, hash);
 
   return outer;
+}
+
+uint8_t remote_validate(remote_t remote, lob_t args, lob_t sig, uint8_t *data, size_t len)
+{
+  uint8_t hash[32];
+  if(!args || !sig || !data || !len) return 1;
+
+  if(lob_get_cmp(args,"alg","ED25519") == 0)
+  {
+//    if(sig->body_len != 32 || !args->body_len) return 2;
+//    LOG("[%d] [%.*s]",args->body_len,len,data);
+//    hmac_256(args->body,args->body_len,data,len,hash);
+//    return (memcmp(sig->body,hash,32) == 0) ? 0 : 3;
+  }
+
+  return 3;
 }
 
 ephemeral_t ephemeral_new(remote_t remote, lob_t outer)
