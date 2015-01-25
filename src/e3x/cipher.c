@@ -1,8 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
-
-#define _GNU_SOURCE // for strcasestr
 #include <string.h>
 
 #include "e3x.h"
@@ -44,7 +42,7 @@ e3x_cipher_t e3x_cipher_set(uint8_t csid, char *str)
       // hex match
       if(strcasecmp(e3x_cipher_sets[i]->hex,str) == 0) return e3x_cipher_sets[i];
       // if they list alg's they support, match on that too
-      if(e3x_cipher_sets[i]->alg && strcasestr(e3x_cipher_sets[i]->alg,str)) return e3x_cipher_sets[i];
+      if(e3x_cipher_sets[i]->alg && strstr(e3x_cipher_sets[i]->alg,str)) return e3x_cipher_sets[i];
     }
   }
 
