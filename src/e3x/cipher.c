@@ -1,7 +1,10 @@
 #include <stdlib.h>
-#include <string.h>
 #include <stdio.h>
 #include <stdint.h>
+
+#define _GNU_SOURCE // for strcasestr
+#include <string.h>
+
 #include "e3x.h"
 #include "util.h"
 
