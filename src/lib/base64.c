@@ -8,9 +8,9 @@ size_t base64_decode(const char *str, size_t len, uint8_t *out)
 {
     const char *cur;
     uint8_t *start;
-    int d, dlast, phase;
-    char c;
-    static char table[256] = {
+    int8_t d;
+    uint8_t c, phase, dlast;
+    static int8_t table[256] = {
         -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,  /* 00-0F */
         -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,  /* 10-1F */
         -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,62,-1,62,-1,63,  /* 20-2F */
@@ -44,7 +44,7 @@ size_t base64_decode(const char *str, size_t len, uint8_t *out)
         }
 
         d = table[(int)*cur];
-        if(d != -1)
+        if(d >= 0)
         {
             switch(phase)
             {
