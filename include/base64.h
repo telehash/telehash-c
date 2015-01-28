@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 // length of data resulting from encoding/decoding
-#define base64_encode_length(x) 8 * (((x) + 2) / 6) + 1
+#define base64_encode_length(x) (8 * (((x) + 2) / 6)) + 1
 #define base64_decode_length(x) ((((x) + 2) * 6) / 8)
 
 // encode str of len into out (must be at least base64_encode_length(len) big), return encoded len

@@ -30,7 +30,6 @@ int main(int argc, char **argv)
   char orig[] = "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6ImlkIn0.eyJpc3MiOiJ0ZXN0Iiwic3ViIjoiZXhwZWN0IiwiYXVkIjoieW91IiwiYXpwIjoibWUiLCJpYXQiOjE0MjEwMjk5MzQsInNjb3BlIjoidGVzdCIsImV4cCI6MTczNjM4OTkzNH0.aHORuwSmjEl5UOZaQ-eDggDjzMBc7i5pSZCYEDT5mpP7S9c3h_I-6pGaD9W4xu79VTidjsyspS6P4FZUWGkmMRfcXPr0Uv-SbbKzD5E_T-xkp5SxL3AMV9Up9BcsM6hZU_tHxl5XBmM8IZztPV2asL77flQtrIvsc7DABw9r9SQ";
   char *enc = jwt_encode(head);
   fail_unless(enc);
-  printf("%s\n%s\n",orig,enc);
   fail_unless(util_cmp(orig,enc) == 0);
   
   // test signing
