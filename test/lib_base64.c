@@ -19,6 +19,7 @@ int main(int argc, char **argv)
   size_t len;
 
   len = base64_encode((const uint8_t *)"foobar", 6, eout);
+  printf("X %d\n",len);
   fail_unless(len == 8);
   fail_unless(strcmp(eout,"Zm9vYmFy") == 0);
   len = base64_decode(eout,0,dout);

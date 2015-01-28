@@ -77,40 +77,40 @@ size_t base64_decode(const char *str, size_t len, uint8_t *out)
 
 
 // encode str of len into out (must be at least base64_encode_length(len) big), return encoded len
-size_t base64_encode(const uint8_t *str, size_t len, char *out)
-{
-    size_t i;
-    uint8_t s1, s2;
-    char *cur = out;
-    static uint8_t table[64] = {
-        'A','B','C','D','E','F','G','H',
-        'I','J','K','L','M','N','O','P',
-        'Q','R','S','T','U','V','W','X',
-        'Y','Z','a','b','c','d','e','f',
-        'g','h','i','j','k','l','m','n',
-        'o','p','q','r','s','t','u','v',
-        'w','x','y','z','0','1','2','3',
-        '4','5','6','7','8','9','-','_'
-    };
+size_t base64_encode(const uint8_t* data, size_t input_length, char* encoded_data) {
+  static char encoding_table[] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
+                                  'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
+                                  'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
+                                  'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f',
+                                  'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n',
+                                  'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
+                                  'w', 'x', 'y', 'z', '0', '1', '2', '3',
+                                  '4', '5', '6', '7', '8', '9', '-', '_'
+                                 };
+  static int mod_table[] = {0, 2, 1};
 
-    if(!str || !out || !len) return 0;
+    uint16_t output_length = 4 * ((input_length + 2) / 3);
 
-    for (i = 0; i < len; i += 3, str += 3)
-    {
-      s1 = (i+1<len)?str[1]:0;
-      s2 = (i+2<len)?str[2]:0;
-      *cur++ = table[str[0] >> 2];
-      *cur++ = table[((str[0] & 3) << 4) + (s1 >> 4)];
-      *cur++ = table[((s1 & 0xf) << 2) + (s2 >> 6)];
-      *cur++ = table[s2 & 0x3f];
+    for (size_t i = 0, j = 0; i < input_length;) {
+      uint32_t octet_a = i < input_length ? (unsigned char)data[i++] : 0;
+      uint32_t octet_b = i < input_length ? (unsigned char)data[i++] : 0;
+      uint32_t octet_c = i < input_length ? (unsigned char)data[i++] : 0;
+
+      uint32_t triple = (octet_a << 0x10) + (octet_b << 0x08) + octet_c;
+
+      encoded_data[j++] = encoding_table[(triple >> 3 * 6) & 0x3F];
+      encoded_data[j++] = encoding_table[(triple >> 2 * 6) & 0x3F];
+      encoded_data[j++] = encoding_table[(triple >> 1 * 6) & 0x3F];
+      encoded_data[j++] = encoding_table[(triple >> 0 * 6) & 0x3F];
     }
 
-    if (i == len + 1)
-        *(cur - 1) = '=';
-    else if (i == len + 2)
-        *(cur - 1) = *(cur - 2) = '=';
-    *cur = '\0';
-
-    // return actual length, not padded
-    return (cur - out) - (i-len);
-}
+    uint16_t final_length = output_length;
+    for (int i = 0; i < mod_table[input_length % 3]; i++) {
+      final_length--;
+      encoded_data[output_length - 1 - i] = '=';
+    }
+    encoded_data[output_length] = '\0';
+    
+    // return len w/o padding
+    return final_length;
+  }
