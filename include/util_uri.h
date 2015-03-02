@@ -9,13 +9,11 @@
 typedef struct util_uri_struct
 {
   char *protocol;
-  char *user;
-  char *canonical;
-  char *address;
+  char *hostname;
   uint32_t port;
-  char *session;
-  lob_t keys;
-  char *token;
+  char *path;
+  lob_t query;
+  char *fragment;
 
   char *encoded;
 } *util_uri_t;
@@ -29,12 +27,10 @@ char *util_uri_encode(util_uri_t uri);
 
 // setters
 util_uri_t util_uri_protocol(util_uri_t uri, char *protocol);
-util_uri_t util_uri_user(util_uri_t uri, char *user);
-util_uri_t util_uri_canonical(util_uri_t uri, char *canonical);
-util_uri_t util_uri_address(util_uri_t uri, char *address);
+util_uri_t util_uri_hostname(util_uri_t uri, char *hostname);
 util_uri_t util_uri_port(util_uri_t uri, uint32_t port);
-util_uri_t util_uri_session(util_uri_t uri, char *session);
+util_uri_t util_uri_path(util_uri_t uri, char *path);
 util_uri_t util_uri_keys(util_uri_t uri, lob_t keys);
-util_uri_t util_uri_token(util_uri_t uri, char *token);
+util_uri_t util_uri_fragment(util_uri_t uri, char *token);
 
 #endif
