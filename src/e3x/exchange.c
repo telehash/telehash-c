@@ -157,6 +157,7 @@ lob_t e3x_exchange_handshake(e3x_exchange_t x, lob_t inner)
   if(!inner)
   {
     inner = lob_new();
+    lob_set(inner, "type", "key");
     // loop through all ciphersets for any keys
     for(i=0; i<CS_MAX; i++)
     {
