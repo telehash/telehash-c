@@ -39,7 +39,7 @@ uint32_t e3x_exchange_out(e3x_exchange_t x, uint32_t at);
 e3x_exchange_t e3x_exchange_sync(e3x_exchange_t x, lob_t outer);
 
 // generates handshake w/ current e3x_exchange_out value and ephemeral key
-lob_t e3x_exchange_handshake(e3x_exchange_t x);
+lob_t e3x_exchange_handshake(e3x_exchange_t x, lob_t inner);
 
 // simple synchronous encrypt/decrypt conversion of any packet for channels
 lob_t e3x_exchange_receive(e3x_exchange_t x, lob_t outer); // goes to channel, validates cid

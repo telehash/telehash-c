@@ -325,7 +325,7 @@ link_t link_sync(link_t link)
       // only create if we have to
     if(!handshake)
     {
-      handshake = e3x_exchange_handshake(link->x);
+      handshake = e3x_exchange_handshake(link->x, NULL);
       // update/encrypt custom handshake
       if(custom)
       {

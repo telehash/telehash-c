@@ -52,7 +52,7 @@ int main(int argc, char **argv)
 
   // generate handshake
   fail_unless(e3x_exchange_out(xAB,3));
-  lob_t hsAB = e3x_exchange_handshake(xAB);
+  lob_t hsAB = e3x_exchange_handshake(xAB, NULL);
   fail_unless(hsAB);
   fail_unless(hsAB->head_len == 1);
   fail_unless(hsAB->head[0] == csid);
@@ -63,7 +63,7 @@ int main(int argc, char **argv)
   fail_unless(inAB);
   fail_unless(e3x_exchange_verify(xBA,hsAB) == 0);
   fail_unless(e3x_exchange_sync(xBA,hsAB));
-  lob_t hsBA = e3x_exchange_handshake(xBA);
+  lob_t hsBA = e3x_exchange_handshake(xBA, NULL);
   lob_t inBA = e3x_self_decrypt(selfA,hsBA);
   fail_unless(inBA);
   fail_unless(e3x_exchange_verify(xAB,hsBA) == 0);
