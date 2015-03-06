@@ -146,30 +146,35 @@ e3x_exchange_t e3x_exchange_sync(e3x_exchange_t x, lob_t outer)
 }
 
 // just a convenience, generates handshake w/ current e3x_exchange_at value
-lob_t e3x_exchange_handshake(e3x_exchange_t x)
+lob_t e3x_exchange_handshake(e3x_exchange_t x, lob_t inner)
 {
-  lob_t inner, key;
+  lob_t key;
   uint8_t i;
   if(!x) return LOG("invalid args");
   if(!x->out) return LOG("no out set");
 
-  // create new handshake inner from all supported csets
-  inner = lob_new();
-  lob_set_uint(inner,"at",x->out);
-  
-  // loop through all ciphersets for any keys
-  for(i=0; i<CS_MAX; i++)
+  // create deprecated key handshake inner from all supported csets
+  if(!inner)
   {
-    if(!(key = x->self->keys[i])) continue;
-    // this csid's key is the body, rest is intermediate in json
-    if(e3x_cipher_sets[i] == x->cs)
+    inner = lob_new();
+    lob_set(inner, "type", "key");
+    // loop through all ciphersets for any keys
+    for(i=0; i<CS_MAX; i++)
     {
-      lob_body(inner,key->body,key->body_len);
-    }else{
-      lob_set(inner,e3x_cipher_sets[i]->hex,lob_get(key,"hash"));
+      if(!(key = x->self->keys[i])) continue;
+      // this csid's key is the body, rest is intermediate in json
+      if(e3x_cipher_sets[i] == x->cs)
+      {
+        lob_body(inner,key->body,key->body_len);
+      }else{
+        lob_set(inner,e3x_cipher_sets[i]->hex,lob_get(key,"hash"));
+      }
     }
   }
 
+  // set standard values
+  lob_set_uint(inner,"at",x->out);
+  
   return e3x_exchange_message(x, inner);
 }
 
