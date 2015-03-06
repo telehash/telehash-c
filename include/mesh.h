@@ -12,7 +12,7 @@ typedef struct mesh_struct *mesh_t;
 struct mesh_struct
 {
   hashname_t id;
-  char *uri;
+  lob_t uri;
   lob_t keys;
   e3x_self_t self;
   xht_t index;

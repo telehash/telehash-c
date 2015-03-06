@@ -59,7 +59,7 @@ mesh_t mesh_free(mesh_t mesh)
   xht_free(mesh->index);
   lob_free(mesh->keys);
   e3x_self_free(mesh->self);
-  if(mesh->uri) free(mesh->uri);
+  if(mesh->uri) lob_free(mesh->uri);
   if(mesh->ipv4_local) free(mesh->ipv4_local);
   if(mesh->ipv4_public) free(mesh->ipv4_public);
 
@@ -88,12 +88,13 @@ lob_t mesh_generate(mesh_t mesh)
   return secrets;
 }
 
-// return the best current URI to this endpoint, optional override protocol
-char *mesh_uri(mesh_t mesh, char *protocol)
+// return the best current URI to this endpoint, optional base uri
+char *mesh_uri(mesh_t mesh, char *uri)
 {
-  util_uri_t uri;
   if(!mesh) return LOG("bad args");
+  return NULL;
 
+  /*
   // load existing or create new
   uri = (mesh->uri) ? util_uri_new(mesh->uri, protocol) : util_uri_new("127.0.0.1", protocol);
   
@@ -111,6 +112,7 @@ char *mesh_uri(mesh_t mesh, char *protocol)
   mesh->uri = strdup(util_uri_encode(uri));
   util_uri_free(uri);
   return mesh->uri;
+  */
 }
 
 link_t mesh_add(mesh_t mesh, lob_t json, pipe_t pipe)

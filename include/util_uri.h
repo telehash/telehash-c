@@ -4,33 +4,27 @@
 #include <stdint.h>
 #include "lob.h"
 
-// utils to parse and generate a telehash URI
+// utils to get link info in/out of a uri
 
-typedef struct util_uri_struct
-{
-  char *protocol;
-  char *hostname;
-  uint32_t port;
-  char *path;
-  lob_t query;
-  char *fragment;
+// parser
+lob_t util_uri_parse(char *string);
 
-  char *encoded;
-} *util_uri_t;
+// get keys from query
+lob_t util_uri_keys(lob_t uri);
 
-// decodes a string into a uri, validates/defaults protocol:// if given, ensures ->address exists
-util_uri_t util_uri_new(char *encoded, char *protocol);
-util_uri_t util_uri_free(util_uri_t uri);
+// get paths from host and query
+lob_t util_uri_paths(lob_t uri); // chain
 
-// produces string safe to use until next encode or free
-char *util_uri_encode(util_uri_t uri);
+// validate any fragment from this peer
+uint8_t util_uri_check(lob_t uri, uint8_t *peer);
 
-// setters
-util_uri_t util_uri_protocol(util_uri_t uri, char *protocol);
-util_uri_t util_uri_hostname(util_uri_t uri, char *hostname);
-util_uri_t util_uri_port(util_uri_t uri, uint32_t port);
-util_uri_t util_uri_path(util_uri_t uri, char *path);
-util_uri_t util_uri_keys(util_uri_t uri, lob_t keys);
-util_uri_t util_uri_fragment(util_uri_t uri, char *token);
+// generators
+lob_t util_uri_add_keys(lob_t uri, lob_t keys);
+lob_t util_uri_add_path(lob_t uri, lob_t path);
+lob_t util_uri_add_check(lob_t uri, uint8_t *peer, uint8_t *data, size_t len);
+lob_t util_uri_add_data(lob_t uri, uint8_t *data, size_t len);
+
+// serialize out from lob format to "uri" key
+lob_t util_uri_format(lob_t uri);
 
 #endif
