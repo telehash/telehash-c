@@ -45,13 +45,14 @@ hashname_t hashname_str(char *str)
 }
 
 // create hashname from intermediate values as hex/base32 key/value pairs
-hashname_t hashname_key(lob_t key)
+hashname_t hashname_key(lob_t key, uint8_t csid)
 {
   unsigned int i, start;
   uint8_t hash[64];
-  char *id, *value;
+  char *id, *value, hexid[3];
   hashname_t hn = NULL;
   if(!key) return LOG("invalid args");
+  util_hex(&csid, 1, hexid);
 
   // get in sorted order
   lob_sort(key);
@@ -67,8 +68,8 @@ hashname_t hashname_key(lob_t key)
     start = (i == 0) ? 32 : 0; // only first one excludes previous rollup
     e3x_hash(hash+start,(32-start)+1,hash); // hash in place
 
-    // get the value from the body if bool
-    if(util_cmp("true",value) == 0)
+    // get the value from the body if matching csid arg
+    if(util_cmp(id, hexid) == 0)
     {
       if(key->body_len == 0) return LOG("missing key body");
       // hash the body
@@ -92,7 +93,7 @@ hashname_t hashname_keys(lob_t keys)
 
   if(!keys) return LOG("bad args");
   im = hashname_im(keys,0);
-  hn = hashname_key(im);
+  hn = hashname_key(im,0);
   lob_free(im);
   return hn;
 }

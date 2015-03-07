@@ -19,7 +19,7 @@ hashname_t hashname_free(hashname_t hn);
 // these all create a new hashname
 hashname_t hashname_str(char *str); // from a string
 hashname_t hashname_keys(lob_t keys);
-hashname_t hashname_key(lob_t key); // key is body, intermediates in json
+hashname_t hashname_key(lob_t key, uint8_t id); // key is body, intermediates in json
 
 // utilities related to hashnames
 uint8_t hashname_valid(char *str); // validate a str is a hashname
