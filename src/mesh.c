@@ -220,8 +220,7 @@ mesh_t mesh_handshake(mesh_t mesh, lob_t handshake)
 {
   if(!mesh) return NULL;
   if(handshake && !lob_get(handshake,"type")) return LOG("handshake missing a type: %s",lob_json(handshake));
-  lob_free(mesh->handshake);
-  mesh->handshake = handshake;
+  mesh->handshakes = lob_link(handshake, mesh->handshakes);
   return mesh;
 }
 
@@ -260,21 +259,21 @@ link_t mesh_receive_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe)
   
   // normalize handshake
   handshake->id = now; // save when we cached it
-  if(!lob_get(handshake,"type")) lob_set(handshake,"type","key"); // default to key type
+  if(!lob_get(handshake,"type")) lob_set(handshake,"type","link"); // default to link type
   if(!lob_get_uint(handshake,"at")) lob_set_uint(handshake,"at",now); // require an at
   
-  // validate/extend key handshakes immediately
+  // validate/extend link handshakes immediately
   if(util_cmp(lob_get(handshake,"type"),"key") == 0 && (outer = lob_linked(handshake)))
   {
     // make sure csid is set to get the hashname
-    util_hex(outer->head,1,hexid);
-    lob_set_raw(handshake,hexid,0,"true",4);
-    if(!(from = hashname_key(handshake)))
+    if(!(from = hashname_key(handshake, outer->head[0])))
     {
       LOG("bad key handshake, no hashname: %s",lob_json(handshake));
       lob_free(handshake);
       return NULL;
     }
+    util_hex(outer->head, 1, hexid);
+    lob_set(handshake,"csid",hexid);
     lob_set(handshake,"hashname",from->hashname);
     hashname_free(from);
 
