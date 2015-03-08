@@ -24,7 +24,7 @@ lob_t util_uri_add_path(lob_t uri, lob_t path);
 lob_t util_uri_add_check(lob_t uri, uint8_t *peer, uint8_t *data, size_t len);
 lob_t util_uri_add_data(lob_t uri, uint8_t *data, size_t len);
 
-// serialize out from lob format to "uri" key
-lob_t util_uri_format(lob_t uri);
+// serialize out from lob format to "uri" key and return it
+char *util_uri_format(lob_t uri);
 
 #endif

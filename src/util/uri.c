@@ -12,6 +12,7 @@ lob_t util_uri_parse(char *encoded)
   
   if(!encoded) return LOG("bad args");
   uri = lob_new();
+  lob_set(uri,"orig",encoded);
 
   // check for protocol:// prefix first
   if(!(at = strstr(encoded,"://")))
@@ -199,7 +200,21 @@ lob_t util_uri_add_keys(lob_t uri, lob_t keys)
 
 lob_t util_uri_add_path(lob_t uri, lob_t path)
 {
-  return NULL;
+  lob_t keys;
+  lob_t query = lob_linked(uri);
+  if(!uri || !path) return NULL;
+  if(!query)
+  {
+    query = lob_new();
+    lob_link(uri, query);
+  }
+  // encode and add to chain after query
+  keys = lob_new();
+  lob_set_base32(keys,"paths",path->head,path->head_len);
+  lob_link(keys, lob_linked(query));
+  lob_link(query, keys);
+  
+  return uri;
 }
 
 lob_t util_uri_add_check(lob_t uri, uint8_t *peer, uint8_t *data, size_t len)
@@ -213,129 +228,73 @@ lob_t util_uri_add_data(lob_t uri, uint8_t *data, size_t len)
 }
 
 
-// serialize out from lob format to "uri" key
-lob_t util_uri_format(lob_t uri)
+// serialize out from lob format to "uri" key and return it
+char *util_uri_format(lob_t uri)
 {
-  return NULL;
-}
-
-/*
-
-// produces string safe to use until next encode or free
-char *util_uri_encode(util_uri_t uri)
-{
-  uint32_t len, i;
-  char *key;
-
-  if(!uri) return LOG("bad args");
-  if(uri->encoded) free(uri->encoded);
-  len = 9; // space for seperator chars of '://@:/?#\0'
-  len += strlen(uri->protocol);
-  len += uri->user?strlen(uri->user):0;
-  len += strlen(uri->address);
-  len += 11;
-  len += uri->session?strlen(uri->session):0;
-  len += uri->keys?lob_len(uri->keys):0;
-  len += uri->token?strlen(uri->token):0;
-  if(!(uri->encoded = malloc(len))) return LOG("OOM %d",len);
-  memset(uri->encoded,0,len);
-
-  sprintf(uri->encoded,"%s://",uri->protocol);
-  if(uri->user) sprintf(uri->encoded+strlen(uri->encoded),"%s@",uri->user);
-  sprintf(uri->encoded+strlen(uri->encoded),"%s",uri->address);
-  if(uri->port) sprintf(uri->encoded+strlen(uri->encoded),":%u",uri->port);
-  sprintf(uri->encoded+strlen(uri->encoded),"/%s",uri->session?uri->session:"");
-  if(uri->keys)
+  char *part, *key, *value;
+  uint32_t i, prev = 0;
+  lob_t buf, query;
+  if(!uri) return NULL;
+  
+  // use a lob body as the buffer to build it up
+  buf = lob_new();
+  
+  part = lob_get(uri, "protocol");
+  if(part)
   {
-    lob_sort(uri->keys);
-    sprintf(uri->encoded+strlen(uri->encoded),"?");
-    i = 0;
-    while((key = lob_get_index(uri->keys, i)))
+    lob_append_str(buf, part);
+  }else{
+    lob_append_str(buf, "link");
+  }
+  lob_append_str(buf, "://");
+
+  part = lob_get(uri, "hostname");
+  if(part)
+  {
+    lob_append_str(buf, part);
+    part = lob_get(uri, "port");
+    if(part)
     {
-      sprintf(uri->encoded+strlen(uri->encoded),"%s%s=%s",i?"&":"", key, lob_get_index(uri->keys, i+1));
-      i += 2;
+      lob_append_str(buf, ":");
+      lob_append_str(buf, part);
+    }
+  }else{
+    part = lob_get(uri, "host");
+    if(part) lob_append_str(buf, part);
+  }
+  
+  part = lob_get(uri, "path");
+  if(part)
+  {
+    lob_append_str(buf, part);
+  }else{
+    lob_append_str(buf, "/");
+  }
+  
+  // append on any query string
+  
+  for(query = lob_linked(uri); query; query = lob_linked(query))
+  {
+    for(i=0;(key = lob_get_index(query,i));i+=2)
+    {
+      value = lob_get_index(query,i+1);
+      if(!strlen(key) || !value) continue; // paranoid
+      lob_append_str(buf,(prev++)?"&":"?");
+      lob_append_str(buf,key);
+      lob_append_str(buf,"=");
+      lob_append_str(buf,value);
     }
   }
-  if(uri->token) sprintf(uri->encoded+strlen(uri->encoded),"#%s",uri->token);
-  return uri->encoded;
-}
 
-util_uri_t util_uri_protocol(util_uri_t uri, char *protocol)
-{
-  if(!uri || !protocol) return LOG("bad args");
-  if(uri->protocol) free(uri->protocol);
-  uri->protocol = strdup(protocol);
-  return uri;
-}
-
-util_uri_t util_uri_user(util_uri_t uri, char *user)
-{
-  if(!uri) return LOG("bad args");
-  if(uri->user) free(uri->user);
-  uri->user = user?strdup(user):NULL;
-  return uri;
-}
-
-util_uri_t util_uri_canonical(util_uri_t uri, char *canonical)
-{
-  char *at;
-  if(!uri) return LOG("bad args");
-  if(canonical)
+  if((part = lob_get(uri, "hash")))
   {
-    if(uri->canonical) free(uri->canonical);
-    uri->canonical = strdup(canonical);
+    lob_append_str(buf, "#");
+    lob_append_str(buf, part);
   }
 
-  if(uri->address) free(uri->address);
-  
-  if((at = strchr(uri->canonical,':')))
-  {
-    uri->address = strndup(uri->canonical, (size_t)(at - uri->canonical));
-    uri->port = (uint32_t)strtoul(at+1,NULL,10);
-  }else{
-    uri->address = strdup(uri->canonical);
-    uri->port = 0;
-  }
+  lob_set_len(uri,"uri",3,(char*)buf->body,buf->body_len);
+  lob_free(buf);
 
-  return uri;
+  return lob_get(uri,"uri");
 }
 
-util_uri_t util_uri_address(util_uri_t uri, char *address)
-{
-  if(!uri || !address) return LOG("bad args");
-  if(uri->address) free(uri->address);
-  uri->address = strdup(address);
-  return uri;
-}
-
-util_uri_t util_uri_port(util_uri_t uri, uint32_t port)
-{
-  if(!uri) return LOG("bad args");
-  uri->port = port;
-  return uri;
-}
-
-util_uri_t util_uri_session(util_uri_t uri, char *session)
-{
-  if(!uri) return LOG("bad args");
-  if(uri->session) free(uri->session);
-  uri->session = session?strdup(session):NULL;
-  return uri;
-}
-
-util_uri_t util_uri_keys(util_uri_t uri, lob_t keys)
-{
-  if(!uri || !keys) return LOG("bad args");
-  if(uri->keys) lob_free(uri->keys);
-  uri->keys = lob_copy(keys);
-  return uri;
-}
-
-util_uri_t util_uri_token(util_uri_t uri, char *token)
-{
-  if(!uri) return LOG("bad args");
-  if(uri->token) free(uri->token);
-  uri->token = token?strdup(token):NULL;
-  return uri;
-}
- */
