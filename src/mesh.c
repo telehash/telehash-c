@@ -263,18 +263,23 @@ link_t mesh_receive_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe)
   if(!lob_get_uint(handshake,"at")) lob_set_uint(handshake,"at",now); // require an at
   
   // validate/extend link handshakes immediately
-  if(util_cmp(lob_get(handshake,"type"),"key") == 0 && (outer = lob_linked(handshake)))
+  if(util_cmp(lob_get(handshake,"type"),"link") == 0 && (outer = lob_linked(handshake)))
   {
-    // make sure csid is set to get the hashname
-    if(!(from = hashname_key(handshake, outer->head[0])))
+    // get attached hashname
+    tmp = lob_parse(handshake->body, handshake->body_len);
+    from = hashname_key(tmp, outer->head[0]);
+    if(!from)
     {
-      LOG("bad key handshake, no hashname: %s",lob_json(handshake));
+      LOG("bad link handshake, no hashname: %s",lob_json(handshake));
+      lob_free(tmp);
       lob_free(handshake);
       return NULL;
     }
     util_hex(outer->head, 1, hexid);
     lob_set(handshake,"csid",hexid);
     lob_set(handshake,"hashname",from->hashname);
+    lob_body(handshake, tmp->body, tmp->body_len); // re-attach as raw key
+    lob_free(tmp);
     hashname_free(from);
 
     // short-cut, if it's a key from an existing link, pass it on

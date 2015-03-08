@@ -215,7 +215,6 @@ link_t link_up(link_t link)
 link_t link_handshake(link_t link, lob_t handshake)
 {
   if(!link) return NULL;
-  if(handshake && !lob_get(handshake,"type")) return LOG("handshake missing a type: %s",lob_json(handshake));
   link->handshakes = lob_link(handshake, link->handshakes);
   return link;
 }
@@ -233,7 +232,7 @@ link_t link_receive_handshake(link_t link, lob_t inner, pipe_t pipe)
   if(!link || !inner || !outer) return LOG("bad args");
   hexid = lob_get(inner, "csid");
   if(!lob_get(link->mesh->keys, hexid)) return LOG("unsupported csid %s",hexid);
-  csid = util_unhex(hexid, 2, &csid);
+  util_unhex(hexid, 2, &csid);
   attached = lob_parse(inner->body, inner->body_len);
   if(!link->key && link_key(link->mesh, attached, csid) != link) return LOG("invalid/mismatch link handshake");
   if((err = e3x_exchange_verify(link->x,outer))) return LOG("handshake verification fail: %d",err);
@@ -332,7 +331,8 @@ link_t link_sync(link_t link)
     // only create if we have to
     if(!handshakes)
     {
-      for(hs = link->handshakes; hs; hs = lob_linked(hs)) handshakes = e3x_exchange_handshake(link->x, hs);
+      for(hs = link->handshakes; hs; hs = lob_linked(hs)) LOG("HSSYNC %s",lob_json(hs));
+      for(hs = link->handshakes; hs; hs = lob_linked(hs)) handshakes = lob_link(e3x_exchange_handshake(link->x, hs), handshakes);
       // add any mesh-wide handshakes
       for(hs = link->mesh->handshakes; hs; hs = lob_linked(hs)) handshakes = lob_link(e3x_exchange_handshake(link->x, hs), handshakes);
     }
