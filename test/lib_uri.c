@@ -14,6 +14,10 @@ int main(int argc, char **argv)
   fail_unless(keys);
   fail_unless(util_cmp(lob_get(keys,"1a"),"foo") == 0);
 
+  lob_set(keys,"2a","bar");
+  fail_unless(util_uri_add_keys(uri,keys));
+  fail_unless(util_cmp(lob_get(uri->chain,"cs2a"),"bar") == 0);
+
   /*
   fail_unless(util_cmp(util_uri_encode(uri),"bar://bar/") == 0);
   fail_unless(util_uri_canonical(uri,"canon:42"));

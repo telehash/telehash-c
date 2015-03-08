@@ -130,6 +130,8 @@ lob_t util_uri_paths(lob_t uri)
 {
   uint32_t i;
   uint16_t port;
+  uint8_t *buf;
+  size_t len;
   char *key, *value;
   lob_t paths, query = lob_linked(uri);
   if(!query) return NULL;
@@ -150,12 +152,18 @@ lob_t util_uri_paths(lob_t uri)
   }
 
   // loop through all keyval pairs to find paths
+  buf = NULL;
   for(i=0;(key = lob_get_index(query,i));i+=2)
   {
     value = lob_get_index(query,i+1);
     if(util_cmp(key,"paths") != 0 || !value) continue;
-    
+    len = base32_decode_length(strlen(value));
+    buf = util_reallocf(buf,len);
+    if(!buf) continue;
+    if(base32_decode_into(value,strlen(value),buf) != len) continue;
+    paths = lob_link(lob_parse(buf,len), paths);
   }
+  free(buf);
   
   return paths;
 }
@@ -168,7 +176,25 @@ uint8_t util_uri_check(lob_t uri, uint8_t *peer)
 
 lob_t util_uri_add_keys(lob_t uri, lob_t keys)
 {
-  return NULL;
+  uint32_t i;
+  char *key, *value, csid[5];
+  lob_t query = lob_linked(uri);
+  if(!uri || !keys) return NULL;
+  if(!query)
+  {
+    query = lob_new();
+    lob_link(uri, query);
+  }
+  
+  for(i=0;(key = lob_get_index(keys,i));i+=2)
+  {
+    value = lob_get_index(keys,i+1);
+    if(strlen(key) != 2 || !value) continue; // paranoid
+    snprintf(csid,5,"cs%s",key);
+    lob_set(query,csid,value);
+  }
+
+  return uri;
 }
 
 lob_t util_uri_add_path(lob_t uri, lob_t path)
