@@ -13,7 +13,7 @@ struct link_struct
   e3x_exchange_t x;
   mesh_t mesh;
   lob_t key;
-  lob_t handshake;
+  lob_t handshakes;
   uint8_t csid;
   xht_t index, channels;
   char token[33];
@@ -25,7 +25,7 @@ struct link_struct
 // these all create or return existing one from the mesh
 link_t link_get(mesh_t mesh, char *hashname);
 link_t link_keys(mesh_t mesh, lob_t keys); // adds in the right key
-link_t link_key(mesh_t mesh, lob_t key); // adds in from the body
+link_t link_key(mesh_t mesh, lob_t key, uint8_t csid); // adds in from the body
 
 // removes from mesh
 void link_free(link_t link);

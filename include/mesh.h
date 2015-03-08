@@ -20,7 +20,7 @@ struct mesh_struct
   // shared network info
   uint16_t port_local, port_public;
   char *ipv4_local, *ipv4_public;
-  lob_t handshake, cached; // handshakes
+  lob_t handshakes, cached; // handshakes
 };
 
 // pass in a prime for the main index of hashnames+links+channels, 0 to use compiled default

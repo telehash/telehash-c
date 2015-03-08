@@ -197,7 +197,7 @@ lob_t local_decrypt(local_t local, lob_t outer)
 
 lob_t local_sign(local_t local, lob_t args, uint8_t *data, size_t len)
 {
-  uint8_t hash[32];
+//  uint8_t hash[32];
 
   if(lob_get_cmp(args,"alg","ED25519") == 0)
   {
@@ -302,7 +302,7 @@ lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
 
 uint8_t remote_validate(remote_t remote, lob_t args, lob_t sig, uint8_t *data, size_t len)
 {
-  uint8_t hash[32];
+//  uint8_t hash[32];
   if(!args || !sig || !data || !len) return 1;
 
   if(lob_get_cmp(args,"alg","ED25519") == 0)

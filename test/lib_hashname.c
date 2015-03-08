@@ -19,7 +19,7 @@ int main(int argc, char **argv)
   lob_t im = lob_new();
   lob_set(im,"1a","ym7p66flpzyncnwkzxv2qk5dtosgnnstgfhw6xj2wvbvm7oz5oaq");
   lob_set(im,"3a","bmxelsxgecormqjlnati6chxqua7wzipxliw5le35ifwxlge2zva");
-  hn = hashname_key(im);
+  hn = hashname_key(im, 0);
   fail_unless(hn);
   fail_unless(util_cmp(hn->hashname,"jvdoio6kjvf3yqnxfvck43twaibbg4pmb7y3mqnvxafb26rqllwa") == 0);
 

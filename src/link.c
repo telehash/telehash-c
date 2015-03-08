@@ -92,20 +92,18 @@ link_t link_keys(mesh_t mesh, lob_t keys)
   if(!mesh || !keys) return LOG("invalid args");
   csid = hashname_id(mesh->keys,keys);
   if(!csid) return LOG("no supported key");
-  return link_key(mesh, hashname_im(keys,csid));
+  return link_key(mesh, hashname_im(keys,csid), csid);
 }
 
-link_t link_key(mesh_t mesh, lob_t key)
+link_t link_key(mesh_t mesh, lob_t key, uint8_t csid)
 {
-  uint8_t csid;
   hashname_t hn;
   link_t link;
 
   if(!mesh || !key) return LOG("invalid args");
-  csid = hashname_id(mesh->keys,key);
-  if(!csid) return LOG("no supported key");
+  if(hashname_id(mesh->keys,key) > csid) return LOG("invalid csid");
 
-  hn = hashname_key(key);
+  hn = hashname_key(key, csid);
   if(!hn) return LOG("invalid key");
 
   link = link_get(mesh, hn->hashname);
@@ -126,7 +124,7 @@ link_t link_key(mesh_t mesh, lob_t key)
 link_t link_load(link_t link, uint8_t csid, lob_t key)
 {
   char hex[3];
-  lob_t copy;
+  lob_t copy, hs, im;
 
   if(!link || !csid || !key) return LOG("bad args");
   if(link->x) return link;
@@ -150,6 +148,14 @@ link_t link_load(link_t link, uint8_t csid, lob_t key)
 
   link->csid = csid;
   link->key = copy;
+  
+  // add link handshake, has intermediates attached
+  hs = lob_new();
+  im = hashname_im(link->mesh->keys, csid);
+  lob_body(hs, lob_raw(im), lob_len(im));
+  lob_free(im);
+  link_handshake(link, hs);
+
   // route packets to this token
   util_hex(e3x_exchange_token(link->x),16,link->token);
   xht_set(link->mesh->index,link->token,link);
@@ -209,9 +215,7 @@ link_t link_up(link_t link)
 link_t link_handshake(link_t link, lob_t handshake)
 {
   if(!link) return NULL;
-  if(handshake && !lob_get(handshake,"type")) return LOG("handshake missing a type: %s",lob_json(handshake));
-  lob_free(link->handshake);
-  link->handshake = handshake;
+  link->handshakes = lob_link(handshake, link->handshakes);
   return link;
 }
 
@@ -221,10 +225,16 @@ link_t link_receive_handshake(link_t link, lob_t inner, pipe_t pipe)
   link_t ready;
   uint32_t out, err;
   seen_t seen;
-  lob_t outer = lob_linked(inner);
+  uint8_t csid = 0;
+  char *hexid;
+  lob_t attached, outer = lob_linked(inner);
 
   if(!link || !inner || !outer) return LOG("bad args");
-  if(!link->key && link_key(link->mesh,inner) != link) return LOG("invalid/mismatch handshake key");
+  hexid = lob_get(inner, "csid");
+  if(!lob_get(link->mesh->keys, hexid)) return LOG("unsupported csid %s",hexid);
+  util_unhex(hexid, 2, &csid);
+  attached = lob_parse(inner->body, inner->body_len);
+  if(!link->key && link_key(link->mesh, attached, csid) != link) return LOG("invalid/mismatch link handshake");
   if((err = e3x_exchange_verify(link->x,outer))) return LOG("handshake verification fail: %d",err);
 
   out = e3x_exchange_out(link->x,0);
@@ -309,37 +319,29 @@ link_t link_sync(link_t link)
 {
   uint32_t at;
   seen_t seen;
-  lob_t handshake = NULL, custom = NULL;
+  lob_t handshakes = NULL, hs = NULL;
   if(!link) return LOG("bad args");
   if(!link->x) return LOG("no exchange");
-
-  // grab any custom extra handshake
-  custom = link->handshake;
-  if(!custom) custom = link->mesh->handshake;
 
   at = e3x_exchange_out(link->x,0);
   LOG("link sync at %d",at);
   for(seen = link->pipes;seen;seen = seen->next)
   {
     if(!seen->pipe || !seen->pipe->send || seen->at == at) continue;
-      // only create if we have to
-    if(!handshake)
+    // only create if we have to
+    if(!handshakes)
     {
-      handshake = e3x_exchange_handshake(link->x, NULL);
-      // update/encrypt custom handshake
-      if(custom)
-      {
-        lob_set_uint(custom,"at",at);
-        custom = e3x_exchange_message(link->x,custom);
-      }
+      for(hs = link->handshakes; hs; hs = lob_linked(hs)) LOG("HSSYNC %s",lob_json(hs));
+      for(hs = link->handshakes; hs; hs = lob_linked(hs)) handshakes = lob_link(e3x_exchange_handshake(link->x, hs), handshakes);
+      // add any mesh-wide handshakes
+      for(hs = link->mesh->handshakes; hs; hs = lob_linked(hs)) handshakes = lob_link(e3x_exchange_handshake(link->x, hs), handshakes);
     }
+
     seen->at = at;
-    seen->pipe->send(seen->pipe,lob_copy(handshake),link);
-    // send any custom handshake too
-    if(custom) seen->pipe->send(seen->pipe,lob_copy(custom),link);
+    for(hs = handshakes; hs; hs = lob_linked(hs)) seen->pipe->send(seen->pipe, lob_copy(hs), link);
   }
 
-  lob_free(handshake);
+  lob_free(handshakes);
   return link;
 }
 

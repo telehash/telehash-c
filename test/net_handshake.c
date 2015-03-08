@@ -8,8 +8,8 @@ link_t handshake(mesh_t mesh, lob_t json, pipe_t pipe)
   LOG("HS-ACCEPT %s",lob_json(json));
   state = 1;
   lob_t hs = mesh_handshakes(mesh,json,"custom");
-  lob_t key = mesh_handshakes(mesh,json,"key");
-  if(!hs || !key) return NULL;
+  lob_t key = mesh_handshakes(mesh,json,"link");
+  if(!hs || !key) return LOG("incomplete %d %d",hs,key);
   state = 2;
   return mesh_add(mesh, key, pipe);
 }
