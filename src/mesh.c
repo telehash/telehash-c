@@ -74,6 +74,7 @@ uint8_t mesh_load(mesh_t mesh, lob_t secrets, lob_t keys)
   if(!(mesh->self = e3x_self_new(secrets, keys))) return 2;
   mesh->keys = lob_copy(keys);
   mesh->id = hashname_keys(mesh->keys);
+  LOG("mesh is %s",mesh->id->hashname);
   return 0;
 }
 
