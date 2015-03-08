@@ -3,10 +3,98 @@
 #include <ctype.h>
 #include "util.h"
 
-// parser
-lob_t util_uri_parse(char *string)
+// this is a very simple single-pass telehash uri parser, no magic
+lob_t util_uri_parse(char *encoded)
 {
-  return NULL;
+  size_t klen, vlen;
+  char *at, *val;
+  lob_t uri;
+  
+  if(!encoded) return LOG("bad args");
+  uri = lob_new();
+
+  // check for protocol:// prefix first
+  if(!(at = strstr(encoded,"://")))
+  {
+    lob_set(uri, "protocol", "link");
+  }else{
+    lob_set_len(uri, "protocol", 0, encoded, (size_t)(at - encoded));
+    encoded = at+3;
+  }
+  
+  // check for user@ prefix next
+  if((at = strchr(encoded,'@')))
+  {
+    lob_set_len(uri, "auth", 0, encoded, (size_t)(at - encoded));
+    encoded = at+1;
+  }
+  
+  // ensure there's at least a host
+  if(!strlen(encoded) || !isalnum(encoded[0])) return LOG("invalid host: '%s'",encoded);
+
+  // copy in host and parse hostname/port
+  if((at = strchr(encoded,'/')) || (at = strchr(encoded,'?')) || (at = strchr(encoded,'#')))
+  {
+    lob_set_len(uri, "host", 0, encoded, (size_t)(at - encoded));
+  }else{
+    lob_set_len(uri, "host", 0, encoded, strlen(encoded));
+  }
+
+  // TODO hostname+port
+
+  // optional path
+  if((at = strchr(encoded,'/')))
+  {
+    if((at = strchr(at+1,'?')) || (at = strchr(at+1,'#')))
+    {
+      lob_set_len(uri, "path", 0, encoded, (size_t)(at - encoded));
+    }else{
+      lob_set_len(uri, "path", 0, encoded, strlen(encoded));
+    }
+  }
+
+  // optional hash at the end
+  if((at = strchr(encoded,'#')))
+  {
+    lob_set_len(uri, "path", 0, at+1, strlen(at+1));
+  }
+
+  // optional query string
+  if((at = strchr(encoded,'?')))
+  {
+    uri->chain = lob_new();
+    encoded = at+1;
+    if((at = strchr(encoded,'#')))
+    {
+      klen = (size_t)(at - encoded);
+    }else{
+      klen = strlen(encoded);
+    }
+    while(klen)
+    {
+      // skip any separator
+      if(*encoded == '&')
+      {
+        encoded++;
+        klen--;
+      }
+      // require the equals
+      if(!(val = strchr(encoded,'='))) break;
+      val++;
+      if((at = strchr(val,'&')))
+      {
+        vlen = (size_t)(at - val);
+      }else{
+        vlen = strlen(val);
+      }
+      lob_set_len(uri->chain, encoded, (size_t)(val-encoded)-1, val, vlen);
+      // skip past whole block
+      klen -= (size_t)((val+vlen) - encoded);
+      encoded = val + vlen;
+    }
+  }
+
+  return uri;
 }
 
 // get keys from query
@@ -55,7 +143,6 @@ lob_t util_uri_format(lob_t uri)
 }
 
 /*
-// this is a very verbose/explicit single-pass telehash uri parser, no magic
 util_uri_t util_uri_new(char *encoded, char *protocol)
 {
   util_uri_t uri;

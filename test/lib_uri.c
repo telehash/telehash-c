@@ -5,11 +5,11 @@ int main(int argc, char **argv)
 {
   lob_t uri;
 
+  fail_unless((uri = util_uri_parse("foo://bar:1")));
+  fail_unless(util_cmp(lob_get(uri,"protocol"),"foo") == 0);
+  fail_unless(util_cmp(lob_get(uri,"host"),"bar:1") == 0);
+
   /*
-  fail_unless((uri = util_uri_new("foo://bar",NULL)));
-  fail_unless(util_cmp(uri->protocol,"foo") == 0);
-  fail_unless(util_uri_protocol(uri,"bar"));
-  fail_unless(util_cmp(uri->protocol,"bar") == 0);
   fail_unless(util_cmp(util_uri_encode(uri),"bar://bar/") == 0);
   fail_unless(util_uri_canonical(uri,"canon:42"));
   fail_unless(util_uri_token(uri,"token"));

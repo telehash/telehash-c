@@ -253,9 +253,14 @@ lob_t lob_set_uint(lob_t p, char *key, unsigned int val)
 
 lob_t lob_set(lob_t p, char *key, char *val)
 {
+  if(!val) return LOG("bad args");
+  return lob_set_len(p, key, 0, val, strlen(val));
+}
+
+lob_t lob_set_len(lob_t p, char *key, size_t klen, char *val, size_t vlen)
+{
   char *escaped;
   size_t i, len;
-  size_t vlen = strlen(val);
   if(!p || !key || !val) return LOG("bad args");
   // TODO escape key too
   if(!(escaped = malloc(vlen*2+2))) return LOG("OOM"); // enough space worst case
@@ -267,7 +272,7 @@ lob_t lob_set(lob_t p, char *key, char *val)
     escaped[len++]=val[i];
   }
   escaped[len++] = '"';
-  lob_set_raw(p, key, 0, escaped, len);
+  lob_set_raw(p, key, klen, escaped, len);
   free(escaped);
   return p;
 }
