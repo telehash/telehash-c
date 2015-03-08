@@ -40,7 +40,15 @@ lob_t util_uri_parse(char *encoded)
     lob_set_len(uri, "host", 0, encoded, strlen(encoded));
   }
 
-  // TODO hostname+port
+  // hostname+port
+  val = lob_get(uri, "host");
+  if(val && (at = strchr(val,':')))
+  {
+    lob_set_len(uri, "hostname", 0, val, (size_t)(at - val));
+    lob_set_uint(uri, "port", (uint16_t)strtoul(at+1,NULL,10));
+  }else{
+    lob_set(uri, "hostname", val);
+  }
 
   // optional path
   if((at = strchr(encoded,'/')))
@@ -100,13 +108,56 @@ lob_t util_uri_parse(char *encoded)
 // get keys from query
 lob_t util_uri_keys(lob_t uri)
 {
-  return NULL;
+  uint32_t i;
+  char *key, *value;
+  lob_t keys, query = lob_linked(uri);
+  if(!query) return NULL;
+  keys = lob_new();
+
+  // loop through all keyval pairs to find cs**
+  for(i=0;(key = lob_get_index(query,i));i+=2)
+  {
+    value = lob_get_index(query,i+1);
+    if(strlen(key) != 4 || strncmp(key,"cs",2) != 0 || !value) continue; // skip non-csid keys
+    lob_set_len(keys,key+2,2,value,strlen(value));
+  }
+  
+  return keys;
 }
 
 // get paths from host and query
 lob_t util_uri_paths(lob_t uri)
 {
-  return NULL;
+  uint32_t i;
+  uint16_t port;
+  char *key, *value;
+  lob_t paths, query = lob_linked(uri);
+  if(!query) return NULL;
+  paths = NULL;
+  
+  // gen paths from host/port
+  if((port = lob_get_uint(uri,"port")))
+  {
+    key = lob_get(uri,"host");
+    paths = lob_chain(paths);
+    lob_set(paths,"type","upd4");
+    lob_set(paths,"ip",key);
+    lob_set_uint(paths,"port",port);
+    paths = lob_chain(paths);
+    lob_set(paths,"type","tcp4");
+    lob_set(paths,"ip",key);
+    lob_set_uint(paths,"port",port);
+  }
+
+  // loop through all keyval pairs to find paths
+  for(i=0;(key = lob_get_index(query,i));i+=2)
+  {
+    value = lob_get_index(query,i+1);
+    if(util_cmp(key,"paths") != 0 || !value) continue;
+    
+  }
+  
+  return paths;
 }
 
 // validate any fragment from this peer
@@ -143,133 +194,6 @@ lob_t util_uri_format(lob_t uri)
 }
 
 /*
-util_uri_t util_uri_new(char *encoded, char *protocol)
-{
-  util_uri_t uri;
-  size_t plen, ulen, alen, klen, vlen;
-  char *at, *user = NULL, *address, *val;
-  char pdef[] = "link";
-
-  if(!encoded) return LOG("bad args");
-
-  // check for protocol:// prefix first
-  if(!(at = strstr(encoded,"://")))
-  {
-    if(!protocol) protocol = (char*)pdef; // default to "link://"
-    plen = strlen(protocol);
-  }else{
-    plen = (size_t)(at - encoded);
-    // enforce if specified
-    if(protocol && (plen != strlen(protocol) || strncmp(encoded,protocol,plen))) return LOG("protocol mismatch %s != %.*s",protocol,plen,encoded);
-    protocol = encoded;
-    encoded = at+3;
-  }
-  
-  // check for user@ prefix next
-  if((at = strchr(encoded,'@')))
-  {
-    ulen = (size_t)(at - encoded);
-    user = encoded;
-    if(!ulen || !islower(user[0])) return LOG("invalid user: '%.*s'",ulen,user);
-    // TODO decode optional .base32 alternative
-    encoded = at+1;
-  }else{
-    ulen = 0;
-  }
-  
-  address = encoded;
-  alen = strlen(address);
-
-  // ensure there's at least an address
-  if(!alen || !isalnum(address[0])) return LOG("invalid address: '%s'",address);
-
-  if(!(uri = malloc(sizeof(struct util_uri_struct)))) return LOG("OOM");
-  memset(uri,0,sizeof (struct util_uri_struct));
-
-  uri->protocol = strndup(protocol,plen);
-  if(ulen) uri->user = strndup(user,ulen);
-
-  // copy in canonical and parse address/port
-  if((at = strchr(encoded,'/')) || (at = strchr(encoded,'?')) || (at = strchr(encoded,'#')))
-  {
-    uri->canonical = strndup(encoded, (size_t)(at - encoded));
-  }else{
-    uri->canonical = strdup(encoded);
-  }
-  util_uri_canonical(uri,NULL);
-
-  // optional session
-  if((at = strchr(encoded,'/')))
-  {
-    encoded = at+1;
-    if((at = strchr(encoded,'?')) || (at = strchr(encoded,'#')))
-    {
-      uri->session = strndup(encoded, (size_t)(at - encoded));
-    }else{
-      uri->session = strdup(encoded);
-    }
-  }
-
-  // optional token at the end
-  if((at = strchr(encoded,'#')))
-  {
-    uri->token = strdup(at+1);
-  }
-
-  // optional keys query string
-  if((at = strchr(encoded,'?')))
-  {
-    uri->keys = lob_new();
-    encoded = at+1;
-    if((at = strchr(encoded,'#')))
-    {
-      klen = (size_t)(at - encoded);
-    }else{
-      klen = strlen(encoded);
-    }
-    while(klen)
-    {
-      // skip any separator
-      if(*encoded == '&')
-      {
-        encoded++;
-        klen--;
-      }
-      // require the equals
-      if(!(val = strchr(encoded,'='))) break;
-      val++;
-      if((at = strchr(val,'&')))
-      {
-        vlen = (size_t)(at - val);
-      }else{
-        vlen = strlen(val);
-      }
-      lob_set_raw(uri->keys, encoded, (size_t)(val-encoded)-1, val, vlen);
-      // skip past whole block
-      klen -= (size_t)((val+vlen) - encoded);
-      encoded = val + vlen;
-    }
-
-    // make sure at least one key/value was given
-    if(!lob_keys(uri->keys)) uri->keys = lob_free(uri->keys);
-  }
-
-  return uri;
-}
-
-util_uri_t util_uri_free(util_uri_t uri)
-{
-  if(!uri) return NULL;
-  free(uri->protocol);
-  free(uri->canonical);
-  free(uri->address);
-  if(uri->user) free(uri->user);
-  if(uri->session) free(uri->session);
-  if(uri->token) free(uri->token);
-  lob_free(uri->keys);
-  free(uri);
-  return NULL;
-}
 
 // produces string safe to use until next encode or free
 char *util_uri_encode(util_uri_t uri)

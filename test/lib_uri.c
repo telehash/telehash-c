@@ -5,9 +5,14 @@ int main(int argc, char **argv)
 {
   lob_t uri;
 
-  fail_unless((uri = util_uri_parse("foo://bar:1")));
+  fail_unless((uri = util_uri_parse("foo://bar:1?cs1a=foo")));
   fail_unless(util_cmp(lob_get(uri,"protocol"),"foo") == 0);
   fail_unless(util_cmp(lob_get(uri,"host"),"bar:1") == 0);
+  fail_unless(util_cmp(lob_get(uri,"hostname"),"bar") == 0);
+  fail_unless(lob_get_uint(uri,"port") == 1);
+  lob_t keys = util_uri_keys(uri);
+  fail_unless(keys);
+  fail_unless(util_cmp(lob_get(keys,"1a"),"foo") == 0);
 
   /*
   fail_unless(util_cmp(util_uri_encode(uri),"bar://bar/") == 0);
