@@ -89,28 +89,26 @@ lob_t mesh_generate(mesh_t mesh)
   return secrets;
 }
 
-// return the best current URI to this endpoint, optional override protocol
-char *mesh_uri(mesh_t mesh, char *protocol)
+// return the best current URI to this endpoint, optional base uri
+char *mesh_uri(mesh_t mesh, char *base)
 {
-  util_uri_t uri;
+  lob_t uri;
   if(!mesh) return LOG("bad args");
 
-  // load existing or create new
-  uri = (mesh->uri) ? util_uri_new(mesh->uri, protocol) : util_uri_new("127.0.0.1", protocol);
-  
-  // TODO don't override a router-provided base
+  // TODO use a router-provided base
+  uri = util_uri_parse(base?base:"link://127.0.0.1");
 
   // set best current values
-  util_uri_keys(uri, mesh->keys);
-  if(mesh->port_local) util_uri_port(uri, mesh->port_local);
-  if(mesh->port_public) util_uri_port(uri, mesh->port_public);
-  if(mesh->ipv4_local) util_uri_address(uri, mesh->ipv4_local);
-  if(mesh->ipv4_public) util_uri_address(uri, mesh->ipv4_public);
+  util_uri_add_keys(uri, mesh->keys);
+  if(mesh->port_local) lob_set_uint(uri, "port", mesh->port_local);
+  if(mesh->port_public) lob_set_uint(uri, "port", mesh->port_public);
+  if(mesh->ipv4_local) lob_set(uri, "hostname", mesh->ipv4_local);
+  if(mesh->ipv4_public) lob_set(uri, "hostname", mesh->ipv4_public);
 
   // save/return new encoded output
   if(mesh->uri) free(mesh->uri);
-  mesh->uri = strdup(util_uri_encode(uri));
-  util_uri_free(uri);
+  mesh->uri = strdup(util_uri_format(uri));
+  lob_free(uri);
   return mesh->uri;
 }
 
