@@ -54,6 +54,7 @@ char *lob_json(lob_t p);
 uint8_t *lob_head(lob_t p, uint8_t *head, size_t len);
 uint8_t *lob_body(lob_t p, uint8_t *body, size_t len);
 lob_t lob_append(lob_t p, uint8_t *chunk, size_t len);
+lob_t lob_append_str(lob_t p, char *chunk);
 
 // convenient json setters/getters, always return given lob so they're chainable
 lob_t lob_set_raw(lob_t p, char *key, size_t klen, char *val, size_t vlen); // raw

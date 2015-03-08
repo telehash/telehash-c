@@ -162,6 +162,12 @@ lob_t lob_append(lob_t p, uint8_t *chunk, size_t len)
   return p;
 }
 
+lob_t lob_append_str(lob_t p, char *chunk)
+{
+  if(!p || !chunk) return LOG("bad args");
+  return lob_append(p, (uint8_t*)chunk, strlen(chunk));
+}
+
 // TODO allow empty val to remove existing
 lob_t lob_set_raw(lob_t p, char *key, size_t klen, char *val, size_t vlen)
 {
