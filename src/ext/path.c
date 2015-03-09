@@ -1,5 +1,19 @@
 #include "ext.h"
 
+
+// new incoming path channel, set up handler
+lob_t path_on_open(link_t link, lob_t open)
+{
+  if(!link) return open;
+  if(lob_get_cmp(open,"type","path")) return open;
+  
+  LOG("incoming path channel open %s",lob_json(open));
+
+  return NULL;
+}
+
+/* TODO migrate upwards
+
 void path_sync(switch_t s, hashname_t hn)
 {
   // TODO use s->id->paths to send ours to hn, gather results to update best hn->out
@@ -31,3 +45,4 @@ void ext_path(chan_t c)
   }
   chan_end(c, NULL);
 }
+*/
