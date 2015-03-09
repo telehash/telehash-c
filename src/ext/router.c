@@ -1,6 +1,6 @@
 #include "ext.h"
 
-
+/*
 typedef struct seek_struct 
 {
   hashname_t id;
@@ -158,3 +158,4 @@ void seek_note(switch_t s, hashname_t h, lob_t note)
 {
   
 }
+*/
