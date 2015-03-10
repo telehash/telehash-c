@@ -15,6 +15,10 @@ static uint8_t status = 0;
 void link_check(link_t link)
 {
   status = link_up(link) ? 1 : 0;
+  if(status)
+  {
+    LOG("link is up");
+  }
 }
 
 int main(int argc, char *argv[])
@@ -40,7 +44,7 @@ int main(int argc, char *argv[])
   printf("%s\n",lob_json(id));
   fflush(stdout);
 
-  while(net_udp4_receive(udp4) && !status);
+  while(net_udp4_receive(udp4));
 
   return 0;
 }
