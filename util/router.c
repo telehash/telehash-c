@@ -9,6 +9,7 @@
 #include "util_unix.h"
 #include "net_udp4.h"
 #include "net_tcp4.h"
+#include "ext.h"
 
 int main(int argc, char *argv[])
 {
@@ -29,6 +30,7 @@ int main(int argc, char *argv[])
   mesh = mesh_new(0);
   mesh_load(mesh,lob_get_json(id,"secrets"),lob_get_json(id,"keys"));
   mesh_on_discover(mesh,"auto",mesh_add); // auto-link anyone
+  mesh_on_open(mesh,"path",path_on_open); // add path support
 
   options = lob_new();
   lob_set_int(options,"port",port);
