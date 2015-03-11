@@ -2,6 +2,14 @@
 #include "net_loopback.h"
 #include "unit_test.h"
 
+static uint8_t status = 0;
+
+void pong(link_t link, lob_t ping, void *arg)
+{
+  LOG("pong'd");
+  status = 1;
+}
+
 int main(int argc, char **argv)
 {
   mesh_t meshA = mesh_new(3);
@@ -31,6 +39,9 @@ int main(int argc, char **argv)
   lob_set(pingBA,"type","path");
   lob_set_uint(pingBA,"c",e3x_exchange_cid(linkBA->x, NULL));
   fail_unless(link_receive(linkAB, pingBA, NULL));
+
+  path_ping(linkBA, pong, NULL);
+  fail_unless(status);
 
   return 0;
 }

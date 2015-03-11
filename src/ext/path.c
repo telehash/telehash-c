@@ -33,7 +33,7 @@ void path_ping_handler(link_t link, e3x_channel_t chan, void *arg)
 }
 
 // send a path ping and get callback event
-link_t path_ping(link_t link, char *id, void (*pong)(link_t link, lob_t status, void *arg), void *arg)
+link_t path_ping(link_t link, void (*pong)(link_t link, lob_t status, void *arg), void *arg)
 {
   e3x_channel_t chan;
   lob_t open;
