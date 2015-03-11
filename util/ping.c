@@ -13,7 +13,7 @@ static uint8_t status = 0;
 
 void pong(link_t link, lob_t ping, void *arg)
 {
-  LOG("pong'd");
+  LOG("pong'd %s",lob_json(ping));
   status = 1;
 }
 
