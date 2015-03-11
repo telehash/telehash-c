@@ -25,4 +25,8 @@ void util_sort(void *base, unsigned int nel, unsigned int width, int (*comp)(voi
 // portable reallocf
 void *util_reallocf(void *ptr, size_t size);
 
+// get a "now" timestamp to do millisecond timers
+uint64_t util_at(void); // only pass at into _since()
+uint32_t util_since(uint64_t at); // get ms since the at
+
 #endif

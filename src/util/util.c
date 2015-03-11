@@ -146,3 +146,21 @@ void *util_reallocf(void *ptr, size_t size)
   free(ptr);
   return NULL;
 }
+
+uint64_t util_at(void)
+{
+  uint64_t at;
+  uint32_t *half = (uint32_t*)(&at);
+  
+  // store both current seconds and ms since then in one value
+  half[0] = util_sys_seconds();
+  half[1] = (uint32_t)util_sys_ms(half[0]);
+  
+  return at;
+}
+
+uint32_t util_since(uint64_t at)
+{
+  uint32_t *half = (uint32_t*)(&at);
+  return ((uint32_t)util_sys_ms(half[0]) - half[1]);
+}
