@@ -1,5 +1,61 @@
 #include "ext.h"
 
+// list of active pipes and state per link
+typedef struct ping_struct
+{
+  uint64_t at;
+  void (*pong)(link_t link, lob_t status, void *arg);
+  void *arg;
+} *ping_t;
+
+// handle incoming packets for the built-in stream channel
+void path_ping_handler(link_t link, e3x_channel_t chan, void *arg)
+{
+  lob_t packet;
+  ping_t ping = (ping_t)arg;
+  if(!link || !ping) return;
+
+  while((packet = e3x_channel_receiving(chan)))
+  {
+    LOG("response pong %s",lob_json(packet));
+    if(ping->pong)
+    {
+      lob_set_uint(packet,"rtt",util_since(ping->at));
+      ping->pong(link, packet, ping->arg);
+      ping->pong = NULL;
+    }
+    // TODO process incoming paths for public IPs
+    
+    lob_free(packet);
+  }
+  
+  if(e3x_channel_state(chan) == ENDED) free(ping);
+}
+
+// send a path ping and get callback event
+link_t path_ping(link_t link, char *id, void (*pong)(link_t link, lob_t status, void *arg), void *arg)
+{
+  e3x_channel_t chan;
+  lob_t open;
+  ping_t ping;
+
+  // ping tracker obj
+  if(!(ping = malloc(sizeof (struct ping_struct)))) return LOG("oom");
+  memset(ping,0,sizeof (struct ping_struct));
+  ping->pong = pong;
+  ping->arg = arg;
+  ping->at = util_at();
+
+  open = lob_new();
+  lob_set(open,"type","path");
+  // paths
+
+  // create new channel, set it up, then receive this open
+  chan = link_channel(link, open);
+  link_handle(link, chan, path_ping_handler, ping);
+  link_flush(link, chan, open);
+  return link;
+}
 
 // new incoming path channel, set up handler
 lob_t path_on_open(link_t link, lob_t open)
