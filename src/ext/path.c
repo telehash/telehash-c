@@ -4,10 +4,18 @@
 // new incoming path channel, set up handler
 lob_t path_on_open(link_t link, lob_t open)
 {
+  lob_t path, paths;
   if(!link) return open;
   if(lob_get_cmp(open,"type","path")) return open;
   
-  LOG("incoming path channel open %s",lob_json(open));
+  LOG("incoming path ping %s",lob_json(open));
+  
+  // load all incoming paths into link
+  for(paths = path = lob_get_array(open,"paths");path;path = lob_next(path)) link_path(link,path);
+  lob_free(paths);
+
+  // respond on all known pipes
+  // link_pipes iter
 
   return NULL;
 }
