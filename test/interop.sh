@@ -7,6 +7,7 @@ found="../../telehash-js/bin/link.js"
 if [ -f "$found" ]; then
   echo "node.js"
   ./bin/test_net_link | "$found"
+  ../bin/ping | "$found"
 else
   echo "skipping node.js"
 fi

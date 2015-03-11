@@ -43,11 +43,12 @@ CS_OBJFILES = $(patsubst %.c,%.o,$(CS))
 FULL_OBJFILES = $(LIB_OBJFILES) $(E3X_OBJFILES) $(MESH_OBJFILES) $(EXT_OBJFILES) $(NET_OBJFILES) $(UTIL_OBJFILES) $(CS_OBJFILES)
 
 IDGEN_OBJFILES = $(FULL_OBJFILES) util/idgen.o
-ROUTER_OBJFILES = $(FULL_OBJFILES) util/router.o src/ext/router.o
+ROUTER_OBJFILES = $(FULL_OBJFILES) util/router.o src/ext/router.o src/ext/path.o
+PING_OBJFILES = $(FULL_OBJFILES) util/ping.o src/ext/path.o
 
 HEADERS=$(wildcard include/*.h)
 
-all: idgen router static
+all: idgen router ping static
 	@echo "TODO\t`git grep TODO | wc -l | tr -d ' '`"
 
 deps: 
@@ -66,7 +67,7 @@ arduino: static
 	cp telehash.c arduino/src/telehash/
 	cp $(HEADERS) arduino/src/telehash/
 
-test: $(FULL_OBJFILES)
+test: $(FULL_OBJFILES) ping
 	cd test; $(MAKE) $(MFLAGS)
 
 %.o : %.c $(HEADERS)
@@ -75,8 +76,8 @@ test: $(FULL_OBJFILES)
 idgen: $(IDGEN_OBJFILES)
 	$(CC) $(CFLAGS) -o bin/idgen $(IDGEN_OBJFILES) $(LDFLAGS) 
 
-#ping:
-#	$(CC) $(CFLAGS) -o bin/ping util/ping.c src/*.c unix/util.c $(ARCH)
+ping: $(PING_OBJFILES)
+	$(CC) $(CFLAGS) -o bin/ping $(PING_OBJFILES) $(LDFLAGS) 
 
 router: $(ROUTER_OBJFILES)
 	$(CC) $(CFLAGS) -o bin/router $(ROUTER_OBJFILES) $(LDFLAGS) 

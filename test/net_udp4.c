@@ -18,6 +18,7 @@ int main(int argc, char **argv)
   fail_unless(netA);
   fail_unless(netA->port > 0);
   fail_unless(netA->path);
+  fail_unless(lob_match(meshA->paths,"type","udp4"));
   LOG("netA %.*s",netA->path->head_len,netA->path->head);
 
   net_udp4_t netB = net_udp4_new(meshB, NULL);

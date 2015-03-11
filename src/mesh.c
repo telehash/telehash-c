@@ -58,6 +58,7 @@ mesh_t mesh_free(mesh_t mesh)
 
   xht_free(mesh->index);
   lob_free(mesh->keys);
+  lob_free(mesh->paths);
   e3x_self_free(mesh->self);
   if(mesh->uri) free(mesh->uri);
   if(mesh->ipv4_local) free(mesh->ipv4_local);
@@ -110,6 +111,37 @@ char *mesh_uri(mesh_t mesh, char *base)
   mesh->uri = strdup(util_uri_format(uri));
   lob_free(uri);
   return mesh->uri;
+}
+
+// generate json of mesh keys and current paths
+lob_t mesh_json(mesh_t mesh)
+{
+  size_t len = 3; // []\0
+  char *paths;
+  lob_t json, path;
+  if(!mesh) return LOG("bad args");
+
+  json = lob_new();
+  lob_set(json,"hashname",mesh->id->hashname);
+  lob_set_raw(json,"keys",0,(char*)mesh->keys->head,mesh->keys->head_len);
+
+  paths = malloc(len);
+  sprintf(paths,"[");
+  for(path = mesh->paths;path;path = lob_next(path))
+  {
+    len += path->head_len+1;
+    paths = realloc(paths, len);
+    sprintf(paths+strlen(paths),"%.*s,",(int)path->head_len,path->head);
+  }
+  if(len == 3)
+  {
+    sprintf(paths+strlen(paths),"]");
+  }else{
+    sprintf(paths+(strlen(paths)-1),"]");
+  }
+  lob_set_raw(json,"paths",0,paths,strlen(paths));
+  free(paths);
+  return json;
 }
 
 link_t mesh_add(mesh_t mesh, lob_t json, pipe_t pipe)

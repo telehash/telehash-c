@@ -39,6 +39,9 @@ pipe_t link_path(link_t link, lob_t path);
 // just add a pipe directly
 link_t link_pipe(link_t link, pipe_t pipe);
 
+// iterate through existing pipes for a link
+pipe_t link_pipes(link_t link, pipe_t after);
+
 // add a custom outgoing handshake packet for this link
 link_t link_handshake(link_t link, lob_t handshake);
 
@@ -68,6 +71,9 @@ link_t link_handle(link_t link, e3x_channel_t c3, void (*handle)(link_t link, e3
 
 // encrpt and send any outgoing packets for this channel, send the inner if given
 link_t link_flush(link_t link, e3x_channel_t c3, lob_t inner);
+
+// encrpt and send this one packet on this pipe
+link_t link_direct(link_t link, lob_t inner, pipe_t pipe);
 
 
 #endif

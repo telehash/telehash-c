@@ -201,6 +201,22 @@ link_t link_pipe(link_t link, pipe_t pipe)
   return link_sync(link);
 }
 
+// iterate through existing pipes for a link
+pipe_t link_pipes(link_t link, pipe_t after)
+{
+  seen_t seen;
+  if(!link) return LOG("bad args");
+
+  // see if we've seen it already
+  for(seen = link->pipes; seen; seen = seen->next)
+  {
+    if(!after) return seen->pipe;
+    if(after == seen->pipe) after = NULL;
+  }
+  
+  return NULL;
+}
+
 // is the link ready/available
 link_t link_up(link_t link)
 {
@@ -413,5 +429,16 @@ link_t link_flush(link_t link, e3x_channel_t c3, lob_t inner)
   
   // TODO if channel is now ended, remove from link->index
 
+  return link;
+}
+
+// encrpt and send this one packet on this pipe
+link_t link_direct(link_t link, lob_t inner, pipe_t pipe)
+{
+  if(!link || !inner) return LOG("bad args");
+  if(!pipe && (!link->pipes || !(pipe = link->pipes->pipe))) return LOG("no network");
+
+  pipe->send(pipe, e3x_exchange_send(link->x, inner), link);
+  
   return link;
 }

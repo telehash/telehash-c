@@ -1,140 +1,56 @@
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netdb.h>
 
-#include "switch.h"
-#include "util.h"
+#include "mesh.h"
+#include "net_udp4.h"
 #include "ext.h"
-#include "util_unix.h"
-#include "crypt.h"
 
-int main(void)
+static uint8_t status = 0;
+
+void pong(link_t link, lob_t ping, void *arg)
 {
-  unsigned char buf[2048];
-  switch_t s;
-  bucket_t seeds;
-  chan_t c, c2;
-  lob_t p;
-  path_t from;
-  int sock, len, blen;
-  struct	sockaddr_in sad, sa;
+  LOG("pong'd %s",lob_json(ping));
+  status = 1;
+}
 
-  crypt_init();
-  s = switch_new(0);
-
-  switch_init(s,util_file2packet("id.json"));
-  if(!s->id)
+// ping as soon as the link is up
+void link_check(link_t link)
+{
+  if(link_up(link))
   {
-    printf("failed to load id.json: %s\n", crypt_err());
-    return -1;
+    LOG("link is up, pinging");
+    path_ping(link,pong,NULL);
   }
-  printf("loaded hashname %s\n",s->id->hexname);
+}
 
-  seeds = bucket_load(s->index, "seeds.json");
-  if(!seeds || !bucket_get(seeds, 0))
-  {
-    printf("failed to load seeds.json: %s\n", crypt_err());
-    return -1;
-  }
+int main(int argc, char *argv[])
+{
+  lob_t id;
+  mesh_t mesh;
+  net_udp4_t udp4;
+  char *paths;
 
-  // create a udp socket
-  if( (sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP) ) < 0 )
-  {
-	  printf("failed to create socket\n");
-	  return -1;
-  }
-  memset((char *)&sad,0,sizeof(sad));
-  memset((char *)&sa,0,sizeof(sa));
-  sa.sin_family = sad.sin_family = AF_INET;
-  sad.sin_port = htons(0);
-  sad.sin_addr.s_addr = htonl(INADDR_ANY);
-  if (bind (sock, (struct sockaddr *)&sad, sizeof(sad)) < 0)
-  {
-	  printf("bind failed");
-	  return -1;
-  }
+  mesh = mesh_new(0);
+  mesh_generate(mesh);
+  mesh_on_discover(mesh,"auto",mesh_add); // accept anyone
+  mesh_on_link(mesh, "test", link_check); // testing the event being triggered
+  status = 0;
 
-  // create/send a ping packet  
-  c = chan_new(s, bucket_get(seeds, 0), "seek", 0);
-  p = chan_packet(c);
-  lob_set_str(p,"seek",s->id->hexname);  
-  chan_send(c, p);
+  udp4 = net_udp4_new(mesh, NULL);
 
-  while((p = switch_sending(s)))
-  {
-    if(util_cmp(p->out->type,"ipv4")!=0)
-    {
-      lob_free(p);
-      continue;
-    }
-    printf("sending %s packet %d %s\n",p->json_len?"open":"line",lob_len(p),path_json(p->out));
-    path2sa(p->out, &sa);
-    if(sendto(sock, lob_raw(p), lob_len(p), 0, (struct sockaddr *)&sa, sizeof(sa))==-1)
-    {
-  	  printf("sendto failed\n");
-  	  return -1;
-    }
-    lob_free(p);
-  }
-  
-  from = path_new("ipv4");
-  len = sizeof(sa);
-  if ((blen = recvfrom(sock, buf, sizeof(buf), 0, (struct sockaddr *)&sa, (socklen_t *)&len)) == -1)
-  {
-	  printf("recvfrom failed\n");
-	  return -1;
-  }
-  sa2path(&sa, from); // inits ip/port from sa
-  p = lob_parse(buf,blen);
-  printf("received %s packet %d %s\n", p->json_len?"open":"line", blen, path_json(from));
-  switch_receive(s,p,from);
+  id = lob_new();
+  lob_set_raw(id,"keys",0,(char*)mesh->keys->head,mesh->keys->head_len);
+  paths = malloc(udp4->path->head_len+2);
+  sprintf(paths,"[%s]",lob_json(udp4->path));
+  lob_set_raw(id,"paths",0,paths,udp4->path->head_len+2);
+  printf("%s\n",lob_json(id));
+  fflush(stdout);
 
-  while((p = switch_sending(s)))
-  {
-    if(util_cmp(p->out->type,"ipv4")!=0)
-    {
-      lob_free(p);
-      continue;
-    }
-    printf("Sending %s packet %d %s\n",p->json_len?"open":"line",lob_len(p),path_json(p->out));
-    path2sa(p->out, &sa);
-    if(sendto(sock, lob_raw(p), lob_len(p), 0, (struct sockaddr *)&sa, sizeof(sa))==-1)
-    {
-  	  printf("sendto failed\n");
-  	  return -1;
-    }
-    lob_free(p);
-  }
-
-  from = path_new("ipv4");
-  len = sizeof(sa);
-  while((blen = recvfrom(sock, buf, sizeof(buf), 0, (struct sockaddr *)&sa, (socklen_t *)&len)) != -1)
-  {
-    sa2path(&sa, from); // inits ip/port from sa
-    p = lob_parse(buf,blen);
-    printf("Received %s packet %d %s\n", p->json_len?"open":"line", blen, path_json(from));
-    switch_receive(s,p,from);
-  
-    while((c2 = switch_pop(s)))
-    {
-      if(c2 == c)
-      {
-        printf("got pong state %d from %s see %s\n",c->ended,c->to->hexname,lob_get_str(chan_pop(c),"see"));
-        return 0;
-      }
-      while((p = chan_pop(c)))
-      {
-        printf("unhandled channel packet %.*s\n", p->json_len, p->json);      
-        lob_free(p);
-      }
-    }
-  }
-  printf("recvfrom failed\n");
-  return -1;
-
-
+  while(net_udp4_receive(udp4) && !status);
 
   return 0;
 }

@@ -672,3 +672,8 @@ lob_t lob_match(lob_t list, char *key, char *value)
   return lob_match(list->next,key,value);
 }
 
+lob_t lob_next(lob_t list)
+{
+  if(!list) return NULL;
+  return list->next;
+}
