@@ -12,13 +12,11 @@
 
 int main(int argc, char *argv[])
 {
-  lob_t id, options;
+  lob_t id, options, json;
   mesh_t mesh;
   net_udp4_t udp4;
   net_tcp4_t tcp4;
-  char *paths;
   int port = 0;
-  size_t len;
 
   if(argc==2)
   {
@@ -40,11 +38,8 @@ int main(int argc, char *argv[])
 
   tcp4 = net_tcp4_new(mesh, options);
 
-  len = strlen(lob_json(udp4->path))+strlen(lob_json(tcp4->path))+3;
-  paths = malloc(len+1);
-  sprintf(paths,"[%s,%s]",lob_json(udp4->path),lob_json(tcp4->path));
-  lob_set_raw(id,"paths",0,paths,len);
-  printf("%s\n",lob_json(id));
+  json = mesh_json(mesh);
+  printf("%s\n",lob_json(json));
   printf("%s\n",mesh_uri(mesh, NULL));
 
   while(net_udp4_receive(udp4) && net_tcp4_loop(tcp4));

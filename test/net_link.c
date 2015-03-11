@@ -33,11 +33,7 @@ int main(int argc, char *argv[])
 
   udp4 = net_udp4_new(mesh, NULL);
 
-  id = lob_new();
-  fail_unless(lob_set_raw(id,"keys",0,(char*)mesh->keys->head,mesh->keys->head_len));
-  paths = malloc(udp4->path->head_len+2);
-  sprintf(paths,"[%s]",lob_json(udp4->path));
-  lob_set_raw(id,"paths",0,paths,udp4->path->head_len+2);
+  id = mesh_json(mesh);
   printf("%s\n",lob_json(id));
   fflush(stdout);
 
