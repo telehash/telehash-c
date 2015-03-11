@@ -201,6 +201,22 @@ link_t link_pipe(link_t link, pipe_t pipe)
   return link_sync(link);
 }
 
+// iterate through existing pipes for a link
+pipe_t link_pipes(link_t link, pipe_t after)
+{
+  seen_t seen;
+  if(!link) return LOG("bad args");
+
+  // see if we've seen it already
+  for(seen = link->pipes; seen; seen = seen->next)
+  {
+    if(!after) return seen->pipe;
+    if(after == seen->pipe) after = NULL;
+  }
+  
+  return NULL;
+}
+
 // is the link ready/available
 link_t link_up(link_t link)
 {

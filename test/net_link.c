@@ -23,7 +23,6 @@ int main(int argc, char *argv[])
   lob_t id;
   mesh_t mesh;
   net_udp4_t udp4;
-  char *paths;
 
   mesh = mesh_new(0);
   fail_unless(mesh_generate(mesh));

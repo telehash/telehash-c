@@ -39,6 +39,9 @@ pipe_t link_path(link_t link, lob_t path);
 // just add a pipe directly
 link_t link_pipe(link_t link, pipe_t pipe);
 
+// iterate through existing pipes for a link
+pipe_t link_pipes(link_t link, pipe_t after);
+
 // add a custom outgoing handshake packet for this link
 link_t link_handshake(link_t link, lob_t handshake);
 
