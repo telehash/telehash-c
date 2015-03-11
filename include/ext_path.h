@@ -3,6 +3,6 @@
 
 #include "ext.h"
 
-void ext_path(chan_t c);
+lob_t path_on_open(link_t link, lob_t open);
 
 #endif
