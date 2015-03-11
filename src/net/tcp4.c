@@ -207,6 +207,7 @@ net_tcp4_t net_tcp4_new(mesh_t mesh, lob_t options)
   lob_set(net->path,"type","tcp4");
   lob_set(net->path,"ip","127.0.0.1");
   lob_set_int(net->path,"port",net->port);
+  mesh->paths = lob_push(mesh->paths, net->path);
 
   return net;
 }
@@ -216,7 +217,7 @@ void net_tcp4_free(net_tcp4_t net)
   if(!net) return;
   close(net->server);
   xht_free(net->pipes);
-  lob_free(net->path);
+//  lob_free(net->path); // managed by mesh->paths
   free(net);
   return;
 }
