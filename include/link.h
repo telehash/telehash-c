@@ -72,5 +72,8 @@ link_t link_handle(link_t link, e3x_channel_t c3, void (*handle)(link_t link, e3
 // encrpt and send any outgoing packets for this channel, send the inner if given
 link_t link_flush(link_t link, e3x_channel_t c3, lob_t inner);
 
+// encrpt and send this one packet on this pipe
+link_t link_direct(link_t link, lob_t inner, pipe_t pipe);
+
 
 #endif
