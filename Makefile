@@ -67,7 +67,7 @@ arduino: static
 	cp telehash.c arduino/src/telehash/
 	cp $(HEADERS) arduino/src/telehash/
 
-test: $(FULL_OBJFILES)
+test: $(FULL_OBJFILES) ping
 	cd test; $(MAKE) $(MFLAGS)
 
 %.o : %.c $(HEADERS)
