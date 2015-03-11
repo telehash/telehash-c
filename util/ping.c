@@ -11,13 +11,19 @@
 
 static uint8_t status = 0;
 
-// exit as soon as the link is up
+void pong(link_t link, lob_t ping, void *arg)
+{
+  LOG("pong'd");
+  status = 1;
+}
+
+// ping as soon as the link is up
 void link_check(link_t link)
 {
-  status = link_up(link) ? 1 : 0;
-  if(status)
+  if(link_up(link))
   {
-    LOG("link is up");
+    LOG("link is up, pinging");
+    path_ping(link,pong,NULL);
   }
 }
 
@@ -44,7 +50,7 @@ int main(int argc, char *argv[])
   printf("%s\n",lob_json(id));
   fflush(stdout);
 
-  while(net_udp4_receive(udp4));
+  while(net_udp4_receive(udp4) && !status);
 
   return 0;
 }
