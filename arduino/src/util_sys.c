@@ -35,6 +35,7 @@ void util_sys_logging(int enabled)
   LOG("debug output enabled");
 }
 
+/*
 void *util_sys_log(const char *file, int line, const char *function, const char * format, ...)
 {
     char buffer[256];
@@ -42,7 +43,8 @@ void *util_sys_log(const char *file, int line, const char *function, const char 
     if(!_debugging) return NULL;
     va_start (args, format);
     vsnprintf (buffer, 256, format, args);
-    println(buffer);
+    speol(buffer);
     va_end (args);
     return NULL;
 }
+*/

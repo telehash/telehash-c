@@ -65,6 +65,8 @@ libtelehash: $(FULL_OBJFILES)
 
 arduino: static
 	cp telehash.c arduino/src/telehash/
+	@cat src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c >> arduino/src/telehash/telehash.c
+	cp src/e3x/cs1a/cs1a.c arduino/src/cs1a/
 	cp $(HEADERS) arduino/src/telehash/
 
 test: $(FULL_OBJFILES) ping
