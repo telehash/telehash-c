@@ -49,6 +49,9 @@ int main(int argc, char **argv)
   fail_unless(state == 2);
   
   net_udp4_receive(netA);
+  net_udp4_receive(netB);
+  net_udp4_receive(netB);
+  net_udp4_receive(netA);
   fail_unless(link_up(linkAB));
 
 //  fail_unless(link_up(linkBA));
