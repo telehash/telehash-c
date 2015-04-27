@@ -26,33 +26,50 @@ int RNG(uint8_t *p_dest, unsigned p_size)
 }
 
 
+static uint8_t status = 0;
+
+void pong(link_t link, lob_t ping, void *arg)
+{
+  LOG("pong'd %s",lob_json(ping));
+  status = 1;
+}
+
+// ping as soon as the link is up
+void link_check(link_t link)
+{
+  if(link_up(link))
+  {
+    LOG("link is up, pinging");
+//    path_ping(link,pong,NULL);
+  }
+}
+
+mesh_t mesh;
+
 void setup() {
   lob_t keys, secrets, options, json;
   hashname_t id;
 
+  randomSeed(analogRead(0));
   Serial.begin(115200);
+  speol("init");
+
   options = lob_new();
   if(e3x_init(options))
   {
     LOG("e3x init failed: %s",lob_get(options,"err"));
     return;
   }
+  
+  LOG("*** generating mesh ***");
 
-  LOG("*** generating keys ***");
-  secrets = e3x_generate();
-  keys = lob_linked(secrets);
-  if(!keys)
-  {
-    LOG("keygen failed: %s",e3x_err());
-    return;
-  }
-  id = hashname_keys(keys);
-  json = lob_new();
-  lob_set(json,"hashname",id->hashname);
-  lob_set_raw(json,"keys",0,(char*)keys->head,keys->head_len);
-  lob_set_raw(json,"secrets",0,(char*)secrets->head,secrets->head_len);
-  speol(lob_json(json));
+  mesh = mesh_new(11);
+  mesh_generate(mesh);
+  mesh_on_discover(mesh,"auto",mesh_add); // accept anyone
+  mesh_on_link(mesh, "test", link_check); // testing the event being triggered
+  status = 0;
 
+  LOG("%s",lob_json(mesh_json(mesh)));
 }
 
 
