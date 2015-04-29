@@ -1,81 +1,74 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "net_serial.h"
 
+
+// individual pipe local info
+typedef struct pipe_serial_struct
+{
+  int (*read)(void);
+  int (*write)(uint8_t *buf, size_t len);
+  net_serial_t net;
+  util_chunks_t chunks;
+} *pipe_serial_t;
 
 // do all chunk/socket stuff
 pipe_t serial_flush(pipe_t pipe)
 {
-  /*
-  ssize_t len;
+  size_t len;
   lob_t packet;
   uint8_t buf[256];
-  pipe_serial_t to = serial_to(pipe);
-  if(!to) return NULL;
+  pipe_serial_t to;
+  if(!pipe || !(to = (pipe_serial_t)pipe->arg)) return NULL;
 
   if(util_chunks_len(to->chunks))
   {
-    while((len = write(to->client, util_chunks_write(to->chunks), util_chunks_len(to->chunks))) > 0)
+    while((len = to->write(util_chunks_write(to->chunks), util_chunks_len(to->chunks))) > 0)
     {
       LOG("wrote %d bytes to %s",len,pipe->id);
-      util_chunks_written(to->chunks, (size_t)len);
+      util_chunks_written(to->chunks, len);
     }
   }
 
-  while((len = read(to->client, buf, 256)) > 0)
+  while((len = to->read()) > 0)
   {
     LOG("reading %d bytes from %s",len,pipe->id);
-    util_chunks_read(to->chunks, buf, (size_t)len);
+    util_chunks_read(to->chunks, buf, len);
   }
 
   // any incoming full packets can be received
   while((packet = util_chunks_receive(to->chunks))) mesh_receive(to->net->mesh, packet, pipe);
 
-  if(len < 0 && errno != EWOULDBLOCK && errno != EINPROGRESS)
-  {
-    LOG("socket error to %s: %s",pipe->id,strerror(errno));
-    close(to->client);
-    to->client = 0;
-  }
-
   return pipe;
-  */
-  return NULL;
 }
 
 // chunkize a packet
 void serial_send(pipe_t pipe, lob_t packet, link_t link)
 {
-  /*
-  pipe_serial_t to = serial_to(pipe);
-  if(!to || !packet || !link) return;
+  pipe_serial_t to;
+  if(!pipe || !packet || !link || !(to = (pipe_serial_t)pipe->arg)) return;
 
   util_chunks_send(to->chunks, packet);
   serial_flush(pipe);
-  */
 }
 
-pipe_t serial_free(pipe_t pipe)
-{
-  /*
-  pipe_serial_t to;
-  if(!pipe) return NULL;
-  to = (pipe_serial_t)pipe->arg;
-  if(!to) return LOG("internal error, invalid pipe, leaking it");
 
-  xht_set(to->net->pipes,pipe->id,NULL);
-  pipe_free(pipe);
-  if(to->client > 0) close(to->client);
-  util_chunks_free(to->chunks);
-  free(to);
-  */
-  return NULL;
-}
-
-// internal, get or create a pipe
-pipe_t serial_pipe(net_serial_t net)
+pipe_t serial_path(link_t link, lob_t path)
 {
+  net_serial_t net;
   pipe_t pipe = NULL;
-  /*
   pipe_serial_t to;
+
+  // just sanity check the path first
+  if(!link || !path) return NULL;
+  if(!(net = xht_get(link->mesh->index, "net_serial"))) return NULL;
+  if(util_cmp("serial",lob_get(path,"type"))) return NULL;
+
+  /*
+  if(!(ip = lob_get(path,"ip"))) return LOG("missing ip");
+  if((port = lob_get_int(path,"port")) <= 0) return LOG("missing port");
+  
   char id[23];
 
   snprintf(id,23,"%s:%d",ip,port);
@@ -101,32 +94,12 @@ pipe_t serial_pipe(net_serial_t net)
   return pipe;
 }
 
-
-pipe_t serial_path(link_t link, lob_t path)
-{
-  net_serial_t net;
-  char *ip;
-  int port;
-
-  /*
-  // just sanity check the path first
-  if(!link || !path) return NULL;
-  if(!(net = xht_get(link->mesh->index, "net_serial"))) return NULL;
-  if(util_cmp("serial",lob_get(path,"type"))) return NULL;
-  if(!(ip = lob_get(path,"ip"))) return LOG("missing ip");
-  if((port = lob_get_int(path,"port")) <= 0) return LOG("missing port");
-  */
-  return serial_pipe(net);
-}
-
-net_serial_t net_serial_new(mesh_t mesh, int (*read)(void), int (*write)(uint8_t *buf, size_t len))
+net_serial_t net_serial_new(mesh_t mesh, lob_t options)
 {
   net_serial_t net = NULL;
-  return net;
   /*
   int port, sock, opt = 1;
   unsigned int pipes;
-  net_serial_t net;
   struct sockaddr_in sa;
   socklen_t size = sizeof(struct sockaddr_in);
   
@@ -164,45 +137,27 @@ net_serial_t net_serial_new(mesh_t mesh, int (*read)(void), int (*write)(uint8_t
   lob_set(net->path,"ip","127.0.0.1");
   lob_set_int(net->path,"port",net->port);
   mesh->paths = lob_push(mesh->paths, net->path);
-
-  return net;
   */
+  return net;
 }
 
 void net_serial_free(net_serial_t net)
 {
   if(!net) return;
-//  lob_free(net->path); // managed by mesh->paths
+  xht_free(net->pipes);
   free(net);
   return;
 }
 
-// process any new incoming connections
-void net_serial_accept(net_serial_t net)
+
+// check a single pipe's socket for any read/write activity
+static void _walkflush(xht_t h, const char *key, void *val, void *arg)
 {
-  /*
-  struct sockaddr_in addr;
-  int client;
-  pipe_t pipe;
-  pipe_serial_t to;
-  socklen_t size = sizeof(struct sockaddr_in);
-
-  while((client = accept(net->server, (struct sockaddr *)&addr,&size)) > 0)
-  {
-    fcntl(client, F_SETFL, O_NONBLOCK);
-    if(!(pipe = serial_pipe(net, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port)))) continue;
-    LOG("incoming connection from %s",pipe->id);
-    to = (pipe_serial_t)pipe->arg;
-    if(to->client > 0) close(to->client);
-    to->client = client;
-  }
-*/
+  serial_flush((pipe_t)val);
 }
-
 
 net_serial_t net_serial_loop(net_serial_t net)
 {
-  net_serial_accept(net);
-  serial_flush(NULL);
+  xht_walk(net->pipes, _walkflush, NULL);
   return net;
 }
