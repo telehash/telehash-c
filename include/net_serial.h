@@ -1,6 +1,10 @@
 #ifndef net_serial_h
 #define net_serial_h
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -22,5 +26,9 @@ net_serial_t net_serial_add(mesh_t mesh, const char *name, int (*read)(void), in
 
 // check all pipes for data
 net_serial_t net_serial_loop(net_serial_t net);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -58,7 +58,7 @@ pipe_t serial_path(link_t link, lob_t path)
 {
   net_serial_t net;
   pipe_t pipe = NULL;
-  pipe_serial_t to;
+//  pipe_serial_t to;
 
   // just sanity check the path first
   if(!link || !path) return NULL;
