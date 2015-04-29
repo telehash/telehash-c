@@ -2,7 +2,7 @@
 #include <AESLib.h>
 #include <cs1a/cs1a.h>
 #include <telehash.h>
-#include <net_serial.h>
+#include <telehash/net_serial.h>
 
 #define sp Serial.print
 #define speol Serial.println
@@ -70,7 +70,7 @@ void setup() {
   mesh_on_discover(mesh,"auto",mesh_add); // accept anyone
   mesh_on_link(mesh, "test", link_check); // testing the event being triggered
   status = 0;
-//  net = net_serial_new(mesh, NULL, NULL);
+  net = net_serial_new(mesh, NULL);
 
   LOG("%s",lob_json(mesh_json(mesh)));
 }
