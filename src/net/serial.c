@@ -17,14 +17,15 @@ typedef struct pipe_serial_struct
 pipe_t serial_flush(pipe_t pipe)
 {
   int ret, count;
+  uint8_t *out, len;
   lob_t packet;
   uint8_t c1;
   pipe_serial_t to;
   if(!pipe || !(to = (pipe_serial_t)pipe->arg)) return NULL;
 
-  if(util_chunks_len(to->chunks))
+  if((out = util_chunks_out(to->chunks, &len)))
   {
-    while((ret = to->write(util_chunks_write(to->chunks), util_chunks_len(to->chunks))) > 0)
+    if((ret = to->write(out, len)) > 0)
     {
       LOG("wrote %d bytes to %s",ret,pipe->id);
       util_chunks_written(to->chunks, ret);
