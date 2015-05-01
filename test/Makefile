@@ -54,7 +54,9 @@ FULL_OBJFILES = $(LIB_OBJFILES) $(E3X_OBJFILES) $(MESH_OBJFILES) $(EXT_OBJFILES)
 
 all: test
 
-test: tests test-interop net_slink.o
+test: test-slink tests test-interop
+
+test-slink: net_slink.o bin/test_net_slink
 
 test-interop: net_link.o bin/test_net_link
 	@if ./interop.sh ; then \

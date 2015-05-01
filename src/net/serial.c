@@ -23,15 +23,6 @@ pipe_t serial_flush(pipe_t pipe)
   pipe_serial_t to;
   if(!pipe || !(to = (pipe_serial_t)pipe->arg)) return NULL;
 
-  if((out = util_chunks_out(to->chunks, &len)))
-  {
-    if((ret = to->write(out, len)) > 0)
-    {
-      LOG("wrote %d bytes to %s",ret,pipe->id);
-      util_chunks_written(to->chunks, ret);
-    }
-  }
-
   count = 0;
   while((ret = to->read()) >= 0)
   {
@@ -43,6 +34,21 @@ pipe_t serial_flush(pipe_t pipe)
 
   // any incoming full packets can be received
   while((packet = util_chunks_receive(to->chunks))) mesh_receive(to->net->mesh, packet, pipe);
+
+  // write the next waiting chunk
+  if((out = util_chunks_out(to->chunks, &len)))
+  {
+    if((ret = to->write(out, len)) == len)
+    {
+      LOG("wrote %d size chunk to %s",ret,pipe->id);
+      // blocks till next incoming chunk is read before sending more
+    }else{
+      LOG("chunk write failed, %d != %d",ret,len);
+      // TODO, write a full chunk of zeros to clear any line errors and reset state?
+      util_chunks_next(to->chunks);
+    }
+  }
+
 
   return pipe;
 }

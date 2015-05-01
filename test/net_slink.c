@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include "mesh.h"
 #include "net_serial.h"
@@ -43,8 +44,11 @@ int main(int argc, char *argv[])
   s = net_serial_new(mesh, NULL);
   net_serial_add(s, "stdout", reader, writer, 64);
 
+  fcntl(0, F_SETFL, fcntl(0, F_GETFL) | O_NONBLOCK); // nonblocking reads
   setvbuf(stdout, NULL, _IONBF, 0); // no buffering
   net_serial_send(s, "stdout", mesh_json(mesh));
+
+  LOG("entering loop");
 
   while(net_serial_loop(s) && !status);
 
