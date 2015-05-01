@@ -21,12 +21,12 @@ util_chunks_t util_chunks_send(util_chunks_t chunks, lob_t out);
 lob_t util_chunks_receive(util_chunks_t chunks);
 
 
-////// these are for sending on a transport that is message/frame based
+////// these are for sending on a transport that is message/frame based, always read first before writing to prevent deadlocks
 
 // get the next chunk, put its length in len
 uint8_t *util_chunks_out(util_chunks_t chunks, uint8_t *len);
 
-// advances to the next outgoing chunk
+// manually advances to the next outgoing chunk
 util_chunks_t util_chunks_next(util_chunks_t chunks);
 
 // process an incoming individual chunk

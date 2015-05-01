@@ -7,7 +7,7 @@
 
 struct util_chunks_struct
 {
-  uint8_t space, cloak;
+  uint8_t space, cloak, blocked;
 
   uint8_t *writing;
   uint32_t writelen, writeat;
@@ -21,6 +21,7 @@ util_chunks_t util_chunks_new(uint8_t size)
   util_chunks_t chunks;
   if(!(chunks = malloc(sizeof (struct util_chunks_struct)))) return LOG("OOM");
   memset(chunks,0,sizeof (struct util_chunks_struct));
+  chunks->blocked = 0;
 
   if(!size)
   {
@@ -152,13 +153,14 @@ uint8_t *util_chunks_out(util_chunks_t chunks, uint8_t *len)
 {
   uint8_t *ret;
   if(!chunks || !len) return NULL;
+  len[0] = 0;
   if(!_util_chunks_gc(chunks)) return NULL; // try to clean up any done chunks
 
-  if(chunks->writeat == chunks->writelen)
-  {
-    len[0] = 0;
-    return NULL;
-  }
+  // blocked
+  if(chunks->blocked) return NULL;
+
+  // at the end
+  if(chunks->writeat == chunks->writelen) return NULL;
   
   // next chunk body+len
   len[0] = chunks->writing[chunks->writeat] + 1;
@@ -168,7 +170,15 @@ uint8_t *util_chunks_out(util_chunks_t chunks, uint8_t *len)
 
   ret = chunks->writing+chunks->writeat;
   chunks->writeat += len[0];
+  chunks->blocked = 1; // block until cleared
   return ret;
+}
+
+// clears out block
+util_chunks_t util_chunks_next(util_chunks_t chunks)
+{
+  if(chunks) chunks->blocked = 0;
+  return chunks;
 }
 
 // internal to append read data
@@ -227,9 +237,12 @@ util_chunks_t util_chunks_read(util_chunks_t chunks, uint8_t *block, size_t len)
 
   // unchanged
   if(good == chunks->readat) return NULL;
+  
+  // implicitly unblock after any full read chunk
+  util_chunks_next(chunks);
 
-  // there's already response data waiting
-  if(chunks->writing) return chunks;
+  // skip the ack if there's already a chunk waiting
+  if(chunks->writeat != chunks->writelen) return chunks;
 
   // advance to start of last whole read chunk, add a zero write chunk
   if(!(chunks->writing = util_reallocf(chunks->writing, chunks->writelen+1))) return LOG("OOM");
