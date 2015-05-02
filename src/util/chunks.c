@@ -241,6 +241,9 @@ util_chunks_t util_chunks_read(util_chunks_t chunks, uint8_t *block, size_t len)
   // implicitly unblock after any full read chunk
   util_chunks_next(chunks);
 
+  // skip the ack if this was just an ack only chunk
+  if(len == 1) return chunks;
+
   // skip the ack if there's already a chunk waiting
   if(chunks->writeat != chunks->writelen) return chunks;
 
