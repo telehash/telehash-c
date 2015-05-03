@@ -241,12 +241,12 @@ util_chunks_t util_chunks_read(util_chunks_t chunks, uint8_t *block, size_t len)
 // sends an ack if neccessary, after any more chunks have been received and none waiting to send
 util_chunks_t util_chunks_ack(util_chunks_t chunks)
 {
-  uint32_t count = 0, zeros = 0;
+  uint32_t count = 0, zeros = 0, at;
 
   if(!chunks->readlen) return NULL;
 
   // walk through read data and count chunks
-  for(uint32_t at = chunks->reading[0];at < chunks->readlen; at += chunks->reading[at])
+  for(at = chunks->reading[0];at < chunks->readlen; at += chunks->reading[at])
   {
     count++;
     if(chunks->reading[at] == 0) zeros++;
