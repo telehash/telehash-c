@@ -8,7 +8,9 @@ PORT=/dev/tty.usbmodem1431
 BOARD=pinoccio:avr:pinoccio
 SKETCH=
 
-all: test
+# annoying orange
+all:
+	git checkout build/.gitignore
 
 test: SKETCH = $(CURDIR)/examples/Test/Test.ino
 test: upload
