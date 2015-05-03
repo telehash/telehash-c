@@ -7,7 +7,7 @@ LIB = src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base
 E3X = src/e3x/e3x.c src/e3x/channel.c src/e3x/self.c src/e3x/exchange.c src/e3x/event.c src/e3x/cipher.c
 MESH = src/mesh.c src/link.c src/pipe.c
 EXT = src/ext/stream.c src/ext/block.c
-NET = src/net/loopback.c src/net/udp4.c src/net/tcp4.c
+NET = src/net/loopback.c src/net/udp4.c src/net/tcp4.c src/net/serial.c
 UTIL = src/util/util.c src/util/uri.c src/util/chunks.c src/unix/util.c src/unix/util_sys.c
 
 # CS1a by default
@@ -65,6 +65,8 @@ libtelehash: $(FULL_OBJFILES)
 
 arduino: static
 	cp telehash.c arduino/src/telehash/
+	@cat src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c >> arduino/src/telehash/telehash.c
+	cp src/e3x/cs1a/cs1a.c arduino/src/cs1a/
 	cp $(HEADERS) arduino/src/telehash/
 
 test: $(FULL_OBJFILES) ping

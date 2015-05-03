@@ -1,0 +1,17 @@
+{
+  "name": "arduino",
+  "version": "0.0.0",
+  "description": "To build you'll need to make sure you run `make arduino` first in the main telehash-c directory (to copy in the required source files to where the Arduino IDE wants them) and have this telehash-c/arduino directory linked/copied in your main Arduino libraries location.",
+  "main": "index.js",
+  "directories": {
+    "example": "examples"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "serial-port-stream": "^0.1.0"
+  }
+}

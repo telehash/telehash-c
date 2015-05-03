@@ -19,10 +19,11 @@ int main(int argc, char **argv)
   fail_unless(util_chunks_out(chunks, &len));
   fail_unless(len == 10);
   fail_unless(util_chunks_len(chunks) == 105);
+  util_chunks_next(chunks);
   fail_unless(util_chunks_out(chunks, &len));
   fail_unless(len == 10);
   fail_unless(util_chunks_len(chunks) == 95);
-  while(util_chunks_len(chunks)) fail_unless(util_chunks_out(chunks, &len));
+  while(util_chunks_len(chunks)) fail_unless(util_chunks_next(chunks) && util_chunks_out(chunks, &len));
 
   // check write
   fail_unless(!util_chunks_write(chunks));
@@ -62,6 +63,7 @@ int main(int argc, char **argv)
   {
     fail_unless((chunk = util_chunks_out(c1,&len)));
     fail_unless(util_chunks_in(c2,chunk,len));
+    util_chunks_next(c1);
   }
   fail_unless(util_chunks_len(c1) == 0);
   lob_t p1 = util_chunks_receive(c2);
@@ -111,16 +113,21 @@ int main(int argc, char **argv)
 
   // send first volley
   buf = util_chunks_out(c1, &len);
-  fail_unless(util_chunks_read(c2,buf,10) == NULL); // incomplete
-  fail_unless(util_chunks_read(c2,buf+10,len-10)); // one chunk
+  fail_unless(util_chunks_read(c2,buf,10));
+  fail_unless(util_chunks_ack(c2) == NULL); // incomplete
+  fail_unless(util_chunks_read(c2,buf+10,len-10));
+  fail_unless(util_chunks_ack(c2)); // one chunk
   buf = util_chunks_out(c2, &len);
   fail_unless(util_chunks_read(c1,buf,len)); // one chunk back
+  fail_unless(util_chunks_ack(c1));
   fail_unless(util_chunks_receive(c1) == NULL); // no packet yet
   fail_unless(util_chunks_receive(c2) == NULL); // no packet yet
   buf = util_chunks_out(c1, &len);
   fail_unless(util_chunks_read(c2,buf,len)); // rest of packet
+  fail_unless(util_chunks_ack(c2));
   buf = util_chunks_out(c2, &len);
   fail_unless(util_chunks_read(c1,buf,len)); // rest back
+  fail_unless(util_chunks_ack(c1));
   
   p1 = util_chunks_receive(c1);
   fail_unless(p1);

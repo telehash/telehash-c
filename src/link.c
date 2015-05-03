@@ -191,6 +191,7 @@ link_t link_pipe(link_t link, pipe_t pipe)
   }
 
   // add this pipe to this link
+  LOG("adding pipe %s",pipe->id);
   if(!(seen = malloc(sizeof (struct seen_struct)))) return NULL;
   memset(seen,0,sizeof (struct seen_struct));
   seen->pipe = pipe;
