@@ -2,8 +2,6 @@
 #include "net_loopback.h"
 #include "unit_test.h"
 
-static uint8_t status = 0;
-
 int main(int argc, char **argv)
 {
   mesh_t meshA = mesh_new(3);
@@ -34,7 +32,11 @@ int main(int argc, char **argv)
   lob_set_uint(peerBA,"c",e3x_exchange_cid(linkBA->x, NULL));
   fail_unless(link_receive(linkAB, peerBA, NULL));
 
-  // TODO
+  // min test peer handling
+  lob_t open = lob_new();
+  lob_set(open,"type","peer");
+  lob_set(open,"peer",meshB->id->hashname);
+  fail_unless(peer_on_open(linkAB, open) == NULL);
   
   return 0;
 }
