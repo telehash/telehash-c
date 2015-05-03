@@ -150,11 +150,14 @@ size_t base32_decode_into(const char *base32Buffer, size_t base32BufLen, void *_
         }
         else
         {
-            index = (index + 5) % 8;
-            buffer[offset] |= (word >> index);
-            offset++;
+            if(offset<base32_decode_length(max)){
+                index = (index + 5) % 8;
+                buffer[offset] |= (word >> index);
+                if(++offset<base32_decode_length(max)){
+                    buffer[offset] |= word << (8 - index);
+                }
+            }
 
-            buffer[offset] |= word << (8 - index);
         }
     }
     return offset;
