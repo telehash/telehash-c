@@ -9,11 +9,11 @@
 #include "ext_stream.h"
 #include "ext_block.h"
 #include "ext_path.h"
+#include "ext_peer.h"
 
 //#include "chat.h"
 //#include "thtp.h"
 //#include "connect.h"
-//#include "peer.h"
 //#include "sock.h"
 
 #endif

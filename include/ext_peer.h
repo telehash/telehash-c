@@ -3,6 +3,7 @@
 
 #include "ext.h"
 
-void ext_peer(chan_t c);
+// handle incoming peer request to route
+lob_t peer_on_open(link_t link, lob_t open);
 
 #endif

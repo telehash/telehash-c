@@ -1,18 +1,17 @@
 #include "ext.h"
 
-void ext_peer(chan_t c)
+// handle incoming peer request to route
+lob_t peer_on_open(link_t link, lob_t open)
 {
-  lob_t p;
-  hashname_t hn;
-  while((p = chan_pop(c)))
-  {
-    hn = hashname_gethex(c->s->index,lob_get_str(p,"peer"));
-    printf("peer HN %s\n",hn?hn->hexname:"null");
-    if(!hn)
-    {
-      lob_free(p);
-      continue;
-    }
-    // TODO send connect
-  }
+  if(!link) return open;
+  if(lob_get_cmp(open,"type","peer")) return open;
+  
+  LOG("incoming peer route request %s",lob_json(open));
+
+  // TODO
+  // find/verify destination link
+  // generate connect request to them
+  
+
+  return NULL;
 }
