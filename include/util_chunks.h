@@ -44,7 +44,10 @@ uint8_t *util_chunks_write(util_chunks_t chunks);
 // advance the write this far, don't mix with util_chunks_out() usage
 util_chunks_t util_chunks_written(util_chunks_t chunks, size_t len);
 
-// process incoming stream data into any packets, returns NULL until a chunk was received and there's data to write
+// queues incoming stream based data
 util_chunks_t util_chunks_read(util_chunks_t chunks, uint8_t *block, size_t len);
+
+// sends an ack if neccessary, after any more chunks have been received and none waiting to send
+util_chunks_t util_chunks_ack(util_chunks_t chunks);
 
 #endif

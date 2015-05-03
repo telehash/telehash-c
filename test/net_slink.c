@@ -12,7 +12,7 @@
 
 int reader(void)
 {
-  char c1;
+  uint8_t c1;
   if(read(0, &c1, 1) <= 0) return -1;
   return c1;
 }
@@ -27,6 +27,7 @@ static uint8_t status = 0;
 // exit as soon as the link is up
 void link_check(link_t link)
 {
+  LOG("CHECK %s",link->id->hashname);
   status = link_up(link) ? 1 : 0;
 }
 
@@ -51,6 +52,8 @@ int main(int argc, char *argv[])
   LOG("entering loop");
 
   while(net_serial_loop(s) && !status);
+  
+  LOG("success!");
 
   return 0;
 }

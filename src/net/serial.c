@@ -30,13 +30,17 @@ pipe_t serial_flush(pipe_t pipe)
     c1 = ret;
     util_chunks_read(to->chunks, &c1, 1);
   }
-  if(count) LOG("read %d bytes from %s",count,pipe->id);
+  if(count)
+  {
+    LOG("read %d bytes from %s",count,pipe->id);
+    util_chunks_ack(to->chunks);
+  }
 
   // any incoming full packets can be received
   while((packet = util_chunks_receive(to->chunks))) mesh_receive(to->net->mesh, packet, pipe);
 
   // write the next waiting chunk
-  if((out = util_chunks_out(to->chunks, &len)))
+  while((out = util_chunks_out(to->chunks, &len)))
   {
     if((ret = to->write(out, len)) == len)
     {
@@ -49,7 +53,6 @@ pipe_t serial_flush(pipe_t pipe)
     }
   }
 
-
   return pipe;
 }
 
@@ -59,6 +62,7 @@ void serial_send(pipe_t pipe, lob_t packet, link_t link)
   pipe_serial_t to;
   if(!pipe || !packet || !(to = (pipe_serial_t)pipe->arg)) return;
 
+  LOG("chunking a packet of len %d",lob_len(packet));
   util_chunks_send(to->chunks, packet);
   serial_flush(pipe);
 }
