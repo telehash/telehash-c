@@ -117,13 +117,14 @@ size_t base32_decode_into(const char *base32Buffer, size_t base32BufLen, void *_
 {
     int lookup;
     unsigned int i, index, offset;
-    size_t max;
+    size_t max, bufmax;
     unsigned char  word;
     unsigned char *buffer = _buffer;
 
     max = base32BufLen ? base32BufLen : strlen(base32Buffer);
-    memset(buffer, 0, base32_decode_length(max));
-    for(i = 0, index = 0, offset = 0; i < max; i++)
+    bufmax = base32_decode_length(max);
+    memset(buffer, 0, bufmax);
+    for(i = 0, index = 0, offset = 0; i < max && offset < bufmax; i++)
     {
         lookup = toupper(base32Buffer[i]) - '0';
         /* Check to make sure that the given word falls inside
@@ -150,11 +151,11 @@ size_t base32_decode_into(const char *base32Buffer, size_t base32BufLen, void *_
         }
         else
         {
-            index = (index + 5) % 8;
-            buffer[offset] |= (word >> index);
-            offset++;
-
-            buffer[offset] |= word << (8 - index);
+          index = (index + 5) % 8;
+          buffer[offset] |= (word >> index);
+          if(++offset < bufmax) {
+              buffer[offset] |= word << (8 - index);
+          }
         }
     }
     return offset;

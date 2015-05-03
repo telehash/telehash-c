@@ -114,9 +114,9 @@ uint32_t e3x_exchange_out(e3x_exchange_t x, uint32_t at)
 uint32_t e3x_exchange_in(e3x_exchange_t x, uint32_t at)
 {
   if(!x) return 0;
-
+  
   // ensure at is newer and valid, or acking our out
-  if(at && at > x->in && (((at % 2)+1) == x->order || at == x->out)) x->in = at;
+  if(at && at > x->in && at >= x->out && (((at % 2)+1) == x->order || at == x->out)) x->in = at;
   
   return x->in;
 }
