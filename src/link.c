@@ -286,6 +286,25 @@ link_t link_receive_handshake(link_t link, lob_t inner, pipe_t pipe)
   return link;
 }
 
+// handle an incoming connect request
+link_t link_open_connect(link_t link, lob_t inner, pipe_t pipe)
+{
+  link_t peer;
+  char *hn = lob_get(inner,"peer");
+  if(!link || !hn) return LOG("invalid connect open");
+
+  LOG("incoming connect from %s via %s",hn,link->id->hashname);
+  if(!(peer = mesh_linked(link->mesh, hn)))
+  {
+    // TODO discovery
+  }else{
+    // TODO handshake
+  }
+
+  lob_free(inner);
+  return link;
+}
+
 // process a decrypted channel packet
 link_t link_receive(link_t link, lob_t inner, pipe_t pipe)
 {
@@ -311,9 +330,12 @@ link_t link_receive(link_t link, lob_t inner, pipe_t pipe)
   inner = mesh_open(link->mesh,link,inner);
   if(inner)
   {
-   LOG("unhandled channel open %s",lob_json(inner));
-   lob_free(inner);
-   return NULL;
+    // builtin channel handler(s)
+    if(lob_get_cmp(inner,"type","connect")) return link_open_connect(link, inner, pipe);
+    
+    LOG("unhandled channel open %s",lob_json(inner));
+    lob_free(inner);
+    return NULL;
   }
   
   return link;
