@@ -199,7 +199,9 @@ link_t link_pipe(link_t link, pipe_t pipe)
   link->pipes = seen;
   
   // make sure it gets sync'd
-  return link_sync(link);
+  lob_free(link_sync(link));
+
+  return link;
 }
 
 // iterate through existing pipes for a link
@@ -263,7 +265,7 @@ link_t link_receive_handshake(link_t link, lob_t inner, pipe_t pipe)
     LOG("old/bad at: %s (%d,%d,%d)",lob_json(inner),lob_get_int(inner,"at"),e3x_exchange_in(link->x,0),e3x_exchange_out(link->x,0));
     // just reset pipe seen and call link_sync to resend handshake
     for(seen = link->pipes;pipe && seen;seen = seen->next) if(seen->pipe == pipe) seen->at = 0;
-    link_sync(link);
+    lob_free(link_sync(link));
     return NULL;
   }
 
@@ -274,7 +276,7 @@ link_t link_receive_handshake(link_t link, lob_t inner, pipe_t pipe)
   if(!e3x_exchange_sync(link->x,outer)) return LOG("sync failed");
   
   // we may need to re-sync
-  if(out != e3x_exchange_out(link->x,0)) link_sync(link);
+  if(out != e3x_exchange_out(link->x,0)) lob_free(link_sync(link));
   
   // notify of ready state change
   if(!ready && link_up(link))
@@ -289,18 +291,19 @@ link_t link_receive_handshake(link_t link, lob_t inner, pipe_t pipe)
 // handle an incoming connect request
 link_t link_open_connect(link_t link, lob_t inner, pipe_t pipe)
 {
-  link_t peer;
+  lob_t hs;
   char *hn = lob_get(inner,"peer");
   if(!link || !hn) return LOG("invalid connect open");
 
-  LOG("incoming connect from %s via %s",hn,link->id->hashname);
-  if(!(peer = mesh_linked(link->mesh, hn)))
-  {
-    // TODO discovery
-  }else{
-    // TODO handshake
-  }
+  if(!(hs = lob_parse(inner->body,inner->body_len))) return LOG("invalid attached handshake");
 
+  LOG("incoming connect from %s via %s",hn,link->id->hashname);
+
+  // encrypted or not handshake
+  if(hs->head_len == 1) mesh_receive(link->mesh, hs, pipe);
+  else mesh_receive_handshake(link->mesh, hs, pipe);
+
+  lob_free(hs);
   lob_free(inner);
   return link;
 }
@@ -354,7 +357,7 @@ link_t link_send(link_t link, lob_t outer)
 }
 
 // make sure all pipes have the current handshake
-link_t link_sync(link_t link)
+lob_t link_sync(link_t link)
 {
   uint32_t at;
   seen_t seen;
@@ -380,12 +383,11 @@ link_t link_sync(link_t link)
     for(hs = handshakes; hs; hs = lob_linked(hs)) seen->pipe->send(seen->pipe, lob_copy(hs), link);
   }
 
-  lob_free(handshakes);
-  return link;
+  return handshakes;
 }
 
 // trigger a new exchange sync
-link_t link_resync(link_t link)
+lob_t link_resync(link_t link)
 {
   if(!link) return LOG("bad args");
   if(!link->x) return LOG("no exchange");

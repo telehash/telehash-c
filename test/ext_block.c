@@ -24,7 +24,7 @@ int main(int argc, char **argv)
   fail_unless(linkAB);
   fail_unless(linkBA);
 
-  fail_unless(link_sync(linkAB));
+  fail_unless(link_resync(linkAB));
 
   // lob_t block = lob_new();
   // lob_append(block,NULL,1500);

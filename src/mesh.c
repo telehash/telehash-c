@@ -322,7 +322,7 @@ link_t mesh_receive_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe)
     hashname_free(from);
 
     // short-cut, if it's a key from an existing link, pass it on
-    if((link = xht_get(mesh->index,lob_get(handshake,"hashname")))) return link_receive_handshake(link, handshake, pipe);
+    if((link = mesh_linked(mesh,lob_get(handshake,"hashname")))) return link_receive_handshake(link, handshake, pipe);
     
     // extend the key json to make it compatible w/ normal patterns
     tmp = lob_new();

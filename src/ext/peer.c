@@ -5,6 +5,13 @@ link_t peer_router(link_t peer, link_t router)
   if(!peer || !router) return LOG("bad args");
 
   // TODO compose best open for peer
+  if(peer->handshakes)
+  {
+    // loop and send each, refactor link_sync
+  }else{
+    // loop through each csid
+  }
+
   return NULL;
 }
 

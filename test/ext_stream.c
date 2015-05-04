@@ -24,7 +24,7 @@ int main(int argc, char **argv)
   fail_unless(linkAB);
   fail_unless(linkBA);
 
-  fail_unless(link_sync(linkAB));
+  fail_unless(link_resync(linkAB));
 
 //  fail_unless(ext_link_status(linkAB,NULL));
 //  fail_unless(ext_link_status(linkBA,NULL));
