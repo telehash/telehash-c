@@ -298,7 +298,7 @@ link_t link_receive(link_t link, lob_t inner, pipe_t pipe)
   {
     LOG("\t<-- %s",lob_json(inner));
     if(e3x_channel_receive(chan->c3, inner)) return LOG("channel receive error, dropping %s",lob_json(inner));
-    link_pipe(link,pipe); // we trust the pipe at this point
+    if(pipe) link_pipe(link,pipe); // we trust the pipe at this point
     if(chan->handle) chan->handle(link, chan->c3, chan->arg);
     // check if there's any packets to be sent back
     return link_flush(link, chan->c3, NULL);
@@ -307,7 +307,7 @@ link_t link_receive(link_t link, lob_t inner, pipe_t pipe)
   // if it's an open, validate and fire event
   if(!lob_get(inner,"type")) return LOG("invalid channel open, no type %s",lob_json(inner));
   if(!e3x_exchange_cid(link->x, inner)) return LOG("invalid channel open id %s",lob_json(inner));
-  link_pipe(link,pipe); // we trust the pipe at this point
+  if(pipe) link_pipe(link,pipe); // we trust the pipe at this point
   inner = mesh_open(link->mesh,link,inner);
   if(inner)
   {
