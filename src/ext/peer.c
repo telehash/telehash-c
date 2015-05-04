@@ -17,8 +17,7 @@ lob_t peer_on_open(link_t link, lob_t open)
 
   LOG("incoming peer route request %s",lob_json(open));
 
-  peer = xht_get(link->mesh->index,lob_get(open,"peer"));
-  if(!peer)
+  if(!(peer = mesh_linked(link->mesh,lob_get(open,"peer"))))
   {
     LOG("no peer link found for %s from %s",lob_get(open,"peer"),link->id->hashname);
     return open;

@@ -167,6 +167,14 @@ link_t mesh_add(mesh_t mesh, lob_t json, pipe_t pipe)
   return NULL;
 }
 
+link_t mesh_linked(mesh_t mesh, char *hashname)
+{
+  if(!mesh || !hashname_valid(hashname)) return NULL;
+  
+  return xht_get(mesh->index, hashname);
+  
+}
+
 // create our generic callback linked list entry
 on_t on_get(mesh_t mesh, char *id)
 {
