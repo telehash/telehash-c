@@ -25,10 +25,13 @@ int main(int argc, char **argv)
   fail_unless(linkBA);
 
   fail_unless(link_sync(linkAB));
+  fail_unless(link_sync(linkBA));
 
+  // meta-test
   mesh_on_open(meshA, "ext_peer", peer_on_open);
   lob_t peerBA = lob_new();
   lob_set(peerBA,"type","peer");
+  lob_set(peerBA,"peer",meshB->id->hashname);
   lob_set_uint(peerBA,"c",e3x_exchange_cid(linkBA->x, NULL));
   fail_unless(link_receive(linkAB, peerBA, NULL));
 
