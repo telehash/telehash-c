@@ -457,7 +457,7 @@ link_t link_flush(link_t link, e3x_channel_t c3, lob_t inner)
   return link;
 }
 
-// encrpt and send this one packet on this pipe
+// encrypt and send this one packet on this pipe
 link_t link_direct(link_t link, lob_t inner, pipe_t pipe)
 {
   if(!link || !inner) return LOG("bad args");
