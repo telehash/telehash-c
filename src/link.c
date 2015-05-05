@@ -463,6 +463,9 @@ link_t link_direct(link_t link, lob_t inner, pipe_t pipe)
   if(!link || !inner) return LOG("bad args");
   if(!pipe && (!link->pipes || !(pipe = link->pipes->pipe))) return LOG("no network");
 
+  // add an outgoing cid if none set
+  if(!lob_get_int(inner,"c")) lob_set_uint(inner,"c",e3x_exchange_cid(link->x, NULL));
+
   pipe->send(pipe, e3x_exchange_send(link->x, inner), link);
   
   return link;

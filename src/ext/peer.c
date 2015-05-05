@@ -2,17 +2,30 @@
 
 link_t peer_router(link_t peer, link_t router)
 {
+  lob_t handshakes, hs, open;
   if(!peer || !router) return LOG("bad args");
 
-  // TODO compose best open for peer
-  if(peer->handshakes)
+  // get encrypted handshakes
+  if(!(handshakes = link_sync(peer)))
   {
-    // loop and send each, refactor link_sync
-  }else{
-    // loop through each csid
+    LOG("can't get encrypted handshakes, TODO create bare ones (per CSID)");
+    return NULL;
   }
+  
+  // loop through and send each one in a peer request through the router
+  for(hs = handshakes; hs; hs = lob_linked(hs))
+  {
+    open = lob_new();
+    lob_set(open,"type","peer");
+    lob_set(open,"peer",peer->id->hashname);
+    lob_body(open,lob_raw(hs),lob_len(hs));
+    link_direct(router,open,NULL);
+    lob_free(open);
+  }
+  
+  lob_free(handshakes);
 
-  return NULL;
+  return peer;
 }
 
 // handle incoming peer request to route
