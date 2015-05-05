@@ -160,7 +160,7 @@ link_t link_load(link_t link, uint8_t csid, lob_t key)
   util_hex(e3x_exchange_token(link->x),16,link->token);
   xht_set(link->mesh->index,link->token,link);
   e3x_exchange_out(link->x, util_sys_seconds());
-  LOG("delivering session token %s to %s",link->token,link->id->hashname);
+  LOG("new session token %s to %s",link->token,link->id->hashname);
 
   return link;
 }
@@ -356,6 +356,20 @@ link_t link_send(link_t link, lob_t outer)
   return link;
 }
 
+lob_t link_handshakes(link_t link)
+{
+  lob_t hs, handshakes = NULL;
+  if(!link) return NULL;
+
+  // generate encrypted per-link handshake(s)
+  for(hs = link->handshakes; hs; hs = lob_linked(hs)) handshakes = lob_link(e3x_exchange_handshake(link->x, hs), handshakes);
+
+  // add any mesh-wide handshakes
+  for(hs = link->mesh->handshakes; hs; hs = lob_linked(hs)) handshakes = lob_link(e3x_exchange_handshake(link->x, hs), handshakes);
+  
+  return handshakes;
+}
+
 // make sure all pipes have the current handshake
 lob_t link_sync(link_t link)
 {
@@ -370,19 +384,15 @@ lob_t link_sync(link_t link)
   for(seen = link->pipes;seen;seen = seen->next)
   {
     if(!seen->pipe || !seen->pipe->send || seen->at == at) continue;
+
     // only create if we have to
-    if(!handshakes)
-    {
-      for(hs = link->handshakes; hs; hs = lob_linked(hs)) LOG("HSSYNC %s",lob_json(hs));
-      for(hs = link->handshakes; hs; hs = lob_linked(hs)) handshakes = lob_link(e3x_exchange_handshake(link->x, hs), handshakes);
-      // add any mesh-wide handshakes
-      for(hs = link->mesh->handshakes; hs; hs = lob_linked(hs)) handshakes = lob_link(e3x_exchange_handshake(link->x, hs), handshakes);
-    }
+    if(!handshakes) handshakes = link_handshakes(link);
 
     seen->at = at;
     for(hs = handshakes; hs; hs = lob_linked(hs)) seen->pipe->send(seen->pipe, lob_copy(hs), link);
   }
 
+  // caller can re-use and must free
   return handshakes;
 }
 

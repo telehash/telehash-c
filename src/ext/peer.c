@@ -6,7 +6,7 @@ link_t peer_router(link_t peer, link_t router)
   if(!peer || !router) return LOG("bad args");
 
   // get encrypted handshakes
-  if(!(handshakes = link_sync(peer)))
+  if(!(handshakes = link_handshakes(peer)))
   {
     LOG("can't get encrypted handshakes, TODO create bare ones (per CSID)");
     return NULL;

@@ -164,7 +164,7 @@ link_t mesh_add(mesh_t mesh, lob_t json, pipe_t pipe)
   if(pipe) link_pipe(link, pipe);
   for(;paths;paths = paths->next) link_path(link,paths);
 
-  return NULL;
+  return link;
 }
 
 link_t mesh_linked(mesh_t mesh, char *hashname)

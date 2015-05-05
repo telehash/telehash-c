@@ -54,6 +54,9 @@ link_t link_receive_handshake(link_t link, lob_t handshake, pipe_t pipe);
 // try to deliver this packet to the best pipe
 link_t link_send(link_t link, lob_t inner);
 
+// return current handshake(s)
+lob_t link_handshakes(link_t link);
+
 // send current handshake(s) to all pipes and return them
 lob_t link_sync(link_t link);
 
