@@ -8,17 +8,15 @@ int main(int argc, char **argv)
   fail_unless(meshA);
   lob_t secretsA = mesh_generate(meshA);
   fail_unless(secretsA);
-  fail_unless(ext_stream(meshA));
 
   mesh_t meshB = mesh_new(3);
   fail_unless(meshB);
   lob_t secretsB = mesh_generate(meshB);
   fail_unless(secretsB);
-  fail_unless(ext_stream(meshB));
 
-  net_loopback_t pair = net_loopback_new(meshA,meshB);
-  fail_unless(pair);
-  
+  net_loopback_t pairAB = net_loopback_new(meshA,meshB);
+  fail_unless(pairAB);
+
   link_t linkAB = link_get(meshA, meshB->id->hashname);
   link_t linkBA = link_get(meshB, meshA->id->hashname);
   fail_unless(linkAB);
@@ -40,7 +38,34 @@ int main(int argc, char **argv)
   lob_set(open,"type","peer");
   lob_set(open,"peer",meshB->id->hashname);
   fail_unless(peer_on_open(linkAB, open) == NULL);
+
+  // add a third
+  mesh_t meshC = mesh_new(3);
+  fail_unless(meshC);
+  lob_t secretsC = mesh_generate(meshC);
+  fail_unless(secretsC);
+
+  net_loopback_t pairBC = net_loopback_new(meshB,meshC);
+  fail_unless(pairBC);
   
+  link_t linkBC = link_get(meshB, meshC->id->hashname);
+  link_t linkCB = link_get(meshC, meshB->id->hashname);
+  fail_unless(linkBC);
+  fail_unless(linkCB);
+
+  fail_unless(link_resync(linkBC));
+  fail_unless(link_resync(linkCB));
+
+  // B to handle peer requests and be a router
+  mesh_on_open(meshB, "ext_peer", peer_on_open);
+
+  // A to request to C, full link first
+  link_t linkAC = mesh_add(meshA, mesh_json(meshC), NULL);
+  fail_unless(linkAC);
+  
+  // dominooooooo
+  peer_router(linkAC, linkAB);
+
   return 0;
 }
 
