@@ -43,8 +43,9 @@ lob_t peer_on_open(link_t link, lob_t open)
     return open;
   }
   
+  lob_set_uint(open,"c",0); // so it gets re-set
   lob_set(open,"type","connect");
-  link_send(peer,open);
+  link_direct(peer,open,NULL); // encrypts then sends
 
-  return LOG("connect generated to %s",peer->id->hashname);
+  return LOG("connect delivered to %s",peer->id->hashname);
 }

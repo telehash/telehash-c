@@ -45,6 +45,9 @@ int main(int argc, char **argv)
   lob_t secretsC = mesh_generate(meshC);
   fail_unless(secretsC);
 
+  // auto-accept A
+  mesh_on_discover(meshC,"auto",mesh_add);
+
   net_loopback_t pairBC = net_loopback_new(meshB,meshC);
   fail_unless(pairBC);
   

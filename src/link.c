@@ -334,7 +334,7 @@ link_t link_receive(link_t link, lob_t inner, pipe_t pipe)
   if(inner)
   {
     // builtin channel handler(s)
-    if(lob_get_cmp(inner,"type","connect")) return link_open_connect(link, inner, pipe);
+    if(lob_get_cmp(inner,"type","connect") == 0) return link_open_connect(link, inner, pipe);
     
     LOG("unhandled channel open %s",lob_json(inner));
     lob_free(inner);

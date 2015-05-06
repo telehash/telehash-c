@@ -251,6 +251,7 @@ void mesh_on_discover(mesh_t mesh, char *id, link_t (*discover)(mesh_t mesh, lob
 void mesh_discover(mesh_t mesh, lob_t discovered, pipe_t pipe)
 {
   on_t on;
+  LOG("running mesh discover with %s",lob_json(discovered));
   for(on = mesh->on; on; on = on->next) if(on->discover) on->discover(mesh, discovered, pipe);
 }
 
@@ -426,7 +427,7 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
     
   }
   
-  LOG("dropping unknown outer packet with header %d %s",outer->head_len,util_hex(outer->head,outer->head_len,NULL));
+  LOG("dropping unknown outer packet with header %d %s",outer->head_len,lob_json(outer));
   lob_free(outer);
 
   return 10;
