@@ -7,37 +7,33 @@
 // send handshakes after any pipe is added to a link
 
 
-// try to connect this peer via this router (sends an ad-hoc peer request)
-link_t peer_connect(link_t peer, link_t router)
+// handle an incoming connect request
+lob_t peer_open_connect(link_t link, lob_t open)
 {
-  lob_t handshakes, hs, open;
-  if(!peer || !router) return LOG("bad args");
-
-  // get encrypted handshakes
-  if(!(handshakes = link_handshakes(peer)))
+  pipe_t pipe = NULL;
+  lob_t hs;
+  char *hn = lob_get(open,"peer");
+  if(!link || lob_get_cmp(open,"type","connect") != 0) return open;
+  if(!hn || !(hs = lob_parse(open->body,open->body_len)))
   {
-    LOG("can't get encrypted handshakes, TODO create bare ones (per CSID)");
-    return NULL;
+    LOG("invalid peer request");
+    return lob_free(open);
   }
-  
-  // loop through and send each one in a peer request through the router
-  for(hs = handshakes; hs; hs = lob_linked(hs))
-  {
-    open = lob_new();
-    lob_set(open,"type","peer");
-    lob_set(open,"peer",peer->id->hashname);
-    lob_body(open,lob_raw(hs),lob_len(hs));
-    link_direct(router,open,NULL);
-    lob_free(open);
-  }
-  
-  lob_free(handshakes);
 
-  return peer;
+  LOG("incoming connect from %s via %s",hn,link->id->hashname);
+  
+  // TODO get or create a peer pipe
+
+  // encrypted or not handshake
+  if(hs->head_len == 1) mesh_receive(link->mesh, hs, pipe);
+  else mesh_receive_handshake(link->mesh, hs, pipe);
+
+  lob_free(hs);
+  return lob_free(open);
 }
 
 // handle incoming peer request to route
-lob_t peer_on_open(link_t link, lob_t open)
+lob_t peer_open_peer(link_t link, lob_t open)
 {
   link_t peer;
   if(!link) return open;
@@ -78,14 +74,8 @@ pipe_t peer_path(link_t link, lob_t path)
   if(!hashname_valid(peer)) return LOG("invalid peer");
   
   // get existing one for this peer
-  pipes = xht_get(link->mesh->index, "net_tcp4");
+  pipes = xht_get(link->mesh->index, "ext_peer");
   for(pipe = pipes;pipe;pipe = pipe->next) if(util_cmp(pipe->id,peer) == 0) return pipe;
-
-  // first time init
-  if(!pipes)
-  {
-    // TODO mesh_free event to clean up pipes
-  }
 
   // make a new one
   if(!(pipe = pipe_new("peer"))) return NULL;
@@ -97,14 +87,31 @@ pipe_t peer_path(link_t link, lob_t path)
   return pipe;
 }
 
-// enables routing for this mesh
-mesh_t peer_routing(mesh_t mesh)
+void peer_free(mesh_t mesh)
 {
-  if(!mesh) return LOG("bad args");
+  pipe_t pipes, pipe;
+  pipes = xht_get(mesh->index, "ext_peer");
+  while(pipes)
+  {
+    pipe = pipes;
+    pipes = pipe->next;
+    pipe_free(pipe);
+  }
+}
 
-  mesh_on_open(mesh, "ext_peer", peer_on_open);
+// enables peer/connect handling for this mesh
+mesh_t peer_enable(mesh_t mesh)
+{
+  mesh_on_open(mesh, "ext_connect", peer_open_connect);
   mesh_on_path(mesh, "ext_peer", peer_path);
+  mesh_on_free(mesh, "ext_peer", peer_free);
+  return mesh;
+}
 
+// enables routing for this mesh
+mesh_t peer_route(mesh_t mesh)
+{
+  mesh_on_open(mesh, "ext_peer", peer_open_peer);
   return mesh;
 }
 
@@ -115,4 +122,33 @@ link_t peer_router(link_t router)
   // register to receive link events
   // loop through existing links and add our pipe
   return NULL;
+}
+
+// try to connect this peer via this router (sends an ad-hoc peer request)
+link_t peer_connect(link_t peer, link_t router)
+{
+  lob_t handshakes, hs, open;
+  if(!peer || !router) return LOG("bad args");
+
+  // get encrypted handshakes
+  if(!(handshakes = link_handshakes(peer)))
+  {
+    LOG("can't get encrypted handshakes, TODO create bare ones (per CSID)");
+    return NULL;
+  }
+  
+  // loop through and send each one in a peer request through the router
+  for(hs = handshakes; hs; hs = lob_linked(hs))
+  {
+    open = lob_new();
+    lob_set(open,"type","peer");
+    lob_set(open,"peer",peer->id->hashname);
+    lob_body(open,lob_raw(hs),lob_len(hs));
+    link_direct(router,open,NULL);
+    lob_free(open);
+  }
+  
+  lob_free(handshakes);
+
+  return peer;
 }

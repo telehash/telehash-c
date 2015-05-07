@@ -281,26 +281,6 @@ link_t link_receive_handshake(link_t link, lob_t inner, pipe_t pipe)
   return link;
 }
 
-// handle an incoming connect request
-link_t link_open_connect(link_t link, lob_t inner, pipe_t pipe)
-{
-  lob_t hs;
-  char *hn = lob_get(inner,"peer");
-  if(!link || !hn) return LOG("invalid connect open");
-
-  if(!(hs = lob_parse(inner->body,inner->body_len))) return LOG("invalid attached handshake");
-
-  LOG("incoming connect from %s via %s",hn,link->id->hashname);
-
-  // encrypted or not handshake
-  if(hs->head_len == 1) mesh_receive(link->mesh, hs, pipe);
-  else mesh_receive_handshake(link->mesh, hs, pipe);
-
-  lob_free(hs);
-  lob_free(inner);
-  return link;
-}
-
 // process a decrypted channel packet
 link_t link_receive(link_t link, lob_t inner, pipe_t pipe)
 {
@@ -326,9 +306,6 @@ link_t link_receive(link_t link, lob_t inner, pipe_t pipe)
   inner = mesh_open(link->mesh,link,inner);
   if(inner)
   {
-    // builtin channel handler(s)
-    if(lob_get_cmp(inner,"type","connect") == 0) return link_open_connect(link, inner, pipe);
-    
     LOG("unhandled channel open %s",lob_json(inner));
     lob_free(inner);
     return NULL;
