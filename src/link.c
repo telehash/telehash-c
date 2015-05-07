@@ -124,7 +124,7 @@ link_t link_key(mesh_t mesh, lob_t key, uint8_t csid)
 link_t link_load(link_t link, uint8_t csid, lob_t key)
 {
   char hex[3];
-  lob_t copy, hs, im;
+  lob_t copy;
 
   if(!link || !csid || !key) return LOG("bad args");
   if(link->x) return link;
@@ -149,13 +149,6 @@ link_t link_load(link_t link, uint8_t csid, lob_t key)
   link->csid = csid;
   link->key = copy;
   
-  // add link handshake, has intermediates attached
-  hs = lob_new();
-  im = hashname_im(link->mesh->keys, csid);
-  lob_body(hs, lob_raw(im), lob_len(im));
-  lob_free(im);
-  link_handshake(link, hs);
-
   // route packets to this token
   util_hex(e3x_exchange_token(link->x),16,link->token);
   xht_set(link->mesh->index,link->token,link);
@@ -358,15 +351,46 @@ link_t link_send(link_t link, lob_t outer)
 
 lob_t link_handshakes(link_t link)
 {
-  lob_t hs, handshakes = NULL;
+  uint32_t i;
+  uint8_t csid;
+  char *key;
+  lob_t tmp, hs = NULL, handshakes = NULL;
   if(!link) return NULL;
+  
+  // no keys means we have to generate a handshake for each key
+  if(!link->x)
+  {
+    for(i=0;(key = lob_get_index(link->mesh->keys,i));i+=2)
+    {
+      util_unhex(key,2,&csid);
+      hs = lob_new();
+      tmp = hashname_im(link->mesh->keys, csid);
+      lob_body(hs, lob_raw(tmp), lob_len(tmp));
+      lob_free(tmp);
+      handshakes = lob_link(hs, handshakes);
+    }
+  }else{ // generate one just for this csid
+    handshakes = lob_new();
+    tmp = hashname_im(link->mesh->keys, link->csid);
+    lob_body(handshakes, lob_raw(tmp), lob_len(tmp));
+    lob_free(tmp);
+  }
 
-  // generate encrypted per-link handshake(s)
-  for(hs = link->handshakes; hs; hs = lob_linked(hs)) handshakes = lob_link(e3x_exchange_handshake(link->x, hs), handshakes);
+  // add any custom per-link
+  for(hs = link->handshakes; hs; hs = lob_linked(hs)) handshakes = lob_link(lob_copy(hs), handshakes);
 
   // add any mesh-wide handshakes
-  for(hs = link->mesh->handshakes; hs; hs = lob_linked(hs)) handshakes = lob_link(e3x_exchange_handshake(link->x, hs), handshakes);
+  for(hs = link->mesh->handshakes; hs; hs = lob_linked(hs)) handshakes = lob_link(lob_copy(hs), handshakes);
   
+  // encrypt them if we can
+  if(link->x)
+  {
+    tmp = handshakes;
+    handshakes = NULL;
+    for(hs = tmp; hs; hs = lob_linked(hs)) handshakes = lob_link(e3x_exchange_handshake(link->x, hs), handshakes);
+    lob_free(tmp);
+  }
+
   return handshakes;
 }
 
