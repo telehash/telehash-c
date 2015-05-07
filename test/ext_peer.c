@@ -67,7 +67,7 @@ int main(int argc, char **argv)
   fail_unless(linkAC);
   
   // dominooooooo
-  peer_router(linkAC, linkAB);
+  peer_connect(linkAC, linkAB);
 
   return 0;
 }

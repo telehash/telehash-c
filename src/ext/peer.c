@@ -7,7 +7,8 @@
 // send handshakes after any pipe is added to a link
 
 
-link_t peer_router(link_t peer, link_t router)
+// try to connect this peer via this router (sends an ad-hoc peer request)
+link_t peer_connect(link_t peer, link_t router)
 {
   lob_t handshakes, hs, open;
   if(!peer || !router) return LOG("bad args");
@@ -80,6 +81,12 @@ pipe_t peer_path(link_t link, lob_t path)
   pipes = xht_get(link->mesh->index, "net_tcp4");
   for(pipe = pipes;pipe;pipe = pipe->next) if(util_cmp(pipe->id,peer) == 0) return pipe;
 
+  // first time init
+  if(!pipes)
+  {
+    // TODO mesh_free event to clean up pipes
+  }
+
   // make a new one
   if(!(pipe = pipe_new("peer"))) return NULL;
   pipe->id = strdup(peer);
@@ -88,4 +95,24 @@ pipe_t peer_path(link_t link, lob_t path)
   xht_set(link->mesh->index,pipe->id,pipe);
 
   return pipe;
+}
+
+// enables routing for this mesh
+mesh_t peer_routing(mesh_t mesh)
+{
+  if(!mesh) return LOG("bad args");
+
+  mesh_on_open(mesh, "ext_peer", peer_on_open);
+  mesh_on_path(mesh, "ext_peer", peer_path);
+
+  return mesh;
+}
+
+// adds default router
+link_t peer_router(link_t router)
+{
+  // get a pipe to this router and set it's default flag
+  // register to receive link events
+  // loop through existing links and add our pipe
+  return NULL;
 }
