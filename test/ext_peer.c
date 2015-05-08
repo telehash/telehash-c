@@ -66,6 +66,9 @@ int main(int argc, char **argv)
   // dominooooooo
   peer_connect(linkAC, linkAB);
 
+  fail_unless(link_up(linkAC));
+  LOG("routed link connected");
+
   return 0;
 }
 

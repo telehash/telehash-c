@@ -1,52 +1,5 @@
 #include "ext.h"
 
-// handle an incoming connect request
-lob_t peer_open_connect(link_t link, lob_t open)
-{
-  pipe_t pipe = NULL;
-  lob_t hs;
-  char *hn = lob_get(open,"peer");
-  if(!link || lob_get_cmp(open,"type","connect") != 0) return open;
-  if(!hn || !(hs = lob_parse(open->body,open->body_len)))
-  {
-    LOG("invalid peer request");
-    return lob_free(open);
-  }
-
-  LOG("incoming connect from %s via %s",hn,link->id->hashname);
-  
-  // TODO get or create a peer pipe
-
-  // encrypted or not handshake
-  if(hs->head_len == 1) mesh_receive(link->mesh, hs, pipe);
-  else mesh_receive_handshake(link->mesh, hs, pipe);
-
-  lob_free(hs);
-  return lob_free(open);
-}
-
-// handle incoming peer request to route
-lob_t peer_open_peer(link_t link, lob_t open)
-{
-  link_t peer;
-  if(!link) return open;
-  if(lob_get_cmp(open,"type","peer")) return open;
-
-  LOG("incoming peer route request %s",lob_json(open));
-
-  if(!(peer = mesh_linked(link->mesh,lob_get(open,"peer"))))
-  {
-    LOG("no peer link found for %s from %s",lob_get(open,"peer"),link->id->hashname);
-    return open;
-  }
-  
-  lob_set_uint(open,"c",0); // so it gets re-set
-  lob_set(open,"type","connect");
-  link_direct(peer,open,NULL); // encrypts then sends
-
-  return LOG("connect delivered to %s",peer->id->hashname);
-}
-
 // direct packets based on type
 void peer_send(pipe_t pipe, lob_t packet, link_t link)
 {
@@ -109,6 +62,53 @@ pipe_t peer_path(link_t link, lob_t path)
   return peer_pipe(link->mesh, peer);
 }
 
+// handle an incoming connect request
+lob_t peer_open_connect(link_t link, lob_t open)
+{
+  pipe_t pipe = NULL;
+  lob_t hs;
+  char *hn = lob_get(open,"peer");
+  if(!link || lob_get_cmp(open,"type","connect") != 0) return open;
+  if(!hn || !(hs = lob_parse(open->body,open->body_len)))
+  {
+    LOG("invalid peer request");
+    return lob_free(open);
+  }
+
+  LOG("incoming connect for %s via %s",hn,link->id->hashname);
+  
+  // get routing peer pipe
+  pipe = peer_pipe(link->mesh, link->id->hashname);
+
+  // encrypted or not handshake
+  if(hs->head_len == 1) mesh_receive(link->mesh, hs, pipe);
+  else mesh_receive_handshake(link->mesh, hs, pipe);
+
+  return lob_free(open);
+}
+
+// handle incoming peer request to route
+lob_t peer_open_peer(link_t link, lob_t open)
+{
+  link_t peer;
+  if(!link) return open;
+  if(lob_get_cmp(open,"type","peer")) return open;
+
+  LOG("incoming peer route request %s",lob_json(open));
+
+  if(!(peer = mesh_linked(link->mesh,lob_get(open,"peer"))))
+  {
+    LOG("no peer link found for %s from %s",lob_get(open,"peer"),link->id->hashname);
+    return open;
+  }
+  
+  lob_set_uint(open,"c",0); // so it gets re-set
+  lob_set(open,"type","connect");
+  link_direct(peer,open,NULL); // encrypts then sends
+
+  return LOG("connect delivered to %s",peer->id->hashname);
+}
+
 void peer_free(mesh_t mesh)
 {
   pipe_t pipes, pipe;
@@ -160,7 +160,5 @@ link_t peer_connect(link_t peer, link_t router)
   // loop through and send each one in a peer request through the router
   for(hs = handshakes; hs; hs = lob_linked(hs)) peer_send(pipe, hs, peer);
   
-  lob_free(handshakes);
-
   return peer;
 }
