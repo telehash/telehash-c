@@ -1,5 +1,3 @@
-// avoid symbol conflict
-#define js0n js1n
 
 // key = string to match or null
 // klen = key length (or 0), or if null key then len is the array offset value

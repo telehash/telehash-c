@@ -43,7 +43,7 @@ CS_OBJFILES = $(patsubst %.c,%.o,$(CS))
 FULL_OBJFILES = $(LIB_OBJFILES) $(E3X_OBJFILES) $(MESH_OBJFILES) $(EXT_OBJFILES) $(NET_OBJFILES) $(UTIL_OBJFILES) $(CS_OBJFILES)
 
 IDGEN_OBJFILES = $(FULL_OBJFILES) util/idgen.o
-ROUTER_OBJFILES = $(FULL_OBJFILES) util/router.o src/ext/router.o src/ext/path.o
+ROUTER_OBJFILES = $(FULL_OBJFILES) util/router.o src/ext/router.o src/ext/path.o src/ext/peer.o
 PING_OBJFILES = $(FULL_OBJFILES) util/ping.o src/ext/path.o
 
 HEADERS=$(wildcard include/*.h)

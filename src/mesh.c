@@ -164,7 +164,15 @@ link_t mesh_add(mesh_t mesh, lob_t json, pipe_t pipe)
   if(pipe) link_pipe(link, pipe);
   for(;paths;paths = paths->next) link_path(link,paths);
 
-  return NULL;
+  return link;
+}
+
+link_t mesh_linked(mesh_t mesh, char *hashname)
+{
+  if(!mesh || !hashname_valid(hashname)) return NULL;
+  
+  return xht_get(mesh->index, hashname);
+  
 }
 
 // create our generic callback linked list entry
@@ -243,6 +251,7 @@ void mesh_on_discover(mesh_t mesh, char *id, link_t (*discover)(mesh_t mesh, lob
 void mesh_discover(mesh_t mesh, lob_t discovered, pipe_t pipe)
 {
   on_t on;
+  LOG("running mesh discover with %s",lob_json(discovered));
   for(on = mesh->on; on; on = on->next) if(on->discover) on->discover(mesh, discovered, pipe);
 }
 
@@ -314,7 +323,7 @@ link_t mesh_receive_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe)
     hashname_free(from);
 
     // short-cut, if it's a key from an existing link, pass it on
-    if((link = xht_get(mesh->index,lob_get(handshake,"hashname")))) return link_receive_handshake(link, handshake, pipe);
+    if((link = mesh_linked(mesh,lob_get(handshake,"hashname")))) return link_receive_handshake(link, handshake, pipe);
     
     // extend the key json to make it compatible w/ normal patterns
     tmp = lob_new();
@@ -418,7 +427,7 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
     
   }
   
-  LOG("dropping unknown outer packet with header %d %s",outer->head_len,util_hex(outer->head,outer->head_len,NULL));
+  LOG("dropping unknown outer packet with header %d %s",outer->head_len,lob_json(outer));
   lob_free(outer);
 
   return 10;

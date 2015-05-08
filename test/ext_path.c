@@ -32,7 +32,7 @@ int main(int argc, char **argv)
   fail_unless(linkAB);
   fail_unless(linkBA);
 
-  fail_unless(link_sync(linkAB));
+  fail_unless(link_resync(linkAB));
 
   mesh_on_open(meshA, "ext_path", path_on_open);
   lob_t pingBA = lob_new();

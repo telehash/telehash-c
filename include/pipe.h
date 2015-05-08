@@ -15,6 +15,7 @@ struct pipe_struct
   lob_t path;
   lob_t notify; // who to signal for pipe events
   void *arg; // for use by app/network transport
+  pipe_t next; // for transport use
   void (*send)(pipe_t pipe, lob_t packet, link_t link); // deliver this packet via this pipe
 };
 

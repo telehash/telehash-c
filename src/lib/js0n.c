@@ -2,7 +2,6 @@
 // public domain, contributions/improvements welcome via github at https://github.com/quartzjer/js0n
 
 #include <string.h> // one strncmp() is used to do key comparison, and a strlen(key) if no len passed in
-#include "js0n.h"
 
 // gcc started warning for the init syntax used here, is not helpful so don't generate the spam, supressing the warning is really inconsistently supported across versions
 #if defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6))
@@ -17,7 +16,7 @@
 #define PUSH(i) if(depth == 1) { if(!index) { val = cur+i; }else{ if(klen && index == 1) start = cur+i; else index--; } }
 
 // determine if key matches or value is complete
-#define CAP(i) if(depth == 1) { if(val && !index) {*vlen = (size_t)(cur+i+1 - val); return val;}; if(klen) index = (start && klen == ((size_t)(cur-start)) && strncmp(key,start,klen)==0) ? 0 : 1;}
+#define CAP(i) if(depth == 1) { if(val && !index) {*vlen = (size_t)((cur+i+1) - val); return val;}; if(klen && start) {index = (klen == (size_t)(cur-start) && strncmp(key,start,klen)==0) ? 0 : 2; start = 0;} }
 
 // this makes a single pass across the json bytes, using each byte as an index into a jump table to build an index and transition state
 char *js0n(char *key, size_t klen, char *json, size_t jlen, size_t *vlen)
@@ -44,7 +43,7 @@ char *js0n(char *key, size_t klen, char *json, size_t jlen, size_t *vlen)
 		[0 ... 31] = &&l_bad,
 		[32 ... 126] = &&l_loop, // could be more pedantic/validation-checking
 		['\t'] = &&l_unbare, [' '] = &&l_unbare, ['\r'] = &&l_unbare, ['\n'] = &&l_unbare,
-		[','] = &&l_unbare, [']'] = &&l_unbare, ['}'] = &&l_unbare,
+		[','] = &&l_unbare, [']'] = &&l_unbare, ['}'] = &&l_unbare, [':'] = &&l_unbare,
 		[127 ... 255] = &&l_bad
 	};
 	static void *gostring[] = 
@@ -73,6 +72,7 @@ char *js0n(char *key, size_t klen, char *json, size_t jlen, size_t *vlen)
 	void **go = gostruct;
 	
 	if(!json || jlen <= 0 || !vlen) return 0;
+	*vlen = 0;
 	
 	// no key is array mode, klen provides requested index
 	if(!key)
@@ -82,7 +82,6 @@ char *js0n(char *key, size_t klen, char *json, size_t jlen, size_t *vlen)
 	}else{
 		if(klen <= 0) klen = strlen(key); // convenience
 	}
-	*vlen = 0;
 
 	for(start=cur=json,end=cur+jlen; cur<end; cur++)
 	{
@@ -90,9 +89,11 @@ char *js0n(char *key, size_t klen, char *json, size_t jlen, size_t *vlen)
 			l_loop:;
 	}
 	
+	if(depth) *vlen = jlen; // incomplete
 	return 0;
 	
 	l_bad:
+		*vlen = cur - json; // where error'd
 		return 0;
 	
 	l_up:

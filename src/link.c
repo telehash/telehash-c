@@ -124,7 +124,7 @@ link_t link_key(mesh_t mesh, lob_t key, uint8_t csid)
 link_t link_load(link_t link, uint8_t csid, lob_t key)
 {
   char hex[3];
-  lob_t copy, hs, im;
+  lob_t copy;
 
   if(!link || !csid || !key) return LOG("bad args");
   if(link->x) return link;
@@ -149,18 +149,11 @@ link_t link_load(link_t link, uint8_t csid, lob_t key)
   link->csid = csid;
   link->key = copy;
   
-  // add link handshake, has intermediates attached
-  hs = lob_new();
-  im = hashname_im(link->mesh->keys, csid);
-  lob_body(hs, lob_raw(im), lob_len(im));
-  lob_free(im);
-  link_handshake(link, hs);
-
   // route packets to this token
   util_hex(e3x_exchange_token(link->x),16,link->token);
   xht_set(link->mesh->index,link->token,link);
   e3x_exchange_out(link->x, util_sys_seconds());
-  LOG("delivering session token %s to %s",link->token,link->id->hashname);
+  LOG("new session token %s to %s",link->token,link->id->hashname);
 
   return link;
 }
@@ -199,7 +192,9 @@ link_t link_pipe(link_t link, pipe_t pipe)
   link->pipes = seen;
   
   // make sure it gets sync'd
-  return link_sync(link);
+  lob_free(link_sync(link));
+
+  return link;
 }
 
 // iterate through existing pipes for a link
@@ -263,7 +258,7 @@ link_t link_receive_handshake(link_t link, lob_t inner, pipe_t pipe)
     LOG("old/bad at: %s (%d,%d,%d)",lob_json(inner),lob_get_int(inner,"at"),e3x_exchange_in(link->x,0),e3x_exchange_out(link->x,0));
     // just reset pipe seen and call link_sync to resend handshake
     for(seen = link->pipes;pipe && seen;seen = seen->next) if(seen->pipe == pipe) seen->at = 0;
-    link_sync(link);
+    lob_free(link_sync(link));
     return NULL;
   }
 
@@ -274,7 +269,7 @@ link_t link_receive_handshake(link_t link, lob_t inner, pipe_t pipe)
   if(!e3x_exchange_sync(link->x,outer)) return LOG("sync failed");
   
   // we may need to re-sync
-  if(out != e3x_exchange_out(link->x,0)) link_sync(link);
+  if(out != e3x_exchange_out(link->x,0)) lob_free(link_sync(link));
   
   // notify of ready state change
   if(!ready && link_up(link))
@@ -298,7 +293,7 @@ link_t link_receive(link_t link, lob_t inner, pipe_t pipe)
   {
     LOG("\t<-- %s",lob_json(inner));
     if(e3x_channel_receive(chan->c3, inner)) return LOG("channel receive error, dropping %s",lob_json(inner));
-    link_pipe(link,pipe); // we trust the pipe at this point
+    if(pipe) link_pipe(link,pipe); // we trust the pipe at this point
     if(chan->handle) chan->handle(link, chan->c3, chan->arg);
     // check if there's any packets to be sent back
     return link_flush(link, chan->c3, NULL);
@@ -307,13 +302,13 @@ link_t link_receive(link_t link, lob_t inner, pipe_t pipe)
   // if it's an open, validate and fire event
   if(!lob_get(inner,"type")) return LOG("invalid channel open, no type %s",lob_json(inner));
   if(!e3x_exchange_cid(link->x, inner)) return LOG("invalid channel open id %s",lob_json(inner));
-  link_pipe(link,pipe); // we trust the pipe at this point
+  if(pipe) link_pipe(link,pipe); // we trust the pipe at this point
   inner = mesh_open(link->mesh,link,inner);
   if(inner)
   {
-   LOG("unhandled channel open %s",lob_json(inner));
-   lob_free(inner);
-   return NULL;
+    LOG("unhandled channel open %s",lob_json(inner));
+    lob_free(inner);
+    return NULL;
   }
   
   return link;
@@ -331,8 +326,53 @@ link_t link_send(link_t link, lob_t outer)
   return link;
 }
 
+lob_t link_handshakes(link_t link)
+{
+  uint32_t i;
+  uint8_t csid;
+  char *key;
+  lob_t tmp, hs = NULL, handshakes = NULL;
+  if(!link) return NULL;
+  
+  // no keys means we have to generate a handshake for each key
+  if(!link->x)
+  {
+    for(i=0;(key = lob_get_index(link->mesh->keys,i));i+=2)
+    {
+      util_unhex(key,2,&csid);
+      hs = lob_new();
+      tmp = hashname_im(link->mesh->keys, csid);
+      lob_body(hs, lob_raw(tmp), lob_len(tmp));
+      lob_free(tmp);
+      handshakes = lob_link(hs, handshakes);
+    }
+  }else{ // generate one just for this csid
+    handshakes = lob_new();
+    tmp = hashname_im(link->mesh->keys, link->csid);
+    lob_body(handshakes, lob_raw(tmp), lob_len(tmp));
+    lob_free(tmp);
+  }
+
+  // add any custom per-link
+  for(hs = link->handshakes; hs; hs = lob_linked(hs)) handshakes = lob_link(lob_copy(hs), handshakes);
+
+  // add any mesh-wide handshakes
+  for(hs = link->mesh->handshakes; hs; hs = lob_linked(hs)) handshakes = lob_link(lob_copy(hs), handshakes);
+  
+  // encrypt them if we can
+  if(link->x)
+  {
+    tmp = handshakes;
+    handshakes = NULL;
+    for(hs = tmp; hs; hs = lob_linked(hs)) handshakes = lob_link(e3x_exchange_handshake(link->x, hs), handshakes);
+    lob_free(tmp);
+  }
+
+  return handshakes;
+}
+
 // make sure all pipes have the current handshake
-link_t link_sync(link_t link)
+lob_t link_sync(link_t link)
 {
   uint32_t at;
   seen_t seen;
@@ -345,25 +385,20 @@ link_t link_sync(link_t link)
   for(seen = link->pipes;seen;seen = seen->next)
   {
     if(!seen->pipe || !seen->pipe->send || seen->at == at) continue;
+
     // only create if we have to
-    if(!handshakes)
-    {
-      for(hs = link->handshakes; hs; hs = lob_linked(hs)) LOG("HSSYNC %s",lob_json(hs));
-      for(hs = link->handshakes; hs; hs = lob_linked(hs)) handshakes = lob_link(e3x_exchange_handshake(link->x, hs), handshakes);
-      // add any mesh-wide handshakes
-      for(hs = link->mesh->handshakes; hs; hs = lob_linked(hs)) handshakes = lob_link(e3x_exchange_handshake(link->x, hs), handshakes);
-    }
+    if(!handshakes) handshakes = link_handshakes(link);
 
     seen->at = at;
     for(hs = handshakes; hs; hs = lob_linked(hs)) seen->pipe->send(seen->pipe, lob_copy(hs), link);
   }
 
-  lob_free(handshakes);
-  return link;
+  // caller can re-use and must free
+  return handshakes;
 }
 
 // trigger a new exchange sync
-link_t link_resync(link_t link)
+lob_t link_resync(link_t link)
 {
   if(!link) return LOG("bad args");
   if(!link->x) return LOG("no exchange");
@@ -433,11 +468,14 @@ link_t link_flush(link_t link, e3x_channel_t c3, lob_t inner)
   return link;
 }
 
-// encrpt and send this one packet on this pipe
+// encrypt and send this one packet on this pipe
 link_t link_direct(link_t link, lob_t inner, pipe_t pipe)
 {
   if(!link || !inner) return LOG("bad args");
   if(!pipe && (!link->pipes || !(pipe = link->pipes->pipe))) return LOG("no network");
+
+  // add an outgoing cid if none set
+  if(!lob_get_int(inner,"c")) lob_set_uint(inner,"c",e3x_exchange_cid(link->x, NULL));
 
   pipe->send(pipe, e3x_exchange_send(link->x, inner), link);
   

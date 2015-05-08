@@ -36,7 +36,7 @@ int main(int argc, char **argv)
 //  fail_unless(linkBA);
 
   state = 0;
-  fail_unless(link_sync(linkAB));
+  link_sync(linkAB);
   net_udp4_receive(netB);
   fail_unless(state == 1);
 
