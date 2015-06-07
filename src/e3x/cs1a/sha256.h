@@ -1,120 +1,70 @@
-/**
- * \file sha256.h
+/*
+ * SHA256 hash implementation and interface functions
+ * Copyright (c) 2003-2011, Jouni Malinen <j@w1.fi>
  *
- * \brief SHA-224 and SHA-256 cryptographic hash function
- *
- *  Copyright (C) 2006-2013, Brainspark B.V.
- *
- *  This file is part of PolarSSL (http://www.polarssl.org)
- *  Lead Maintainer: Paul Bakker <polarssl_maintainer at polarssl.org>
- *
- *  All rights reserved.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * This software may be distributed under the terms of the BSD license.
+ * See README for more details.
  */
-#ifndef POLARSSL_SHA256_H
-#define POLARSSL_SHA256_H
 
+#ifndef SHA256_H
+#define SHA256_H
+
+#include <stdint.h>
 #include <string.h>
+#include <stdlib.h>
 
-#if defined(_MSC_VER) && !defined(EFIX64) && !defined(EFI32)
-#include <basetsd.h>
-typedef UINT32 uint32_t;
-#else
-#include <inttypes.h>
-#endif
+#define u8 uint8_t
+#define u32 uint32_t
+#define u64 uint64_t
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#define WPA_GET_BE32(a) ((((u32) (a)[0]) << 24) | (((u32) (a)[1]) << 16) | \
+			 (((u32) (a)[2]) << 8) | ((u32) (a)[3]))
 
-// namespace conflict avoidance
-#define sha256_process _sha256_process
+#define WPA_PUT_BE32(a, val)					\
+	do {							\
+		(a)[0] = (u8) ((((u32) (val)) >> 24) & 0xff);	\
+		(a)[1] = (u8) ((((u32) (val)) >> 16) & 0xff);	\
+		(a)[2] = (u8) ((((u32) (val)) >> 8) & 0xff);	\
+		(a)[3] = (u8) (((u32) (val)) & 0xff);		\
+	} while (0)
+    
+#define WPA_PUT_BE64(a, val)				\
+	do {						\
+		(a)[0] = (u8) (((u64) (val)) >> 56);	\
+		(a)[1] = (u8) (((u64) (val)) >> 48);	\
+		(a)[2] = (u8) (((u64) (val)) >> 40);	\
+		(a)[3] = (u8) (((u64) (val)) >> 32);	\
+		(a)[4] = (u8) (((u64) (val)) >> 24);	\
+		(a)[5] = (u8) (((u64) (val)) >> 16);	\
+		(a)[6] = (u8) (((u64) (val)) >> 8);	\
+		(a)[7] = (u8) (((u64) (val)) & 0xff);	\
+	} while (0)
 
-/**
- * \brief          SHA-256 context structure
- */
-typedef struct
-{
-    uint32_t total[2];          /*!< number of bytes processed  */
-    uint32_t state[8];          /*!< intermediate digest state  */
-    unsigned char buffer[64];   /*!< data block being processed */
+#define SHA256_MAC_LEN 32
 
-    unsigned char ipad[64];     /*!< HMAC: inner padding        */
-    unsigned char opad[64];     /*!< HMAC: outer padding        */
-    int is224;                  /*!< 0 => SHA-256, else SHA-224 */
-}
-sha256_context;
-
-/**
- * \brief          SHA-256 context setup
- *
- * \param ctx      context to be initialized
- * \param is224    0 = use SHA256, 1 = use SHA224
- */
-void sha256_starts( sha256_context *ctx, int is224 );
-
-/**
- * \brief          SHA-256 process buffer
- *
- * \param ctx      SHA-256 context
- * \param input    buffer holding the  data
- * \param ilen     length of the input data
- */
-void sha256_update( sha256_context *ctx, const unsigned char *input, size_t ilen );
-
-/**
- * \brief          SHA-256 final digest
- *
- * \param ctx      SHA-256 context
- * \param output   SHA-224/256 checksum result
- */
-void sha256_finish( sha256_context *ctx, unsigned char output[32] );
-
-/* Internal use */
-void sha256_process( sha256_context *ctx, const unsigned char data[64] );
-
-/**
- * \brief          Output = SHA-256( input buffer )
- *
- * \param input    buffer holding the  data
- * \param ilen     length of the input data
- * \param output   SHA-224/256 checksum result
- * \param is224    0 = use SHA256, 1 = use SHA224
- */
-void sha256( const unsigned char *input, size_t ilen,
-           unsigned char output[32], int is224 );
-
-/**
- * \brief          Output = HMAC-SHA-256( hmac key, input buffer )
- *
- * \param key      HMAC secret key
- * \param keylen   length of the HMAC key
- * \param input    buffer holding the  data
- * \param ilen     length of the input data
- * \param output   HMAC-SHA-224/256 result
- * \param is224    0 = use SHA256, 1 = use SHA224
- */
-void sha256_hmac( const unsigned char *key, size_t keylen,
-                  const unsigned char *input, size_t ilen,
-                  unsigned char output[32], int is224 );
+int hmac_sha256_vector(const u8 *key, size_t key_len, size_t num_elem,
+		       const u8 *addr[], const size_t *len, u8 *mac);
+int hmac_sha256(const u8 *key, size_t key_len, const u8 *data,
+		size_t data_len, u8 *mac);
+void sha256_prf(const u8 *key, size_t key_len, const char *label,
+	      const u8 *data, size_t data_len, u8 *buf, size_t buf_len);
+void tls_prf_sha256(const u8 *secret, size_t secret_len,
+		    const char *label, const u8 *seed, size_t seed_len,
+		    u8 *out, size_t outlen);
 
 
+#define SHA256_BLOCK_SIZE 64
 
-#ifdef __cplusplus
-}
-#endif
+struct sha256_state {
+	u64 length;
+	u32 state[8], curlen;
+	u8 buf[SHA256_BLOCK_SIZE];
+};
 
-#endif /* sha256.h */
+void sha256_init(struct sha256_state *md);
+int sha256_process(struct sha256_state *md, const unsigned char *in,
+		   unsigned long inlen);
+int sha256_done(struct sha256_state *md, unsigned char *out);
+int sha256_vector(size_t num_elem, const u8 *addr[], const size_t *len,
+		  u8 *mac);
+#endif /* SHA256_H */

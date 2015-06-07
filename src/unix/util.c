@@ -35,6 +35,7 @@ lob_t util_fjson(char *file)
   p = lob_new();
   lob_head(p, buf, len);
   if(!p) return LOG("json failed %s parsing %.*s",file,len,buf);
+  free(buf);
   return p;
 }
 
