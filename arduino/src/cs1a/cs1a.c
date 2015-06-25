@@ -4,9 +4,7 @@
 #include <stdint.h>
 
 #include "sha256.h"
-#include "telehash/e3x.h"
-#include "telehash/e3x_cipher.h"
-#include "telehash/util_sys.h"
+#include <telehash.h>
 
 // cs1a local ones
 #include "uECC.h"
@@ -107,9 +105,8 @@ e3x_cipher_t cs1a_init(lob_t options)
 
 uint8_t *cipher_hash(uint8_t *input, size_t len, uint8_t *output)
 {
+  sha256(output,input,len*8);
 //  sha256(input,len,output,0);
-//  void sha256(sha256_hash_t *dest, const void *msg, uint32_t length_b);
-  sha256(output, input, len*8);
   return output;
 }
 

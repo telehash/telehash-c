@@ -20,7 +20,8 @@ void util_sys_random_init(void)
 long util_sys_random(void)
 {
   // TODO use hardware random
-  return random();
+  return PHY_RandomReq();
+//  return random();
 }
 
 int _debugging = 0;
@@ -35,7 +36,6 @@ void util_sys_logging(int enabled)
   LOG("debug output enabled");
 }
 
-/*
 void *util_sys_log(const char *file, int line, const char *function, const char * format, ...)
 {
     char buffer[256];
@@ -43,8 +43,7 @@ void *util_sys_log(const char *file, int line, const char *function, const char 
     if(!_debugging) return NULL;
     va_start (args, format);
     vsnprintf (buffer, 256, format, args);
-    speol(buffer);
+    printf("%s:%d %s() %s\n", file, line, function, buffer);
     va_end (args);
     return NULL;
 }
-*/
