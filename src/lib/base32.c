@@ -77,6 +77,8 @@ void base32_encode_into(const void *_buffer, size_t bufLen, char *base32Buffer)
     int index;
     unsigned char word;
     const unsigned char *buffer = _buffer;
+    if(!_buffer) return;
+    if(!bufLen) bufLen = strlen(_buffer);
 
     for(i = 0, index = 0; i < bufLen;)
     {
