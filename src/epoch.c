@@ -12,9 +12,6 @@ epoch_t epoch_new(epoch_t next)
   if(!(e = malloc(sizeof(struct epoch_struct)))) return LOG("OOM");
   memset(e,0,sizeof (struct epoch_struct));
   e->next = next;
-  
-  // convenience pointer into bin
-  e->type = e->bin;
 
   return e;
 }
@@ -41,6 +38,8 @@ epoch_t epoch_reset(epoch_t e)
   e3x_hash(e->bin,16,e->pad);
   if(e->id) free(e->id); // free up unused space
   e->id = NULL;
+  // convenience pointer into bin
+  e->type = e->bin[0];
   return e;
 }
 
@@ -51,7 +50,20 @@ char *epoch_id(epoch_t e)
   return e->id;
 }
 
+// when is next knock, returns 0 if == from
 uint64_t epoch_knock(epoch_t e, uint64_t from)
+{
+  return 0;
+}
+
+// sync point for given window
+epoch_t epoch_sync(epoch_t e, uint32_t window, uint64_t at)
+{
+  return NULL;
+}
+
+// which channel to use at this time
+uint32_t epoch_chan(epoch_t e, uint64_t at, uint8_t chans)
 {
   return 0;
 }
