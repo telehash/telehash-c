@@ -57,6 +57,9 @@ deps:
 static: libtelehash
 	@cat $(LIB) $(E3X) $(MESH) $(EXT) $(NET) $(UTIL) > telehash.c
 
+static-cs1a:
+	@cat $(LIB) $(E3X) $(MESH) $(EXT) $(NET) $(UTIL) src/e3x/cs1a/aes.c src/e3x/cs1a/hmac.c src/e3x/cs1a/aes128.c src/e3x/cs1a/cs1a.c src/e3x/cs1a/uECC.c src/e3x/cs1a/sha256.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c > telehash.c
+
 libtelehash: $(FULL_OBJFILES)
 	rm -f libtelehash.a
 	ar crs libtelehash.a $(FULL_OBJFILES)

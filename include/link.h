@@ -5,7 +5,6 @@
 typedef struct link_struct *link_t;
 
 #include "mesh.h"
-#include "epoch.h"
 
 struct link_struct
 {
@@ -16,7 +15,6 @@ struct link_struct
   lob_t key;
   lob_t handshakes;
   uint8_t csid;
-  epoch_t tx, rx;
   xht_t index, channels;
   char token[33];
   

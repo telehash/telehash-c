@@ -8,7 +8,6 @@ typedef struct mesh_struct *mesh_t;
 #include "util.h"
 #include "pipe.h"
 #include "link.h"
-#include "epoch.h"
 
 struct mesh_struct
 {
@@ -17,7 +16,6 @@ struct mesh_struct
   lob_t keys, paths;
   e3x_self_t self;
   xht_t index;
-  epoch_t lost;
   void *on; // internal list of triggers
   // shared network info
   uint16_t port_local, port_public;
