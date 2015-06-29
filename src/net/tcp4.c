@@ -244,7 +244,7 @@ void net_tcp4_accept(net_tcp4_t net)
 }
 
 // check a single pipe's socket for any read/write activity
-void _walkflush(xht_t h, const char *key, void *val, void *arg)
+static void _walkflush(xht_t h, const char *key, void *val, void *arg)
 {
   tcp4_flush((pipe_t)val);
 }
