@@ -9,12 +9,17 @@ typedef struct epoch_struct *epoch_t;
 
 struct epoch_struct
 {
-  uint8_t bin[16];
-  char *id;
-  uint8_t type;
-  uint8_t pad[32];
+  uint8_t bin[16]; // 8 header 8 random body
+  char *id; // base32 of bin
+  uint8_t type; // bin[0]
+  uint8_t txrx; // flag
+  uint8_t key[16]; // private key for MAC-AES
+  uint32_t win; // current window
+  uint32_t chan; // channel base for current window
+  uint32_t at; // offset base in current window
   link_t link;
   void *phy; // for use by driver
+  uint8_t *buf, len; // filled in by scheduler (tx) or driver (rx)
   
   struct epoch_struct *next;
 };

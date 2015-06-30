@@ -35,7 +35,7 @@ epoch_t epoch_import(epoch_t e, char *eid)
 epoch_t epoch_reset(epoch_t e)
 {
   if(!e) return NULL;
-  e3x_hash(e->bin,16,e->pad);
+//  e3x_hash(e->bin,16,e->pad);
   if(e->id) free(e->id); // free up unused space
   e->id = NULL;
   // convenience pointer into bin
