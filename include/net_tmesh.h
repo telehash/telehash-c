@@ -17,10 +17,23 @@ typedef struct net_tmesh_struct
 net_tmesh_t net_tmesh_new(mesh_t mesh, lob_t options);
 void net_tmesh_free(net_tmesh_t net);
 
-// perform buffer management and soft scheduling
+// perform buffer management and internal soft scheduling
 net_tmesh_t net_tmesh_loop(net_tmesh_t net);
 
 // return the next hard-scheduled epoch from this given point in time
 epoch_t net_tmesh_next(net_tmesh_t net, uint64_t from);
+
+/* discussion on flow
+
+* every pipe is a mote/link
+* lost is a virtual mote that is constantly reset
+* each mote has it's own time sync base to derive window counters
+* any mote w/ a tx knock ready is priority
+* upon tx, lost rx is reset
+* when no tx, the next rx is always scheduled
+* when no tx for some period of time, generate one on the lost epoch
+* when in discovery mode, it is a virtual mote that is always tx'ing
+
+*/
 
 #endif
