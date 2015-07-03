@@ -4,15 +4,6 @@
 #include "net_tmesh.h"
 
 
-// individual pipe local info
-typedef struct pipe_tmesh_struct
-{
-  net_tmesh_t net;
-  link_t link;
-  util_chunks_t chunks;
-  epoch_t tx, rx;
-} *pipe_tmesh_t;
-
 // just make sure it's connected
 pipe_tmesh_t tmesh_to(pipe_t pipe)
 {
@@ -92,7 +83,8 @@ pipe_t tmesh_pipe(net_tmesh_t net, link_t link)
   if(!(pipe->arg = to = malloc(sizeof (struct pipe_tmesh_struct)))) return pipe_free(pipe);
   memset(to,0,sizeof (struct pipe_tmesh_struct));
   to->net = net;
-  to->link = link;
+  // TODO make first epoch
+//  to->link = link;
   if(!(to->chunks = util_chunks_new(0))) return tmesh_free(pipe);
   
   // set up pipe

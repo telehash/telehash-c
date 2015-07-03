@@ -4,14 +4,25 @@
 #include "mesh.h"
 #include "epoch.h"
 
+typedef struct net_tmesh_struct *net_tmesh_t;
+
+// individual pipe local info
+typedef struct pipe_tmesh_struct
+{
+  net_tmesh_t net;
+  util_chunks_t chunks;
+  epoch_t *list; // resized array
+} *pipe_tmesh_t;
+
 // overall manager
-typedef struct net_tmesh_struct
+struct net_tmesh_struct
 {
   mesh_t mesh;
   xht_t pipes;
   lob_t path;
-  epoch_t lost;
-} *net_tmesh_t;
+  epoch_t *lost; // resized array
+  epoch_t tx, rx; // all active, master lists
+};
 
 // create a new tmesh radio network bound to this mesh
 net_tmesh_t net_tmesh_new(mesh_t mesh, lob_t options);
