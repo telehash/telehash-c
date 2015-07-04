@@ -27,17 +27,17 @@ epoch_t epoch_free(epoch_t e)
 epoch_t epoch_import(epoch_t e, char *eid)
 {
   if(!e || !eid) return NULL;
-  if(base32_decode_length(strlen(eid)) != 16) return NULL;
-  base32_decode_into(eid,0,e->bin);
+  if(base32_decode_floor(strlen(eid)) != 16) return NULL;
+  base32_decode(eid,0,e->bin,16);
   return epoch_reset(e);
 }
 
 epoch_t epoch_import2(epoch_t e, char *header, char *body)
 {
   if(!e || !header) return NULL;
-  if(base32_decode_length(strlen(header)) < 8) return NULL;
-  base32_decode_into(header,0,e->bin);
-  if(body && base32_decode_length(strlen(body)) >= 8) base32_decode_into(body,0,e->bin+8);
+  if(base32_decode_floor(strlen(header)) < 8) return NULL;
+  base32_decode(header,0,e->bin,8);
+  if(body && base32_decode_floor(strlen(body)) >= 8) base32_decode(body,0,e->bin+8,8);
   return epoch_reset(e);
 }
 
@@ -54,8 +54,14 @@ epoch_t epoch_reset(epoch_t e)
 
 char *epoch_id(epoch_t e)
 {
+  size_t len;
   if(!e) return NULL;
-  if(!e->id) e->id = base32_encode(e->bin,16);
+  if(!e->id)
+  {
+    len = base32_encode_length(16);
+    e->id = malloc(len);
+    base32_encode(e->bin,16,e->id,len);
+  }
   return e->id;
 }
 
