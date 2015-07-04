@@ -25,9 +25,10 @@ size_t base32_decode(const char *encoded, size_t length, uint8_t *result, size_t
   int buffer = 0;
   size_t bitsLeft = 0;
   size_t count = 0;
+  const char *ptr = encoded;
   if(!encoded || !result  || bufSize <= 0) return 0;
   if(!length) length = strlen(encoded);
-  for (const char *ptr = encoded; (size_t)(ptr-encoded) < length && count < bufSize; ++ptr) {
+  for (; (size_t)(ptr-encoded) < length && count < bufSize; ++ptr) {
     uint8_t ch = (uint8_t)*ptr;
     if (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n' || ch == '-') {
       continue;
