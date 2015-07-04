@@ -67,3 +67,62 @@ uint32_t epoch_chan(epoch_t e, uint64_t at, uint8_t chans)
 {
   return 0;
 }
+
+
+// array utilities
+epochs_t epochs_add(epochs_t es, epoch_t e)
+{
+  size_t j = 0, eslen = epochs_len(es), elen = sizeof(e);
+  if(!e) return es;
+
+  // don't double-add
+  while(es && es[j])
+  {
+    if(es[j] == e) return es;
+    j++;
+  }
+
+  if(!(es = util_reallocf(es, (eslen+2)*elen))) return LOG("OOM");
+  es[eslen] = e;
+  es[eslen+1] = NULL;
+  return es;
+}
+
+epochs_t epochs_rem(epochs_t es, epoch_t e)
+{
+  size_t j = 0, elen = sizeof(e), eslen;
+  if(!es) return NULL;
+  
+  // find it
+  while(es[j] && es[j] != e) j++;
+  if(!es[j]) return es;
+  
+  // if alone, zap
+  eslen = epochs_len(es);
+  if(eslen == 1)
+  {
+    free(es);
+    return NULL;
+  }
+
+  // snip out and shrink
+  memmove(&es[j], &es[j+1], (eslen-j)*elen); // includes term null in tail
+  if(!(es = util_reallocf(es, (eslen*elen)))) return LOG("OOM");
+  return es;
+}
+
+epoch_t epochs_index(epochs_t es, size_t i)
+{
+  size_t j = 0;
+  if(!es) return NULL;
+  while(es[j] && j < i) j++;
+  return es[j];
+}
+
+size_t epochs_len(epochs_t es)
+{
+  size_t len = 0;
+  if(!es) return 0;
+  while(es[len]) len++;
+  return len;
+}

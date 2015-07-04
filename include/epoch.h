@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 typedef struct epoch_struct *epoch_t;
+typedef epoch_t *epochs_t; // arrays
 
 #include "mesh.h"
 #include "link.h"
@@ -37,5 +38,10 @@ uint64_t epoch_knock(epoch_t e, uint64_t from); // when is next knock, returns 0
 // phy utilities
 uint32_t epoch_chan(epoch_t e, uint64_t at, uint8_t chans); // which channel to use at this time
 
+// array utilities
+epochs_t epochs_add(epochs_t es, epoch_t e);
+epochs_t epochs_rem(epochs_t es, epoch_t e);
+epoch_t epochs_index(epochs_t es, size_t i);
+size_t epochs_len(epochs_t es);
 
 #endif

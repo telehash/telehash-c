@@ -19,6 +19,24 @@ int main(int argc, char **argv)
   fail_unless(e->type == 46);
   fail_unless(util_cmp(epoch_id(e),eid) == 0);
 
+  epochs_t es = epochs_add(NULL, e);
+  fail_unless(es);
+  fail_unless(epochs_len(es) == 1);
+  fail_unless((es = epochs_add(es, e)));
+  fail_unless(epochs_len(es) == 1);
+  fail_unless(epochs_index(es, 0) == e);
+  fail_unless(!epochs_index(es, 1));
+  fail_unless(!epochs_index(es, 2));
+  fail_unless(!(es = epochs_rem(es, e)));
+  fail_unless(epochs_len(es) == 0);
+
+  fail_unless((es = epochs_add(es, e)));
+  fail_unless((es = epochs_add(es, epoch_new(e))));
+  fail_unless(epochs_len(es) == 2);
+  fail_unless((es = epochs_rem(es, e)));
+  fail_unless(epochs_len(es) == 1);
+  fail_unless(!(es = epochs_rem(es, epochs_index(es,0))));
+  
   return 0;
 }
 
