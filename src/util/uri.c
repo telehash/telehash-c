@@ -158,10 +158,10 @@ lob_t util_uri_paths(lob_t uri)
   {
     value = lob_get_index(query,i+1);
     if(util_cmp(key,"paths") != 0 || !value) continue;
-    len = base32_decode_length(strlen(value));
+    len = base32_decode_floor(strlen(value));
     buf = util_reallocf(buf,len);
     if(!buf) continue;
-    if(base32_decode_into(value,strlen(value),buf) != len) continue;
+    if(base32_decode(value,strlen(value),buf,len) < len) continue;
     paths = lob_link(lob_parse(buf,len), paths);
   }
   free(buf);
