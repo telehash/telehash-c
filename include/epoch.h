@@ -18,7 +18,6 @@ struct epoch_struct
   uint32_t win; // current window
   uint32_t chan; // channel base for current window
   uint32_t at; // offset base in current window
-  link_t link;
   void *phy; // for use by driver
   uint8_t *buf, len; // filled in by scheduler (tx) or driver (rx)
   

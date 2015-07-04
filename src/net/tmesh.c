@@ -5,18 +5,17 @@
 
 
 // just make sure it's connected
-pipe_tmesh_t tmesh_to(pipe_t pipe)
+mote_t tmesh_to(pipe_t pipe)
 {
-  pipe_tmesh_t to;
+  mote_t to;
   if(!pipe || !pipe->arg) return NULL;
-  to = (pipe_tmesh_t)pipe->arg;
+  to = (mote_t)pipe->arg;
   return to;
 }
 
 // do hard scheduling stuff
-pipe_t tmesh_flush(pipe_t pipe)
+pipe_t tmesh_flush(mote_t to)
 {
-  pipe_tmesh_t to = tmesh_to(pipe);
   if(!to) return NULL;
 
   if(util_chunks_len(to->chunks))
@@ -41,63 +40,61 @@ pipe_t tmesh_flush(pipe_t pipe)
   // any incoming full packets can be received
 //  while((packet = util_chunks_receive(to->chunks))) mesh_receive(to->net->mesh, packet, pipe);
 
-  return pipe;
+  return to->pipe;
 }
 
 // chunkize a packet
 void tmesh_send(pipe_t pipe, lob_t packet, link_t link)
 {
-  pipe_tmesh_t to = tmesh_to(pipe);
+  mote_t to = tmesh_to(pipe);
   if(!to || !packet || !link) return;
 
   util_chunks_send(to->chunks, packet);
-  tmesh_flush(pipe);
+  tmesh_flush(to);
 }
 
-pipe_t tmesh_free(pipe_t pipe)
+mote_t tmesh_free(mote_t mote)
 {
-  pipe_tmesh_t to;
-  if(!pipe) return NULL;
-  to = (pipe_tmesh_t)pipe->arg;
-  if(!to) return LOG("internal error, invalid pipe, leaking it");
-
-  xht_set(to->net->pipes,pipe->id,NULL);
-  pipe_free(pipe);
-  util_chunks_free(to->chunks);
-  free(to);
+  if(!mote) return NULL;
+  pipe_free(mote->pipe);
+  util_chunks_free(mote->chunks);
+  free(mote);
   return NULL;
 }
 
-// internal, get or create a pipe
-pipe_t tmesh_pipe(net_tmesh_t net, link_t link)
+// internal, get or create a mote
+mote_t tmesh_mote(net_tmesh_t net, link_t link)
 {
-  pipe_t pipe;
-  pipe_tmesh_t to;
+  mote_t to;
   if(!net || !link) return LOG("bad args");
 
-  pipe = xht_get(net->pipes,link->id->hashname);
-  if(pipe) return pipe;
+  for(to = net->motes; to && to->link != link; to = to->next);
+  if(to) return to;
 
-  // create new tmesh pipe
-  if(!(pipe = pipe_new("tmesh"))) return NULL;
-  if(!(pipe->arg = to = malloc(sizeof (struct pipe_tmesh_struct)))) return pipe_free(pipe);
-  memset(to,0,sizeof (struct pipe_tmesh_struct));
+  // create new tmesh pipe/mote
+  if(!(to = malloc(sizeof (struct mote_struct)))) return LOG("OOM");
+  memset(to,0,sizeof (struct mote_struct));
+  if(!(to->chunks = util_chunks_new(0))) return tmesh_free(to);
+  if(!(to->pipe = pipe_new("tmesh"))) return tmesh_free(to);
+  to->link = link;
   to->net = net;
-  // TODO make first epoch
-//  to->link = link;
-  if(!(to->chunks = util_chunks_new(0))) return tmesh_free(pipe);
-  
-  // set up pipe
-  pipe->id = strdup(link->id->hashname);
-  xht_set(net->pipes,pipe->id,pipe);
-  pipe->send = tmesh_send;
+  to->next = net->motes;
+  net->motes = to;
 
-  return pipe;
+  // set up pipe
+  to->pipe->arg = to;
+  to->pipe->id = strdup(link->id->hashname);
+  to->pipe->send = tmesh_send;
+
+  // TODO make first epochs
+
+  return to;
 }
 
 
 pipe_t tmesh_path(link_t link, lob_t path)
 {
+  mote_t to;
   net_tmesh_t net;
 
   // just sanity check the path first
@@ -106,20 +103,20 @@ pipe_t tmesh_path(link_t link, lob_t path)
   if(util_cmp("tmesh",lob_get(path,"type"))) return NULL;
 //  if(!(ip = lob_get(path,"ip"))) return LOG("missing ip");
 //  if((port = lob_get_int(path,"port")) <= 0) return LOG("missing port");
-  return tmesh_pipe(net, link);
+  if(!(to = tmesh_mote(net, link))) return NULL;
+  return to->pipe;
 }
 
 net_tmesh_t net_tmesh_new(mesh_t mesh, lob_t options)
 {
-  unsigned int pipes;
+  unsigned int motes;
   net_tmesh_t net;
   
-  pipes = lob_get_uint(options,"pipes");
-  if(!pipes) pipes = 11; // hashtable for active pipes
+  motes = lob_get_uint(options,"motes");
+  if(!motes) motes = 11; // hashtable for active motes
 
   if(!(net = malloc(sizeof (struct net_tmesh_struct)))) return LOG("OOM");
   memset(net,0,sizeof (struct net_tmesh_struct));
-  net->pipes = xht_new(pipes);
 
   // connect us to this mesh
   net->mesh = mesh;
@@ -137,7 +134,7 @@ net_tmesh_t net_tmesh_new(mesh_t mesh, lob_t options)
 void net_tmesh_free(net_tmesh_t net)
 {
   if(!net) return;
-  xht_free(net->pipes);
+//  xht_free(net->motes);
 //  lob_free(net->path); // managed by mesh->paths
   free(net);
   return;
@@ -153,7 +150,7 @@ void net_tmesh_accept(net_tmesh_t net)
     fcntl(client, F_SETFL, O_NONBLOCK);
     if(!(pipe = tmesh_pipe(net, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port)))) continue;
     LOG("incoming connection from %s",pipe->id);
-    to = (pipe_tmesh_t)pipe->arg;
+    to = (mote_t)pipe->arg;
     if(to->client > 0) close(to->client);
     to->client = client;
   }
@@ -161,16 +158,11 @@ void net_tmesh_accept(net_tmesh_t net)
 
 }
 
-// check a single pipe's socket for any read/write activity
-static void _walkflush(xht_t h, const char *key, void *val, void *arg)
-{
-  tmesh_flush((pipe_t)val);
-}
-
 net_tmesh_t net_tmesh_loop(net_tmesh_t net)
 {
+  mote_t mote;
   net_tmesh_accept(net);
-  xht_walk(net->pipes, _walkflush, NULL);
+  for(mote = net->motes;mote && tmesh_flush(mote);mote = mote->next);
   return net;
 }
 
