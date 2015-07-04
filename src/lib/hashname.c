@@ -15,7 +15,7 @@ uint8_t hashname_valid(char *str)
   static uint8_t buf[32];
   if(!str) return 0;
   if(strlen(str) != 52) return 0;
-  if(base32_decode_into(str,52,buf) != 32) return 0;
+  if(base32_decode(str,52,buf,32) != 32) return 0;
   return 1;
 }
 
@@ -28,7 +28,7 @@ hashname_t hashname_new(uint8_t *bin)
   if(bin)
   {
     memcpy(hn->bin, bin, 32);
-    base32_encode_into(hn->bin,32,hn->hashname);
+    base32_encode(hn->bin,32,hn->hashname,53);
   }
   return hn;
 }
@@ -39,8 +39,8 @@ hashname_t hashname_str(char *str)
   hashname_t hn;
   if(!hashname_valid(str)) return NULL;
   hn = hashname_new(NULL);
-  base32_decode_into(str,52,hn->bin);
-  base32_encode_into(hn->bin,32,hn->hashname);
+  base32_decode(str,52,hn->bin,32);
+  base32_encode(hn->bin,32,hn->hashname,53);
   return hn;
 }
 
@@ -76,7 +76,7 @@ hashname_t hashname_key(lob_t key, uint8_t csid)
       e3x_hash(key->body,key->body_len,hash+32);
     }else{
       if(strlen(value) != 52) return LOG("invalid value %s %d",value,strlen(value));
-      base32_decode_into(value,52,hash+32);
+      if(base32_decode(value,52,hash+32,32) != 32) return LOG("base32 decode failed %s",value);
     }
     e3x_hash(hash,64,hash);
   }
@@ -145,17 +145,17 @@ lob_t hashname_im(lob_t keys, uint8_t id)
   {
     value = lob_get_index(keys,i+1);
     if(strlen(key) != 2 || !value) continue; // skip non-csid keys
-    len = base32_decode_length(strlen(value));
+    len = base32_decode_floor(strlen(value));
     // save to body raw or as a base32 intermediate value
     if(id && util_cmp(hex,key) == 0)
     {
       lob_body(im,NULL,len);
-      if(base32_decode_into(value,strlen(value),im->body) != len) continue;
+      if(base32_decode(value,strlen(value),im->body,len) != len) continue;
       lob_set_raw(im,key,0,"true",4);
     }else{
       buf = util_reallocf(buf,len);
       if(!buf) return lob_free(im);
-      if(base32_decode_into(value,strlen(value),buf) != len) continue;
+      if(base32_decode(value,strlen(value),buf,len) != len) continue;
       // store the hash intermediate value
       e3x_hash(buf,len,hash);
       lob_set_base32(im,key,hash,32);
