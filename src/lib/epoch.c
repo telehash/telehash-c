@@ -32,6 +32,15 @@ epoch_t epoch_import(epoch_t e, char *eid)
   return epoch_reset(e);
 }
 
+epoch_t epoch_import2(epoch_t e, char *header, char *body)
+{
+  if(!e || !header) return NULL;
+  if(base32_decode_length(strlen(header)) < 8) return NULL;
+  base32_decode_into(header,0,e->bin);
+  if(body && base32_decode_length(strlen(body)) >= 8) base32_decode_into(body,0,e->bin+8);
+  return epoch_reset(e);
+}
+
 epoch_t epoch_reset(epoch_t e)
 {
   if(!e) return NULL;

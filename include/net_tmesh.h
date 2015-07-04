@@ -15,6 +15,7 @@ typedef struct mote_struct
   link_t link;
   uint8_t z;
   pipe_t pipe;
+  uint64_t sync; // when synchronized, 0 if trying to sync
   struct mote_struct *next;
 } *mote_t;
 
@@ -24,13 +25,16 @@ struct net_tmesh_struct
   mesh_t mesh;
   mote_t motes;
   lob_t path;
-  epochs_t lost;
+  epochs_t syncs; // the ones we listen on
   epoch_t tx, rx; // all active, master lists
 };
 
 // create a new tmesh radio network bound to this mesh
 net_tmesh_t net_tmesh_new(mesh_t mesh, lob_t options);
 void net_tmesh_free(net_tmesh_t net);
+
+// add a sync epoch from this header
+net_tmesh_t net_tmesh_sync(net_tmesh_t net, char *header);
 
 // perform buffer management and internal soft scheduling
 net_tmesh_t net_tmesh_loop(net_tmesh_t net);

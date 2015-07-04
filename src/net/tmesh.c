@@ -140,6 +140,18 @@ void net_tmesh_free(net_tmesh_t net)
   return;
 }
 
+// add a sync epoch from this header
+net_tmesh_t net_tmesh_sync(net_tmesh_t net, char *header)
+{
+  epoch_t sync;
+  if(!net || !header || strlen(header) < 13) return LOG("bad args");
+  if(!(sync = epoch_new(NULL))) return LOG("OOM");
+  if(!epoch_import2(sync,header,net->mesh->id->hashname)) return (net_tmesh_t)epoch_free(sync);
+  sync->txrx = 0; // rx
+  net->syncs = epochs_add(net->syncs,sync);
+  return net;
+}
+
 // process any new incoming connections
 void net_tmesh_accept(net_tmesh_t net)
 {

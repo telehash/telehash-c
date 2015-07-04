@@ -29,6 +29,7 @@ epoch_t epoch_free(epoch_t e);
 epoch_t epoch_reset(epoch_t e);
 char *epoch_id(epoch_t e); // friendly base32 encoding
 epoch_t epoch_import(epoch_t e, char *eid); // also resets
+epoch_t epoch_import2(epoch_t e, char *header, char *body); // also resets
 
 // scheduling stuff
 epoch_t epoch_sync(epoch_t e, uint32_t window, uint64_t at); // sync point for given window
