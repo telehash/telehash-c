@@ -107,7 +107,7 @@ pipe_t tmesh_path(link_t link, lob_t path)
   return to->pipe;
 }
 
-net_tmesh_t net_tmesh_new(mesh_t mesh, lob_t options)
+net_tmesh_t net_tmesh_new(mesh_t mesh, lob_t options, epoch_t (*init)(net_tmesh_t net, epoch_t e))
 {
   unsigned int motes;
   net_tmesh_t net;
@@ -117,6 +117,7 @@ net_tmesh_t net_tmesh_new(mesh_t mesh, lob_t options)
 
   if(!(net = malloc(sizeof (struct net_tmesh_struct)))) return LOG("OOM");
   memset(net,0,sizeof (struct net_tmesh_struct));
+  net->init = init;
 
   // connect us to this mesh
   net->mesh = mesh;

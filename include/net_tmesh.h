@@ -26,11 +26,12 @@ struct net_tmesh_struct
   mote_t motes;
   lob_t path;
   epochs_t syncs; // the ones we listen on
-  epoch_t tx, rx; // all active, master lists
+  epoch_t tx, rx; // all active
+  epoch_t (*init)(net_tmesh_t net, epoch_t e); // callback used to initialize all new epochs, add scheduling time/cost
 };
 
 // create a new tmesh radio network bound to this mesh
-net_tmesh_t net_tmesh_new(mesh_t mesh, lob_t options);
+net_tmesh_t net_tmesh_new(mesh_t mesh, lob_t options, epoch_t (*init)(net_tmesh_t net, epoch_t e));
 void net_tmesh_free(net_tmesh_t net);
 
 // add a sync epoch from this header

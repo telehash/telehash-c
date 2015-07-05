@@ -15,7 +15,7 @@ int main(int argc, char **argv)
   lob_t secretsB = mesh_generate(meshB);
   fail_unless(secretsB);
   
-  net_tmesh_t netA = net_tmesh_new(meshA, NULL);
+  net_tmesh_t netA = net_tmesh_new(meshA, NULL, NULL);
   fail_unless(netA);
   fail_unless(netA->path);
   LOG("netA %.*s",netA->path->head_len,netA->path->head);

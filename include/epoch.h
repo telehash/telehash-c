@@ -13,10 +13,11 @@ struct epoch_struct
   uint8_t bin[16]; // 8 header 8 random body
   char *id; // base32 of bin
   uint8_t type; // bin[0]
+  uint32_t us; // microseconds to tx/rx, set by external/phy
   uint8_t key[16]; // private key for MAC-AES
   uint32_t win; // current window
   uint32_t chan; // channel base for current window
-  uint32_t at; // offset base in current window
+  uint32_t at; // microsecond offset base in current window
   void *ext; // for external use
   uint8_t *buf, len; // filled in by scheduler (tx) or driver (rx)
   
