@@ -6,7 +6,7 @@
 
 typedef struct net_tmesh_struct *net_tmesh_t;
 
-// individual mote pipe local info
+// individual mote pipe local info, wrapper around a link for radio peers
 typedef struct mote_struct
 {
   net_tmesh_t net;
@@ -42,17 +42,5 @@ net_tmesh_t net_tmesh_loop(net_tmesh_t net);
 // return the next hard-scheduled epoch from this given point in time
 epoch_t net_tmesh_next(net_tmesh_t net, uint64_t from);
 
-/* discussion on flow
-
-* every mote is 1:1 to a link
-* lost is a virtual mote that is constantly reset
-* each mote has it's own time sync base to derive window counters
-* any mote w/ a tx knock ready is priority
-* upon tx, lost rx is reset
-* when no tx, the next rx is always scheduled
-* when no tx for some period of time, generate one on the lost epoch
-* when in discovery mode, it is a virtual mote that is always tx'ing
-
-*/
 
 #endif

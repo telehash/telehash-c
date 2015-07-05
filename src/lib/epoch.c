@@ -19,7 +19,7 @@ epoch_t epoch_new(epoch_t next)
 epoch_t epoch_free(epoch_t e)
 {
   if(e->id) free(e->id);
-  if(e->phy) LOG("epoch free'd leaking phy pointer");
+  if(e->ext) LOG("epoch free'd leaking external pointer");
   free(e);
   return NULL;
 }

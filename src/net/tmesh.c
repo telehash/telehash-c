@@ -147,7 +147,6 @@ net_tmesh_t net_tmesh_sync(net_tmesh_t net, char *header)
   if(!net || !header || strlen(header) < 13) return LOG("bad args");
   if(!(sync = epoch_new(NULL))) return LOG("OOM");
   if(!epoch_import2(sync,header,net->mesh->id->hashname)) return (net_tmesh_t)epoch_free(sync);
-  sync->txrx = 0; // rx
   net->syncs = epochs_add(net->syncs,sync);
   return net;
 }
@@ -170,11 +169,38 @@ void net_tmesh_accept(net_tmesh_t net)
 
 }
 
+/* discussion on flow
+
+* my sync is a virtual mote that is constantly reset
+* each mote has it's own time sync base to derive window counters
+* any mote w/ a tx knock ready is priority
+* upon tx, my sync rx is reset
+* when no tx, the next rx is always scheduled
+* when no tx for some period of time, generate one on the sync epoch
+* when in discovery mode, it is a virtual mote that is always tx'ing if nothing else is
+
+*/
+
 net_tmesh_t net_tmesh_loop(net_tmesh_t net)
 {
   mote_t mote;
-  net_tmesh_accept(net);
+  // each mote flush will check if it was the active one and process data
+  // net->rx is cleared since it is rebuilt
+  // each flush will check if the epoch was a sync one and add that rx, else normal rx
   for(mote = net->motes;mote && tmesh_flush(mote);mote = mote->next);
+  // if active had a buffer and was my sync channel, my own sync rx is reset/added
+  // if any active, is cleared
   return net;
+}
+
+// return the next hard-scheduled epoch from this given point in time
+epoch_t net_tmesh_next(net_tmesh_t net, uint64_t from)
+{
+  // find nearest tx
+  //  check if any rx can come first
+  // take first rx
+  //  check if any rx can come first
+  // pop off list and set active
+  return NULL;
 }
 
