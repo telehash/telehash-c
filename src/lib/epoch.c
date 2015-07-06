@@ -65,6 +65,14 @@ char *epoch_id(epoch_t e)
   return e->id;
 }
 
+// microseconds for how long the action takes
+epoch_t epoch_busy(epoch_t e, uint32_t us)
+{
+  if(!e) return NULL;
+  e->busy = us;
+  return e;
+}
+
 // when is next knock, returns 0 if == from
 uint64_t epoch_knock(epoch_t e, uint64_t from)
 {

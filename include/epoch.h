@@ -13,7 +13,7 @@ struct epoch_struct
   uint8_t bin[16]; // 8 header 8 random body
   char *id; // base32 of bin
   uint8_t type; // bin[0]
-  uint32_t us; // microseconds to tx/rx, set by external/phy
+  uint32_t busy; // microseconds to tx/rx, set by external/phy
   uint8_t key[16]; // private key for MAC-AES
   uint32_t win; // current window
   uint32_t chan; // channel base for current window
@@ -34,6 +34,7 @@ epoch_t epoch_import2(epoch_t e, char *header, char *body); // also resets
 // scheduling stuff
 epoch_t epoch_sync(epoch_t e, uint32_t window, uint64_t at); // sync point for given window
 uint64_t epoch_knock(epoch_t e, uint64_t from); // when is next knock, returns 0 if == from
+epoch_t epoch_busy(epoch_t e, uint32_t us); // microseconds for how long the action takes
 
 // phy utilities
 uint32_t epoch_chan(epoch_t e, uint64_t at, uint8_t chans); // which channel to use at this time

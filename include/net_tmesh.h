@@ -34,6 +34,9 @@ struct net_tmesh_struct
 net_tmesh_t net_tmesh_new(mesh_t mesh, lob_t options, epoch_t (*init)(net_tmesh_t net, epoch_t e));
 void net_tmesh_free(net_tmesh_t net);
 
+// get(create) the mote for a link
+mote_t net_tmesh_mote(net_tmesh_t net, link_t link);
+
 // add a sync epoch from this header
 net_tmesh_t net_tmesh_sync(net_tmesh_t net, char *header);
 

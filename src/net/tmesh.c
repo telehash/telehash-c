@@ -62,8 +62,8 @@ mote_t tmesh_free(mote_t mote)
   return NULL;
 }
 
-// internal, get or create a mote
-mote_t tmesh_mote(net_tmesh_t net, link_t link)
+// get or create a mote
+mote_t net_tmesh_mote(net_tmesh_t net, link_t link)
 {
   mote_t to;
   if(!net || !link) return LOG("bad args");
@@ -103,7 +103,7 @@ pipe_t tmesh_path(link_t link, lob_t path)
   if(util_cmp("tmesh",lob_get(path,"type"))) return NULL;
 //  if(!(ip = lob_get(path,"ip"))) return LOG("missing ip");
 //  if((port = lob_get_int(path,"port")) <= 0) return LOG("missing port");
-  if(!(to = tmesh_mote(net, link))) return NULL;
+  if(!(to = net_tmesh_mote(net, link))) return NULL;
   return to->pipe;
 }
 
@@ -112,6 +112,8 @@ net_tmesh_t net_tmesh_new(mesh_t mesh, lob_t options, epoch_t (*init)(net_tmesh_
   unsigned int motes;
   net_tmesh_t net;
   
+  if(!init) return LOG("requires epoch phy init handler");
+
   motes = lob_get_uint(options,"motes");
   if(!motes) motes = 11; // hashtable for active motes
 
@@ -148,6 +150,7 @@ net_tmesh_t net_tmesh_sync(net_tmesh_t net, char *header)
   if(!net || !header || strlen(header) < 13) return LOG("bad args");
   if(!(sync = epoch_new(NULL))) return LOG("OOM");
   if(!epoch_import2(sync,header,net->mesh->id->hashname)) return (net_tmesh_t)epoch_free(sync);
+  if(!net->init(net, sync)) return (net_tmesh_t)epoch_free(sync);
   net->syncs = epochs_add(net->syncs,sync);
   return net;
 }
