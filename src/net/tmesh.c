@@ -14,7 +14,7 @@ mote_t tmesh_to(pipe_t pipe)
 }
 
 // per-mote processing and soft scheduling
-static pipe_t mote_loop(net_tmesh_t net, mote_t to)
+static pipe_t mote_loop(tmesh_t tm, mote_t to)
 {
   if(!to) return NULL;
 
@@ -38,7 +38,7 @@ static pipe_t mote_loop(net_tmesh_t net, mote_t to)
   */
 
   // any incoming full packets can be received
-//  while((packet = util_chunks_receive(to->chunks))) mesh_receive(to->net->mesh, packet, pipe);
+//  while((packet = util_chunks_receive(to->chunks))) mesh_receive(to->tm->mesh, packet, pipe);
 
   return to->pipe;
 }
@@ -53,7 +53,7 @@ void tmesh_send(pipe_t pipe, lob_t packet, link_t link)
 //  tmesh_flush(to);
 }
 
-mote_t tmesh_free(mote_t mote)
+static mote_t mote_free(mote_t mote)
 {
   if(!mote) return NULL;
   pipe_free(mote->pipe);
@@ -63,23 +63,23 @@ mote_t tmesh_free(mote_t mote)
 }
 
 // get or create a mote
-mote_t net_tmesh_mote(net_tmesh_t net, link_t link)
+mote_t tmesh_mote(tmesh_t tm, link_t link)
 {
   mote_t to;
-  if(!net || !link) return LOG("bad args");
+  if(!tm || !link) return LOG("bad args");
 
-  for(to = net->motes; to && to->link != link; to = to->next);
+  for(to = tm->motes; to && to->link != link; to = to->next);
   if(to) return to;
 
   // create new tmesh pipe/mote
   if(!(to = malloc(sizeof (struct mote_struct)))) return LOG("OOM");
   memset(to,0,sizeof (struct mote_struct));
-  if(!(to->chunks = util_chunks_new(0))) return tmesh_free(to);
-  if(!(to->pipe = pipe_new("tmesh"))) return tmesh_free(to);
+  if(!(to->chunks = util_chunks_new(0))) return mote_free(to);
+  if(!(to->pipe = pipe_new("tmesh"))) return mote_free(to);
   to->link = link;
-  to->net = net;
-  to->next = net->motes;
-  net->motes = to;
+  to->tm = tm;
+  to->next = tm->motes;
+  tm->motes = to;
 
   // set up pipe
   to->pipe->arg = to;
@@ -95,64 +95,64 @@ mote_t net_tmesh_mote(net_tmesh_t net, link_t link)
 pipe_t tmesh_path(link_t link, lob_t path)
 {
   mote_t to;
-  net_tmesh_t net;
+  tmesh_t tm;
 
   // just sanity check the path first
   if(!link || !path) return NULL;
-  if(!(net = xht_get(link->mesh->index, "net_tmesh"))) return NULL;
+  if(!(tm = xht_get(link->mesh->index, "tmesh"))) return NULL;
   if(util_cmp("tmesh",lob_get(path,"type"))) return NULL;
 //  if(!(ip = lob_get(path,"ip"))) return LOG("missing ip");
 //  if((port = lob_get_int(path,"port")) <= 0) return LOG("missing port");
-  if(!(to = net_tmesh_mote(net, link))) return NULL;
+  if(!(to = tmesh_mote(tm, link))) return NULL;
   return to->pipe;
 }
 
-net_tmesh_t net_tmesh_new(mesh_t mesh, lob_t options, epoch_t (*init)(net_tmesh_t net, epoch_t e))
+tmesh_t tmesh_new(mesh_t mesh, lob_t options, epoch_t (*init)(tmesh_t tm, epoch_t e))
 {
   unsigned int motes;
-  net_tmesh_t net;
+  tmesh_t tm;
   
   if(!init) return LOG("requires epoch phy init handler");
 
   motes = lob_get_uint(options,"motes");
   if(!motes) motes = 11; // hashtable for active motes
 
-  if(!(net = malloc(sizeof (struct net_tmesh_struct)))) return LOG("OOM");
-  memset(net,0,sizeof (struct net_tmesh_struct));
-  net->init = init;
+  if(!(tm = malloc(sizeof (struct tmesh_struct)))) return LOG("OOM");
+  memset(tm,0,sizeof (struct tmesh_struct));
+  tm->init = init;
 
   // connect us to this mesh
-  net->mesh = mesh;
-  xht_set(mesh->index, "net_tmesh", net);
-  mesh_on_path(mesh, "net_tmesh", tmesh_path);
+  tm->mesh = mesh;
+  xht_set(mesh->index, "tmesh", tm);
+  mesh_on_path(mesh, "tmesh", tmesh_path);
   
   // convenience
-  net->path = lob_new();
-  lob_set(net->path,"type","tmesh");
-  mesh->paths = lob_push(mesh->paths, net->path);
+  tm->path = lob_new();
+  lob_set(tm->path,"type","tmesh");
+  mesh->paths = lob_push(mesh->paths, tm->path);
 
-  return net;
+  return tm;
 }
 
-void net_tmesh_free(net_tmesh_t net)
+void tmesh_free(tmesh_t tm)
 {
-  if(!net) return;
-//  xht_free(net->motes);
-//  lob_free(net->path); // managed by mesh->paths
-  free(net);
+  if(!tm) return;
+//  xht_free(tm->motes);
+//  lob_free(tm->path); // managed by mesh->paths
+  free(tm);
   return;
 }
 
 // add a sync epoch from this header
-net_tmesh_t net_tmesh_sync(net_tmesh_t net, char *header)
+tmesh_t tmesh_sync(tmesh_t tm, char *header)
 {
   epoch_t sync;
-  if(!net || !header || strlen(header) < 13) return LOG("bad args");
+  if(!tm || !header || strlen(header) < 13) return LOG("bad args");
   if(!(sync = epoch_new(NULL))) return LOG("OOM");
-  if(!epoch_import2(sync,header,net->mesh->id->hashname)) return (net_tmesh_t)epoch_free(sync);
-  if(!net->init(net, sync)) return (net_tmesh_t)epoch_free(sync);
-  net->syncs = epochs_add(net->syncs,sync);
-  return net;
+  if(!epoch_import2(sync,header,tm->mesh->id->hashname)) return (tmesh_t)epoch_free(sync);
+  if(!tm->init(tm, sync)) return (tmesh_t)epoch_free(sync);
+  tm->syncs = epochs_add(tm->syncs,sync);
+  return tm;
 }
 
 
@@ -168,28 +168,28 @@ net_tmesh_t net_tmesh_sync(net_tmesh_t net, char *header)
 
 */
 
-net_tmesh_t net_tmesh_loop(net_tmesh_t net)
+tmesh_t tmesh_loop(tmesh_t tm)
 {
   mote_t mote;
-  if(!net) return LOG("bad args");
+  if(!tm) return LOG("bad args");
 
   // rx list cleared since it is rebuilt by the mote loop
-  net->rx = NULL; 
+  tm->rx = NULL; 
 
   // each mote loop will check if it was the active one and process data
   // will also check if the epoch was a sync one and add that rx, else normal rx
-  for(mote = net->motes;mote && mote_loop(net, mote);mote = mote->next);
+  for(mote = tm->motes;mote && mote_loop(tm, mote);mote = mote->next);
 
   // if active had a buffer and was my sync channel, my own sync rx is reset/added
 
   // if any active, is force cleared
-  net->active = NULL;
+  tm->active = NULL;
 
-  return net;
+  return tm;
 }
 
 // return the next hard-scheduled epoch from this given point in time
-epoch_t net_tmesh_next(net_tmesh_t net, uint64_t from)
+epoch_t tmesh_next(tmesh_t tm, uint64_t from)
 {
   // find nearest tx
   //  check if any rx can come first

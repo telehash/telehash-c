@@ -3,7 +3,7 @@
 #include "util_unix.h"
 #include "unit_test.h"
 
-epoch_t test_init(net_tmesh_t net, epoch_t e)
+epoch_t test_init(tmesh_t net, epoch_t e)
 {
   return epoch_busy(e, 5000); // 5ms
 }
@@ -20,12 +20,12 @@ int main(int argc, char **argv)
   lob_t secretsB = mesh_generate(meshB);
   fail_unless(secretsB);
   
-  net_tmesh_t netA = net_tmesh_new(meshA, NULL, test_init);
+  tmesh_t netA = tmesh_new(meshA, NULL, test_init);
   fail_unless(netA);
   fail_unless(netA->path);
   LOG("netA %.*s",netA->path->head_len,netA->path->head);
 
-  fail_unless(net_tmesh_sync(netA, "fzjb5f4tn4misgab7tb5rdrcay"));
+  fail_unless(tmesh_sync(netA, "fzjb5f4tn4misgab7tb5rdrcay"));
   fail_unless(netA->syncs);
   fail_unless(netA->syncs[0]);
   fail_unless(netA->syncs[0]->busy == 5000);
