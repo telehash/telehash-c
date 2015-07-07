@@ -13,8 +13,8 @@ mote_t tmesh_to(pipe_t pipe)
   return to;
 }
 
-// do hard scheduling stuff
-pipe_t tmesh_flush(mote_t to)
+// per-mote processing and soft scheduling
+static pipe_t mote_loop(net_tmesh_t net, mote_t to)
 {
   if(!to) return NULL;
 
@@ -50,7 +50,7 @@ void tmesh_send(pipe_t pipe, lob_t packet, link_t link)
   if(!to || !packet || !link) return;
 
   util_chunks_send(to->chunks, packet);
-  tmesh_flush(to);
+//  tmesh_flush(to);
 }
 
 mote_t tmesh_free(mote_t mote)
@@ -155,23 +155,6 @@ net_tmesh_t net_tmesh_sync(net_tmesh_t net, char *header)
   return net;
 }
 
-// process any new incoming connections
-void net_tmesh_accept(net_tmesh_t net)
-{
-
-  /*
-  while((client = accept(net->server, (struct sockaddr *)&addr,&size)) > 0)
-  {
-    fcntl(client, F_SETFL, O_NONBLOCK);
-    if(!(pipe = tmesh_pipe(net, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port)))) continue;
-    LOG("incoming connection from %s",pipe->id);
-    to = (mote_t)pipe->arg;
-    if(to->client > 0) close(to->client);
-    to->client = client;
-  }
-  */
-
-}
 
 /* discussion on flow
 
@@ -188,12 +171,20 @@ void net_tmesh_accept(net_tmesh_t net)
 net_tmesh_t net_tmesh_loop(net_tmesh_t net)
 {
   mote_t mote;
-  // each mote flush will check if it was the active one and process data
-  // net->rx is cleared since it is rebuilt
-  // each flush will check if the epoch was a sync one and add that rx, else normal rx
-  for(mote = net->motes;mote && tmesh_flush(mote);mote = mote->next);
+  if(!net) return LOG("bad args");
+
+  // rx list cleared since it is rebuilt by the mote loop
+  net->rx = NULL; 
+
+  // each mote loop will check if it was the active one and process data
+  // will also check if the epoch was a sync one and add that rx, else normal rx
+  for(mote = net->motes;mote && mote_loop(net, mote);mote = mote->next);
+
   // if active had a buffer and was my sync channel, my own sync rx is reset/added
-  // if any active, is cleared
+
+  // if any active, is force cleared
+  net->active = NULL;
+
   return net;
 }
 

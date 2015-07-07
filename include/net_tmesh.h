@@ -26,7 +26,8 @@ struct net_tmesh_struct
   mote_t motes;
   lob_t path;
   epochs_t syncs; // the ones we listen on
-  epoch_t tx, rx; // all active
+  epoch_t tx, rx; // soft scheduled
+  epoch_t active; // hard scheduled
   epoch_t (*init)(net_tmesh_t net, epoch_t e); // callback used to initialize all new epochs, add scheduling time/cost
 };
 
@@ -34,11 +35,11 @@ struct net_tmesh_struct
 net_tmesh_t net_tmesh_new(mesh_t mesh, lob_t options, epoch_t (*init)(net_tmesh_t net, epoch_t e));
 void net_tmesh_free(net_tmesh_t net);
 
+// add a sync epoch from this header, right now must be called at initialization/creation only
+net_tmesh_t net_tmesh_sync(net_tmesh_t net, char *header);
+
 // get(create) the mote for a link
 mote_t net_tmesh_mote(net_tmesh_t net, link_t link);
-
-// add a sync epoch from this header
-net_tmesh_t net_tmesh_sync(net_tmesh_t net, char *header);
 
 // perform buffer management and internal soft scheduling
 net_tmesh_t net_tmesh_loop(net_tmesh_t net);
