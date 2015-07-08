@@ -66,6 +66,9 @@ static mote_t mote_free(mote_t mote)
 // reset a mote to unsynchronized state
 static mote_t mote_reset(mote_t mote)
 {
+  epochs_t syncs;
+  epoch_t e;
+  size_t i;
   if(!mote) return NULL;
   
   mote->sync = 0;
@@ -73,9 +76,14 @@ static mote_t mote_reset(mote_t mote)
   // free any old active epochs
   mote->active = epochs_free(mote->active);
   
-  // copy in new sync epochs from it's individual paths
-  
-  // and new ones from global settings
+  // copy in any per-mote sync epochs or use global mesh ones
+  syncs = mote->syncs ? mote->syncs : mote->tm->syncs;
+  for(i=0;epochs_index(syncs,i);i++)
+  {
+    e = epoch_new(epoch_id(epochs_index(syncs,i)));
+    epoch_import(e,NULL,mote->link->id->hashname); // make sure correct sync body
+    mote->active = epochs_add(mote->active,e);
+  }
   
   return mote;
 }

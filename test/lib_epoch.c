@@ -15,9 +15,10 @@ int main(int argc, char **argv)
   LOG("generated epoch %s",epoch_id(e));
 
   char eid[] = "fzjb5f4tn4misgab7tb5rdrcay";
-  fail_unless(epoch_import(e,eid));
+  fail_unless(epoch_import(e,eid,NULL));
   fail_unless(e->type == 46);
   fail_unless(util_cmp(epoch_id(e),eid) == 0);
+  fail_unless(epoch_import(e,NULL,eid));
 
   epochs_t es = epochs_add(NULL, e);
   fail_unless(es);
@@ -31,7 +32,7 @@ int main(int argc, char **argv)
   fail_unless(epochs_len(es) == 0);
 
   fail_unless((es = epochs_add(es, e)));
-  fail_unless((es = epochs_add(es, epoch_new(e))));
+  fail_unless((es = epochs_add(es, epoch_new(NULL))));
   fail_unless(epochs_len(es) == 2);
   fail_unless((es = epochs_rem(es, e)));
   fail_unless(epochs_len(es) == 1);

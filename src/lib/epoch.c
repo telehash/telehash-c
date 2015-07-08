@@ -31,10 +31,11 @@ epoch_t epoch_free(epoch_t e)
 
 epoch_t epoch_import(epoch_t e, char *header, char *body)
 {
-  if(!e || !header) return NULL;
-  if(base32_decode_floor(strlen(header)) < 8) return NULL;
+  if(!e || !(header || body)) return NULL;
+  if(header && base32_decode_floor(strlen(header)) < 8) return NULL;
+  if(body && base32_decode_floor(strlen(body)) < 8) return NULL;
   base32_decode(header,0,e->bin,16);
-  if(body && base32_decode_floor(strlen(body)) >= 8) base32_decode(body,0,e->bin+8,8);
+  base32_decode(body,0,e->bin+8,8);
   return epoch_reset(e);
 }
 
