@@ -11,7 +11,8 @@ typedef struct mote_struct
 {
   tmesh_t tm;
   util_chunks_t chunks;
-  epochs_t es;
+  epochs_t active;
+  epochs_t syncs;
   link_t link;
   uint8_t z;
   pipe_t pipe;

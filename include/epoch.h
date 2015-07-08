@@ -44,5 +44,6 @@ epochs_t epochs_add(epochs_t es, epoch_t e);
 epochs_t epochs_rem(epochs_t es, epoch_t e);
 epoch_t epochs_index(epochs_t es, size_t i);
 size_t epochs_len(epochs_t es);
+epochs_t epochs_free(epochs_t es);
 
 #endif

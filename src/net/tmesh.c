@@ -5,7 +5,7 @@
 
 
 // just make sure it's connected
-mote_t tmesh_to(pipe_t pipe)
+mote_t mote_to(pipe_t pipe)
 {
   mote_t to;
   if(!pipe || !pipe->arg) return NULL;
@@ -14,9 +14,9 @@ mote_t tmesh_to(pipe_t pipe)
 }
 
 // per-mote processing and soft scheduling
-static pipe_t mote_loop(tmesh_t tm, mote_t to)
+static mote_t mote_loop(tmesh_t tm, mote_t to)
 {
-  if(!to) return NULL;
+  if(!tm || !to) return NULL;
 
   if(util_chunks_len(to->chunks))
   {
@@ -40,26 +40,44 @@ static pipe_t mote_loop(tmesh_t tm, mote_t to)
   // any incoming full packets can be received
 //  while((packet = util_chunks_receive(to->chunks))) mesh_receive(to->tm->mesh, packet, pipe);
 
-  return to->pipe;
+  return to;
 }
 
-// chunkize a packet
-void tmesh_send(pipe_t pipe, lob_t packet, link_t link)
+// just chunkize a packet, next loop will load it
+static void mote_send(pipe_t pipe, lob_t packet, link_t link)
 {
-  mote_t to = tmesh_to(pipe);
-  if(!to || !packet || !link) return;
+  mote_t to = mote_to(pipe);
+  if(!to || !packet) return;
 
   util_chunks_send(to->chunks, packet);
-//  tmesh_flush(to);
 }
 
 static mote_t mote_free(mote_t mote)
 {
   if(!mote) return NULL;
+  epochs_free(mote->active);
+  epochs_free(mote->syncs);
   pipe_free(mote->pipe);
   util_chunks_free(mote->chunks);
   free(mote);
   return NULL;
+}
+
+// reset a mote to unsynchronized state
+static mote_t mote_reset(mote_t mote)
+{
+  if(!mote) return NULL;
+  
+  mote->sync = 0;
+
+  // free any old active epochs
+  mote->active = epochs_free(mote->active);
+  
+  // copy in new sync epochs from it's individual paths
+  
+  // and new ones from global settings
+  
+  return mote;
 }
 
 // get or create a mote
@@ -84,11 +102,9 @@ mote_t tmesh_mote(tmesh_t tm, link_t link)
   // set up pipe
   to->pipe->arg = to;
   to->pipe->id = strdup(link->id->hashname);
-  to->pipe->send = tmesh_send;
+  to->pipe->send = mote_send;
 
-  // TODO make first epochs
-
-  return to;
+  return mote_reset(to);
 }
 
 
@@ -96,14 +112,19 @@ pipe_t tmesh_path(link_t link, lob_t path)
 {
   mote_t to;
   tmesh_t tm;
+  char *sync;
+  epoch_t e;
 
   // just sanity check the path first
   if(!link || !path) return NULL;
   if(!(tm = xht_get(link->mesh->index, "tmesh"))) return NULL;
   if(util_cmp("tmesh",lob_get(path,"type"))) return NULL;
-//  if(!(ip = lob_get(path,"ip"))) return LOG("missing ip");
-//  if((port = lob_get_int(path,"port")) <= 0) return LOG("missing port");
-  if(!(to = tmesh_mote(tm, link))) return NULL;
+  if(!(sync = lob_get(path,"sync"))) return LOG("missing sync");
+  e = epoch_new(NULL);
+  if(!(e = epoch_import2(e,sync,link->id->hashname))) return (pipe_t)epoch_free(e);
+  if(!(to = tmesh_mote(tm, link))) return (pipe_t)epoch_free(e);
+  to->syncs = epochs_add(to->syncs, e);
+  if(!to->sync) mote_reset(to); // load new sync epoch immediately if not in sync
   return to->pipe;
 }
 

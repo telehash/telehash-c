@@ -149,3 +149,13 @@ size_t epochs_len(epochs_t es)
   while(es[len]) len++;
   return len;
 }
+
+// free all
+epochs_t epochs_free(epochs_t es)
+{
+  size_t i;
+  if(!es) return NULL;
+  for(i=0;es[i];i++) epoch_free(es[i]);
+  free(es);
+  return NULL;
+}
