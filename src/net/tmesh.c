@@ -184,6 +184,27 @@ tmesh_t tmesh_sync(tmesh_t tm, char *header)
   return tm;
 }
 
+// become discoverable by anyone with this epoch id, pass NULL to reset all
+tmesh_t tmesh_discoverable(tmesh_t tm, char *id)
+{
+  epoch_t e;
+  if(!tm) return NULL;
+  if(!id)
+  {
+    tm->disco = epochs_free(tm->disco);
+    return tm;
+  }
+  
+  e = epoch_new(id);
+  if(!e) return NULL;
+  
+  // verify the epoch is for a cipher set we support
+  // TODO add tx buffer of lob IM
+  
+  tm->disco = epochs_add(tm->disco, e);
+  return tm;
+}
+
 
 /* discussion on flow
 
@@ -210,6 +231,13 @@ tmesh_t tmesh_loop(tmesh_t tm)
   for(mote = tm->motes;mote && mote_loop(tm, mote);mote = mote->next);
 
   // if active had a buffer and was my sync channel, my own sync rx is reset/added
+
+  // discovery special processing
+  if(tm->disco)
+  {
+    // TODO if we just tx'd a disco knock, we should rx sequence 1, and rx sequence 0 if we can before then
+    // else add a tx
+  }
 
   // if any active, is force cleared
   tm->active = NULL;

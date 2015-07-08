@@ -26,6 +26,7 @@ struct tmesh_struct
   mesh_t mesh;
   mote_t motes;
   lob_t path;
+  epochs_t disco; // only when discovery is enabled
   epochs_t syncs; // the ones we listen on
   epoch_t tx, rx; // soft scheduled
   epoch_t active; // hard scheduled
@@ -38,6 +39,9 @@ void tmesh_free(tmesh_t tm);
 
 // add a sync epoch from this header, right now must be called at initialization/creation only
 tmesh_t tmesh_sync(tmesh_t tm, char *header);
+
+// become discoverable by anyone with this epoch id, pass NULL to reset all
+tmesh_t tmesh_discoverable(tmesh_t tm, char *id);
 
 // get(create) the mote for a link
 mote_t tmesh_mote(tmesh_t tm, link_t link);
