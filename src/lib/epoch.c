@@ -5,13 +5,18 @@
 #include "util.h"
 #include "epoch.h"
 
-epoch_t epoch_new(epoch_t next)
+epoch_t epoch_new(char *id)
 {
   epoch_t e;
 
   if(!(e = malloc(sizeof(struct epoch_struct)))) return LOG("OOM");
   memset(e,0,sizeof (struct epoch_struct));
-  e->next = next;
+
+  if(id && !epoch_import(e, id, NULL))
+  {
+    LOG("invalid id");
+    return epoch_free(e);
+  }
 
   return e;
 }
@@ -24,19 +29,11 @@ epoch_t epoch_free(epoch_t e)
   return NULL;
 }
 
-epoch_t epoch_import(epoch_t e, char *eid)
-{
-  if(!e || !eid) return NULL;
-  if(base32_decode_floor(strlen(eid)) != 16) return NULL;
-  base32_decode(eid,0,e->bin,16);
-  return epoch_reset(e);
-}
-
-epoch_t epoch_import2(epoch_t e, char *header, char *body)
+epoch_t epoch_import(epoch_t e, char *header, char *body)
 {
   if(!e || !header) return NULL;
   if(base32_decode_floor(strlen(header)) < 8) return NULL;
-  base32_decode(header,0,e->bin,8);
+  base32_decode(header,0,e->bin,16);
   if(body && base32_decode_floor(strlen(body)) >= 8) base32_decode(body,0,e->bin+8,8);
   return epoch_reset(e);
 }

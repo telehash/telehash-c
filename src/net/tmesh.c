@@ -121,7 +121,7 @@ pipe_t tmesh_path(link_t link, lob_t path)
   if(util_cmp("tmesh",lob_get(path,"type"))) return NULL;
   if(!(sync = lob_get(path,"sync"))) return LOG("missing sync");
   e = epoch_new(NULL);
-  if(!(e = epoch_import2(e,sync,link->id->hashname))) return (pipe_t)epoch_free(e);
+  if(!(e = epoch_import(e,sync,link->id->hashname))) return (pipe_t)epoch_free(e);
   if(!(to = tmesh_mote(tm, link))) return (pipe_t)epoch_free(e);
   to->syncs = epochs_add(to->syncs, e);
   if(!to->sync) mote_reset(to); // load new sync epoch immediately if not in sync
@@ -170,7 +170,7 @@ tmesh_t tmesh_sync(tmesh_t tm, char *header)
   epoch_t sync;
   if(!tm || !header || strlen(header) < 13) return LOG("bad args");
   if(!(sync = epoch_new(NULL))) return LOG("OOM");
-  if(!epoch_import2(sync,header,tm->mesh->id->hashname)) return (tmesh_t)epoch_free(sync);
+  if(!epoch_import(sync,header,tm->mesh->id->hashname)) return (tmesh_t)epoch_free(sync);
   if(!tm->init(tm, sync)) return (tmesh_t)epoch_free(sync);
   tm->syncs = epochs_add(tm->syncs,sync);
   return tm;
