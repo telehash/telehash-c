@@ -38,6 +38,11 @@ int main(int argc, char **argv)
   fail_unless(epochs_len(es) == 1);
   fail_unless(!(es = epochs_rem(es, epochs_index(es,0))));
   
+  knock_t k = epoch_knock(e, 0);
+  fail_unless(k);
+  fail_unless(epoch_knocking(k, 1));
+  fail_unless(!epoch_knocked(k));
+  
   return 0;
 }
 

@@ -4,6 +4,7 @@
 
 typedef struct epoch_struct *epoch_t;
 typedef epoch_t *epochs_t; // arrays
+typedef struct knock_struct *knock_t;
 
 #include "mesh.h"
 #include "link.h"
@@ -14,14 +15,23 @@ struct epoch_struct
   char *id; // base32 of bin
   uint8_t type; // bin[0]
   uint32_t busy; // microseconds to tx/rx, set by external/phy
+  uint8_t chans; // number of total channels, set by external/phy
   uint8_t key[16]; // private key for MAC-AES
-  uint32_t win; // current window
-  uint32_t chan; // channel base for current window
-  uint32_t at; // microsecond offset base in current window
+  uint64_t bday; // microsecond of window 0 start
   void *ext; // for external use
-  uint8_t *buf, len; // filled in by scheduler (tx) or driver (rx)
   
   struct epoch_struct *next;
+};
+
+struct knock_struct
+{
+  uint8_t tx; // boolean if is a tx or rx
+  epoch_t e;
+  uint32_t win; // current window id
+  uint32_t chan; // current channel (< e->chans)
+  uint64_t at; // microsecond exact time to start (in current window)
+  uint8_t len; // <= 64
+  uint8_t *buf; // filled in by scheduler (tx) or driver (rx)
 };
 
 epoch_t epoch_new(char *id);
@@ -32,11 +42,13 @@ epoch_t epoch_import(epoch_t e, char *id, char *body); // also resets, body opti
 
 // scheduling stuff
 epoch_t epoch_sync(epoch_t e, uint32_t window, uint64_t at); // sync point for given window
-uint64_t epoch_knock(epoch_t e, uint64_t from); // when is next knock, returns 0 if == from
-epoch_t epoch_busy(epoch_t e, uint32_t us); // microseconds for how long the action takes
+knock_t epoch_knock(epoch_t e, uint8_t tx); // generate a new/blank knock
+knock_t epoch_knocking(knock_t k, uint64_t from); // init knock to current window of from
+knock_t epoch_knocked(knock_t k); // frees
 
 // phy utilities
-uint32_t epoch_chan(epoch_t e, uint64_t at, uint8_t chans); // which channel to use at this time
+epoch_t epoch_busy(epoch_t e, uint32_t us); // microseconds for how long the action takes
+epoch_t epoch_chans(epoch_t e, uint8_t chans); // number of possible channels
 
 // array utilities
 epochs_t epochs_add(epochs_t es, epoch_t e);

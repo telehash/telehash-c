@@ -63,6 +63,41 @@ char *epoch_id(epoch_t e)
   return e->id;
 }
 
+// sync point for given window
+epoch_t epoch_sync(epoch_t e, uint32_t window, uint64_t at)
+{
+  return NULL;
+}
+
+// make a new knock
+knock_t epoch_knock(epoch_t e, uint8_t tx)
+{
+  if(!e) return NULL;
+  knock_t k;
+
+  if(!(k = malloc(sizeof(struct knock_struct)))) return LOG("OOM");
+  memset(k,0,sizeof (struct knock_struct));
+  k->tx = tx;
+  return k;
+}
+
+// init knock to current window of from
+knock_t epoch_knocking(knock_t k, uint64_t from)
+{
+  if(!k || !from) return NULL;
+
+  // TODO
+  return k;
+}
+
+knock_t epoch_knocked(knock_t k)
+{
+  if(!k) return NULL;
+  if(k->buf) free(k->buf);
+  free(k);
+  return NULL;
+}
+
 // microseconds for how long the action takes
 epoch_t epoch_busy(epoch_t e, uint32_t us)
 {
@@ -71,22 +106,12 @@ epoch_t epoch_busy(epoch_t e, uint32_t us)
   return e;
 }
 
-// when is next knock, returns 0 if == from
-uint64_t epoch_knock(epoch_t e, uint64_t from)
-{
-  return 0;
-}
-
-// sync point for given window
-epoch_t epoch_sync(epoch_t e, uint32_t window, uint64_t at)
-{
-  return NULL;
-}
-
 // which channel to use at this time
-uint32_t epoch_chan(epoch_t e, uint64_t at, uint8_t chans)
+epoch_t epoch_chans(epoch_t e, uint8_t chans)
 {
-  return 0;
+  if(!e) return NULL;
+  e->chans = chans;
+  return e;
 }
 
 
