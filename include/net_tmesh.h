@@ -26,11 +26,11 @@ struct tmesh_struct
   mesh_t mesh;
   mote_t motes;
   lob_t path;
-  epochs_t disco; // only when discovery is enabled
+  knock_t disco; // only when discovery is enabled
   epochs_t syncs; // the ones we listen on
-  epoch_t tx, rx; // soft scheduled
-  epoch_t active; // hard scheduled
-  epoch_t (*init)(tmesh_t tm, epoch_t e); // callback used to initialize all new epochs, add scheduling time/cost
+  knock_t tx, rx; // soft scheduled
+  knock_t active; // hard scheduled
+  epoch_t (*init)(tmesh_t tm, epoch_t e); // callback used to initialize all new epochs, add scheduling time/cost and channels
 };
 
 // create a new tmesh radio network bound to this mesh

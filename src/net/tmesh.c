@@ -88,6 +88,16 @@ static mote_t mote_reset(mote_t mote)
   return mote;
 }
 
+// new initialized epoch
+static epoch_t tmesh_epoch(tmesh_t tm, char *id)
+{
+  epoch_t e;
+  if(!tm || !id) return LOG("bad args");
+  if(!(e = epoch_new(id))) return LOG("OOM");
+  if(!tm->init(tm, e)) return epoch_free(e);
+  return e;
+}
+
 // get or create a mote
 mote_t tmesh_mote(tmesh_t tm, link_t link)
 {
@@ -177,9 +187,8 @@ tmesh_t tmesh_sync(tmesh_t tm, char *header)
 {
   epoch_t sync;
   if(!tm || !header || strlen(header) < 13) return LOG("bad args");
-  if(!(sync = epoch_new(NULL))) return LOG("OOM");
+  if(!(sync = tmesh_epoch(tm,header))) return LOG("OOM");
   if(!epoch_import(sync,header,tm->mesh->id->hashname)) return (tmesh_t)epoch_free(sync);
-  if(!tm->init(tm, sync)) return (tmesh_t)epoch_free(sync);
   tm->syncs = epochs_add(tm->syncs,sync);
   return tm;
 }
@@ -188,20 +197,25 @@ tmesh_t tmesh_sync(tmesh_t tm, char *header)
 tmesh_t tmesh_discoverable(tmesh_t tm, char *id)
 {
   epoch_t e;
+  knock_t k;
   if(!tm) return NULL;
   if(!id)
   {
-    tm->disco = epochs_free(tm->disco);
+    tm->disco = knock_free_next(tm->disco);
     return tm;
   }
   
-  e = epoch_new(id);
-  if(!e) return NULL;
+  // temporary epoch
+  if(!(e = tmesh_epoch(tm,id))) return NULL;
   
   // verify the epoch is for a cipher set we support
   // TODO add tx buffer of lob IM
-  
-  tm->disco = epochs_add(tm->disco, e);
+  k = knock_new(1);
+  epoch_knock(e,k,1); // initialize to window 0 only
+  epoch_free(e);
+  k->next = tm->disco;
+  tm->disco = k;
+
   return tm;
 }
 
