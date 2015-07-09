@@ -13,6 +13,7 @@ typedef struct mote_struct
   util_chunks_t chunks;
   epochs_t active;
   epochs_t syncs;
+  knock_t tx, rx;
   link_t link;
   uint8_t z;
   pipe_t pipe;
@@ -26,7 +27,7 @@ struct tmesh_struct
   mesh_t mesh;
   mote_t motes;
   lob_t path;
-  knock_t disco; // only when discovery is enabled
+  mote_t disco; // virtual mote, only when discovery is enabled
   epochs_t syncs; // the ones we listen on
   knock_t tx, rx; // soft scheduled
   knock_t active; // hard scheduled

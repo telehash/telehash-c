@@ -59,6 +59,8 @@ static mote_t mote_free(mote_t mote)
   epochs_free(mote->syncs);
   pipe_free(mote->pipe);
   util_chunks_free(mote->chunks);
+  knock_free_next(mote->tx);
+  knock_free_next(mote->rx);
   free(mote);
   return NULL;
 }
@@ -201,20 +203,32 @@ tmesh_t tmesh_discoverable(tmesh_t tm, char *id)
   if(!tm) return NULL;
   if(!id)
   {
-    tm->disco = knock_free_next(tm->disco);
+    tm->disco = mote_free(tm->disco);
     return tm;
   }
   
-  // temporary epoch
-  if(!(e = tmesh_epoch(tm,id))) return NULL;
+  // make a fake/virtual mote
+  if(!tm->disco)
+  {
+    if(!(tm->disco = malloc(sizeof (struct mote_struct)))) return LOG("OOM");
+    memset(tm->disco,0,sizeof (struct mote_struct));
+  }
   
-  // verify the epoch is for a cipher set we support
+  if(!(e = tmesh_epoch(tm,id))) return NULL;
+  // TODO verify the epoch is for a cipher set we support
+
+  tm->disco->active = epochs_add(tm->disco->active, e);
+
   // TODO add tx buffer of lob IM
   k = knock_new(1);
   epoch_knock(e,k,1); // initialize to window 0 only
-  epoch_free(e);
-  k->next = tm->disco;
-  tm->disco = k;
+  k->next = tm->disco->tx;
+  tm->disco->tx = k;
+
+  k = knock_new(1);
+  epoch_knock(e,k,1); // initialize to window 1 only
+  k->next = tm->disco->rx;
+  tm->disco->rx = k;
 
   return tm;
 }
