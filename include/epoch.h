@@ -19,8 +19,6 @@ struct epoch_struct
   uint8_t key[16]; // private key for MAC-AES
   uint64_t bday; // microsecond of window 0 start
   void *ext; // for external use
-  
-  struct epoch_struct *next;
 };
 
 struct knock_struct
@@ -32,6 +30,7 @@ struct knock_struct
   uint64_t at; // microsecond exact time to start (in current window)
   uint8_t len; // <= 64
   uint8_t *buf; // filled in by scheduler (tx) or driver (rx)
+  knock_t next;
 };
 
 epoch_t epoch_new(char *id);
@@ -42,9 +41,9 @@ epoch_t epoch_import(epoch_t e, char *id, char *body); // also resets, body opti
 
 // scheduling stuff
 epoch_t epoch_sync(epoch_t e, uint32_t window, uint64_t at); // sync point for given window
-knock_t epoch_knock(epoch_t e, uint8_t tx); // generate a new/blank knock
-knock_t epoch_knocking(knock_t k, uint64_t from); // init knock to current window of from
-knock_t epoch_knocked(knock_t k); // frees
+knock_t knock_new(uint8_t tx); // generate a new/blank knock
+knock_t epoch_knock(epoch_t e, knock_t k, uint64_t from); // init knock to current window of from
+knock_t knock_free(knock_t k); // frees
 
 // phy utilities
 epoch_t epoch_busy(epoch_t e, uint32_t us); // microseconds for how long the action takes

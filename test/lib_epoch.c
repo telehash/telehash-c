@@ -38,10 +38,10 @@ int main(int argc, char **argv)
   fail_unless(epochs_len(es) == 1);
   fail_unless(!(es = epochs_rem(es, epochs_index(es,0))));
   
-  knock_t k = epoch_knock(e, 0);
+  knock_t k = knock_new(0);
   fail_unless(k);
-  fail_unless(epoch_knocking(k, 1));
-  fail_unless(!epoch_knocked(k));
+  fail_unless(epoch_knock(e, k, 1));
+  fail_unless(!knock_free(k));
   
   return 0;
 }

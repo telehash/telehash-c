@@ -70,9 +70,8 @@ epoch_t epoch_sync(epoch_t e, uint32_t window, uint64_t at)
 }
 
 // make a new knock
-knock_t epoch_knock(epoch_t e, uint8_t tx)
+knock_t knock_new(uint8_t tx)
 {
-  if(!e) return NULL;
   knock_t k;
 
   if(!(k = malloc(sizeof(struct knock_struct)))) return LOG("OOM");
@@ -82,15 +81,16 @@ knock_t epoch_knock(epoch_t e, uint8_t tx)
 }
 
 // init knock to current window of from
-knock_t epoch_knocking(knock_t k, uint64_t from)
+knock_t epoch_knock(epoch_t e, knock_t k, uint64_t from)
 {
-  if(!k || !from) return NULL;
+  if(!k || !e || !from) return NULL;
 
+  k->e = e;
   // TODO
   return k;
 }
 
-knock_t epoch_knocked(knock_t k)
+knock_t knock_free(knock_t k)
 {
   if(!k) return NULL;
   if(k->buf) free(k->buf);
