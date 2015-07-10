@@ -116,69 +116,44 @@ epoch_t epoch_chans(epoch_t e, uint8_t chans)
 
 
 // array utilities
-epochs_t epochs_add(epochs_t es, epoch_t e)
+epoch_t epochs_add(epoch_t es, epoch_t e)
 {
-  size_t j = 0, eslen = epochs_len(es), elen = sizeof(e);
+  epoch_t i;
+  if(!es) return e;
   if(!e) return es;
+  // dedup
+  for(i=es;i;i = i->next) if(i == e) return es;
+  e->next = es;
+  return e;
+}
 
-  // don't double-add
-  while(es && es[j])
+epoch_t epochs_rem(epoch_t es, epoch_t e)
+{
+  epoch_t i;
+  if(!es) return NULL;
+  if(!e) return es;
+  if(es == e) return e->next;
+  for(i=es;i;i = i->next)
   {
-    if(es[j] == e) return es;
-    j++;
+    if(i->next == e) i->next = e->next;
   }
-
-  if(!(es = util_reallocf(es, (eslen+2)*elen))) return LOG("OOM");
-  es[eslen] = e;
-  es[eslen+1] = NULL;
   return es;
 }
 
-epochs_t epochs_rem(epochs_t es, epoch_t e)
+size_t epochs_len(epoch_t es)
 {
-  size_t j = 0, elen = sizeof(e), eslen;
-  if(!es) return NULL;
-  
-  // find it
-  while(es[j] && es[j] != e) j++;
-  if(!es[j]) return es;
-  
-  // if alone, zap
-  eslen = epochs_len(es);
-  if(eslen == 1)
-  {
-    free(es);
-    return NULL;
-  }
-
-  // snip out and shrink
-  memmove(&es[j], &es[j+1], (eslen-j)*elen); // includes term null in tail
-  if(!(es = util_reallocf(es, (eslen*elen)))) return LOG("OOM");
-  return es;
-}
-
-epoch_t epochs_index(epochs_t es, size_t i)
-{
-  size_t j = 0;
-  if(!es) return NULL;
-  while(es[j] && j < i) j++;
-  return es[j];
-}
-
-size_t epochs_len(epochs_t es)
-{
+  epoch_t i;
   size_t len = 0;
-  if(!es) return 0;
-  while(es[len]) len++;
+  for(i=es;i;i = i->next) len++;
   return len;
 }
 
-// free all
-epochs_t epochs_free(epochs_t es)
+// free all, tail recurse
+epoch_t epochs_free(epoch_t es)
 {
-  size_t i;
+  epoch_t e;
   if(!es) return NULL;
-  for(i=0;es[i];i++) epoch_free(es[i]);
-  free(es);
-  return NULL;
+  e = es->next;
+  epoch_free(es);
+  return epochs_free(e);
 }

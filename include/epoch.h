@@ -3,7 +3,6 @@
 #include <stdint.h>
 
 typedef struct epoch_struct *epoch_t;
-typedef epoch_t *epochs_t; // arrays
 typedef struct knock_struct *knock_t;
 
 #include "mesh.h"
@@ -19,6 +18,7 @@ struct epoch_struct
   uint8_t key[16]; // private key for MAC-AES
   uint64_t bday; // microsecond of window 0 start
   void *ext; // for external use
+  epoch_t next; // for epochs_* interface, lists
 };
 
 struct knock_struct
@@ -49,11 +49,10 @@ knock_t knock_free(knock_t k); // frees
 epoch_t epoch_busy(epoch_t e, uint32_t us); // microseconds for how long the action takes
 epoch_t epoch_chans(epoch_t e, uint8_t chans); // number of possible channels
 
-// array utilities
-epochs_t epochs_add(epochs_t es, epoch_t e);
-epochs_t epochs_rem(epochs_t es, epoch_t e);
-epoch_t epochs_index(epochs_t es, size_t i);
-size_t epochs_len(epochs_t es);
-epochs_t epochs_free(epochs_t es);
+// simple array utilities
+epoch_t epochs_add(epoch_t es, epoch_t e);
+epoch_t epochs_rem(epoch_t es, epoch_t e);
+size_t epochs_len(epoch_t es);
+epoch_t epochs_free(epoch_t es);
 
 #endif

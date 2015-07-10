@@ -20,14 +20,12 @@ int main(int argc, char **argv)
   fail_unless(util_cmp(epoch_id(e),eid) == 0);
   fail_unless(epoch_import(e,NULL,eid));
 
-  epochs_t es = epochs_add(NULL, e);
+  epoch_t es = epochs_add(NULL, e);
   fail_unless(es);
   fail_unless(epochs_len(es) == 1);
   fail_unless((es = epochs_add(es, e)));
   fail_unless(epochs_len(es) == 1);
-  fail_unless(epochs_index(es, 0) == e);
-  fail_unless(!epochs_index(es, 1));
-  fail_unless(!epochs_index(es, 2));
+  fail_unless(es == e);
   fail_unless(!(es = epochs_rem(es, e)));
   fail_unless(epochs_len(es) == 0);
 
@@ -36,7 +34,7 @@ int main(int argc, char **argv)
   fail_unless(epochs_len(es) == 2);
   fail_unless((es = epochs_rem(es, e)));
   fail_unless(epochs_len(es) == 1);
-  fail_unless(!(es = epochs_rem(es, epochs_index(es,0))));
+  fail_unless(!(es = epochs_rem(es, es)));
   
   knock_t k = knock_new(0);
   fail_unless(k);

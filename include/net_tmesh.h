@@ -11,8 +11,8 @@ typedef struct mote_struct
 {
   tmesh_t tm;
   util_chunks_t chunks;
-  epochs_t active;
-  epochs_t syncs;
+  epoch_t active;
+  epoch_t syncs;
   knock_t tx, rx; // only one of each ever exists, is re-set each loop
   link_t link;
   uint8_t z;
@@ -28,7 +28,7 @@ struct tmesh_struct
   mote_t motes;
   lob_t path;
   mote_t disco; // virtual mote, only when discovery is enabled
-  epochs_t syncs; // the ones we listen on
+  epoch_t syncs; // the ones we listen on
   knock_t tx, rx; // soft scheduled
   knock_t active; // hard scheduled
   epoch_t (*init)(tmesh_t tm, epoch_t e); // callback used to initialize all new epochs, add scheduling time/cost and channels
