@@ -13,7 +13,7 @@ typedef struct mote_struct
   util_chunks_t chunks;
   epochs_t active;
   epochs_t syncs;
-  knock_t tx, rx;
+  knock_t tx, rx; // only one of each ever exists, is re-set each loop
   link_t link;
   uint8_t z;
   pipe_t pipe;

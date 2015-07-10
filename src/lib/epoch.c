@@ -98,16 +98,6 @@ knock_t knock_free(knock_t k)
   return NULL;
 }
 
-// recurse list
-knock_t knock_free_next(knock_t k)
-{
-  knock_t next;
-  if(!k) return NULL;
-  next = k->next;
-  knock_free(k);
-  return knock_free_next(next);
-}
-
 // microseconds for how long the action takes
 epoch_t epoch_busy(epoch_t e, uint32_t us)
 {

@@ -44,7 +44,6 @@ epoch_t epoch_sync(epoch_t e, uint32_t window, uint64_t at); // sync point for g
 knock_t knock_new(uint8_t tx); // generate a new/blank knock
 knock_t epoch_knock(epoch_t e, knock_t k, uint64_t from); // init knock to current window of from
 knock_t knock_free(knock_t k); // frees
-knock_t knock_free_next(knock_t k); // free all in list
 
 // phy utilities
 epoch_t epoch_busy(epoch_t e, uint32_t us); // microseconds for how long the action takes
