@@ -198,8 +198,11 @@ tmesh_t tmesh_sync(tmesh_t tm, char *header)
 // become discoverable by anyone with this epoch id, pass NULL to reset all
 tmesh_t tmesh_discoverable(tmesh_t tm, char *id)
 {
-  epoch_t e;
+  epoch_t e, base;
+  uint8_t csid;
+  char *hex;
   mote_t m;
+  uint8_t i;
   if(!tm) return NULL;
   if(!id)
   {
@@ -207,24 +210,28 @@ tmesh_t tmesh_discoverable(tmesh_t tm, char *id)
     return tm;
   }
 
-  if(!(e = tmesh_epoch(tm,id))) return NULL;
-
-  // TODO verify the epoch is for a cipher set we support
-  
   // make a fake/virtual mote
   if(!tm->disco)
   {
-    if(!(m = tm->disco = malloc(sizeof (struct mote_struct)))) return (tmesh_t)epoch_free(e);
+    if(!(m = tm->disco = malloc(sizeof (struct mote_struct)))) return LOG("OOM");
     memset(m,0,sizeof (struct mote_struct));
-  // TODO add tx buffer of lob IM
-    m->tx = knock_new(1);
-    epoch_knock(e,m->tx,1); // initialize to window 0 only
-    m->rx = knock_new(1);
-    epoch_knock(e,m->tx,1); // initialize to window 0 only
+  }
+
+  if(!(base = epoch_new(id))) return NULL;
+
+  // mod the discovery epoch for each key/csid in use
+  for(i=0;lob_get_index(tm->mesh->keys,i);i+=2)
+  {
+    hex = lob_get_index(tm->mesh->keys,i);
+    if(strlen(hex) != 2) continue; // safety
+    util_unhex(hex,2,&csid);
+    base->bin[15] = csid;
+    epoch_reset(base);
+    if(!(e = tmesh_epoch(tm,epoch_id(base)))) continue;
+    tm->disco->active = epochs_add(tm->disco->active, e);
   }
   
-  tm->disco->active = epochs_add(tm->disco->active, e);
-
+  epoch_free(base);
   return tm;
 }
 

@@ -11,6 +11,7 @@ int main(int argc, char **argv)
   fail_unless(epoch_reset(e));
   
   e3x_rand(e->bin,16);
+  e->bin[15] = 0x1a; // for testing discovery epochs
   fail_unless(epoch_id(e));
   LOG("generated epoch %s",epoch_id(e));
 

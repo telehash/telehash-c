@@ -27,8 +27,11 @@ int main(int argc, char **argv)
 
   fail_unless(tmesh_sync(netA, "fzjb5f4tn4misgab7tb5rdrcay"));
   fail_unless(netA->syncs);
-  fail_unless(netA->syncs[0]);
-  fail_unless(netA->syncs[0]->busy == 5000);
+  fail_unless(netA->syncs->busy == 5000);
+  
+  fail_unless(tmesh_discoverable(netA, "kzdhpa5n6r4dtivft5ylvkr3di"));
+  fail_unless(netA->disco);
+  fail_unless(epochs_len(netA->disco->active) > 0);
 
 
   return 0;
