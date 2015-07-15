@@ -65,7 +65,7 @@ e3x_cipher_t cs3a_init(lob_t options)
   ret = malloc(sizeof(struct e3x_cipher_struct));
   if(!ret) return NULL;
   memset(ret,0,sizeof (struct e3x_cipher_struct));
-  
+
   // identifying markers
   ret->id = CS_3a;
   ret->csid = 0x3a;
@@ -145,7 +145,7 @@ local_t local_new(lob_t keys, lob_t secrets)
   secret = lob_get_base32(secrets,"3a");
   if(!secret) return LOG("missing secret");
   if(secret->body_len != crypto_box_SECRETKEYBYTES) return LOG("invalid secret %d != %d",secret->body_len,crypto_box_SECRETKEYBYTES);
-  
+
   if(!(local = malloc(sizeof(struct local_struct)))) return NULL;
   memset(local,0,sizeof (struct local_struct));
 
@@ -216,7 +216,7 @@ remote_t remote_new(lob_t key, uint8_t *token)
 
   if(!key) return LOG("missing key");
   if(key->body_len != crypto_box_PUBLICKEYBYTES) return LOG("invalid key %d != %d",key->body_len,crypto_box_PUBLICKEYBYTES);
-  
+
   if(!(remote = malloc(sizeof(struct remote_struct)))) return NULL;
   memset(remote,0,sizeof (struct remote_struct));
 
@@ -230,7 +230,7 @@ remote_t remote_new(lob_t key, uint8_t *token)
     cipher_hash(remote->ekey,16,hash);
     memcpy(token,hash,16);
   }
-  
+
   return remote;
 }
 
@@ -310,7 +310,7 @@ uint8_t remote_validate(remote_t remote, lob_t args, lob_t sig, uint8_t *data, s
 //    if(sig->body_len != 32 || !args->body_len) return 2;
 //    LOG("[%d] [%.*s]",args->body_len,len,data);
 //    hmac_256(args->body,args->body_len,data,len,hash);
-//    return (memcmp(sig->body,hash,32) == 0) ? 0 : 3;
+//    return (util_ct_memcmp(sig->body,hash,32) == 0) ? 0 : 3;
   }
 
   return 3;
@@ -320,13 +320,13 @@ ephemeral_t ephemeral_new(remote_t remote, lob_t outer)
 {
   uint8_t shared[crypto_box_BEFORENMBYTES+(crypto_box_PUBLICKEYBYTES*2)], hash[32];
   ephemeral_t ephem;
-  
+
   if(!remote) return NULL;
   if(!outer || outer->body_len < crypto_box_PUBLICKEYBYTES) return LOG("invalid outer");
 
   if(!(ephem = malloc(sizeof(struct ephemeral_struct)))) return NULL;
   memset(ephem,0,sizeof (struct ephemeral_struct));
-  
+
   // create and copy in the exchange routing token
   e3x_hash(outer->body,16,hash);
   memcpy(ephem->token,hash,16);
@@ -381,6 +381,6 @@ lob_t ephemeral_decrypt(ephemeral_t ephem, lob_t outer)
     outer->body_len-(16+24),
     outer->body+16,
     ephem->deckey);
-  
+
   return lob_parse(outer->body+16+24, outer->body_len-(16+24+crypto_secretbox_MACBYTES));
 }

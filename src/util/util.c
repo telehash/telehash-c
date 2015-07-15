@@ -69,7 +69,7 @@ int util_cmp(char *a, char *b)
   if(!a || !b) return -1;
   if(a == b) return 0;
   if(strlen(a) != strlen(b)) return -1;
-  return memcmp(a,b,strlen(a));
+  return util_ct_memcmp(a,b,strlen(a));
 }
 
 // default alpha sort
@@ -151,11 +151,11 @@ uint64_t util_at(void)
 {
   uint64_t at;
   uint32_t *half = (uint32_t*)(&at);
-  
+
   // store both current seconds and ms since then in one value
   half[0] = util_sys_seconds();
   half[1] = (uint32_t)util_sys_ms(half[0]);
-  
+
   return at;
 }
 
@@ -163,4 +163,23 @@ uint32_t util_since(uint64_t at)
 {
   uint32_t *half = (uint32_t*)(&at);
   return ((uint32_t)util_sys_ms(half[0]) - half[1]);
+}
+
+int util_ct_memcmp(const void* s1, const void* s2, size_t n)
+{
+    const unsigned char *p1 = s1, *p2 = s2;
+    int x = 0;
+
+    while (n--)
+    {
+        x |= (*p1 ^ *p2);
+        p1++;
+        p2++;
+    }
+
+    /* Don't leak any info besides failure */
+    if (x)
+        x = 1;
+
+    return x;
 }
