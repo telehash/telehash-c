@@ -11,26 +11,23 @@ typedef struct knock_struct *knock_t;
 struct epoch_struct
 {
   uint8_t bin[16]; // 8 header 8 random body
-  char *id; // base32 of bin
-  uint8_t type; // bin[0]
+  uint8_t iv[8]; // base IV for MAC-AES
+  uint64_t bday; // microsecond of window 0 start
+  epoch_t next; // for epochs_* interface, lists
   uint32_t busy; // microseconds to tx/rx, set by external/phy
   uint8_t chans; // number of total channels, set by external/phy
-  uint8_t key[16]; // private key for MAC-AES
-  uint64_t bday; // microsecond of window 0 start
-  void *ext; // for external use
-  epoch_t next; // for epochs_* interface, lists
 };
 
 struct knock_struct
 {
-  uint8_t tx; // boolean if is a tx or rx
   epoch_t e;
   uint32_t win; // current window id
   uint32_t chan; // current channel (< e->chans)
-  uint64_t start, stop; // microsecond exact start/stop time (in current window)
-  uint8_t len; // <= 64
+  uint64_t start, stop; // microsecond exact start/stop time
   uint8_t *buf; // filled in by scheduler (tx) or driver (rx)
   knock_t next;
+  uint8_t tx; // boolean if is a tx or rx
+  uint8_t len; // <= 64
 };
 
 epoch_t epoch_new(char *id);

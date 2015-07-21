@@ -23,8 +23,6 @@ epoch_t epoch_new(char *id)
 
 epoch_t epoch_free(epoch_t e)
 {
-  if(e->id) free(e->id);
-  if(e->ext) LOG("epoch free'd leaking external pointer");
   free(e);
   return NULL;
 }
@@ -43,24 +41,16 @@ epoch_t epoch_reset(epoch_t e)
 {
   if(!e) return NULL;
 //  e3x_hash(e->bin,16,e->pad);
-  if(e->id) free(e->id); // free up unused space
-  e->id = NULL;
   // convenience pointer into bin
-  e->type = e->bin[0];
   return e;
 }
 
+static char eid_cache[27];
 char *epoch_id(epoch_t e)
 {
-  size_t len;
   if(!e) return NULL;
-  if(!e->id)
-  {
-    len = base32_encode_length(16);
-    e->id = malloc(len);
-    base32_encode(e->bin,16,e->id,len);
-  }
-  return e->id;
+  base32_encode(e->bin,16,eid_cache,27);
+  return (char*)eid_cache;
 }
 
 // sync point for given window

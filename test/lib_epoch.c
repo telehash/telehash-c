@@ -17,7 +17,7 @@ int main(int argc, char **argv)
 
   char eid[] = "fzjb5f4tn4misgab7tb5rdrcay";
   fail_unless(epoch_import(e,eid,NULL));
-  fail_unless(e->type == 46);
+  fail_unless(e->bin[0] == 46);
   fail_unless(util_cmp(epoch_id(e),eid) == 0);
   fail_unless(epoch_import(e,NULL,eid));
 
