@@ -55,12 +55,10 @@ static void mote_send(pipe_t pipe, lob_t packet, link_t link)
 static mote_t mote_free(mote_t mote)
 {
   if(!mote) return NULL;
-  epochs_free(mote->active);
+  epochs_free(mote->epochs);
   epochs_free(mote->syncs);
   pipe_free(mote->pipe);
   util_chunks_free(mote->chunks);
-  knock_free(mote->tx);
-  knock_free(mote->rx);
   free(mote);
   return NULL;
 }
@@ -76,28 +74,12 @@ static mote_t mote_reset(mote_t mote)
   mote->sync = 0;
 
   // free any old active epochs
-  mote->active = epochs_free(mote->active);
+  mote->epochs = epochs_free(mote->epochs);
   
-  // copy in any per-mote sync epochs or use global mesh ones
-  syncs = mote->syncs ? mote->syncs : mote->tm->syncs;
-  for(i=syncs;i;i=i->next)
-  {
-    e = epoch_new(epoch_id(i));
-    epoch_import(e,NULL,mote->link->id->hashname); // make sure correct sync body
-    mote->active = epochs_add(mote->active,e);
-  }
+  // TODO generate sync epochs from paths
+  // TODO clone sync epochs from our own
   
   return mote;
-}
-
-// new initialized epoch
-static epoch_t tmesh_epoch(tmesh_t tm, char *id)
-{
-  epoch_t e;
-  if(!tm || !id) return LOG("bad args");
-  if(!(e = epoch_new(id))) return LOG("OOM");
-  if(!tm->init(tm, e)) return epoch_free(e);
-  return e;
 }
 
 // get or create a mote
@@ -141,7 +123,7 @@ pipe_t tmesh_path(link_t link, lob_t path)
   if(util_cmp("tmesh",lob_get(path,"type"))) return NULL;
   if(!(sync = lob_get(path,"sync"))) return LOG("missing sync");
   e = epoch_new(NULL);
-  if(!(e = epoch_import(e,sync,link->id->hashname))) return (pipe_t)epoch_free(e);
+//  if(!(e = epoch_import(e,sync,link->id->hashname))) return (pipe_t)epoch_free(e);
   if(!(to = tmesh_mote(tm, link))) return (pipe_t)epoch_free(e);
   to->syncs = epochs_add(to->syncs, e);
   if(!to->sync) mote_reset(to); // load new sync epoch immediately if not in sync
@@ -189,9 +171,9 @@ tmesh_t tmesh_sync(tmesh_t tm, char *header)
 {
   epoch_t sync;
   if(!tm || !header || strlen(header) < 13) return LOG("bad args");
-  if(!(sync = tmesh_epoch(tm,header))) return LOG("OOM");
-  if(!epoch_import(sync,header,tm->mesh->id->hashname)) return (tmesh_t)epoch_free(sync);
-  tm->syncs = epochs_add(tm->syncs,sync);
+//  if(!(sync = tmesh_epoch(tm,header))) return LOG("OOM");
+//  if(!epoch_import(sync,header,tm->mesh->id->hashname)) return (tmesh_t)epoch_free(sync);
+//  tm->syncs = epochs_add(tm->syncs,sync);
   return tm;
 }
 
@@ -227,8 +209,8 @@ tmesh_t tmesh_discoverable(tmesh_t tm, char *id)
     util_unhex(hex,2,&csid);
     base->bin[15] = csid;
     epoch_reset(base);
-    if(!(e = tmesh_epoch(tm,epoch_id(base)))) continue;
-    tm->disco->active = epochs_add(tm->disco->active, e);
+//    if(!(e = tmesh_epoch(tm,epoch_id(base)))) continue;
+//    tm->disco->active = epochs_add(tm->disco->active, e);
   }
   
   epoch_free(base);
