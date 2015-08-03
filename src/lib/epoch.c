@@ -5,56 +5,30 @@
 #include "util.h"
 #include "epoch.h"
 
-epoch_t epoch_new(char *id)
+epoch_t epoch_new(uint8_t medium[6])
 {
   epoch_t e;
 
+  // TODO medium driver init
+
   if(!(e = malloc(sizeof(struct epoch_struct)))) return LOG("OOM");
   memset(e,0,sizeof (struct epoch_struct));
-
-  if(id && !epoch_import(e, id, NULL))
-  {
-    LOG("invalid id");
-    return epoch_free(e);
-  }
+  
+  e->type = medium[0];
 
   return e;
 }
 
 epoch_t epoch_free(epoch_t e)
 {
+  epoch_knock(e,0); // free's knock
+  // TODO medium driver free
   free(e);
   return NULL;
 }
 
-epoch_t epoch_import(epoch_t e, char *header, char *body)
-{
-  if(!e || !(header || body)) return NULL;
-  if(header && base32_decode_floor(strlen(header)) < 8) return NULL;
-  if(body && base32_decode_floor(strlen(body)) < 8) return NULL;
-  base32_decode(header,0,e->bin,16);
-  base32_decode(body,0,e->bin+8,8);
-  return epoch_reset(e);
-}
-
-epoch_t epoch_reset(epoch_t e)
-{
-  if(!e) return NULL;
-//  e3x_hash(e->bin,16,e->pad);
-  // convenience pointer into bin
-  return e;
-}
-
-static char eid_cache[27];
-char *epoch_id(epoch_t e)
-{
-  if(!e) return NULL;
-  base32_encode(e->bin,16,eid_cache,27);
-  return (char*)eid_cache;
-}
-
 // sync point for given window
-epoch_t epoch_sync(epoch_t e, uint32_t window, uint64_t at)
+epoch_t epoch_base(epoch_t e, uint32_t window, uint64_t at)
 {
   return NULL;
 }
@@ -70,14 +44,13 @@ knock_t knock_new(uint8_t tx)
   return k;
 }
 
-// init knock to current window of from
-knock_t epoch_knock(epoch_t e, knock_t k, uint64_t from)
+// reset active knock to next window, 0 cleans out, guarantees an e->knock or returns NULL
+epoch_t epoch_knock(epoch_t e, uint64_t at);
 {
-  if(!k || !e || !from) return NULL;
+  if(!e) return NULL;
 
-  k->e = e;
   // TODO
-  return k;
+  return e;
 }
 
 knock_t knock_free(knock_t k)
@@ -86,22 +59,6 @@ knock_t knock_free(knock_t k)
   if(k->buf) free(k->buf);
   free(k);
   return NULL;
-}
-
-// microseconds for how long the action takes
-epoch_t epoch_busy(epoch_t e, uint32_t us)
-{
-  if(!e) return NULL;
-  e->busy = us;
-  return e;
-}
-
-// which channel to use at this time
-epoch_t epoch_chans(epoch_t e, uint8_t chans)
-{
-  if(!e) return NULL;
-  e->chans = chans;
-  return e;
 }
 
 
@@ -146,4 +103,17 @@ epoch_t epochs_free(epoch_t es)
   e = es->next;
   epoch_free(es);
   return epochs_free(e);
+}
+
+// all drivers
+epoch_medium_t epoch_mediums[EPOCH_MEDIUMS_MAX];
+
+epoch_medium_t epoch_medium_set(uint8_t type, epoch_medium_t driver)
+{
+  return NULL;
+}
+
+epoch_medium_t epoch_medium_get(uint8_t type)
+{
+  return NULL;
 }
