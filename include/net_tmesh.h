@@ -31,11 +31,10 @@ struct tmesh_struct
   epoch_t syncs; // the ones we listen on
   epoch_t tx, rx; // soft scheduled
   epoch_t active; // hard scheduled
-  epoch_t (*medium)(tmesh_t tm, epoch_t e, char *medium); // callback used to initialize all new epochs, add medium scheduling time/cost and channels
 };
 
 // create a new tmesh radio network bound to this mesh
-tmesh_t tmesh_new(mesh_t mesh, lob_t options, epoch_t (*init)(tmesh_t tm, epoch_t e));
+tmesh_t tmesh_new(mesh_t mesh, lob_t options);
 void tmesh_free(tmesh_t tm);
 
 // add a sync epoch from this medium, must be called at initialization/creation only

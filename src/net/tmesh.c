@@ -66,9 +66,6 @@ static mote_t mote_free(mote_t mote)
 // reset a mote to unsynchronized state
 static mote_t mote_reset(mote_t mote)
 {
-  epoch_t syncs;
-  epoch_t e;
-  epoch_t i;
   if(!mote) return NULL;
   
   mote->sync = 0;
@@ -130,19 +127,16 @@ pipe_t tmesh_path(link_t link, lob_t path)
   return to->pipe;
 }
 
-tmesh_t tmesh_new(mesh_t mesh, lob_t options, epoch_t (*init)(tmesh_t tm, epoch_t e))
+tmesh_t tmesh_new(mesh_t mesh, lob_t options)
 {
   unsigned int motes;
   tmesh_t tm;
   
-  if(!init) return LOG("requires epoch phy init handler");
-
   motes = lob_get_uint(options,"motes");
   if(!motes) motes = 11; // hashtable for active motes
 
   if(!(tm = malloc(sizeof (struct tmesh_struct)))) return LOG("OOM");
   memset(tm,0,sizeof (struct tmesh_struct));
-  tm->init = init;
 
   // connect us to this mesh
   tm->mesh = mesh;
@@ -169,7 +163,7 @@ void tmesh_free(tmesh_t tm)
 // add a sync epoch from this header
 tmesh_t tmesh_sync(tmesh_t tm, char *header)
 {
-  epoch_t sync;
+//  epoch_t sync;
   if(!tm || !header || strlen(header) < 13) return LOG("bad args");
 //  if(!(sync = tmesh_epoch(tm,header))) return LOG("OOM");
 //  if(!epoch_import(sync,header,tm->mesh->id->hashname)) return (tmesh_t)epoch_free(sync);
@@ -178,7 +172,7 @@ tmesh_t tmesh_sync(tmesh_t tm, char *header)
 }
 
 // become discoverable by anyone with this epoch id, pass NULL to reset all
-tmesh_t tmesh_discoverable(tmesh_t tm, char *id)
+tmesh_t tmesh_discoverable(tmesh_t tm, char *medium, char *network)
 {
   epoch_t e, base;
   uint8_t csid;
@@ -186,7 +180,7 @@ tmesh_t tmesh_discoverable(tmesh_t tm, char *id)
   mote_t m;
   uint8_t i;
   if(!tm) return NULL;
-  if(!id)
+  if(!medium)
   {
     tm->disco = mote_free(tm->disco);
     return tm;
@@ -199,19 +193,7 @@ tmesh_t tmesh_discoverable(tmesh_t tm, char *id)
     memset(m,0,sizeof (struct mote_struct));
   }
 
-  if(!(base = epoch_new(id))) return NULL;
-
-  // mod the discovery epoch for each key/csid in use
-  for(i=0;lob_get_index(tm->mesh->keys,i);i+=2)
-  {
-    hex = lob_get_index(tm->mesh->keys,i);
-    if(strlen(hex) != 2) continue; // safety
-    util_unhex(hex,2,&csid);
-    base->bin[15] = csid;
-    epoch_reset(base);
-//    if(!(e = tmesh_epoch(tm,epoch_id(base)))) continue;
-//    tm->disco->active = epochs_add(tm->disco->active, e);
-  }
+//  if(!(base = epoch_new(id))) return NULL;
   
   epoch_free(base);
   return tm;

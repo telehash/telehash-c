@@ -45,7 +45,7 @@ knock_t knock_new(uint8_t tx)
 }
 
 // reset active knock to next window, 0 cleans out, guarantees an e->knock or returns NULL
-epoch_t epoch_knock(epoch_t e, uint64_t at);
+epoch_t epoch_knock(epoch_t e, uint64_t at)
 {
   if(!e) return NULL;
 
