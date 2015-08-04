@@ -119,7 +119,7 @@ pipe_t tmesh_path(link_t link, lob_t path)
   if(!(tm = xht_get(link->mesh->index, "tmesh"))) return NULL;
   if(util_cmp("tmesh",lob_get(path,"type"))) return NULL;
   if(!(sync = lob_get(path,"sync"))) return LOG("missing sync");
-  e = epoch_new(NULL);
+  e = epoch_new(NULL,NULL);
 //  if(!(e = epoch_import(e,sync,link->id->hashname))) return (pipe_t)epoch_free(e);
   if(!(to = tmesh_mote(tm, link))) return (pipe_t)epoch_free(e);
   to->syncs = epochs_add(to->syncs, e);
@@ -174,28 +174,23 @@ tmesh_t tmesh_sync(tmesh_t tm, char *header)
 // become discoverable by anyone with this epoch id, pass NULL to reset all
 tmesh_t tmesh_discoverable(tmesh_t tm, char *medium, char *network)
 {
-  epoch_t e, base;
-  uint8_t csid;
-  char *hex;
-  mote_t m;
-  uint8_t i;
   if(!tm) return NULL;
   if(!medium)
   {
-    tm->disco = mote_free(tm->disco);
+//    tm->disco = mote_free(tm->disco);
     return tm;
   }
 
   // make a fake/virtual mote
   if(!tm->disco)
   {
-    if(!(m = tm->disco = malloc(sizeof (struct mote_struct)))) return LOG("OOM");
-    memset(m,0,sizeof (struct mote_struct));
+//    if(!(m = tm->disco = malloc(sizeof (struct mote_struct)))) return LOG("OOM");
+//    memset(m,0,sizeof (struct mote_struct));
   }
 
 //  if(!(base = epoch_new(id))) return NULL;
   
-  epoch_free(base);
+//  epoch_free(base);
   return tm;
 }
 

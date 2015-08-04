@@ -5,17 +5,26 @@
 #include "util.h"
 #include "epoch.h"
 
-epoch_t epoch_new(uint8_t medium[6])
+epoch_t epoch_new(mesh_t m, uint8_t medium[6])
 {
   epoch_t e;
-
-  // TODO medium driver init
+  int i;
 
   if(!(e = malloc(sizeof(struct epoch_struct)))) return LOG("OOM");
   memset(e,0,sizeof (struct epoch_struct));
-  
-  e->type = medium[0];
+  memcpy(e->medium,medium,6);
 
+  // tell all drivers to initialize
+  for(i=0;i<EPOCH_DRIVERS_MAX && epoch_drivers[i];i++)
+  {
+    if(epoch_drivers[i]->init(m,e,medium)) break;
+  }
+  
+  if(!e->driver)
+  {
+    LOG("no driver for medium %s",epoch_medium(e));
+    return epoch_free(e);
+  }
   return e;
 }
 
@@ -27,40 +36,48 @@ epoch_t epoch_free(epoch_t e)
   return NULL;
 }
 
+static char epoch_mcache[11];
+char *epoch_medium(epoch_t e)
+{
+  if(!e) return NULL;
+  base32_encode(e->medium,6,epoch_mcache,11);
+  return (char*)epoch_mcache;
+}
+
 // sync point for given window
 epoch_t epoch_base(epoch_t e, uint32_t window, uint64_t at)
 {
   return NULL;
 }
 
-// make a new knock
-knock_t knock_new(uint8_t tx)
-{
-  knock_t k;
-
-  if(!(k = malloc(sizeof(struct knock_struct)))) return LOG("OOM");
-  memset(k,0,sizeof (struct knock_struct));
-  k->tx = tx;
-  return k;
-}
-
 // reset active knock to next window, 0 cleans out, guarantees an e->knock or returns NULL
 epoch_t epoch_knock(epoch_t e, uint64_t at)
 {
+  knock_t k;
   if(!e) return NULL;
+  
+  // free knock
+  if(!at)
+  {
+    if(!e->knock) return NULL;
+    if(e->knock->buf) free(e->knock->buf);
+    free(e->knock);
+    e->knock = NULL;
+    return NULL;
+  }
 
-  // TODO
+  // init space for one
+  if(!e->knock)
+  {
+    if(!(k = malloc(sizeof(struct knock_struct)))) return LOG("OOM");
+    e->knock = k;
+    memset(k,0,sizeof (struct knock_struct));
+  }
+
+  // TODO initialize knock win/chan/start/stop
+
   return e;
 }
-
-knock_t knock_free(knock_t k)
-{
-  if(!k) return NULL;
-  if(k->buf) free(k->buf);
-  free(k);
-  return NULL;
-}
-
 
 // array utilities
 epoch_t epochs_add(epoch_t es, epoch_t e)
@@ -106,14 +123,16 @@ epoch_t epochs_free(epoch_t es)
 }
 
 // all drivers
-epoch_medium_t epoch_mediums[EPOCH_MEDIUMS_MAX];
+epoch_driver_t epoch_drivers[EPOCH_DRIVERS_MAX] = {0};
 
-epoch_medium_t epoch_medium_set(uint8_t type, epoch_medium_t driver)
+epoch_driver_t epoch_driver(epoch_driver_t driver)
 {
-  return NULL;
-}
-
-epoch_medium_t epoch_medium_get(uint8_t type)
-{
+  int i;
+  for(i=0;i<EPOCH_DRIVERS_MAX;i++)
+  {
+    if(epoch_drivers[i]) continue;
+    epoch_drivers[i] = driver;
+    return driver;
+  }
   return NULL;
 }
