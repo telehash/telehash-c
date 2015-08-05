@@ -107,7 +107,7 @@ mote_t tmesh_mote(tmesh_t tm, link_t link)
 }
 
 
-pipe_t tmesh_path(link_t link, lob_t path)
+pipe_t tmesh_on_path(link_t link, lob_t path)
 {
   mote_t to;
   tmesh_t tm;
@@ -127,6 +127,39 @@ pipe_t tmesh_path(link_t link, lob_t path)
   return to->pipe;
 }
 
+// handle incoming packets for the built-in map channel
+void tmesh_map_handler(link_t link, e3x_channel_t chan, void *arg)
+{
+  lob_t packet;
+  mote_t mote = arg;
+  if(!link || !mote) return;
+
+  while((packet = e3x_channel_receiving(chan)))
+  {
+    LOG("TODO incoming map packet");
+    lob_free(packet);
+  }
+
+}
+
+// new tmesh map channel
+lob_t tmesh_on_open(link_t link, lob_t open)
+{
+  if(!link) return open;
+  if(lob_get_cmp(open,"type","map")) return open;
+  
+  LOG("incoming tmesh map");
+
+  // TODO get matching mote
+  // create new channel for this block handler
+//  mote->map = link_channel(link, open);
+//  link_handle(link,mote->map,tmesh_map_handler,mote);
+  
+  
+
+  return NULL;
+}
+
 tmesh_t tmesh_new(mesh_t mesh, lob_t options)
 {
   unsigned int motes;
@@ -141,7 +174,8 @@ tmesh_t tmesh_new(mesh_t mesh, lob_t options)
   // connect us to this mesh
   tm->mesh = mesh;
   xht_set(mesh->index, "tmesh", tm);
-  mesh_on_path(mesh, "tmesh", tmesh_path);
+  mesh_on_path(mesh, "tmesh", tmesh_on_path);
+  mesh_on_open(mesh, "tmesh_open", tmesh_on_open);
   
   // convenience
   tm->path = lob_new();
