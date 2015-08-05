@@ -3,9 +3,15 @@
 #include "util_unix.h"
 #include "unit_test.h"
 
-epoch_t driver_init(mesh_t mesh, epoch_t e, uint8_t medium[6])
+uint32_t driver_get(mesh_t mesh, uint8_t medium[6])
 {
-  return NULL;
+  return 0;
+}
+
+void *driver_init(mesh_t mesh, epoch_t e, uint8_t medium[6])
+{
+  e->busy = 5000;
+  return e;
 }
 
 epoch_t driver_free(mesh_t mesh, epoch_t e)
@@ -14,6 +20,7 @@ epoch_t driver_free(mesh_t mesh, epoch_t e)
 }
 
 static struct epoch_driver_struct test_driver = {
+  driver_get,
   driver_init,
   driver_free
 };

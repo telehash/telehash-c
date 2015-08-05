@@ -161,36 +161,44 @@ void tmesh_free(tmesh_t tm)
 }
 
 // add a sync epoch from this header
-tmesh_t tmesh_sync(tmesh_t tm, char *header)
+tmesh_t tmesh_sync(tmesh_t tm, char *medium)
 {
-//  epoch_t sync;
-  if(!tm || !header || strlen(header) < 13) return LOG("bad args");
-//  if(!(sync = tmesh_epoch(tm,header))) return LOG("OOM");
-//  if(!epoch_import(sync,header,tm->mesh->id->hashname)) return (tmesh_t)epoch_free(sync);
-//  tm->syncs = epochs_add(tm->syncs,sync);
+  epoch_t sync;
+  uint8_t bin[6];
+  if(!tm || !medium || strlen(medium) < 10) return LOG("bad args");
+  if(base32_decode(medium,0,bin,6) != 6) return LOG("bad medium encoding: %s",medium);
+  if(!(sync = epoch_new(tm->mesh,bin))) return LOG("epoch error");
+  // use our hashname as default secret for syncs
+  memcpy(sync->secret,tm->mesh->id->bin,32);
+  tm->syncs = epochs_add(tm->syncs,sync);
   return tm;
 }
 
 // become discoverable by anyone with this epoch id, pass NULL to reset all
 tmesh_t tmesh_discoverable(tmesh_t tm, char *medium, char *network)
 {
+  uint8_t bin[6];
+  epoch_t disco;
   if(!tm) return NULL;
+  
+  // no medium resets
   if(!medium)
   {
-//    tm->disco = mote_free(tm->disco);
+    tm->disco = epochs_free(tm->disco);
     return tm;
   }
 
-  // make a fake/virtual mote
-  if(!tm->disco)
-  {
-//    if(!(m = tm->disco = malloc(sizeof (struct mote_struct)))) return LOG("OOM");
-//    memset(m,0,sizeof (struct mote_struct));
-  }
+  if(strlen(medium) < 10 || base32_decode(medium,0,bin,6) != 6) return LOG("bad medium encoding: %s",medium);
 
-//  if(!(base = epoch_new(id))) return NULL;
-  
-//  epoch_free(base);
+  // new discovery epoch
+  if(!(disco = epoch_new(tm->mesh,bin))) return LOG("epoch error");
+
+  // network is discovery secret
+  if(network) e3x_hash((uint8_t*)network,strlen(network),disco->secret);
+  else e3x_hash((uint8_t*)"telehash",8,disco->secret);
+
+  tm->disco = epochs_add(tm->disco,disco);
+
   return tm;
 }
 

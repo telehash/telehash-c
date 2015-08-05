@@ -57,8 +57,12 @@ epoch_t epochs_free(epoch_t es);
 // every epoch needs a medium driver that has to be aware of the epoch's lifecycle events
 typedef struct epoch_driver_struct
 {
+  // return energy cost, or 0 if unknown medium
+  uint32_t (*get)(mesh_t mesh, uint8_t medium[6]);
+
   // used to initialize all new epochs, add medium scheduling time/cost and channels
-  epoch_t (*init)(mesh_t mesh, epoch_t e, uint8_t medium[6]);
+  void* (*init)(mesh_t mesh, epoch_t e, uint8_t medium[6]);
+
   epoch_t (*free)(mesh_t mesh, epoch_t e);
 
 } *epoch_driver_t;

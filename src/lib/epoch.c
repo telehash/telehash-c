@@ -9,23 +9,21 @@ epoch_t epoch_new(mesh_t m, uint8_t medium[6])
 {
   epoch_t e;
   int i;
+  
+  if(!medium) return NULL;
 
   if(!(e = malloc(sizeof(struct epoch_struct)))) return LOG("OOM");
   memset(e,0,sizeof (struct epoch_struct));
   memcpy(e->medium,medium,6);
 
-  // tell all drivers to initialize
+  // tell drivers to initialize until one does
   for(i=0;i<EPOCH_DRIVERS_MAX && epoch_drivers[i];i++)
   {
-    if(epoch_drivers[i]->init(m,e,medium)) break;
+    if((e->driver = epoch_drivers[i]->init(m,e,medium))) return e;
   }
   
-  if(!e->driver)
-  {
-    LOG("no driver for medium %s",epoch_medium(e));
-    return epoch_free(e);
-  }
-  return e;
+  LOG("no driver for medium %s",epoch_medium(e));
+  return epoch_free(e);
 }
 
 epoch_t epoch_free(epoch_t e)
