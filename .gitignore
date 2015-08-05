@@ -6,8 +6,3 @@
 test/bin/*
 node_modules/
 telehash.c
-.project
-.cproject
-.settings/*
-.travis.yml
-
