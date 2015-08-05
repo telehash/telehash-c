@@ -11,6 +11,8 @@ typedef struct knock_struct *knock_t;
 // knock state holder when sending/receiving
 struct knock_struct
 {
+  knock_t next; // for temporary lists
+  epoch_t epoch; // so knocks can be passed around directly
   uint32_t win; // current window id
   uint32_t chan; // current channel (< med->chans)
   uint64_t start, stop; // microsecond exact start/stop time
@@ -55,8 +57,6 @@ epoch_t epochs_free(epoch_t es);
 // every epoch needs a medium driver that has to be aware of the epoch's lifecycle events
 typedef struct epoch_driver_struct
 {
-  uint8_t type;
-
   // used to initialize all new epochs, add medium scheduling time/cost and channels
   epoch_t (*init)(mesh_t mesh, epoch_t e, uint8_t medium[6]);
   epoch_t (*free)(mesh_t mesh, epoch_t e);

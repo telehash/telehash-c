@@ -235,7 +235,7 @@ tmesh_t tmesh_loop(tmesh_t tm)
 }
 
 // return the next hard-scheduled epoch from this given point in time
-epoch_t tmesh_next(tmesh_t tm, uint64_t from)
+knock_t tmesh_next(tmesh_t tm, uint64_t from)
 {
   // find nearest tx
   //  check if any rx can come first

@@ -29,8 +29,8 @@ struct tmesh_struct
   lob_t path;
   epoch_t disco; // only when discovery is enabled
   epoch_t syncs; // the ones we listen on
-  epoch_t tx, rx; // soft scheduled
-  epoch_t active; // hard scheduled
+  knock_t tx, rx; // soft scheduled
+  knock_t active; // hard scheduled
 };
 
 // create a new tmesh radio network bound to this mesh
@@ -49,8 +49,8 @@ mote_t tmesh_mote(tmesh_t tm, link_t link);
 // perform buffer management and internal soft scheduling
 tmesh_t tmesh_loop(tmesh_t tm);
 
-// return the next hard-scheduled epoch from this given point in time
-epoch_t tmesh_next(tmesh_t tm, uint64_t from);
+// return the next hard-scheduled knock from this given point in time
+knock_t tmesh_next(tmesh_t tm, uint64_t from);
 
 
 #endif
