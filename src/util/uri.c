@@ -54,18 +54,19 @@ lob_t util_uri_parse(char *encoded)
   // optional path
   if((at = strchr(encoded,'/')))
   {
-    if((at = strchr(at+1,'?')) || (at = strchr(at+1,'#')))
+    encoded = at;
+    at = strchr(encoded+1,'?');
+    if(at || (at = strchr(encoded+1,'#')))
     {
       lob_set_len(uri, "path", 0, encoded, (size_t)(at - encoded));
     }else{
       lob_set_len(uri, "path", 0, encoded, strlen(encoded));
     }
-  }
 
   // optional hash at the end
   if((at = strchr(encoded,'#')))
   {
-    lob_set_len(uri, "path", 0, at+1, strlen(at+1));
+    lob_set_len(uri, "hash", 0, at+1, strlen(at+1));
   }
 
   // optional query string
