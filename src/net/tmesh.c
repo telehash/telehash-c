@@ -142,6 +142,17 @@ void tmesh_map_handler(link_t link, e3x_channel_t chan, void *arg)
 
 }
 
+// send a map to this mote
+void tmesh_map_send(mote_t mote)
+{
+  /* TODO!
+  ** send open first if not yet
+  ** map packets have len 1 header which is our energy status, then binary frame body of:
+  ** >0 energy, body up to 8 epochs (6 bytes) and rssi/status (1 byte) of each, max 56 body
+  ** 0 energy, body up to 8 neighbors per packet, 5 bytes of hashname, 1 byte energy, and 1 byte of rssi/status each
+  */
+}
+
 // new tmesh map channel
 lob_t tmesh_on_open(link_t link, lob_t open)
 {
