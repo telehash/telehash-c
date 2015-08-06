@@ -61,6 +61,7 @@ int main(int argc, char **argv)
 
   // A to request to C, full link first
   link_t linkAC = mesh_add(meshA, mesh_json(meshC), NULL);
+  sleep(1);
   fail_unless(linkAC);
   
   // dominooooooo
