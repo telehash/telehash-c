@@ -52,6 +52,9 @@ int main(int argc, char **argv)
   fail_unless(tmesh_discoverable(netA, "kzdhpa5n6r", NULL));
   fail_unless(netA->disco);
   fail_unless(epochs_len(netA->disco) > 0);
+  fail_unless(netA->dim);
+  LOG("debug disco pkt %s",lob_json(netA->dim));
+  
 
 
   return 0;

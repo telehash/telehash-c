@@ -18,6 +18,8 @@ static mote_t mote_loop(tmesh_t tm, mote_t to)
 {
   if(!tm || !to) return NULL;
 
+  // TODO init motes (no link) can only take handshakes for disco/sync, and serve as their epoch time base
+
   if(util_chunks_len(to->chunks))
   {
     /*
@@ -230,6 +232,7 @@ tmesh_t tmesh_discoverable(tmesh_t tm, char *medium, char *network)
   if(!medium)
   {
     tm->disco = epochs_free(tm->disco);
+    tm->dim = lob_free(tm->dim);
     return tm;
   }
 
@@ -243,6 +246,9 @@ tmesh_t tmesh_discoverable(tmesh_t tm, char *medium, char *network)
   else e3x_hash((uint8_t*)"telehash",8,disco->secret);
 
   tm->disco = epochs_add(tm->disco,disco);
+  
+  // generate discovery intermediate keys packet
+  tm->dim = hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys));
 
   return tm;
 }
@@ -273,6 +279,8 @@ tmesh_t tmesh_loop(tmesh_t tm)
   for(mote = tm->motes;mote && mote_loop(tm, mote);mote = mote->next);
 
   // if active had a buffer and was my sync channel, my own sync rx is reset/added
+  
+  // if bases exist, add/process them
 
   // discovery special processing
   if(tm->disco)
@@ -280,7 +288,7 @@ tmesh_t tmesh_loop(tmesh_t tm)
     // TODO if we just tx'd a disco knock, we should rx sequence 1, and rx sequence 0 if we can before then
     // else add a tx
   }
-
+  
   // if any active, is force cleared
   tm->active = NULL;
 

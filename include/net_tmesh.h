@@ -26,9 +26,11 @@ struct tmesh_struct
 {
   mesh_t mesh;
   mote_t motes;
-  lob_t path;
+  lob_t path, dim;
   epoch_t disco; // only when discovery is enabled
   epoch_t syncs; // the ones we listen on
+  epoch_t bases; // only temporary tx/rx base epochs
+  mote_t inits; // stub temp motes for handshake exchange only to bootstrap links
   knock_t tx, rx; // soft scheduled
   knock_t active; // hard scheduled
 };
