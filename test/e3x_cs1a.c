@@ -4,13 +4,11 @@
 #include "util_sys.h"
 
 // fixtures
-#define A_KEY "anfpjrveyyloypswpqzlfkjpwynahohffy";
-#define A_SEC "cgcsbs7yphotlb5fxls5ogy2lrc7yxbg";
-#define B_KEY "amhofcnwgmolf3owg2kipr5vus7uifydsy";
-#define B_SEC "ge4i7h3jln4kltngwftg2yqtjjvemerw";
 
 int main(int argc, char **argv)
 {
+	lob_t id;
+	mesh_t mesh;
   lob_t opts = lob_new();
   fail_unless(e3x_init(opts) == 0);
   fail_unless(!e3x_err());
@@ -30,10 +28,13 @@ int main(int argc, char **argv)
   util_hex(e3x_hash((uint8_t*)"foo",3,buf),32,hex);
   fail_unless(strcmp(hex,"2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae") == 0);
 
-  lob_t secrets = e3x_generate();
+  id = util_fjson("/Users/chrigel/.id.json");
+  if(!id) return -1;
+
+  lob_t secrets = lob_get_json(id,"secrets");
   fail_unless(secrets);
   fail_unless(lob_get(secrets,"1a"));
-  lob_t keys = lob_linked(secrets);
+  lob_t keys = lob_get_json(id,"keys");
   fail_unless(keys);
   fail_unless(lob_get(keys,"1a"));
   LOG("generated key %s secret %s",lob_get(keys,"1a"),lob_get(secrets,"1a"));

@@ -1,11 +1,16 @@
 #include "ext.h"
 #include "net_loopback.h"
 #include "unit_test.h"
+#include <unistd.h>
 
 int main(int argc, char **argv)
 {
-  char log_msg[256];
-  bzero(log_msg,256);
+  useconds_t usec = 999999;
+  if (argc > 1)
+  {
+	  usec = atoi(argv[1]);
+  }
+
   mesh_t meshA = mesh_new(3);
   fail_unless(meshA);
   lob_t secretsA = mesh_generate(meshA);
@@ -47,6 +52,10 @@ int main(int argc, char **argv)
   // auto-accept A
   mesh_on_discover(meshC,"auto",mesh_add);
 
+  // A to request to C, full link first
+  link_t linkAC = mesh_add(meshA, mesh_json(meshC), NULL);
+  fail_unless(linkAC);
+
   net_loopback_t pairBC = net_loopback_new(meshB,meshC);
   fail_unless(pairBC);
   
@@ -61,19 +70,11 @@ int main(int argc, char **argv)
   // B to be a router
   fail_unless(peer_route(meshB));
 
-  // A to request to C, full link first
-  link_t linkAC = mesh_add(meshA, mesh_json(meshC), NULL);
-  fail_unless(linkAC);
-  LOG("============================================================");
-  sprintf(log_msg, "before peer_connect linkAC->x %ld %ld", linkAC->x->in, linkAC->x->out);
-  LOG(log_msg);
-  LOG("============================================================");
+
+  usleep(usec);
+
   // dominooooooo
   peer_connect(linkAC, linkAB);
-  sprintf(log_msg, "after peer_connect linkAC->x %ld %ld", linkAC->x->in, linkAC->x->out);
-  LOG("============================================================");
-  LOG(log_msg);
-  LOG("============================================================");
   fail_unless(link_up(linkAC));
   LOG("routed link connected");
 
