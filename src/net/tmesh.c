@@ -285,8 +285,8 @@ tmesh_t tmesh_loop(tmesh_t tm)
   // discovery special processing
   if(tm->disco)
   {
-    // TODO if we just tx'd a disco knock, we should rx sequence 1, and rx sequence 0 if we can before then
-    // else add a tx
+    // TODO if disco is it tx state and was tx'd, switch to rx state and add to list
+    // if in rx state and done, rotate tm->disco if there's multiple
   }
   
   // if any active, is force cleared
@@ -301,7 +301,7 @@ knock_t tmesh_next(tmesh_t tm, uint64_t from)
   // find nearest tx
   //  check if any rx can come first
   // take first rx
-  //  check if any rx can come first
+  //  check if current disco can fit first
   // pop off list and set active
   return NULL;
 }

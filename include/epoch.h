@@ -17,8 +17,9 @@ struct knock_struct
   uint32_t chan; // current channel (< med->chans)
   uint64_t start, stop; // microsecond exact start/stop time
   uint8_t *buf; // filled in by scheduler (tx) or driver (rx)
-  uint8_t len; // <= 64
-  uint8_t tx; // boolean if is a tx or rx
+  uint8_t len:7; // <= 64
+  enum {TX, RX} dir:1;
+  enum {NONE, READY, DONE, ERR} state:2;
 };
 
 // individual epoch+medium state data, goal to keep <64b each
