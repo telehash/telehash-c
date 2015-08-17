@@ -2,7 +2,7 @@
 #define tmesh_h
 
 #include "mesh.h"
-#include "epoch.h"
+#include "tmesh_epoch.h"
 
 typedef struct tmesh_struct *tmesh_t;
 

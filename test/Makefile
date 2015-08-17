@@ -2,19 +2,20 @@ TESTS = lib_base32 lib_lob lib_hashname lib_murmur lib_chunks lib_util \
 		e3x_core e3x_self e3x_exchange e3x_event e3x_channel \
 		mesh_core net_loopback net_udp4 net_tcp4 ext_stream lib_chacha \
 		ext_block lib_uri net_handshake lib_socketio lib_jwt lib_base64 \
-		ext_path ext_peer net_serial lib_epoch net_tmesh
+		ext_path ext_peer net_serial tmesh_core tmesh_epoch
 
 CC=gcc
 CFLAGS+=-g -Wall -Wextra -Wno-unused-parameter -DDEBUG
 INCLUDE+=-I../unix -I../include -I../include/lib
 
 
-LIB = src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/lib/chacha.c src/lib/murmur.c src/lib/socketio.c src/lib/jwt.c src/lib/base64.c src/lib/epoch.c
+LIB = src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/lib/chacha.c src/lib/murmur.c src/lib/socketio.c src/lib/jwt.c src/lib/base64.c
 E3X = src/e3x/e3x.c src/e3x/channel.c src/e3x/self.c src/e3x/exchange.c src/e3x/event.c src/e3x/cipher.c
 MESH = src/mesh.c src/link.c src/pipe.c
 EXT = src/ext/stream.c src/ext/block.c src/ext/path.c src/ext/peer.c
-NET = src/net/loopback.c src/net/udp4.c src/net/tcp4.c src/net/serial.c src/net/tmesh.c
+NET = src/net/loopback.c src/net/udp4.c src/net/tcp4.c src/net/serial.c
 UTIL = src/util/util.c src/util/uri.c src/util/chunks.c src/unix/util.c src/unix/util_sys.c
+TMESH = src/tmesh/tmesh.c src/tmesh/epoch.c
 
 # CS1a by default
 CS = src/e3x/cs1a/aes.c src/e3x/cs1a/hmac.c src/e3x/cs1a/aes128.c src/e3x/cs1a/cs1a.c src/e3x/cs1a/uECC.c src/e3x/cs1a/sha256.c
@@ -49,8 +50,9 @@ EXT_OBJFILES = $(patsubst %.c,../%.o,$(EXT))
 NET_OBJFILES = $(patsubst %.c,../%.o,$(NET))
 UTIL_OBJFILES = $(patsubst %.c,../%.o,$(UTIL))
 CS_OBJFILES = $(patsubst %.c,../%.o,$(CS))
+TMESH_OBJFILES = $(patsubst %.c,../%.o,$(TMESH))
 
-FULL_OBJFILES = $(LIB_OBJFILES) $(E3X_OBJFILES) $(MESH_OBJFILES) $(EXT_OBJFILES) $(NET_OBJFILES) $(UTIL_OBJFILES) $(CS_OBJFILES)
+FULL_OBJFILES = $(LIB_OBJFILES) $(E3X_OBJFILES) $(MESH_OBJFILES) $(EXT_OBJFILES) $(NET_OBJFILES) $(UTIL_OBJFILES) $(CS_OBJFILES) $(TMESH_OBJFILES)
 
 all: test
 

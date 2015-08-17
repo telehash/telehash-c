@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include "util.h"
-#include "epoch.h"
+#include "tmesh_epoch.h"
 
 epoch_t epoch_new(mesh_t m, uint8_t medium[6])
 {

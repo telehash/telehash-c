@@ -1,4 +1,4 @@
-#include "epoch.h"
+#include "tmesh_epoch.h"
 #include "unit_test.h"
 
 uint32_t driver_get(mesh_t mesh, uint8_t medium[6])
@@ -8,7 +8,7 @@ uint32_t driver_get(mesh_t mesh, uint8_t medium[6])
 
 void *driver_init(mesh_t mesh, epoch_t e, uint8_t medium[6])
 {
-  return 1;
+  return (void*)mesh;
 }
 
 epoch_t driver_free(mesh_t mesh, epoch_t e)

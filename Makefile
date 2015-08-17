@@ -3,12 +3,13 @@ CFLAGS+=-g -Wall -Wextra -Wno-unused-parameter -DDEBUG
 #CFLAGS+=-Weverything -Wno-unused-macros -Wno-undef -Wno-gnu-zero-variadic-macro-arguments -Wno-padded -Wno-gnu-label-as-value -Wno-gnu-designator -Wno-missing-prototypes -Wno-format-nonliteral
 INCLUDE+=-Iinclude -Iinclude/lib -Iunix
 
-LIB = src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/lib/chacha.c src/lib/murmur.c src/lib/epoch.c
+LIB = src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/lib/chacha.c src/lib/murmur.c
 E3X = src/e3x/e3x.c src/e3x/channel.c src/e3x/self.c src/e3x/exchange.c src/e3x/event.c src/e3x/cipher.c
 MESH = src/mesh.c src/link.c src/pipe.c
 EXT = src/ext/stream.c src/ext/block.c
-NET = src/net/loopback.c src/net/udp4.c src/net/tcp4.c src/net/serial.c src/net/tmesh.c
+NET = src/net/loopback.c src/net/udp4.c src/net/tcp4.c src/net/serial.c
 UTIL = src/util/util.c src/util/uri.c src/util/chunks.c src/unix/util.c src/unix/util_sys.c
+TMESH = src/tmesh/tmesh.c src/tmesh/epoch.c
 
 # CS1a by default
 CS = src/e3x/cs1a/aes.c src/e3x/cs1a/hmac.c src/e3x/cs1a/aes128.c src/e3x/cs1a/cs1a.c src/e3x/cs1a/uECC.c src/e3x/cs1a/sha256.c

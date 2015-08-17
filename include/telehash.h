@@ -12,7 +12,6 @@ extern "C" {
 #include "mesh.h"
 #include "link.h"
 #include "pipe.h"
-#include "epoch.h"
 
 #ifdef __cplusplus
 }
