@@ -6,33 +6,27 @@
 
 typedef struct tmesh_struct *tmesh_t;
 
-// individual mote pipe local info, wrapper around a link for radio peers
-typedef struct mote_struct
+// community management
+typedef struct comm_struct
 {
   tmesh_t tm;
-  util_chunks_t chunks;
-  epoch_t epochs;
-  epoch_t syncs; // only when synchronizing
-  epoch_t tx, rx; // currently active ones only
-  link_t link;
-  uint8_t z;
+  char *name;
+  uint8_t medium[6];
+  epoch_t ping;
+  link_t *links;
+  epoch_t *epochs;
   pipe_t pipe;
-  uint64_t sync; // when synchronized, 0 if trying to sync
-  struct mote_struct *next;
-} *mote_t;
+  struct comm_struct *next;
+  enum {PUBLIC, PRIVATE, DIRECT, ERR} type:2;
+} *comm_t;
 
 // overall manager
 struct tmesh_struct
 {
   mesh_t mesh;
-  mote_t motes;
-  lob_t path, dim;
-  epoch_t disco; // only when discovery is enabled
-  epoch_t syncs; // the ones we listen on
-  epoch_t bases; // only temporary tx/rx base epochs
-  mote_t inits; // stub temp motes for handshake exchange only to bootstrap links
+  comm_t communities;
+  lob_t pubim;
   knock_t tx, rx; // soft scheduled
-  knock_t active; // hard scheduled
 };
 
 // create a new tmesh radio network bound to this mesh
@@ -67,8 +61,7 @@ typedef struct radio_struct
   // when an epoch is free'd, in case there's any device structures
   epoch_t (*free)(mesh_t mesh, epoch_t e);
   
-  // list of all epochs bound to this radio for scheduling
-  epoch_t bound;
+  knock_t active; // current hard scheduled
 
 } *radio_t;
 

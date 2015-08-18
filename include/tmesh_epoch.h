@@ -16,24 +16,24 @@ struct knock_struct
   uint32_t win; // current window id
   uint32_t chan; // current channel (< med->chans)
   uint64_t start, stop; // microsecond exact start/stop time
-  uint8_t *buf; // filled in by scheduler (tx) or driver (rx)
+  chunk_t chunks; // actual chunk encoding
   uint8_t len:7; // <= 64
   enum {TX, RX} dir:1;
   enum {NONE, READY, DONE, ERR} state:2;
 };
 
-// individual epoch+medium state data, goal to keep <64b each
+// individual epoch+medium state data, goal to keep <64b each on 32bit
 struct epoch_struct
 {
-  uint64_t base; // microsecond of window 0 start
   uint8_t secret[32];
-  knock_t knock; // only when scheduled
+  uint64_t base; // microsecond of window 0 start
+  knock_t knock; // only exists when active
   epoch_t next; // for epochs_* list utils
   void *device; // used by radio device driver
   epoch_t bound; // radio keeps a list of its bound epochs 
   uint32_t busy; // microseconds to tx/rx, set by driver
-  uint8_t medium[6];
   uint8_t chans; // number of total channels, set by driver
+  uint8_t radio; // radio device id based on radio_devices[]
 };
 
 
