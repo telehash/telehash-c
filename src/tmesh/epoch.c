@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include "util.h"
-#include "tmesh_epoch.h"
+#include "tmesh.h"
 
 epoch_t epoch_new(mesh_t m, uint8_t medium[6])
 {
@@ -16,13 +16,13 @@ epoch_t epoch_new(mesh_t m, uint8_t medium[6])
   memset(e,0,sizeof (struct epoch_struct));
   memcpy(e->medium,medium,6);
 
-  // tell drivers to initialize until one does
-  for(i=0;i<EPOCH_DRIVERS_MAX && epoch_drivers[i];i++)
+  // tell devices to bind until one does
+  for(i=0;i<RADIOS_MAX && radio_devices[i];i++)
   {
-    if((e->driver = epoch_drivers[i]->init(m,e,medium))) return e;
+    if((e->device = radio_devices[i]->bind(m,e,medium))) return e;
   }
   
-  LOG("no driver for medium %s",epoch_medium(e));
+  LOG("no device for medium %s",epoch_medium(e));
   return epoch_free(e);
 }
 
@@ -120,17 +120,3 @@ epoch_t epochs_free(epoch_t es)
   return epochs_free(e);
 }
 
-// all drivers
-epoch_driver_t epoch_drivers[EPOCH_DRIVERS_MAX] = {0};
-
-epoch_driver_t epoch_driver(epoch_driver_t driver)
-{
-  int i;
-  for(i=0;i<EPOCH_DRIVERS_MAX;i++)
-  {
-    if(epoch_drivers[i]) continue;
-    epoch_drivers[i] = driver;
-    return driver;
-  }
-  return NULL;
-}

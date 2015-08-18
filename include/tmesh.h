@@ -54,5 +54,29 @@ tmesh_t tmesh_loop(tmesh_t tm);
 // return the next hard-scheduled knock from this given point in time
 knock_t tmesh_next(tmesh_t tm, uint64_t from);
 
+///////////////////
+// radio devices are single task responsible for all the epochs in one or more mediums
+typedef struct radio_struct
+{
+  // return energy cost, or 0 if unknown medium
+  uint32_t (*energy)(mesh_t mesh, uint8_t medium[6]);
+
+  // used to initialize all new epochs, add medium scheduling time/cost and channels
+  void* (*bind)(mesh_t mesh, epoch_t e, uint8_t medium[6]);
+
+  // when an epoch is free'd, in case there's any device structures
+  epoch_t (*free)(mesh_t mesh, epoch_t e);
+  
+  // list of all epochs bound to this radio for scheduling
+  epoch_t bound;
+
+} *radio_t;
+
+#define RADIOS_MAX 1
+extern radio_t radio_devices[]; // all of em
+
+// add/set a new device
+radio_t radio_device(radio_t device);
+
 
 #endif

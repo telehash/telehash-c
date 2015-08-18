@@ -306,3 +306,19 @@ knock_t tmesh_next(tmesh_t tm, uint64_t from)
   return NULL;
 }
 
+
+// all devices
+radio_t radio_devices[RADIOS_MAX] = {0};
+
+radio_t radio_device(radio_t device)
+{
+  int i;
+  for(i=0;i<RADIOS_MAX;i++)
+  {
+    if(radio_devices[i]) continue;
+    radio_devices[i] = device;
+    return device;
+  }
+  return NULL;
+}
+
