@@ -4,6 +4,36 @@
 #include "tmesh.h"
 
 
+// join a new private/public community
+cmnty_t tmesh_public(tmesh_t tm, char *medium, char *network)
+{
+  return NULL;
+}
+
+cmnty_t tmesh_private(tmesh_t tm, char *medium, char *network)
+{
+  return NULL;
+}
+
+// add a link known to be in this community to look for
+cmnty_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link)
+{
+  return NULL;
+}
+
+// attempt to establish a direct connection
+cmnty_t tmesh_direct(tmesh_t tm, link_t link, char *medium, uint64_t at)
+{
+  return NULL;
+}
+
+static cmnty_t cmnty_loop(tmesh_t tm, cmnty_t c)
+{
+  if(!tm || !c) return NULL;
+  return NULL;
+}
+
+/*
 // just make sure it's connected
 mote_t mote_to(pipe_t pipe)
 {
@@ -22,25 +52,24 @@ static mote_t mote_loop(tmesh_t tm, mote_t to)
 
   if(util_chunks_len(to->chunks))
   {
-    /*
     while((len = write(to->client, util_chunks_write(to->chunks), util_chunks_len(to->chunks))) > 0)
     {
       LOG("wrote %d bytes to %s",len,pipe->id);
       util_chunks_written(to->chunks, (size_t)len);
     }
-    */
   }
 
-  /*
   while((len = read(to->client, buf, 256)) > 0)
   {
     LOG("reading %d bytes from %s",len,pipe->id);
     util_chunks_read(to->chunks, buf, (size_t)len);
   }
-  */
 
   // any incoming full packets can be received
 //  while((packet = util_chunks_receive(to->chunks))) mesh_receive(to->tm->mesh, packet, pipe);
+
+    // TODO if disco is it tx state and was tx'd, switch to rx state and add to list
+    // if in rx state and done, rotate tm->disco if there's multiple
 
   return to;
 }
@@ -108,10 +137,11 @@ mote_t tmesh_mote(tmesh_t tm, link_t link)
   return mote_reset(to);
 }
 
+*/
 
 pipe_t tmesh_on_path(link_t link, lob_t path)
 {
-  mote_t to;
+  cmnty_t c;
   tmesh_t tm;
   char *sync;
   epoch_t e;
@@ -121,20 +151,21 @@ pipe_t tmesh_on_path(link_t link, lob_t path)
   if(!(tm = xht_get(link->mesh->index, "tmesh"))) return NULL;
   if(util_cmp("tmesh",lob_get(path,"type"))) return NULL;
   if(!(sync = lob_get(path,"sync"))) return LOG("missing sync");
-  e = epoch_new(NULL,NULL);
+//  e = epoch_new(NULL,NULL);
 //  if(!(e = epoch_import(e,sync,link->id->hashname))) return (pipe_t)epoch_free(e);
-  if(!(to = tmesh_mote(tm, link))) return (pipe_t)epoch_free(e);
-  to->syncs = epochs_add(to->syncs, e);
-  if(!to->sync) mote_reset(to); // load new sync epoch immediately if not in sync
-  return to->pipe;
+//  if(!(to = tmesh_mote(tm, link))) return (pipe_t)epoch_free(e);
+//  to->syncs = epochs_add(to->syncs, e);
+//  if(!to->sync) mote_reset(to); // load new sync epoch immediately if not in sync
+//  return to->pipe;
+  return NULL;
 }
 
 // handle incoming packets for the built-in map channel
 void tmesh_map_handler(link_t link, e3x_channel_t chan, void *arg)
 {
   lob_t packet;
-  mote_t mote = arg;
-  if(!link || !mote) return;
+//  mote_t mote = arg;
+  if(!link || !arg) return;
 
   while((packet = e3x_channel_receiving(chan)))
   {
@@ -145,7 +176,7 @@ void tmesh_map_handler(link_t link, e3x_channel_t chan, void *arg)
 }
 
 // send a map to this mote
-void tmesh_map_send(mote_t mote)
+void tmesh_map_send(link_t mote)
 {
   /* TODO!
   ** send open first if not yet
@@ -178,9 +209,6 @@ tmesh_t tmesh_new(mesh_t mesh, lob_t options)
   unsigned int motes;
   tmesh_t tm;
   
-  motes = lob_get_uint(options,"motes");
-  if(!motes) motes = 11; // hashtable for active motes
-
   if(!(tm = malloc(sizeof (struct tmesh_struct)))) return LOG("OOM");
   memset(tm,0,sizeof (struct tmesh_struct));
 
@@ -191,9 +219,9 @@ tmesh_t tmesh_new(mesh_t mesh, lob_t options)
   mesh_on_open(mesh, "tmesh_open", tmesh_on_open);
   
   // convenience
-  tm->path = lob_new();
-  lob_set(tm->path,"type","tmesh");
-  mesh->paths = lob_push(mesh->paths, tm->path);
+//  tm->path = lob_new();
+//  lob_set(tm->path,"type","tmesh");
+//  mesh->paths = lob_push(mesh->paths, tm->path);
 
   return tm;
 }
@@ -217,10 +245,11 @@ tmesh_t tmesh_sync(tmesh_t tm, char *medium)
   if(!(sync = epoch_new(tm->mesh,bin))) return LOG("epoch error");
   // use our hashname as default secret for syncs
   memcpy(sync->secret,tm->mesh->id->bin,32);
-  tm->syncs = epochs_add(tm->syncs,sync);
+//  tm->syncs = epochs_add(tm->syncs,sync);
   return tm;
 }
 
+/*
 // become discoverable by anyone with this epoch id, pass NULL to reset all
 tmesh_t tmesh_discoverable(tmesh_t tm, char *medium, char *network)
 {
@@ -252,7 +281,7 @@ tmesh_t tmesh_discoverable(tmesh_t tm, char *medium, char *network)
 
   return tm;
 }
-
+*/
 
 /* discussion on flow
 
@@ -268,42 +297,19 @@ tmesh_t tmesh_discoverable(tmesh_t tm, char *medium, char *network)
 
 tmesh_t tmesh_loop(tmesh_t tm)
 {
-  mote_t mote;
+  cmnty_t c;
   if(!tm) return LOG("bad args");
 
   // rx list cleared since it is rebuilt by the mote loop
   tm->rx = NULL; 
 
-  // each mote loop will check if it was the active one and process data
+  // each cmnty loop will check and process data
   // will also check if the epoch was a sync one and add that rx, else normal rx
-  for(mote = tm->motes;mote && mote_loop(tm, mote);mote = mote->next);
+  for(c = tm->communities;c && cmnty_loop(tm, c);c = c->next);
 
   // if active had a buffer and was my sync channel, my own sync rx is reset/added
   
-  // if bases exist, add/process them
-
-  // discovery special processing
-  if(tm->disco)
-  {
-    // TODO if disco is it tx state and was tx'd, switch to rx state and add to list
-    // if in rx state and done, rotate tm->disco if there's multiple
-  }
-  
-  // if any active, is force cleared
-  tm->active = NULL;
-
   return tm;
-}
-
-// return the next hard-scheduled epoch from this given point in time
-knock_t tmesh_next(tmesh_t tm, uint64_t from)
-{
-  // find nearest tx
-  //  check if any rx can come first
-  // take first rx
-  //  check if current disco can fit first
-  // pop off list and set active
-  return NULL;
 }
 
 
@@ -322,3 +328,14 @@ radio_t radio_device(radio_t device)
   return NULL;
 }
 
+
+// return the next hard-scheduled epoch from this given point in time
+epoch_t radio_next(radio_t device, tmesh_t tm, uint64_t from)
+{
+  // find nearest tx
+  //  check if any rx can come first
+  // take first rx
+  //  check if current disco can fit first
+  // pop off list and set active
+  return NULL;
+}

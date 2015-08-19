@@ -14,7 +14,6 @@ epoch_t epoch_new(mesh_t m, uint8_t medium[6])
 
   if(!(e = malloc(sizeof(struct epoch_struct)))) return LOG("OOM");
   memset(e,0,sizeof (struct epoch_struct));
-  memcpy(e->medium,medium,6);
 
   // tell devices to bind until one does
   for(i=0;i<RADIOS_MAX && radio_devices[i];i++)
@@ -22,7 +21,7 @@ epoch_t epoch_new(mesh_t m, uint8_t medium[6])
     if((e->device = radio_devices[i]->bind(m,e,medium))) return e;
   }
   
-  LOG("no device for medium %s",epoch_medium(e));
+  LOG("no device for this medium");
   return epoch_free(e);
 }
 
@@ -32,14 +31,6 @@ epoch_t epoch_free(epoch_t e)
   // TODO medium driver free
   free(e);
   return NULL;
-}
-
-static char epoch_mcache[11];
-char *epoch_medium(epoch_t e)
-{
-  if(!e) return NULL;
-  base32_encode(e->medium,6,epoch_mcache,11);
-  return (char*)epoch_mcache;
 }
 
 // sync point for given window
@@ -58,7 +49,7 @@ epoch_t epoch_knock(epoch_t e, uint64_t at)
   if(!at)
   {
     if(!e->knock) return NULL;
-    if(e->knock->buf) free(e->knock->buf);
+    if(e->knock->chunks) util_chunks_free(e->knock->chunks);
     free(e->knock);
     e->knock = NULL;
     return NULL;

@@ -2,12 +2,14 @@
 #define tmesh_h
 
 #include "mesh.h"
-#include "tmesh_epoch.h"
 
 typedef struct tmesh_struct *tmesh_t;
+typedef struct cmnty_struct *cmnty_t;
+typedef struct epoch_struct *epoch_t;
+typedef struct knock_struct *knock_t;
 
 // community management
-typedef struct comm_struct
+struct cmnty_struct
 {
   tmesh_t tm;
   char *name;
@@ -16,16 +18,28 @@ typedef struct comm_struct
   link_t *links;
   epoch_t *epochs;
   pipe_t pipe;
-  struct comm_struct *next;
-  enum {PUBLIC, PRIVATE, DIRECT, ERR} type:2;
-} *comm_t;
+  struct cmnty_struct *next;
+  enum {NONE, PUBLIC, PRIVATE, DIRECT} type:2;
+};
 
-// overall manager
+// join a new private/public community
+cmnty_t tmesh_public(tmesh_t tm, char *medium, char *network);
+cmnty_t tmesh_private(tmesh_t tm, char *medium, char *network);
+
+// add a link known to be in this community to look for
+cmnty_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link);
+
+// attempt to establish a direct connection
+cmnty_t tmesh_direct(tmesh_t tm, link_t link, char *medium, uint64_t at);
+
+
+// overall tmesh manager
 struct tmesh_struct
 {
   mesh_t mesh;
-  comm_t communities;
+  cmnty_t communities;
   lob_t pubim;
+  uint8_t z; // our z-index
   knock_t tx, rx; // soft scheduled
 };
 
@@ -33,26 +47,61 @@ struct tmesh_struct
 tmesh_t tmesh_new(mesh_t mesh, lob_t options);
 void tmesh_free(tmesh_t tm);
 
-// add a sync epoch from this medium, must be called at initialization/creation only
-tmesh_t tmesh_sync(tmesh_t tm, char *medium);
-
-// become discoverable by anyone with this medium and network, pass NULL to reset all
-tmesh_t tmesh_discoverable(tmesh_t tm, char *medium, char *network);
-
-// get(create) the mote for a link
-mote_t tmesh_mote(tmesh_t tm, link_t link);
-
 // perform buffer management and internal soft scheduling
 tmesh_t tmesh_loop(tmesh_t tm);
 
-// return the next hard-scheduled knock from this given point in time
-knock_t tmesh_next(tmesh_t tm, uint64_t from);
+
+
+// knock state holder when sending/receiving
+struct knock_struct
+{
+  knock_t next; // for temporary lists
+  epoch_t epoch; // so knocks can be passed around directly
+  uint32_t win; // current window id
+  uint32_t chan; // current channel (< med->chans)
+  uint64_t start, stop; // microsecond exact start/stop time
+  util_chunks_t chunks; // actual chunk encoding
+  uint8_t len:7; // <= 64
+  enum {TX, RX} dir:1;
+  enum {NONE, READY, DONE, ERR} state:2;
+};
+
+// individual epoch+medium state data, goal to keep <64b each on 32bit
+struct epoch_struct
+{
+  uint8_t secret[32];
+  uint64_t base; // microsecond of window 0 start
+  knock_t knock; // only exists when active
+  epoch_t next; // for epochs_* list utils
+  void *device; // used by radio device driver
+  cmnty_t community; // which community the epoch belongs to
+  uint32_t busy; // microseconds to tx/rx, set by driver
+  uint8_t chans; // number of total channels, set by driver
+  uint8_t radio:4; // radio device id based on radio_devices[]
+  enum {NONE, PING, ECHO, PAIR, LINK} type:4;
+
+};
+
+epoch_t epoch_new(mesh_t m, uint8_t medium[6]);
+epoch_t epoch_free(epoch_t e);
+
+// sync point for given window
+epoch_t epoch_base(epoch_t e, uint32_t window, uint64_t at);
+
+// reset active knock to next window, 0 cleans out, guarantees an e->knock or returns NULL
+epoch_t epoch_knock(epoch_t e, uint64_t at);
+
+// simple array utilities
+epoch_t epochs_add(epoch_t es, epoch_t e);
+epoch_t epochs_rem(epoch_t es, epoch_t e);
+size_t epochs_len(epoch_t es);
+epoch_t epochs_free(epoch_t es);
 
 ///////////////////
 // radio devices are single task responsible for all the epochs in one or more mediums
 typedef struct radio_struct
 {
-  // return energy cost, or 0 if unknown medium
+  // return energy cost, or 0 if unknown medium, use for pre-validation/estimation
   uint32_t (*energy)(mesh_t mesh, uint8_t medium[6]);
 
   // used to initialize all new epochs, add medium scheduling time/cost and channels
@@ -60,8 +109,10 @@ typedef struct radio_struct
 
   // when an epoch is free'd, in case there's any device structures
   epoch_t (*free)(mesh_t mesh, epoch_t e);
+
+  // perform this epoch's knock right now
+  epoch_t (*knock)(mesh_t mesh, epoch_t e);
   
-  knock_t active; // current hard scheduled
 
 } *radio_t;
 
@@ -70,6 +121,9 @@ extern radio_t radio_devices[]; // all of em
 
 // add/set a new device
 radio_t radio_device(radio_t device);
+
+// return the next hard-scheduled knock from this given point in time for this radio
+epoch_t radio_next(radio_t device, tmesh_t tm, uint64_t from);
 
 
 #endif

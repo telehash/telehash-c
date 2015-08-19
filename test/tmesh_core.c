@@ -43,18 +43,18 @@ int main(int argc, char **argv)
   
   tmesh_t netA = tmesh_new(meshA, NULL);
   fail_unless(netA);
-  fail_unless(netA->path);
-  LOG("netA %.*s",netA->path->head_len,netA->path->head);
+//  fail_unless(netA->path);
+//  LOG("netA %.*s",netA->path->head_len,netA->path->head);
 
-  fail_unless(tmesh_sync(netA, "fzjb5f4tn4"));
-  fail_unless(netA->syncs);
-  fail_unless(netA->syncs->busy == 5000);
+//  fail_unless(tmesh_sync(netA, "fzjb5f4tn4"));
+//  fail_unless(netA->syncs);
+//  fail_unless(netA->syncs->busy == 5000);
   
-  fail_unless(tmesh_discoverable(netA, "kzdhpa5n6r", NULL));
-  fail_unless(netA->disco);
-  fail_unless(epochs_len(netA->disco) > 0);
-  fail_unless(netA->dim);
-  LOG("debug disco pkt %s",lob_json(netA->dim));
+  fail_unless(!tmesh_public(netA, "kzdhpa5n6r", NULL));
+//  fail_unless(netA->disco);
+//  fail_unless(epochs_len(netA->disco) > 0);
+//  fail_unless(netA->dim);
+//  LOG("debug disco pkt %s",lob_json(netA->dim));
   
 
 
