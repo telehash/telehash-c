@@ -22,9 +22,12 @@ struct cmnty_struct
   enum {NONE, PUBLIC, PRIVATE, DIRECT} type:2;
 };
 
+// maximum neighbors tracked per community
+#define NEIGHBORS_MAX 8
+
 // join a new private/public community
-cmnty_t tmesh_public(tmesh_t tm, char *medium, char *network);
-cmnty_t tmesh_private(tmesh_t tm, char *medium, char *network);
+cmnty_t tmesh_public(tmesh_t tm, char *medium, char *name);
+cmnty_t tmesh_private(tmesh_t tm, char *medium, char *name);
 
 // add a link known to be in this community to look for
 cmnty_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link);

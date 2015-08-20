@@ -3,45 +3,117 @@
 #include <string.h>
 #include "tmesh.h"
 
+//////////////////
+// private community management methods
 
-// join a new private/public community
-cmnty_t tmesh_public(tmesh_t tm, char *medium, char *network)
+// find an epoch to send it to in this community
+static void cmnty_send(pipe_t pipe, lob_t packet, link_t link)
 {
+  cmnty_t c;
+  if(!pipe || !pipe->arg || !packet || !link)
+  {
+    LOG("bad args");
+    lob_free(packet);
+    return;
+  }
+  c = (cmnty_t)pipe->arg;
+
+  // find link in this community
+  // util_chunks_send(to->chunks, packet);
+}
+
+static cmnty_t cmnty_free(cmnty_t c)
+{
+  size_t i;
+  if(!c) return NULL;
+  // do not free c->name, it's part of c->pipe
+  epochs_free(c->ping);
+  for(i=0;c->epochs && c->epochs[i];i++) epochs_free(c->epochs[i]);
+  pipe_free(c->pipe);
+  free(c);
   return NULL;
 }
 
-cmnty_t tmesh_private(tmesh_t tm, char *medium, char *network)
+// create a new blank community
+static cmnty_t cmnty_new(tmesh_t tm, char *medium, char *name, uint8_t motes)
 {
-  return NULL;
+  cmnty_t c;
+  uint8_t bin[6];
+  if(!tm || !motes || !name || !medium || strlen(medium) < 10) return LOG("bad args");
+  if(base32_decode(medium,0,bin,6) != 6) return LOG("bad medium encoding: %s",medium);
+
+  // note, do we need to be paranoid and make sure name is not a duplicate?
+
+  if(!(c = malloc(sizeof (struct cmnty_struct)))) return LOG("OOM");
+  memset(c,0,sizeof (struct cmnty_struct));
+  memcpy(c->medium,bin,6);
+  if(!(c->pipe = pipe_new("tmesh"))) return cmnty_free(c);
+  // initialize static pointer arrays
+  if(!(c->epochs = malloc((sizeof (epoch_t))*(motes+1)))) return cmnty_free(c);
+  memset(c->epochs,0,(sizeof (epoch_t))*(motes+1));
+  if(!(c->links = malloc((sizeof (link_t))*(motes+1)))) return cmnty_free(c);
+  memset(c->links,0,(sizeof (link_t))*(motes+1));
+  c->tm = tm;
+  c->next = tm->communities;
+  tm->communities = c;
+
+  // set up pipe
+  c->pipe->arg = c;
+  c->name = c->pipe->id = strdup(name);
+  c->pipe->send = cmnty_send;
+
+  return c;
 }
 
-// add a link known to be in this community to look for
-cmnty_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link)
-{
-  return NULL;
-}
-
-// attempt to establish a direct connection
-cmnty_t tmesh_direct(tmesh_t tm, link_t link, char *medium, uint64_t at)
-{
-  return NULL;
-}
-
+// all background processing and soft scheduling, queue up active knocks
 static cmnty_t cmnty_loop(tmesh_t tm, cmnty_t c)
 {
   if(!tm || !c) return NULL;
   return NULL;
 }
 
-/*
-// just make sure it's connected
-mote_t mote_to(pipe_t pipe)
+
+//////////////////
+// public methods
+
+// join a new private/public community
+cmnty_t tmesh_public(tmesh_t tm, char *medium, char *network)
 {
-  mote_t to;
-  if(!pipe || !pipe->arg) return NULL;
-  to = (mote_t)pipe->arg;
-  return to;
+  cmnty_t c = cmnty_new(tm,medium,network,NEIGHBORS_MAX);
+  if(!c) return LOG("bad args");
+  c->type = PUBLIC;
+  return c;
 }
+
+cmnty_t tmesh_private(tmesh_t tm, char *medium, char *network)
+{
+  cmnty_t c = cmnty_new(tm,medium,network,NEIGHBORS_MAX);
+  if(!c) return LOG("bad args");
+  c->type = PRIVATE;
+  return c;
+}
+
+// add a link known to be in this community to look for
+cmnty_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link)
+{
+  if(!tm || !c || !link) return LOG("bad args");
+  // check list of links, add if space and not there
+  return c;
+}
+
+// attempt to establish a direct connection
+cmnty_t tmesh_direct(tmesh_t tm, link_t link, char *medium, uint64_t at)
+{
+  cmnty_t c;
+  if(!link) return LOG("bad args");
+  c = cmnty_new(tm,medium,link->id->hashname,1);
+  if(!c) return LOG("bad args");
+  c->type = DIRECT;
+  return c;
+}
+
+
+/*
 
 // per-mote processing and soft scheduling
 static mote_t mote_loop(tmesh_t tm, mote_t to)
@@ -74,83 +146,21 @@ static mote_t mote_loop(tmesh_t tm, mote_t to)
   return to;
 }
 
-// just chunkize a packet, next loop will load it
-static void mote_send(pipe_t pipe, lob_t packet, link_t link)
-{
-  mote_t to = mote_to(pipe);
-  if(!to || !packet) return;
 
-  util_chunks_send(to->chunks, packet);
-}
-
-static mote_t mote_free(mote_t mote)
-{
-  if(!mote) return NULL;
-  epochs_free(mote->epochs);
-  epochs_free(mote->syncs);
-  pipe_free(mote->pipe);
-  util_chunks_free(mote->chunks);
-  free(mote);
-  return NULL;
-}
-
-// reset a mote to unsynchronized state
-static mote_t mote_reset(mote_t mote)
-{
-  if(!mote) return NULL;
-  
-  mote->sync = 0;
-
-  // free any old active epochs
-  mote->epochs = epochs_free(mote->epochs);
-  
-  // TODO generate sync epochs from paths
-  // TODO clone sync epochs from our own
-  
-  return mote;
-}
-
-// get or create a mote
-mote_t tmesh_mote(tmesh_t tm, link_t link)
-{
-  mote_t to;
-  if(!tm || !link) return LOG("bad args");
-
-  for(to = tm->motes; to && to->link != link; to = to->next);
-  if(to) return to;
-
-  // create new tmesh pipe/mote
-  if(!(to = malloc(sizeof (struct mote_struct)))) return LOG("OOM");
-  memset(to,0,sizeof (struct mote_struct));
-  if(!(to->chunks = util_chunks_new(0))) return mote_free(to);
-  if(!(to->pipe = pipe_new("tmesh"))) return mote_free(to);
-  to->link = link;
-  to->tm = tm;
-  to->next = tm->motes;
-  tm->motes = to;
-
-  // set up pipe
-  to->pipe->arg = to;
-  to->pipe->id = strdup(link->id->hashname);
-  to->pipe->send = mote_send;
-
-  return mote_reset(to);
-}
 
 */
 
 pipe_t tmesh_on_path(link_t link, lob_t path)
 {
-  cmnty_t c;
+//  cmnty_t c;
   tmesh_t tm;
-  char *sync;
-  epoch_t e;
+//  epoch_t e;
 
   // just sanity check the path first
   if(!link || !path) return NULL;
   if(!(tm = xht_get(link->mesh->index, "tmesh"))) return NULL;
   if(util_cmp("tmesh",lob_get(path,"type"))) return NULL;
-  if(!(sync = lob_get(path,"sync"))) return LOG("missing sync");
+//  if(!(sync = lob_get(path,"sync"))) return LOG("missing sync");
 //  e = epoch_new(NULL,NULL);
 //  if(!(e = epoch_import(e,sync,link->id->hashname))) return (pipe_t)epoch_free(e);
 //  if(!(to = tmesh_mote(tm, link))) return (pipe_t)epoch_free(e);
@@ -206,7 +216,6 @@ lob_t tmesh_on_open(link_t link, lob_t open)
 
 tmesh_t tmesh_new(mesh_t mesh, lob_t options)
 {
-  unsigned int motes;
   tmesh_t tm;
   
   if(!(tm = malloc(sizeof (struct tmesh_struct)))) return LOG("OOM");
