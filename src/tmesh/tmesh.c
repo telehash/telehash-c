@@ -9,6 +9,7 @@
 // find an epoch to send it to in this community
 static void cmnty_send(pipe_t pipe, lob_t packet, link_t link)
 {
+  size_t i;
   cmnty_t c;
   if(!pipe || !pipe->arg || !packet || !link)
   {
@@ -18,8 +19,15 @@ static void cmnty_send(pipe_t pipe, lob_t packet, link_t link)
   }
   c = (cmnty_t)pipe->arg;
 
-  // find link in this community
-  // util_chunks_send(to->chunks, packet);
+  // find link in this community w/ tx epoch
+  for(i=0;c->links[i];i++) if(c->links[i] == link && epoch_knock(c->epochs[i],1))
+  {
+    util_chunks_send(c->epochs[i]->knock->chunks, packet);
+    return;
+  }
+
+  LOG("no link in community");
+  lob_free(packet);
 }
 
 static cmnty_t cmnty_free(cmnty_t c)
@@ -28,7 +36,12 @@ static cmnty_t cmnty_free(cmnty_t c)
   if(!c) return NULL;
   // do not free c->name, it's part of c->pipe
   epochs_free(c->ping);
-  for(i=0;c->epochs && c->epochs[i];i++) epochs_free(c->epochs[i]);
+  if(c->epochs)
+  {
+    for(i=0;c->epochs[i];i++) epochs_free(c->epochs[i]);
+    free(c->epochs);
+    free(c->links);
+  }
   pipe_free(c->pipe);
   free(c);
   return NULL;
@@ -65,31 +78,33 @@ static cmnty_t cmnty_new(tmesh_t tm, char *medium, char *name, uint8_t motes)
   return c;
 }
 
-// all background processing and soft scheduling, queue up active knocks
-static cmnty_t cmnty_loop(tmesh_t tm, cmnty_t c)
-{
-  if(!tm || !c) return NULL;
-  return NULL;
-}
-
 
 //////////////////
 // public methods
 
 // join a new private/public community
-cmnty_t tmesh_public(tmesh_t tm, char *medium, char *network)
+cmnty_t tmesh_public(tmesh_t tm, char *medium, char *name)
 {
-  cmnty_t c = cmnty_new(tm,medium,network,NEIGHBORS_MAX);
+  cmnty_t c = cmnty_new(tm,medium,name,NEIGHBORS_MAX);
   if(!c) return LOG("bad args");
   c->type = PUBLIC;
+
+  // generate public intermediate keys packet
+  if(!tm->pubim) tm->pubim = hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys));
+
   return c;
 }
 
-cmnty_t tmesh_private(tmesh_t tm, char *medium, char *network)
+cmnty_t tmesh_private(tmesh_t tm, char *medium, char *name)
 {
-  cmnty_t c = cmnty_new(tm,medium,network,NEIGHBORS_MAX);
+  cmnty_t c = cmnty_new(tm,medium,name,NEIGHBORS_MAX);
   if(!c) return LOG("bad args");
   c->type = PRIVATE;
+  c->pipe->path = lob_new();
+  lob_set(c->pipe->path,"type","tmesh");
+  lob_set(c->pipe->path,"medium",medium);
+  lob_set(c->pipe->path,"name",name);
+  tm->mesh->paths = lob_push(tm->mesh->paths, c->pipe->path);
   return c;
 }
 
@@ -112,43 +127,6 @@ cmnty_t tmesh_direct(tmesh_t tm, link_t link, char *medium, uint64_t at)
   return c;
 }
 
-
-/*
-
-// per-mote processing and soft scheduling
-static mote_t mote_loop(tmesh_t tm, mote_t to)
-{
-  if(!tm || !to) return NULL;
-
-  // TODO init motes (no link) can only take handshakes for disco/sync, and serve as their epoch time base
-
-  if(util_chunks_len(to->chunks))
-  {
-    while((len = write(to->client, util_chunks_write(to->chunks), util_chunks_len(to->chunks))) > 0)
-    {
-      LOG("wrote %d bytes to %s",len,pipe->id);
-      util_chunks_written(to->chunks, (size_t)len);
-    }
-  }
-
-  while((len = read(to->client, buf, 256)) > 0)
-  {
-    LOG("reading %d bytes from %s",len,pipe->id);
-    util_chunks_read(to->chunks, buf, (size_t)len);
-  }
-
-  // any incoming full packets can be received
-//  while((packet = util_chunks_receive(to->chunks))) mesh_receive(to->tm->mesh, packet, pipe);
-
-    // TODO if disco is it tx state and was tx'd, switch to rx state and add to list
-    // if in rx state and done, rotate tm->disco if there's multiple
-
-  return to;
-}
-
-
-
-*/
 
 pipe_t tmesh_on_path(link_t link, lob_t path)
 {
@@ -227,11 +205,6 @@ tmesh_t tmesh_new(mesh_t mesh, lob_t options)
   mesh_on_path(mesh, "tmesh", tmesh_on_path);
   mesh_on_open(mesh, "tmesh_open", tmesh_on_open);
   
-  // convenience
-//  tm->path = lob_new();
-//  lob_set(tm->path,"type","tmesh");
-//  mesh->paths = lob_push(mesh->paths, tm->path);
-
   return tm;
 }
 
@@ -258,39 +231,6 @@ tmesh_t tmesh_sync(tmesh_t tm, char *medium)
   return tm;
 }
 
-/*
-// become discoverable by anyone with this epoch id, pass NULL to reset all
-tmesh_t tmesh_discoverable(tmesh_t tm, char *medium, char *network)
-{
-  uint8_t bin[6];
-  epoch_t disco;
-  if(!tm) return NULL;
-  
-  // no medium resets
-  if(!medium)
-  {
-    tm->disco = epochs_free(tm->disco);
-    tm->dim = lob_free(tm->dim);
-    return tm;
-  }
-
-  if(strlen(medium) < 10 || base32_decode(medium,0,bin,6) != 6) return LOG("bad medium encoding: %s",medium);
-
-  // new discovery epoch
-  if(!(disco = epoch_new(tm->mesh,bin))) return LOG("epoch error");
-
-  // network is discovery secret
-  if(network) e3x_hash((uint8_t*)network,strlen(network),disco->secret);
-  else e3x_hash((uint8_t*)"telehash",8,disco->secret);
-
-  tm->disco = epochs_add(tm->disco,disco);
-  
-  // generate discovery intermediate keys packet
-  tm->dim = hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys));
-
-  return tm;
-}
-*/
 
 /* discussion on flow
 
@@ -307,16 +247,55 @@ tmesh_t tmesh_discoverable(tmesh_t tm, char *medium, char *network)
 tmesh_t tmesh_loop(tmesh_t tm)
 {
   cmnty_t c;
+  lob_t packet;
+  size_t i;
+  epoch_t e;
   if(!tm) return LOG("bad args");
 
-  // rx list cleared since it is rebuilt by the mote loop
-  tm->rx = NULL; 
+  // process any packets into mesh_receive
+  for(c = tm->communities;c;c = c->next) 
+    for(i=0;c->epochs[i];i++) 
+    for(e=c->epochs[i];e;e = e->next)
+    if(e->knock)
+    {
+      while((packet = util_chunks_receive(e->knock->chunks)))
+        mesh_receive(tm->mesh, packet, c->pipe);
+    }
+  
+  return tm;
+}
 
-  // each cmnty loop will check and process data
-  // will also check if the epoch was a sync one and add that rx, else normal rx
-  for(c = tm->communities;c && cmnty_loop(tm, c);c = c->next);
+tmesh_t tmesh_pre(tmesh_t tm)
+{
+  cmnty_t c;
+  size_t i;
+  epoch_t e;
+  if(!tm) return LOG("bad args");
 
-  // if active had a buffer and was my sync channel, my own sync rx is reset/added
+  // clean state
+  tm->tx = tm->rx = tm->any = NULL;
+  
+  // queue up any active knocks anywhere
+  for(c = tm->communities;c;c = c->next)
+  {
+    // TODO check c->ping/echo for tm->any
+    // check every epoch
+    for(i=0;c->epochs[i];i++) for(e=c->epochs[i];e;e = e->next) if(e->knock)
+    {
+      // check for a chunk waiting and add to tx
+      // else add to rx
+    }
+  }
+
+  return tm;
+}
+
+tmesh_t tmesh_post(tmesh_t tm, epoch_t e)
+{
+  if(!tm) return LOG("bad args");
+
+  // TODO process whatever e was
+  // if ping/echo, handle special cases directly here
   
   return tm;
 }

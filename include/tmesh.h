@@ -43,15 +43,21 @@ struct tmesh_struct
   cmnty_t communities;
   lob_t pubim;
   uint8_t z; // our z-index
-  knock_t tx, rx; // soft scheduled
+  knock_t tx, rx, any; // soft scheduled
 };
 
 // create a new tmesh radio network bound to this mesh
 tmesh_t tmesh_new(mesh_t mesh, lob_t options);
 void tmesh_free(tmesh_t tm);
 
-// perform buffer management and internal soft scheduling
+// process any full packets into the mesh 
 tmesh_t tmesh_loop(tmesh_t tm);
+
+// internal soft scheduling to prep for radio_next
+tmesh_t tmesh_pre(tmesh_t tm);
+
+// radio is done, process the epoch
+tmesh_t tmesh_post(tmesh_t tm, epoch_t e);
 
 
 

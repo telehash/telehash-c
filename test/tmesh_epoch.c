@@ -35,14 +35,10 @@ int main(int argc, char **argv)
   
   e3x_rand(medium,6);
   e = epoch_new(NULL,medium);
-//  fail_unless(epoch_medium(e));
-//  LOG("generated epoch %s",epoch_medium(e));
 
   char mid[] = "fzjb5f4tn4";
   fail_unless(base32_decode(mid,0,medium,6));
   fail_unless((e = epoch_new(NULL,medium)));
-//  fail_unless(e->medium[0] == 46);
-//  fail_unless(util_cmp(epoch_medium(e),mid) == 0);
 
   epoch_t es = epochs_add(NULL, e);
   fail_unless(es);

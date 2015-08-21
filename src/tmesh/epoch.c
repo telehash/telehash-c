@@ -60,7 +60,9 @@ epoch_t epoch_knock(epoch_t e, uint64_t at)
   {
     if(!(k = malloc(sizeof(struct knock_struct)))) return LOG("OOM");
     e->knock = k;
+    k->epoch = e;
     memset(k,0,sizeof (struct knock_struct));
+    if(!(k->chunks = util_chunks_new(64))) return epoch_knock(e,0);
   }
 
   // TODO initialize knock win/chan/start/stop
