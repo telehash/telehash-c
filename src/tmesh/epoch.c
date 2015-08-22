@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include "util.h"
 #include "tmesh.h"
+#include "chacha.h"
+
 
 epoch_t epoch_new(mesh_t m, uint8_t medium[6])
 {
@@ -33,10 +35,42 @@ epoch_t epoch_free(epoch_t e)
   return NULL;
 }
 
+// set knock win/chan/start/stop
+epoch_t epoch_window(epoch_t e, uint32_t window)
+{
+  uint8_t pad[8];
+  uint8_t nonce[8];
+  uint64_t offset;
+  uint32_t win;
+  if(!e || !e->knock || !e->chans) return LOG("bad args");
+  
+  // normalize nonce
+  memset(nonce,0,8);
+  win = util_sys_long(window);
+  memcpy(nonce,&win,4);
+  
+  // ciphertext the pad
+  memset(pad,0,8);
+  chacha20(e->secret,nonce,pad,8);
+  
+  e->knock->win = window;
+  e->knock->chan = util_sys_short((unsigned short)(pad[0])) % e->chans;
+  offset = util_sys_long((unsigned long)(pad[2])) % (EPOCH_WINDOW - e->busy);
+  e->knock->start = e->base + (EPOCH_WINDOW*window) + offset;
+  e->knock->stop = e->knock->start + e->busy;
+  
+  return e;
+}
+
 // sync point for given window
 epoch_t epoch_base(epoch_t e, uint32_t window, uint64_t at)
 {
-  return NULL;
+  uint64_t base;
+  if(!e) return LOG("bad args");
+  base = window * EPOCH_WINDOW;
+  if(base > at) return LOG("bad window"); 
+  e->base = at - base;
+  return e;
 }
 
 // reset active knock to next window, 0 cleans out, guarantees an e->knock or returns NULL

@@ -60,6 +60,8 @@ tmesh_t tmesh_pre(tmesh_t tm);
 tmesh_t tmesh_post(tmesh_t tm, epoch_t e);
 
 
+// 2^22
+#define EPOCH_WINDOW (uint64_t)4194304
 
 // knock state holder when sending/receiving
 struct knock_struct
@@ -96,6 +98,9 @@ epoch_t epoch_free(epoch_t e);
 
 // sync point for given window
 epoch_t epoch_base(epoch_t e, uint32_t window, uint64_t at);
+
+// set knock chan/start/stop to given window
+epoch_t epoch_window(epoch_t e, uint32_t window);
 
 // reset active knock to next window, 0 cleans out, guarantees an e->knock or returns NULL
 epoch_t epoch_knock(epoch_t e, uint64_t at);

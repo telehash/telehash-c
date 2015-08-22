@@ -10,6 +10,7 @@ at_t util_sys_seconds();
 unsigned long long util_sys_ms(long epoch);
 
 unsigned short util_sys_short(unsigned short x);
+unsigned long util_sys_long(unsigned long x);
 
 // use the platform's best RNG
 void util_sys_random_init(void);
