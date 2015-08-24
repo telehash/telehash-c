@@ -10,19 +10,14 @@
 epoch_t epoch_new(mesh_t m, uint8_t medium[6])
 {
   epoch_t e;
-  int i;
   
   if(!medium) return NULL;
 
   if(!(e = malloc(sizeof(struct epoch_struct)))) return LOG("OOM");
   memset(e,0,sizeof (struct epoch_struct));
 
-  // tell devices to bind until one does
-  for(i=0;i<RADIOS_MAX && radio_devices[i];i++)
-  {
-    if((e->device = radio_devices[i]->bind(m,e,medium))) return e;
-  }
-  
+  if((e->medium = radio_medium(m, medium))) return e;
+
   LOG("no device for this medium");
   return epoch_free(e);
 }
@@ -42,7 +37,7 @@ epoch_t epoch_window(epoch_t e, uint32_t window)
   uint8_t nonce[8];
   uint64_t offset;
   uint32_t win;
-  if(!e || !e->knock || !e->chans) return LOG("bad args");
+  if(!e || !e->knock || !e->medium->chans) return LOG("bad args");
   
   // normalize nonce
   memset(nonce,0,8);
@@ -54,10 +49,10 @@ epoch_t epoch_window(epoch_t e, uint32_t window)
   chacha20(e->secret,nonce,pad,8);
   
   e->knock->win = window;
-  e->knock->chan = util_sys_short((unsigned short)(pad[0])) % e->chans;
-  offset = util_sys_long((unsigned long)(pad[2])) % (EPOCH_WINDOW - e->busy);
+  e->knock->chan = util_sys_short((unsigned short)(pad[0])) % e->medium->chans;
+  offset = util_sys_long((unsigned long)(pad[2])) % (EPOCH_WINDOW - e->medium->min);
   e->knock->start = e->base + (EPOCH_WINDOW*window) + offset;
-  e->knock->stop = e->knock->start + e->busy;
+  e->knock->stop = e->knock->start + e->medium->min;
   
   return e;
 }

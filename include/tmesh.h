@@ -7,13 +7,23 @@ typedef struct tmesh_struct *tmesh_t;
 typedef struct cmnty_struct *cmnty_t;
 typedef struct epoch_struct *epoch_t;
 typedef struct knock_struct *knock_t;
+typedef struct medium_struct *medium_t;
 
+// medium management w/ device driver
+struct medium_struct
+{
+  uint8_t bin[6];
+  void *device; // used by radio device driver
+  uint32_t min, max; // microseconds to tx/rx, set by driver
+  uint8_t chans; // number of total channels, set by driver
+  uint8_t radio:4; // radio device id based on radio_devices[]
+};
 // community management
 struct cmnty_struct
 {
   tmesh_t tm;
   char *name;
-  uint8_t medium[6];
+  medium_t medium;
   epoch_t ping;
   link_t *links;
   epoch_t *epochs;
@@ -84,11 +94,8 @@ struct epoch_struct
   uint64_t base; // microsecond of window 0 start
   knock_t knock; // only exists when active
   epoch_t next; // for epochs_* list utils
-  void *device; // used by radio device driver
+  medium_t medium;
   cmnty_t community; // which community the epoch belongs to
-  uint32_t busy; // microseconds to tx/rx, set by driver
-  uint8_t chans; // number of total channels, set by driver
-  uint8_t radio:4; // radio device id based on radio_devices[]
   enum {NONE, PING, ECHO, PAIR, LINK} type:4;
 
 };
@@ -118,11 +125,11 @@ typedef struct radio_struct
   // return energy cost, or 0 if unknown medium, use for pre-validation/estimation
   uint32_t (*energy)(mesh_t mesh, uint8_t medium[6]);
 
-  // used to initialize all new epochs, add medium scheduling time/cost and channels
-  void* (*bind)(mesh_t mesh, epoch_t e, uint8_t medium[6]);
+  // initialize/get any medium scheduling time/cost and channels
+  medium_t (*get)(mesh_t mesh, uint8_t medium[6]);
 
-  // when an epoch is free'd, in case there's any device structures
-  epoch_t (*free)(mesh_t mesh, epoch_t e);
+  // when a medium isn't used anymore, let the radio free it
+  medium_t (*free)(mesh_t mesh, medium_t m);
 
   // perform this epoch's knock right now
   epoch_t (*knock)(mesh_t mesh, epoch_t e);
@@ -138,6 +145,13 @@ radio_t radio_device(radio_t device);
 
 // return the next hard-scheduled knock from this given point in time for this radio
 epoch_t radio_next(radio_t device, tmesh_t tm, uint64_t from);
+
+// validate medium by checking energy
+uint32_t radio_energy(mesh_t m, uint8_t medium[6]);
+
+// get the full medium
+medium_t radio_medium(mesh_t m, uint8_t medium[6]);
+
 
 
 #endif

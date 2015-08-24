@@ -3,25 +3,31 @@
 #include "util_unix.h"
 #include "unit_test.h"
 
-uint32_t device_get(mesh_t mesh, uint8_t medium[6])
+uint32_t device_check(mesh_t mesh, uint8_t medium[6])
 {
-  return 0;
+  return 1;
 }
 
-void *device_bind(mesh_t mesh, epoch_t e, uint8_t medium[6])
+medium_t device_get(mesh_t mesh, uint8_t medium[6])
 {
-  e->busy = 5000;
-  return (void*)e;
+  medium_t m;
+  if(!(m = malloc(sizeof(struct medium_struct)))) return LOG("OOM");
+  memset(m,0,sizeof (struct medium_struct));
+  memcpy(m->bin,medium,6);
+  m->chans = 100;
+  m->min = 10;
+  m->max = 1000;
+  return m;
 }
 
-epoch_t device_free(mesh_t mesh, epoch_t e)
+medium_t device_free(mesh_t mesh, medium_t m)
 {
   return NULL;
 }
 
 static struct radio_struct test_device = {
+  device_check,
   device_get,
-  device_bind,
   device_free,
   NULL
 };
@@ -45,7 +51,7 @@ int main(int argc, char **argv)
   fail_unless(netA);
   cmnty_t c = tmesh_private(netA,"fzjb5f4tn4","foo");
   fail_unless(c);
-  fail_unless(c->medium[0] == 46);
+  fail_unless(c->medium->bin[0] == 46);
   fail_unless(c->pipe->path);
   LOG("netA %.*s",c->pipe->path->head_len,c->pipe->path->head);
 
