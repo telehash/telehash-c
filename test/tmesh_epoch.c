@@ -47,11 +47,11 @@ int main(int argc, char **argv)
   fail_unless(e->base == 58056960);
   fail_unless(e->base == (100000000 - (uint64_t)(10*(1<<22))));
 
+  e->chans = 10;
+  e->busy = 10;
   fail_unless(epoch_knock(e,1));
   fail_unless(e->knock);
   memset(e->secret,0,32);
-  e->chans = 10;
-  e->busy = 10;
   fail_unless(epoch_window(e,1));
   LOG("got channel %d start %d stop %d",e->knock->chan,e->knock->start,e->knock->stop);
   fail_unless(e->knock->chan == 6);
@@ -64,6 +64,12 @@ int main(int argc, char **argv)
   fail_unless(e->knock->chan == 18);
   fail_unless(e->knock->start == 234246960);
   fail_unless(e->knock->stop == 234247002);
+
+  fail_unless(epoch_knock(e,EPOCH_WINDOW*4));
+  LOG("got channel %d start %d stop %d",e->knock->chan,e->knock->start,e->knock->stop);
+  fail_unless(e->knock->chan == 24);
+  fail_unless(e->knock->start == 62266888);
+  fail_unless(e->knock->stop == 62266930);
 
   epoch_t es = epochs_add(NULL, e);
   fail_unless(es);

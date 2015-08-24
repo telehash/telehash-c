@@ -77,6 +77,7 @@ epoch_t epoch_base(epoch_t e, uint32_t window, uint64_t at)
 epoch_t epoch_knock(epoch_t e, uint64_t at)
 {
   knock_t k;
+  uint32_t win;
   if(!e) return NULL;
   
   // free knock
@@ -99,9 +100,12 @@ epoch_t epoch_knock(epoch_t e, uint64_t at)
     if(!(k->chunks = util_chunks_new(64))) return epoch_knock(e,0);
   }
 
-  // TODO initialize knock win/chan/start/stop
+  // determine current window
+  if(at < e->base) at = e->base;
+  win = ((at - e->base) / EPOCH_WINDOW);
 
-  return e;
+  // initialize knock win/chan/start/stop
+  return epoch_window(e, win+1);
 }
 
 // array utilities
