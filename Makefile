@@ -52,7 +52,7 @@ HEADERS=$(wildcard include/*.h)
 all: idgen router ping static
 	@echo "TODO\t`git grep TODO | wc -l | tr -d ' '`"
 
-deps: 
+deps:
 	npm install
 
 static: libtelehash
@@ -65,7 +65,7 @@ libtelehash: $(FULL_OBJFILES)
 	rm -f libtelehash.a
 	ar crs libtelehash.a $(FULL_OBJFILES)
 
-.PHONY: arduino test
+.PHONY: arduino test TAGS
 
 arduino: static
 	cp telehash.c arduino/src/telehash/
@@ -76,24 +76,27 @@ arduino: static
 test: $(FULL_OBJFILES) ping
 	cd test; $(MAKE) $(MFLAGS)
 
+TAGS:
+	find . | grep ".*\.\(h\|c\)" | xargs etags -f TAGS
+
 %.o : %.c $(HEADERS)
 	$(CC) $(INCLUDE) $(CFLAGS) -c $< -o $@
 
 idgen: $(IDGEN_OBJFILES)
-	$(CC) $(CFLAGS) -o bin/idgen $(IDGEN_OBJFILES) $(LDFLAGS) 
+	$(CC) $(CFLAGS) -o bin/idgen $(IDGEN_OBJFILES) $(LDFLAGS)
 
 ping: $(PING_OBJFILES)
-	$(CC) $(CFLAGS) -o bin/ping $(PING_OBJFILES) $(LDFLAGS) 
+	$(CC) $(CFLAGS) -o bin/ping $(PING_OBJFILES) $(LDFLAGS)
 
 router: $(ROUTER_OBJFILES)
-	$(CC) $(CFLAGS) -o bin/router $(ROUTER_OBJFILES) $(LDFLAGS) 
+	$(CC) $(CFLAGS) -o bin/router $(ROUTER_OBJFILES) $(LDFLAGS)
 
 #mesh:
 #	$(CC) $(CFLAGS) -o bin/mesh util/mesh.c src/*.c unix/util.c src/ext/*.c $(ARCH)
 
 #port:
 #	$(CC) $(CFLAGS) -o bin/port util/port.c src/*.c unix/util.c src/ext/*.c $(ARCH)
- 
+
 clean:
 	rm -rf bin/*
 	rm -f arduino/src/telehash/*.h

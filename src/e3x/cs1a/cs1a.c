@@ -70,12 +70,12 @@ e3x_cipher_t cs1a_init(lob_t options)
   e3x_cipher_t ret = malloc(sizeof(struct e3x_cipher_struct));
   if(!ret) return NULL;
   memset(ret,0,sizeof (struct e3x_cipher_struct));
-  
+
   // identifying markers
   ret->id = CS_1a;
   ret->csid = 0x1a;
   memcpy(ret->hex,"1a",3);
-  
+
   // which alg's we support
   ret->alg = "HS256 ES160";
 
@@ -153,7 +153,7 @@ local_t local_new(lob_t keys, lob_t secrets)
 
   secret = lob_get_base32(secrets,"1a");
   if(!secret || secret->body_len != uECC_BYTES) return LOG("invalid secret len %d",(secret)?secret->body_len:0);
-  
+
   if(!(local = malloc(sizeof(struct local_struct)))) return NULL;
   memset(local,0,sizeof (struct local_struct));
 
@@ -235,7 +235,7 @@ remote_t remote_new(lob_t key, uint8_t *token)
   uint8_t hash[32];
   remote_t remote;
   if(!key || key->body_len != uECC_BYTES+1) return LOG("invalid key %d != %d",(key)?key->body_len:0,uECC_BYTES+1);
-  
+
   if(!(remote = malloc(sizeof(struct remote_struct)))) return NULL;
   memset(remote,0,sizeof (struct remote_struct));
 
@@ -251,7 +251,7 @@ remote_t remote_new(lob_t key, uint8_t *token)
 
   // generate a random seq starting point for message IV's
   e3x_rand((uint8_t*)&(remote->seq),4);
-  
+
   return remote;
 }
 
@@ -274,7 +274,7 @@ uint8_t remote_verify(remote_t remote, local_t local, lob_t outer)
   // verify
   hmac_256(shared,uECC_BYTES+4,outer->body,outer->body_len-4,hash);
   fold3(hash,hash);
-  if(memcmp(hash,outer->body+(outer->body_len-4),4) != 0)
+  if(util_ct_memcmp(hash,outer->body+(outer->body_len-4),4) != 0)
   {
     LOG("hmac failed");
     return 4;
@@ -329,7 +329,7 @@ uint8_t remote_validate(remote_t remote, lob_t args, lob_t sig, uint8_t *data, s
     if(sig->body_len != 32 || !args->body_len) return 2;
 //    LOG("[%d] [%.*s]",args->body_len,len,data);
     hmac_256(args->body,args->body_len,data,len,hash);
-    return (memcmp(sig->body,hash,32) == 0) ? 0 : 3;
+    return (util_ct_memcmp(sig->body,hash,32) == 0) ? 0 : 3;
   }
 
   if(lob_get_cmp(args,"alg","ES160") == 0)
@@ -353,7 +353,7 @@ ephemeral_t ephemeral_new(remote_t remote, lob_t outer)
 
   if(!(ephem = malloc(sizeof(struct ephemeral_struct)))) return NULL;
   memset(ephem,0,sizeof (struct ephemeral_struct));
-  
+
   // create and copy in the exchange routing token
   e3x_hash(outer->body,16,hash);
   memcpy(ephem->token,hash,16);
@@ -426,7 +426,7 @@ lob_t ephemeral_decrypt(ephemeral_t ephem, lob_t outer)
   hmac_256(hmac,16+4,outer->body+16+4,outer->body_len-(4+16+4),hmac);
   fold3(hmac,hmac);
 
-  if(memcmp(hmac,outer->body+(outer->body_len-4),4) != 0) return LOG("hmac failed");
+  if(util_ct_memcmp(hmac,outer->body+(outer->body_len-4),4) != 0) return LOG("hmac failed");
 
   // decrypt in place
   aes_128_ctr(ephem->deckey,outer->body_len-(16+4+4),iv,outer->body+16+4,outer->body+16+4);

@@ -29,4 +29,7 @@ void *util_reallocf(void *ptr, size_t size);
 uint64_t util_at(void); // only pass at into _since()
 uint32_t util_since(uint64_t at); // get ms since the at
 
+// Use a constant time comparison function to avoid timing attacks
+int util_ct_memcmp(const void* s1, const void* s2, size_t n);
+
 #endif

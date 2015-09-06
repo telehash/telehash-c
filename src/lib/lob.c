@@ -319,8 +319,8 @@ char *unescape(lob_t p, char *start, size_t len)
   // make a copy if we haven't yet
   if(!p->cache) lob_json(p);
   if(!p->cache) return NULL;
-  
-  // switch pointer to the json copy 
+
+  // switch pointer to the json copy
   start = p->cache + (start - (char*)p->head);
 
   // terminate it
@@ -393,7 +393,7 @@ unsigned int lob_get_uint(lob_t p, char *key)
   return (unsigned int)strtoul(val,NULL,10);
 }
 
-// returns ["0","1","2"] 
+// returns ["0","1","2"]
 char *lob_get_index(lob_t p, uint32_t i)
 {
   char *val;
@@ -537,7 +537,7 @@ int lob_cmp(lob_t a, lob_t b)
     i++;
   }
 
-  return memcmp(a->body,b->body,a->body_len);
+  return util_ct_memcmp(a->body,b->body,a->body_len);
 }
 
 lob_t lob_set_json(lob_t p, lob_t json)

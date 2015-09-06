@@ -37,7 +37,7 @@ e3x_exchange_t e3x_exchange_new(e3x_self_t self, uint8_t csid, lob_t key)
   x->cs = cs;
   x->self = self;
   memcpy(x->token,token,16);
-  
+
   // determine order, if we sort first, we're even
   for(i = 0; i < key->body_len; i++)
   {
@@ -46,7 +46,7 @@ e3x_exchange_t e3x_exchange_new(e3x_self_t self, uint8_t csid, lob_t key)
     break;
   }
   x->cid = x->order;
-  
+
   return x;
 }
 
@@ -106,7 +106,7 @@ uint32_t e3x_exchange_out(e3x_exchange_t x, uint32_t at)
       if(x->out % 2 == 0) x->out++;
     }
   }
-  
+
   return x->out;
 }
 
@@ -114,10 +114,10 @@ uint32_t e3x_exchange_out(e3x_exchange_t x, uint32_t at)
 uint32_t e3x_exchange_in(e3x_exchange_t x, uint32_t at)
 {
   if(!x) return 0;
-  
+
   // ensure at is newer and valid, or acking our out
   if(at && at > x->in && at >= x->out && (((at % 2)+1) == x->order || at == x->out)) x->in = at;
-  
+
   return x->in;
 }
 
@@ -127,11 +127,11 @@ e3x_exchange_t e3x_exchange_sync(e3x_exchange_t x, lob_t outer)
   ephemeral_t ephem;
   if(!x || !outer) return LOG("bad args");
   if(outer->body_len < 16) return LOG("outer too small");
-  
+
   if(x->in > x->out) x->out = x->in;
 
   // if the incoming ephemeral key is different, create a new ephemeral
-  if(memcmp(outer->body,x->eid,16) != 0)
+  if(util_ct_memcmp(outer->body,x->eid,16) != 0)
   {
     ephem = x->cs->ephemeral_new(x->remote,outer);
     if(!ephem) return LOG("ephemeral creation failed %s",x->cs->err());
@@ -174,7 +174,7 @@ lob_t e3x_exchange_handshake(e3x_exchange_t x, lob_t inner)
 
   // set standard values
   lob_set_uint(inner,"at",x->out);
-  
+
   return e3x_exchange_message(x, inner);
 }
 
@@ -190,7 +190,7 @@ lob_t e3x_exchange_receive(e3x_exchange_t x, lob_t outer)
   return inner;
 }
 
-// comes from channel 
+// comes from channel
 lob_t e3x_exchange_send(e3x_exchange_t x, lob_t inner)
 {
   lob_t outer;
@@ -207,7 +207,7 @@ uint32_t e3x_exchange_cid(e3x_exchange_t x, lob_t incoming)
 {
   uint32_t cid;
   if(!x) return 0;
-  
+
   // in outgoing mode, just return next valid one
   if(!incoming)
   {
@@ -230,4 +230,3 @@ uint8_t *e3x_exchange_token(e3x_exchange_t x)
   if(!x) return NULL;
   return x->token;
 }
-
