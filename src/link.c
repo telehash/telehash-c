@@ -235,7 +235,7 @@ link_t link_handshake(link_t link, lob_t handshake)
 link_t link_receive_handshake(link_t link, lob_t inner, pipe_t pipe)
 {
   link_t ready;
-  uint32_t out, err;
+  uint32_t in, out, at, err;
   seen_t seen;
   uint8_t csid = 0;
   char *hexid;
@@ -249,21 +249,23 @@ link_t link_receive_handshake(link_t link, lob_t inner, pipe_t pipe)
   if(!link->key && link_key(link->mesh, attached, csid) != link) return LOG("invalid/mismatch link handshake");
   if((err = e3x_exchange_verify(link->x,outer))) return LOG("handshake verification fail: %d",err);
 
+  in = e3x_exchange_in(link->x,0);
   out = e3x_exchange_out(link->x,0);
+  at = lob_get_uint(inner,"at");
   ready = link_up(link);
 
+  // if newer handshake, trust/add this pipe
+  if(at > in && pipe) link_pipe(link,pipe);
+
   // if bad at, always send current handshake
-  if(e3x_exchange_in(link->x, lob_get_uint(inner,"at")) < out)
+  if(e3x_exchange_in(link->x, at) < out)
   {
-    LOG("old/bad at: %s (%d,%d,%d)",lob_json(inner),lob_get_int(inner,"at"),e3x_exchange_in(link->x,0),e3x_exchange_out(link->x,0));
+    LOG("old handshake: %s (%d,%d,%d)",lob_json(inner),at,in,out);
     // just reset pipe seen and call link_sync to resend handshake
     for(seen = link->pipes;pipe && seen;seen = seen->next) if(seen->pipe == pipe) seen->at = 0;
     lob_free(link_sync(link));
     return NULL;
   }
-
-  // trust/add this pipe
-  if(pipe) link_pipe(link,pipe);
 
   // try to sync ephemeral key
   if(!e3x_exchange_sync(link->x,outer)) return LOG("sync failed");
@@ -381,7 +383,7 @@ lob_t link_sync(link_t link)
   if(!link->x) return LOG("no exchange");
 
   at = e3x_exchange_out(link->x,0);
-  LOG("link sync at %d",at);
+  LOG("link sync requested at %d from %s to %s",at,link->mesh->id->hashname,link->id->hashname);
   for(seen = link->pipes;seen;seen = seen->next)
   {
     if(!seen->pipe || !seen->pipe->send || seen->at == at) continue;
