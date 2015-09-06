@@ -1,10 +1,10 @@
-#include "hashname.h"
+#include "telehash.h"
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include "base32.h"
-#include "util.h"
-#include "e3x.h" // for sha256 e3x_hash()
+#include "telehash.h"
+#include "telehash.h"
+#include "telehash.h" // for sha256 e3x_hash()
 
 // how many csids can be used to make a hashname
 #define MAX_CSIDS 8

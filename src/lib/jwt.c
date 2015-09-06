@@ -1,7 +1,7 @@
 #include <string.h>
-#include "util.h"
-#include "base64.h"
-#include "jwt.h"
+#include "telehash.h"
+#include "telehash.h"
+#include "telehash.h"
 
 // this lib implements basic JWT support using the crypto/lob utilities in telehash-c
 
@@ -34,15 +34,15 @@ lob_t jwt_decode(char *encoded, size_t len)
   header = lob_link(NULL, claims);
   
   // decode claims sig first
-  dlen = base64_decode(dot2, (end-dot2)+1, (uint8_t*)dot2);
+  dlen = base64_decoder(dot2, (end-dot2)+1, (uint8_t*)dot2);
   lob_body(claims, (uint8_t*)dot2, dlen);
 
   // decode claims json
-  dlen = base64_decode(dot1, (dot2-dot1), (uint8_t*)dot1);
+  dlen = base64_decoder(dot1, (dot2-dot1), (uint8_t*)dot1);
   lob_head(claims, (uint8_t*)dot1, dlen);
 
   // decode header json
-  dlen = base64_decode(encoded, (dot1-encoded), (uint8_t*)encoded);
+  dlen = base64_decoder(encoded, (dot1-encoded), (uint8_t*)encoded);
   lob_head(header, (uint8_t*)encoded, dlen);
 
   return header;
@@ -75,11 +75,11 @@ char *jwt_encode(lob_t token)
   encoded = (char*)lob_body(token,NULL,hlen+1+clen+1+slen+1);
   
   // append all the base64 encoding
-  hlen = base64_encode(token->head,token->head_len,encoded);
+  hlen = base64_encoder(token->head,token->head_len,encoded);
   encoded[hlen] = '.';
-  clen = base64_encode(payload->head,payload->head_len,encoded+hlen+1);
+  clen = base64_encoder(payload->head,payload->head_len,encoded+hlen+1);
   encoded[hlen+1+clen] = '.';
-  slen = base64_encode(payload->body,payload->body_len,encoded+hlen+1+clen+1);
+  slen = base64_encoder(payload->body,payload->body_len,encoded+hlen+1+clen+1);
   encoded[hlen+1+clen+1+slen] = 0;
 
   return encoded;
@@ -110,9 +110,9 @@ lob_t jwt_verify(lob_t token, e3x_exchange_t x)
   clen = base64_encode_length(payload->head_len);
   hlen = base64_encode_length(token->head_len);
   encoded = (char*)malloc(hlen+1+clen);
-  hlen = base64_encode(token->head,token->head_len,encoded);
+  hlen = base64_encoder(token->head,token->head_len,encoded);
   encoded[hlen] = '.';
-  clen = base64_encode(payload->head,payload->head_len,encoded+hlen+1);
+  clen = base64_encoder(payload->head,payload->head_len,encoded+hlen+1);
 
   // do the validation
   err = e3x_exchange_validate(x, token, payload, (uint8_t*)encoded, hlen+1+clen);
@@ -140,9 +140,9 @@ lob_t jwt_sign(lob_t token, e3x_self_t self)
   hlen = base64_encode_length(token->head_len);
   encoded = (char*)lob_body(payload,NULL,hlen+1+clen);
   
-  hlen = base64_encode(token->head,token->head_len,encoded);
+  hlen = base64_encoder(token->head,token->head_len,encoded);
   encoded[hlen] = '.';
-  clen = base64_encode(payload->head,payload->head_len,encoded+hlen+1);
+  clen = base64_encoder(payload->head,payload->head_len,encoded+hlen+1);
 
   // e3x returns packet w/ signature
   if(!e3x_self_sign(self, token, payload->body, hlen+1+clen)) return LOG("signing failed");

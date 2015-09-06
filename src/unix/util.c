@@ -7,9 +7,9 @@
 #include <time.h>
 #include <errno.h>
 #include <string.h>
-#include "util_unix.h"
+#include "telehash.h"
 
-#include "mesh.h"
+#include "telehash.h"
 
 lob_t util_fjson(char *file)
 {

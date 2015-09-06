@@ -1,8 +1,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "util.h"
-#include "e3x.h"
+#include "telehash.h"
+#include "telehash.h"
 
 // every new channel has a unique global id
 static uint32_t _uids = 0;

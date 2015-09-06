@@ -1,4 +1,5 @@
-#include "ext.h"
+#include <string.h>
+#include "telehash.h"
 
 // individual pipe local info
 typedef struct ext_block_struct

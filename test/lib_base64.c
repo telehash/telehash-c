@@ -18,21 +18,21 @@ int main(int argc, char **argv)
   uint8_t *dout = malloc(base64_decode_length(8));
   size_t len;
 
-  len = base64_encode((const uint8_t *)"foobar", 6, eout);
+  len = base64_encoder((const uint8_t *)"foobar", 6, eout);
   fail_unless(len == 8);
   fail_unless(strcmp(eout,"Zm9vYmFy") == 0);
-  len = base64_decode(eout,0,dout);
+  len = base64_decoder(eout,0,dout);
   fail_unless(len == 6);
   fail_unless(strncmp((char*)dout,"foobar",6) == 0);
 
   char bfix[] = "eyJzdWIiOjEyMzQ1Njc4OTAsIm5hbWUiOiJKb2huIERvZSIsImFkbWluIjp0cnVlfQ";
   char jfix[] = "{\"sub\":1234567890,\"name\":\"John Doe\",\"admin\":true}";
   char *jtest = malloc(base64_decode_length(strlen(bfix)));
-  len = base64_decode(bfix,0,(uint8_t*)jtest);
+  len = base64_decoder(bfix,0,(uint8_t*)jtest);
   fail_unless(len == strlen(jfix));
   fail_unless(strcmp(jtest,jfix) == 0);
   char *btest = malloc(base64_encode_length(strlen(jfix)));
-  len = base64_encode((uint8_t*)jfix,strlen(jfix),btest);
+  len = base64_encoder((uint8_t*)jfix,strlen(jfix),btest);
 //  printf("len %d %d %s",len,strlen(bfix),btest);
   fail_unless(len == strlen(bfix));
   fail_unless(strncmp(btest,bfix,len) == 0);
@@ -47,9 +47,9 @@ int main(int argc, char **argv)
   {
     e3x_rand(rand, i);
     e3x_rand(rand2, i);
-    base64_encode(rand,i,rtest);
-    base64_decode(rtest,0,rand2);
-    base64_encode(rand2,i,rtest2);
+    base64_encoder(rand,i,rtest);
+    base64_decoder(rtest,0,rand2);
+    base64_encoder(rand2,i,rtest2);
 //    printf("%s\n%s\n",rtest,rtest2);
     fail_unless(memcmp(rand,rand2,i) == 0);
   }

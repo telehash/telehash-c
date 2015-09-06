@@ -2,9 +2,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
-#include "util.h"
+#include "telehash.h"
 #include "tmesh.h"
-#include "chacha.h"
 
 
 epoch_t epoch_new(mesh_t m, uint8_t medium[6])

@@ -1,7 +1,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include "util.h"
+#include "telehash.h"
 
 #define CEIL(a, b) (((a) / (b)) + (((a) % (b)) > 0 ? 1 : 0))
 

@@ -1,8 +1,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include "e3x.h"
-#include "util.h"
+#include "telehash.h"
+#include "telehash.h"
 
 // make a new exchange
 // packet must contain the raw key in the body
