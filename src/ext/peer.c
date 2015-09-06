@@ -158,7 +158,11 @@ link_t peer_connect(link_t peer, link_t router)
   if(!(handshakes = link_handshakes(peer)) || !(pipe = peer_pipe(peer->mesh, router->id->hashname))) return LOG("internal error");
   
   // loop through and send each one in a peer request through the router
-  for(hs = handshakes; hs; hs = lob_linked(hs)) peer_send(pipe, hs, peer);
+  for(hs = handshakes; hs; hs = handshakes)
+  {
+    handshakes = lob_linked(hs);
+    peer_send(pipe, hs, peer);
+  }
   
   return peer;
 }
