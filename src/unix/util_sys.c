@@ -28,6 +28,11 @@ unsigned short util_sys_short(unsigned short x)
   return ntohs(x);
 }
 
+unsigned long util_sys_long(unsigned long x)
+{
+  return ntohl(x);
+}
+
 void util_sys_random_init(void)
 {
   struct timeval tv;

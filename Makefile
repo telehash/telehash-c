@@ -9,6 +9,7 @@ MESH = src/mesh.c src/link.c src/pipe.c
 EXT = src/ext/stream.c src/ext/block.c
 NET = src/net/loopback.c src/net/udp4.c src/net/tcp4.c src/net/serial.c
 UTIL = src/util/util.c src/util/uri.c src/util/chunks.c src/unix/util.c src/unix/util_sys.c
+TMESH = src/tmesh/tmesh.c src/tmesh/epoch.c
 
 # CS1a by default
 CS = src/e3x/cs1a/aes.c src/e3x/cs1a/hmac.c src/e3x/cs1a/aes128.c src/e3x/cs1a/cs1a.c src/e3x/cs1a/uECC.c src/e3x/cs1a/sha256.c
@@ -56,6 +57,9 @@ deps:
 
 static: libtelehash
 	@cat $(LIB) $(E3X) $(MESH) $(EXT) $(NET) $(UTIL) > telehash.c
+
+static-cs1a:
+	@cat $(LIB) $(E3X) $(MESH) $(EXT) $(NET) $(UTIL) src/e3x/cs1a/aes.c src/e3x/cs1a/hmac.c src/e3x/cs1a/aes128.c src/e3x/cs1a/cs1a.c src/e3x/cs1a/uECC.c src/e3x/cs1a/sha256.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c > telehash.c
 
 libtelehash: $(FULL_OBJFILES)
 	rm -f libtelehash.a
