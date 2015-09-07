@@ -84,7 +84,7 @@ struct knock_struct
   util_chunks_t chunks; // actual chunk encoding
   uint8_t len:7; // <= 64
   enum {TX, RX} dir:1;
-  enum {NONE, READY, DONE, ERR} state:2;
+  enum {ERR, READY, DONE} state:2;
 };
 
 // individual epoch+medium state data, goal to keep <64b each on 32bit
@@ -96,7 +96,7 @@ struct epoch_struct
   epoch_t next; // for epochs_* list utils
   medium_t medium;
   cmnty_t community; // which community the epoch belongs to
-  enum {NONE, PING, ECHO, PAIR, LINK} type:4;
+  enum {RESET, PING, ECHO, PAIR, LINK} type:4;
 
 };
 
