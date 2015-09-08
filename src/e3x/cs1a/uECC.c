@@ -1,7 +1,7 @@
 /* Copyright 2014, Kenneth MacKay. Licensed under the BSD 2-clause license. */
 
 #include <stddef.h>
-#include "uECC.h"
+#include "telehash.h"
 
 #ifndef uECC_PLATFORM
     #if __AVR__

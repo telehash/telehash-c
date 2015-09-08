@@ -4,7 +4,6 @@
 #include <stdint.h>
 
 #include "telehash.h"
-#include "cs1a.h"
 
 // undefine the void* aliases so we can define them locally
 #undef local_t

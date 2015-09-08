@@ -1,6 +1,7 @@
 #ifndef ext_chat_h
 #define ext_chat_h
 
+/*
 #include "switch.h"
 
 typedef struct chat_struct 
@@ -34,5 +35,6 @@ chat_t chat_add(chat_t chat, char *hn, char *val);
 // get a participant or walk the list, returns the current state packet (immutable), online:true/false
 lob_t chat_participant(chat_t chat, char *hn);
 lob_t chat_iparticipant(chat_t chat, int index);
-  
+
+*/
 #endif
