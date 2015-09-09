@@ -9,6 +9,7 @@ extern "C" {
 #include "sha256.h"
 #include "uECC.h"
 #include "aes.h"
+#include "aes128.h"
 #include "hmac.h"
 
 #ifdef __cplusplus
