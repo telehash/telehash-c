@@ -85,6 +85,23 @@ link_t link_get(mesh_t mesh, char *hashname)
   return link;
 }
 
+// get link info json
+lob_t link_json(link_t link)
+{
+  char hex[3];
+  lob_t json;
+  if(!link) return LOG("bad args");
+
+  json = lob_new();
+  lob_set(json,"hashname",link->id->hashname);
+  lob_set(json,"csid",util_hex(&link->csid, 1, hex));
+  lob_set_raw(json,"key",0,(char*)link->key->head,link->key->head_len);
+//  paths = lob_array(mesh->paths);
+//  lob_set_raw(json,"paths",0,(char*)paths->head,paths->head_len);
+//  lob_free(paths);
+  return json;
+}
+
 link_t link_keys(mesh_t mesh, lob_t keys)
 {
   uint8_t csid;

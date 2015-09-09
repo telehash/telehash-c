@@ -25,6 +25,9 @@ link_t link_get(mesh_t mesh, char *hashname);
 link_t link_keys(mesh_t mesh, lob_t keys); // adds in the right key
 link_t link_key(mesh_t mesh, lob_t key, uint8_t csid); // adds in from the body
 
+// get link info json
+lob_t link_json(link_t link);
+
 // removes from mesh
 void link_free(link_t link);
 
