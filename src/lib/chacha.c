@@ -1,4 +1,4 @@
-#include "chacha.h"
+#include "telehash.h"
 
 // public domain, original source: https://gist.github.com/thoughtpolice/2b36e168d2d7582ad58b
 

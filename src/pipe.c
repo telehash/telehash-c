@@ -2,8 +2,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
-#include "util.h"
-#include "pipe.h"
+#include "telehash.h"
+#include "telehash.h"
 
 pipe_t pipe_new(char *type)
 {

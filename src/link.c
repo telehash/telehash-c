@@ -1,8 +1,8 @@
-#include "link.h"
+#include "telehash.h"
 #include <string.h>
 #include <stdlib.h>
-#include "util.h"
-#include "mesh.h"
+#include "telehash.h"
+#include "telehash.h"
 
 // internal structures to manage our link-local state about pipes and channels
 

@@ -3,15 +3,7 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#include "sha256.h"
-#include "e3x.h"
-#include "e3x_cipher.h"
-#include "util.h"
-
-// cs1a local ones
-#include "uECC.h"
-#include "aes.h"
-#include "hmac.h"
+#include "cs1a.h"
 
 // undefine the void* aliases so we can define them locally
 #undef local_t

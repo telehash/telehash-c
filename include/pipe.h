@@ -2,8 +2,6 @@
 #define pipe_h
 #include <stdint.h>
 
-typedef struct pipe_struct *pipe_t;
-
 #include "mesh.h"
 #include "link.h"
 

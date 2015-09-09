@@ -1,6 +1,6 @@
 #ifndef ext_sock_h
 #define ext_sock_h
-
+/*
 #include "ext.h"
 
 #define SOCKC_NEW 0
@@ -57,5 +57,5 @@ int sockc_zwritten(sockc_t sc, int len);
 int sockc_available(sockc_t sc);
 uint8_t sockc_sread(sockc_t sc);
 uint8_t sockc_swrite(sockc_t sc, uint8_t byte);
-
+*/
 #endif

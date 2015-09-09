@@ -1,4 +1,4 @@
-#include "ext.h"
+#include "telehash.h"
 
 // handle incoming packets for the built-in stream channel
 void stream_chan_handler(link_t link, e3x_channel_t chan, void *arg)

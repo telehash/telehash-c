@@ -1,4 +1,5 @@
-#include "ext.h"
+#include <string.h>
+#include "telehash.h"
 
 // list of active pipes and state per link
 typedef struct ping_struct

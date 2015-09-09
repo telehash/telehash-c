@@ -1,10 +1,10 @@
 /* some very basic public-domain base64 functions */
-#include "base64.h"
+#include "telehash.h"
 #include <stdint.h>
 #include <string.h>
 
 // decode str of len into out (must be base64_decode_length(len) bit), return actual decoded len
-size_t base64_decode(const char *str, size_t len, uint8_t *out)
+size_t base64_decoder(const char *str, size_t len, uint8_t *out)
 {
     const char *cur;
     uint8_t *start;
@@ -77,7 +77,7 @@ size_t base64_decode(const char *str, size_t len, uint8_t *out)
 
 
 // encode str of len into out (must be at least base64_encode_length(len) big), return encoded len
-size_t base64_encode(const uint8_t *str, size_t len, char *out)
+size_t base64_encoder(const uint8_t *str, size_t len, char *out)
 {
     size_t i;
     uint8_t s1, s2;

@@ -28,7 +28,7 @@
  *  http://csrc.nist.gov/publications/fips/fips180-2/fips180-2.pdf
  */
 
-#include "sha256.h"
+#include "cs1a.h"
 
 /*
  * 32-bit integer manipulation macros (big endian)

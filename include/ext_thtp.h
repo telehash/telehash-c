@@ -1,6 +1,7 @@
 #ifndef ext_thtp_h
 #define ext_thtp_h
 
+/*
 #include "xht.h"
 #include "chan.h"
 
@@ -18,5 +19,5 @@ void thtp_path(switch_t s, char *path, lob_t note);
 
 // generate an outgoing request, send the response attached to the note
 chan_t thtp_req(switch_t s, lob_t note);
-
+*/
 #endif

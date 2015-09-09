@@ -1,4 +1,4 @@
-#include "socketio.h"
+#include "telehash.h"
 
 // utilities to parse and generate minimal socket.io / engine.io packets
 

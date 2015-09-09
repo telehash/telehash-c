@@ -2,8 +2,6 @@
 #define link_h
 #include <stdint.h>
 
-typedef struct link_struct *link_t;
-
 #include "mesh.h"
 
 struct link_struct
