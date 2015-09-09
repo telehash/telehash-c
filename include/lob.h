@@ -115,5 +115,6 @@ lob_t lob_insert(lob_t list, lob_t after, lob_t p); // inserts item in list afte
 lob_t lob_freeall(lob_t list); // frees all
 lob_t lob_match(lob_t list, char *key, char *value); // find the first packet in the list w/ the matching key/value
 lob_t lob_next(lob_t list);
+lob_t lob_array(lob_t list); // return json array of the list
 
 #endif

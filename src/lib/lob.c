@@ -677,3 +677,30 @@ lob_t lob_next(lob_t list)
   if(!list) return NULL;
   return list->next;
 }
+
+// return json array of the list
+lob_t lob_array(lob_t list)
+{
+  size_t len = 3; // []\0
+  char *json;
+  lob_t item, ret;
+
+  json = malloc(len);
+  sprintf(json,"[");
+  for(item = list;item;item = lob_next(item))
+  {
+    len += item->head_len+1;
+    json = realloc(json, len);
+    sprintf(json+strlen(json),"%.*s,",(int)item->head_len,item->head);
+  }
+  if(len == 3)
+  {
+    sprintf(json+strlen(json),"]");
+  }else{
+    sprintf(json+(strlen(json)-1),"]");
+  }
+  ret = lob_new();
+  lob_head(ret,(uint8_t*)json, strlen(json));
+  free(json);
+  return ret;
+}
