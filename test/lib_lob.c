@@ -89,6 +89,11 @@ int main(int argc, char **argv)
   fail_unless(insert->next == item);
   fail_unless(lob_splice(list,insert));
   fail_unless(list->next == item);
+
+  lob_t array = lob_array(list);
+  fail_unless(array);
+  fail_unless(util_cmp(lob_json(array),"[,]") == 0);
+
   fail_unless(lob_freeall(list) == NULL);
 
   // simple index testing

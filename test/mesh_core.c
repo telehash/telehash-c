@@ -47,6 +47,9 @@ int main(int argc, char **argv)
   fail_unless(link->pipes);
   fail_unless(link_pipes(link,NULL) == pipe);
   fail_unless(link_pipes(link,pipe) == NULL);
+  
+  fail_unless(strlen(lob_json(mesh_json(mesh))) > 100);
+  fail_unless(strlen(lob_json(lob_array(mesh_links(mesh)))) > 100);
 
   return 0;
 }

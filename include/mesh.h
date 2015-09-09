@@ -43,6 +43,9 @@ char *mesh_uri(mesh_t mesh, char *base);
 // generate json of mesh keys and current paths
 lob_t mesh_json(mesh_t mesh);
 
+// generate json for all links, returns lob list
+lob_t mesh_links(mesh_t mesh);
+
 // creates a link from the json format of {"hashname":"...","keys":{},"paths":[]}, optional direct pipe too
 link_t mesh_add(mesh_t mesh, lob_t json, pipe_t pipe);
 

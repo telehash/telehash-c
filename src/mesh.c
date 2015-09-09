@@ -116,32 +116,38 @@ char *mesh_uri(mesh_t mesh, char *base)
 // generate json of mesh keys and current paths
 lob_t mesh_json(mesh_t mesh)
 {
-  size_t len = 3; // []\0
-  char *paths;
-  lob_t json, path;
+  lob_t json, paths;
   if(!mesh) return LOG("bad args");
 
   json = lob_new();
   lob_set(json,"hashname",mesh->id->hashname);
   lob_set_raw(json,"keys",0,(char*)mesh->keys->head,mesh->keys->head_len);
-
-  paths = malloc(len);
-  sprintf(paths,"[");
-  for(path = mesh->paths;path;path = lob_next(path))
-  {
-    len += path->head_len+1;
-    paths = realloc(paths, len);
-    sprintf(paths+strlen(paths),"%.*s,",(int)path->head_len,path->head);
-  }
-  if(len == 3)
-  {
-    sprintf(paths+strlen(paths),"]");
-  }else{
-    sprintf(paths+(strlen(paths)-1),"]");
-  }
-  lob_set_raw(json,"paths",0,paths,strlen(paths));
-  free(paths);
+  paths = lob_array(mesh->paths);
+  lob_set_raw(json,"paths",0,(char*)paths->head,paths->head_len);
+  lob_free(paths);
   return json;
+}
+
+
+static void _walklink(xht_t h, const char *key, void *val, void *arg)
+{
+  link_t link = (link_t)val;
+  lob_t links = (lob_t)arg;
+  if(!hashname_valid(key)) return;
+  lob_push(links,link_json(link));
+}
+
+// generate json for all links, returns lob list
+lob_t mesh_links(mesh_t mesh)
+{
+  lob_t links, list;
+
+  // this is really inefficient
+  links = lob_new();
+  xht_walk(mesh->index, _walklink, links);
+  list = lob_next(links);
+  lob_free(links);
+  return list;
 }
 
 link_t mesh_add(mesh_t mesh, lob_t json, pipe_t pipe)
