@@ -10,7 +10,7 @@
 #define MAX_CSIDS 8
 
 // validate a str is a base32 hashname
-uint8_t hashname_valid(char *str)
+uint8_t hashname_valid(const char *str)
 {
   static uint8_t buf[32];
   if(!str) return 0;
@@ -34,7 +34,7 @@ hashname_t hashname_new(uint8_t *bin)
 }
 
 // these all create a new hashname
-hashname_t hashname_str(char *str)
+hashname_t hashname_str(const char *str)
 {
   hashname_t hn;
   if(!hashname_valid(str)) return NULL;
