@@ -61,7 +61,9 @@ static: libtelehash
 	@sed -i '' "/#include \"/d" telehash.h
 
 static-cs1a:
-	@cat $(LIB) $(E3X) $(MESH) $(EXT) $(UTIL) src/e3x/cs1a/aes.c src/e3x/cs1a/hmac.c src/e3x/cs1a/aes128.c src/e3x/cs1a/cs1a.c src/e3x/cs1a/uECC.c src/e3x/cs1a/sha256.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c > telehash.c
+	@echo "#include <telehash.h>" > telehash.c
+	@cat $(LIB) $(E3X) $(MESH) $(EXT) $(UTIL) src/e3x/cs1a/aes.c src/e3x/cs1a/hmac.c src/e3x/cs1a/aes128.c src/e3x/cs1a/cs1a.c src/e3x/cs1a/uECC.c src/e3x/cs1a/sha256.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c >> telehash.c
+	@sed -i '' "/#include \"/d" telehash.c
 	@cat include/lob.h include/xht.h include/e3x_event.h include/e3x_cipher.h include/e3x_self.h include/e3x_exchange.h include/e3x_channel.h include/hashname.h include/mesh.h include/link.h include/util_chunks.h include/*.h src/e3x/cs1a/*.h > telehash.h
 	@sed -i '' "/#include \"/d" telehash.h
 
