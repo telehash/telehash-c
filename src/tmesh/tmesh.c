@@ -114,8 +114,20 @@ cmnty_t tmesh_private(tmesh_t tm, char *medium, char *name)
 // add a link known to be in this community to look for
 cmnty_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link)
 {
+  epoch_t e;
+  size_t i;
   if(!tm || !c || !link) return LOG("bad args");
+
   // check list of links, add if space and not there
+  for(i=0;c->links[i];i++) if(c->links[i] == link) return c;
+  
+  if(i == c->motes) return DEBUG("community full");
+
+  if(!(e = epoch_new(tm->mesh, c->medium))) return NULL;
+  e->type = PING;
+  c->links[i] = link;
+  c->epochs[i] = e;
+
   return c;
 }
 
@@ -141,13 +153,8 @@ pipe_t tmesh_on_path(link_t link, lob_t path)
   if(!link || !path) return NULL;
   if(!(tm = xht_get(link->mesh->index, "tmesh"))) return NULL;
   if(util_cmp("tmesh",lob_get(path,"type"))) return NULL;
-//  if(!(sync = lob_get(path,"sync"))) return LOG("missing sync");
-//  e = epoch_new(NULL,NULL);
-//  if(!(e = epoch_import(e,sync,link->id->hashname))) return (pipe_t)epoch_free(e);
-//  if(!(to = tmesh_mote(tm, link))) return (pipe_t)epoch_free(e);
-//  to->syncs = epochs_add(to->syncs, e);
-//  if(!to->sync) mote_reset(to); // load new sync epoch immediately if not in sync
-//  return to->pipe;
+  // TODO, check for community match and add
+  // or create direct?
   return NULL;
 }
 
