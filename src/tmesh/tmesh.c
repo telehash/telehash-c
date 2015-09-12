@@ -121,9 +121,9 @@ cmnty_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link)
   // check list of links, add if space and not there
   for(i=0;c->links[i];i++) if(c->links[i] == link) return c;
   
-  if(i == c->motes) return DEBUG("community full");
+  if(i == c->max) return LOG("community full");
 
-  if(!(e = epoch_new(tm->mesh, c->medium))) return NULL;
+  if(!(e = epoch_new(tm->mesh,c->medium))) return NULL;
   e->type = PING;
   c->links[i] = link;
   c->epochs[i] = e;
@@ -225,20 +225,6 @@ void tmesh_free(tmesh_t tm)
 //  lob_free(tm->path); // managed by mesh->paths
   free(tm);
   return;
-}
-
-// add a sync epoch from this header
-tmesh_t tmesh_sync(tmesh_t tm, char *medium)
-{
-  epoch_t sync;
-  uint8_t bin[6];
-  if(!tm || !medium || strlen(medium) < 10) return LOG("bad args");
-  if(base32_decode(medium,0,bin,6) != 6) return LOG("bad medium encoding: %s",medium);
-  if(!(sync = epoch_new(tm->mesh,bin))) return LOG("epoch error");
-  // use our hashname as default secret for syncs
-  memcpy(sync->secret,tm->mesh->id->bin,32);
-//  tm->syncs = epochs_add(tm->syncs,sync);
-  return tm;
 }
 
 

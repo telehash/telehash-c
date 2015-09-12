@@ -6,7 +6,7 @@
 #include "tmesh.h"
 
 
-epoch_t epoch_new(mesh_t m, uint8_t medium[6])
+epoch_t epoch_new(mesh_t m, medium_t medium)
 {
   epoch_t e;
   
@@ -14,17 +14,14 @@ epoch_t epoch_new(mesh_t m, uint8_t medium[6])
 
   if(!(e = malloc(sizeof(struct epoch_struct)))) return LOG("OOM");
   memset(e,0,sizeof (struct epoch_struct));
+  e->medium = medium;
 
-  if((e->medium = radio_medium(m, medium))) return e;
-
-  LOG("no device for this medium");
-  return epoch_free(e);
+  return e;
 }
 
 epoch_t epoch_free(epoch_t e)
 {
   epoch_knock(e,0); // free's knock
-  // TODO medium driver free
   free(e);
   return NULL;
 }
@@ -89,7 +86,6 @@ epoch_t epoch_knock(epoch_t e, uint64_t at)
   {
     if(!(k = malloc(sizeof(struct knock_struct)))) return LOG("OOM");
     e->knock = k;
-    k->epoch = e;
     memset(k,0,sizeof (struct knock_struct));
     if(!(k->chunks = util_chunks_new(64))) return epoch_knock(e,0);
   }

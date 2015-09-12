@@ -32,7 +32,7 @@ static struct radio_struct test_device = {
 
 int main(int argc, char **argv)
 {
-  uint8_t medium[6];
+  uint8_t bin[6];
 
   fail_unless(!e3x_init(NULL)); // random seed
   fail_unless(radio_device(&test_device));
@@ -40,11 +40,13 @@ int main(int argc, char **argv)
   epoch_t e = epoch_new(NULL,NULL);
   fail_unless(!e);
   
-  e3x_rand(medium,6);
+  e3x_rand(bin,6);
+  medium_t medium = radio_medium(NULL,bin);
   e = epoch_new(NULL,medium);
 
   char mid[] = "fzjb5f4tn4";
-  fail_unless(base32_decode(mid,0,medium,6));
+  fail_unless(base32_decode(mid,0,bin,6));
+  medium = radio_medium(NULL,bin);
   fail_unless((e = epoch_new(NULL,medium)));
   
   fail_unless(epoch_base(e,0,0));

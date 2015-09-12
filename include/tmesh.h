@@ -29,6 +29,7 @@ struct cmnty_struct
   epoch_t *epochs;
   pipe_t pipe;
   struct cmnty_struct *next;
+  uint8_t max;
   enum {NONE, PUBLIC, PRIVATE, DIRECT} type:2;
 };
 
@@ -77,17 +78,14 @@ tmesh_t tmesh_post(tmesh_t tm, epoch_t e);
 struct knock_struct
 {
   knock_t next; // for temporary lists
-  epoch_t epoch; // so knocks can be passed around directly
   uint32_t win; // current window id
   uint32_t chan; // current channel (< med->chans)
   uint64_t start, stop; // microsecond exact start/stop time
   util_chunks_t chunks; // actual chunk encoding
-  uint8_t len:7; // <= 64
-  enum {TX, RX} dir:1;
   enum {ERR, READY, DONE} state:2;
 };
 
-// individual epoch+medium state data, goal to keep <64b each on 32bit
+// individual epoch state data, goal to keep <64b each on 32bit
 struct epoch_struct
 {
   uint8_t secret[32];
@@ -95,12 +93,12 @@ struct epoch_struct
   knock_t knock; // only exists when active
   epoch_t next; // for epochs_* list utils
   medium_t medium;
-  cmnty_t community; // which community the epoch belongs to
+  enum {TX, RX} dir:1;
   enum {RESET, PING, ECHO, PAIR, LINK} type:4;
 
 };
 
-epoch_t epoch_new(mesh_t m, uint8_t medium[6]);
+epoch_t epoch_new(mesh_t m, medium_t medium);
 epoch_t epoch_free(epoch_t e);
 
 // sync point for given window
