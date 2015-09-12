@@ -3,45 +3,35 @@
  *
  * \brief AES block cipher
  *
- *  Copyright (C) 2006-2013, Brainspark B.V.
+ *  Copyright (C) 2006-2015, ARM Limited, All Rights Reserved
+ *  SPDX-License-Identifier: Apache-2.0
  *
- *  This file is part of PolarSSL (http://www.polarssl.org)
- *  Lead Maintainer: Paul Bakker <polarssl_maintainer at polarssl.org>
+ *  Licensed under the Apache License, Version 2.0 (the "License"); you may
+ *  not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
  *
- *  All rights reserved.
+ *  http://www.apache.org/licenses/LICENSE-2.0
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ *  WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
  *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ *  This file is part of mbed TLS (https://tls.mbed.org)
  */
-#ifndef POLARSSL_AES_H
-#define POLARSSL_AES_H
+#ifndef MBEDTLS_AES_H
+#define MBEDTLS_AES_H
 
 
-#include <string.h>
+#include <stddef.h>
+#include <stdint.h>
 
+#define MBEDTLS_AES_ENCRYPT     1
+#define MBEDTLS_AES_DECRYPT     0
 
-#include <inttypes.h>
-
-
-#define AES_ENCRYPT     1
-#define AES_DECRYPT     0
-
-#define POLARSSL_ERR_AES_INVALID_KEY_LENGTH                -0x0020  /**< Invalid key length. */
-#define POLARSSL_ERR_AES_INVALID_INPUT_LENGTH              -0x0022  /**< Invalid data input length. */
-
-// Regular implementation
-//
+#define MBEDTLS_ERR_AES_INVALID_KEY_LENGTH                -0x0020  /**< Invalid key length. */
+#define MBEDTLS_ERR_AES_INVALID_INPUT_LENGTH              -0x0022  /**< Invalid data input length. */
 
 #ifdef __cplusplus
 extern "C" {
@@ -49,6 +39,11 @@ extern "C" {
 
 /**
  * \brief          AES context structure
+ *
+ * \note           buf is able to hold 32 extra bytes, which can be used:
+ *                 - for alignment purposes if VIA padlock is used, and/or
+ *                 - to simplify key expansion in the 256-bit case by
+ *                 generating an extra round key
  */
 typedef struct
 {
@@ -56,71 +51,61 @@ typedef struct
     uint32_t *rk;               /*!<  AES round keys    */
     uint32_t buf[68];           /*!<  unaligned data    */
 }
-aes_context;
+mbedtls_aes_context;
+
+/**
+ * \brief          Initialize AES context
+ *
+ * \param ctx      AES context to be initialized
+ */
+void mbedtls_aes_init( mbedtls_aes_context *ctx );
+
+/**
+ * \brief          Clear AES context
+ *
+ * \param ctx      AES context to be cleared
+ */
+void mbedtls_aes_free( mbedtls_aes_context *ctx );
 
 /**
  * \brief          AES key schedule (encryption)
  *
  * \param ctx      AES context to be initialized
  * \param key      encryption key
- * \param keysize  must be 128, 192 or 256
+ * \param keybits  must be 128, 192 or 256
  *
- * \return         0 if successful, or POLARSSL_ERR_AES_INVALID_KEY_LENGTH
+ * \return         0 if successful, or MBEDTLS_ERR_AES_INVALID_KEY_LENGTH
  */
-int aes_setkey_enc( aes_context *ctx, const unsigned char *key, unsigned int keysize );
+int mbedtls_aes_setkey_enc( mbedtls_aes_context *ctx, const unsigned char *key,
+                    unsigned int keybits );
 
 /**
  * \brief          AES key schedule (decryption)
  *
  * \param ctx      AES context to be initialized
  * \param key      decryption key
- * \param keysize  must be 128, 192 or 256
+ * \param keybits  must be 128, 192 or 256
  *
- * \return         0 if successful, or POLARSSL_ERR_AES_INVALID_KEY_LENGTH
+ * \return         0 if successful, or MBEDTLS_ERR_AES_INVALID_KEY_LENGTH
  */
-int aes_setkey_dec( aes_context *ctx, const unsigned char *key, unsigned int keysize );
+int mbedtls_aes_setkey_dec( mbedtls_aes_context *ctx, const unsigned char *key,
+                    unsigned int keybits );
 
 /**
  * \brief          AES-ECB block encryption/decryption
  *
  * \param ctx      AES context
- * \param mode     AES_ENCRYPT or AES_DECRYPT
+ * \param mode     MBEDTLS_AES_ENCRYPT or MBEDTLS_AES_DECRYPT
  * \param input    16-byte input block
  * \param output   16-byte output block
  *
  * \return         0 if successful
  */
-int aes_crypt_ecb( aes_context *ctx,
+int mbedtls_aes_crypt_ecb( mbedtls_aes_context *ctx,
                     int mode,
                     const unsigned char input[16],
                     unsigned char output[16] );
 
-
-
-/**
- * \brief          AES-CFB128 buffer encryption/decryption.
- *
- * Note: Due to the nature of CFB you should use the same key schedule for
- * both encryption and decryption. So a context initialized with
- * aes_setkey_enc() for both AES_ENCRYPT and AES_DECRYPT.
- *
- * \param ctx      AES context
- * \param mode     AES_ENCRYPT or AES_DECRYPT
- * \param length   length of the input data
- * \param iv_off   offset in IV (updated after use)
- * \param iv       initialization vector (updated after use)
- * \param input    buffer holding the input data
- * \param output   buffer holding the output data
- *
- * \return         0 if successful
- */
-int aes_crypt_cfb128( aes_context *ctx,
-                       int mode,
-                       size_t length,
-                       size_t *iv_off,
-                       unsigned char iv[16],
-                       const unsigned char *input,
-                       unsigned char *output );
 
 /**
  * \brief               AES-CTR buffer encryption/decryption
@@ -129,7 +114,7 @@ int aes_crypt_cfb128( aes_context *ctx,
  *
  * Note: Due to the nature of CTR you should use the same key schedule for
  * both encryption and decryption. So a context initialized with
- * aes_setkey_enc() for both AES_ENCRYPT and AES_DECRYPT.
+ * mbedtls_aes_setkey_enc() for both MBEDTLS_AES_ENCRYPT and MBEDTLS_AES_DECRYPT.
  *
  * \param ctx           AES context
  * \param length        The length of the data
@@ -144,13 +129,39 @@ int aes_crypt_cfb128( aes_context *ctx,
  *
  * \return         0 if successful
  */
-int aes_crypt_ctr( aes_context *ctx,
+int mbedtls_aes_crypt_ctr( mbedtls_aes_context *ctx,
                        size_t length,
                        size_t *nc_off,
                        unsigned char nonce_counter[16],
                        unsigned char stream_block[16],
                        const unsigned char *input,
                        unsigned char *output );
+
+/**
+ * \brief           Internal AES block encryption function
+ *                  (Only exposed to allow overriding it,
+ *                  see MBEDTLS_AES_ENCRYPT_ALT)
+ *
+ * \param ctx       AES context
+ * \param input     Plaintext block
+ * \param output    Output (ciphertext) block
+ */
+void mbedtls_aes_encrypt( mbedtls_aes_context *ctx,
+                          const unsigned char input[16],
+                          unsigned char output[16] );
+
+/**
+ * \brief           Internal AES block decryption function
+ *                  (Only exposed to allow overriding it,
+ *                  see MBEDTLS_AES_DECRYPT_ALT)
+ *
+ * \param ctx       AES context
+ * \param input     Ciphertext block
+ * \param output    Output (plaintext) block
+ */
+void mbedtls_aes_decrypt( mbedtls_aes_context *ctx,
+                          const unsigned char input[16],
+                          unsigned char output[16] );
 
 #ifdef __cplusplus
 }
