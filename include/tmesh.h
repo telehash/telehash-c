@@ -29,14 +29,16 @@ struct medium_struct
   uint8_t chans; // number of total channels, set by driver
   uint8_t radio:4; // radio device id based on radio_devices[]
 };
+
 // community management
 struct cmnty_struct
 {
   tmesh_t tm;
   char *name;
   medium_t medium;
-  mote_t motes;
-  pipe_t pipe;
+  mote_t sync; // ping+echo, only pub/priv
+  mote_t motes; 
+  pipe_t pipe; // one pipe per community as it's shared performance
   struct cmnty_struct *next;
   uint8_t max;
   enum {NONE, PUBLIC, PRIVATE, DIRECT} type:2;
@@ -73,11 +75,7 @@ void tmesh_free(tmesh_t tm);
 tmesh_t tmesh_loop(tmesh_t tm);
 
 // internal soft scheduling to prep for radio_next
-tmesh_t tmesh_pre(tmesh_t tm);
-
-// radio is done, process the epoch
-tmesh_t tmesh_post(tmesh_t tm, epoch_t e);
-
+tmesh_t tmesh_prep(tmesh_t tm, uint64_t from);
 
 // 2^22
 #define EPOCH_WINDOW (uint64_t)4194304
@@ -85,15 +83,18 @@ tmesh_t tmesh_post(tmesh_t tm, epoch_t e);
 // mote state tracking
 struct mote_struct
 {
+  link_t link; // when known
+  epoch_t epochs; // sorted order
   mote_t next; // for lists
+
+  // next knock state
+  util_chunks_t chunks; // actual chunk encoding for r/w frame buffers
   uint32_t kwin; // current window id
   uint32_t kchan; // current channel (< med->chans)
   uint64_t kstart, kstop; // microsecond exact start/stop time
-  util_chunks_t chunks; // actual chunk encoding
-  link_t link; // when known
-  epoch_t epochs;
+
   uint8_t z;
-  enum {ERR, READY, DONE} state:2;
+  enum {ERR, READY, DONE} kstate:2; // knock handling
 };
 
 // individual epoch state data
@@ -118,17 +119,19 @@ epoch_t epochs_free(epoch_t es);
 typedef struct radio_struct
 {
   // return energy cost, or 0 if unknown medium, use for pre-validation/estimation
-  uint32_t (*energy)(mesh_t mesh, uint8_t medium[6]);
+  uint32_t (*energy)(tmesh_t tm, uint8_t medium[6]);
 
   // initialize/get any medium scheduling time/cost and channels
-  medium_t (*get)(mesh_t mesh, uint8_t medium[6]);
+  medium_t (*get)(tmesh_t tm, uint8_t medium[6]);
 
   // when a medium isn't used anymore, let the radio free it
-  medium_t (*free)(mesh_t mesh, medium_t m);
+  medium_t (*free)(tmesh_t tm, medium_t m);
 
-  // perform this epoch's knock right now
-  epoch_t (*knock)(mesh_t mesh, epoch_t e);
+  // perform this knock right _now_
+  mote_t (*knock)(tmesh_t tm, medium_t m, uint8_t dir, uint8_t chan, uint8_t *frame);
   
+  // active frame buffer
+  uint8_t frame[64];
 
 } *radio_t;
 
@@ -138,8 +141,11 @@ extern radio_t radio_devices[]; // all of em
 // add/set a new device
 radio_t radio_device(radio_t device);
 
-// return the next hard-scheduled knock from this given point in time for this radio
-epoch_t radio_next(radio_t device, tmesh_t tm, uint64_t from);
+// return the next hard-scheduled mote for this radio
+mote_t radio_next(radio_t device, tmesh_t tm);
+
+// signal once a frame has been sent/received for this mote
+void radio_done(radio_t device, tmesh_t tm, mote_t m);
 
 // validate medium by checking energy
 uint32_t radio_energy(mesh_t m, uint8_t medium[6]);
