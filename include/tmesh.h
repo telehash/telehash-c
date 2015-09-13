@@ -3,10 +3,21 @@
 
 #include "mesh.h"
 
+/*
+- create mote_t
+- move knock_t into mote_t
+ - best knock per mote
+- mote_t is instance in a community
+- each mote has one chunks
+- motes can be unlinked during handshaking/ping
+- mote is elected for scheduling
+- mote has list of epochs
+*/
+
 typedef struct tmesh_struct *tmesh_t;
 typedef struct cmnty_struct *cmnty_t;
 typedef struct epoch_struct *epoch_t;
-typedef struct knock_struct *knock_t;
+typedef struct mote_struct *mote_t;
 typedef struct medium_struct *medium_t;
 
 // medium management w/ device driver
@@ -24,9 +35,7 @@ struct cmnty_struct
   tmesh_t tm;
   char *name;
   medium_t medium;
-  epoch_t ping;
-  link_t *links;
-  epoch_t *epochs;
+  mote_t motes;
   pipe_t pipe;
   struct cmnty_struct *next;
   uint8_t max;
@@ -54,7 +63,6 @@ struct tmesh_struct
   cmnty_t communities;
   lob_t pubim;
   uint8_t z; // our z-index
-  knock_t tx, rx, any; // soft scheduled
 };
 
 // create a new tmesh radio network bound to this mesh
@@ -74,41 +82,30 @@ tmesh_t tmesh_post(tmesh_t tm, epoch_t e);
 // 2^22
 #define EPOCH_WINDOW (uint64_t)4194304
 
-// knock state holder when sending/receiving
-struct knock_struct
+// mote state tracking
+struct mote_struct
 {
-  knock_t next; // for temporary lists
-  uint32_t win; // current window id
-  uint32_t chan; // current channel (< med->chans)
-  uint64_t start, stop; // microsecond exact start/stop time
+  mote_t next; // for lists
+  uint32_t kwin; // current window id
+  uint32_t kchan; // current channel (< med->chans)
+  uint64_t kstart, kstop; // microsecond exact start/stop time
   util_chunks_t chunks; // actual chunk encoding
+  link_t link; // when known
+  epoch_t epochs;
+  uint8_t z;
   enum {ERR, READY, DONE} state:2;
 };
 
-// individual epoch state data, goal to keep <64b each on 32bit
+// individual epoch state data
 struct epoch_struct
 {
   uint8_t secret[32];
   uint64_t base; // microsecond of window 0 start
-  knock_t knock; // only exists when active
   epoch_t next; // for epochs_* list utils
-  medium_t medium;
   enum {TX, RX} dir:1;
   enum {RESET, PING, ECHO, PAIR, LINK} type:4;
 
 };
-
-epoch_t epoch_new(mesh_t m, medium_t medium);
-epoch_t epoch_free(epoch_t e);
-
-// sync point for given window
-epoch_t epoch_base(epoch_t e, uint32_t window, uint64_t at);
-
-// set knock chan/start/stop to given window
-epoch_t epoch_window(epoch_t e, uint32_t window);
-
-// reset active knock to next window, 0 cleans out, guarantees an e->knock or returns NULL
-epoch_t epoch_knock(epoch_t e, uint64_t at);
 
 // simple array utilities
 epoch_t epochs_add(epoch_t es, epoch_t e);

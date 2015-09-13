@@ -10,8 +10,8 @@
 // find an epoch to send it to in this community
 static void cmnty_send(pipe_t pipe, lob_t packet, link_t link)
 {
-  size_t i;
   cmnty_t c;
+  mote_t m;
   if(!pipe || !pipe->arg || !packet || !link)
   {
     LOG("bad args");
@@ -21,9 +21,9 @@ static void cmnty_send(pipe_t pipe, lob_t packet, link_t link)
   c = (cmnty_t)pipe->arg;
 
   // find link in this community w/ tx epoch
-  for(i=0;c->links[i];i++) if(c->links[i] == link && epoch_knock(c->epochs[i],1))
+  for(m=c->motes;m;m=m->next) if(m->link == link)
   {
-    util_chunks_send(c->epochs[i]->knock->chunks, packet);
+    util_chunks_send(m->chunks, packet);
     return;
   }
 
@@ -33,16 +33,9 @@ static void cmnty_send(pipe_t pipe, lob_t packet, link_t link)
 
 static cmnty_t cmnty_free(cmnty_t c)
 {
-  size_t i;
   if(!c) return NULL;
   // do not free c->name, it's part of c->pipe
-  epochs_free(c->ping);
-  if(c->epochs)
-  {
-    for(i=0;c->epochs[i];i++) epochs_free(c->epochs[i]);
-    free(c->epochs);
-    free(c->links);
-  }
+  // TODO free motes
   pipe_free(c->pipe);
   free(c);
   return NULL;
@@ -64,11 +57,6 @@ static cmnty_t cmnty_new(tmesh_t tm, char *medium, char *name, uint8_t motes)
 
   if(!(c->medium = radio_medium(tm->mesh,bin))) return cmnty_free(c);
   if(!(c->pipe = pipe_new("tmesh"))) return cmnty_free(c);
-  // initialize static pointer arrays
-  if(!(c->epochs = malloc((sizeof (epoch_t))*(motes+1)))) return cmnty_free(c);
-  memset(c->epochs,0,(sizeof (epoch_t))*(motes+1));
-  if(!(c->links = malloc((sizeof (link_t))*(motes+1)))) return cmnty_free(c);
-  memset(c->links,0,(sizeof (link_t))*(motes+1));
   c->tm = tm;
   c->next = tm->communities;
   tm->communities = c;
@@ -114,19 +102,17 @@ cmnty_t tmesh_private(tmesh_t tm, char *medium, char *name)
 // add a link known to be in this community to look for
 cmnty_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link)
 {
-  epoch_t e;
-  size_t i;
   if(!tm || !c || !link) return LOG("bad args");
 
-  // check list of links, add if space and not there
-  for(i=0;c->links[i];i++) if(c->links[i] == link) return c;
+  // check list of motes, add if space and not there
+  // TODO
   
-  if(i == c->max) return LOG("community full");
+//  if(i == c->max) return LOG("community full");
 
-  if(!(e = epoch_new(tm->mesh,c->medium))) return NULL;
-  e->type = PING;
-  c->links[i] = link;
-  c->epochs[i] = e;
+//  if(!(e = epoch_new(tm->mesh,c->medium))) return NULL;
+//  e->type = PING;
+//  c->links[i] = link;
+//  c->epochs[i] = e;
 
   return c;
 }
@@ -244,19 +230,14 @@ tmesh_t tmesh_loop(tmesh_t tm)
 {
   cmnty_t c;
   lob_t packet;
-  size_t i;
-  epoch_t e;
+  mote_t m;
   if(!tm) return LOG("bad args");
 
   // process any packets into mesh_receive
   for(c = tm->communities;c;c = c->next) 
-    for(i=0;c->epochs[i];i++) 
-    for(e=c->epochs[i];e;e = e->next)
-    if(e->knock)
-    {
-      while((packet = util_chunks_receive(e->knock->chunks)))
-        mesh_receive(tm->mesh, packet, c->pipe);
-    }
+    for(m=c->motes;m;m=m->next)
+      while((packet = util_chunks_receive(m->chunks)))
+        mesh_receive(tm->mesh, packet, c->pipe); // TODO associate mote for neighborhood
   
   return tm;
 }
@@ -264,19 +245,18 @@ tmesh_t tmesh_loop(tmesh_t tm)
 tmesh_t tmesh_pre(tmesh_t tm)
 {
   cmnty_t c;
-  size_t i;
-  epoch_t e;
+  mote_t m;
   if(!tm) return LOG("bad args");
 
   // clean state
-  tm->tx = tm->rx = tm->any = NULL;
+//  tm->tx = tm->rx = tm->any = NULL;
   
   // queue up any active knocks anywhere
   for(c = tm->communities;c;c = c->next)
   {
     // TODO check c->ping/echo for tm->any
-    // check every epoch
-    for(i=0;c->epochs[i];i++) for(e=c->epochs[i];e;e = e->next) if(e->knock)
+    // check every mote
+    for(m=c->motes;m;m=m->next)
     {
       // check for a chunk waiting and add to tx
       // else add to rx

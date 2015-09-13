@@ -14,26 +14,26 @@ epoch_t epoch_new(mesh_t m, medium_t medium)
 
   if(!(e = malloc(sizeof(struct epoch_struct)))) return LOG("OOM");
   memset(e,0,sizeof (struct epoch_struct));
-  e->medium = medium;
+//  e->medium = medium;
 
   return e;
 }
 
 epoch_t epoch_free(epoch_t e)
 {
-  epoch_knock(e,0); // free's knock
+//  epoch_knock(e,0); // free's knock
   free(e);
   return NULL;
 }
 
 // set knock win/chan/start/stop
-epoch_t epoch_window(epoch_t e, uint32_t window)
+epoch_t epoch_window(cmnty_t c, mote_t m, epoch_t e, uint32_t window)
 {
   uint8_t pad[8];
   uint8_t nonce[8];
   uint64_t offset;
   uint32_t win;
-  if(!e || !e->knock || !e->medium->chans) return LOG("bad args");
+  if(!e || !m || !c->medium->chans) return LOG("bad args");
   
   // normalize nonce
   memset(nonce,0,8);
@@ -44,11 +44,11 @@ epoch_t epoch_window(epoch_t e, uint32_t window)
   memset(pad,0,8);
   chacha20(e->secret,nonce,pad,8);
   
-  e->knock->win = window;
-  e->knock->chan = util_sys_short((unsigned short)(pad[0])) % e->medium->chans;
-  offset = util_sys_long((unsigned long)(pad[2])) % (EPOCH_WINDOW - e->medium->min);
-  e->knock->start = e->base + (EPOCH_WINDOW*window) + offset;
-  e->knock->stop = e->knock->start + e->medium->min;
+  m->kwin = window;
+  m->kchan = util_sys_short((unsigned short)(pad[0])) % c->medium->chans;
+  offset = util_sys_long((unsigned long)(pad[2])) % (EPOCH_WINDOW - c->medium->min);
+  m->kstart = e->base + (EPOCH_WINDOW*window) + offset;
+  m->kstop = m->kstart + c->medium->min;
   
   return e;
 }
@@ -64,6 +64,7 @@ epoch_t epoch_base(epoch_t e, uint32_t window, uint64_t at)
   return e;
 }
 
+/*
 // reset active knock to next window, 0 cleans out, guarantees an e->knock or returns NULL
 epoch_t epoch_knock(epoch_t e, uint64_t at)
 {
@@ -97,7 +98,7 @@ epoch_t epoch_knock(epoch_t e, uint64_t at)
   // initialize knock win/chan/start/stop
   return epoch_window(e, win+1);
 }
-
+*/
 // array utilities
 epoch_t epochs_add(epoch_t es, epoch_t e)
 {
