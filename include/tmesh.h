@@ -132,7 +132,7 @@ typedef struct radio_struct
   medium_t (*free)(tmesh_t tm, medium_t m);
 
   // perform this knock right _now_
-  mote_t (*knock)(tmesh_t tm, medium_t m, uint8_t dir, uint8_t chan, uint8_t *frame);
+  uint8_t (*knock)(tmesh_t tm, medium_t m, uint8_t dir, uint8_t chan, uint8_t *frame);
   
   // active frame buffer
   uint8_t frame[64];
