@@ -3,12 +3,12 @@
 #include "util_unix.h"
 #include "unit_test.h"
 
-uint32_t device_check(mesh_t mesh, uint8_t medium[6])
+uint32_t device_check(tmesh_t tm, uint8_t medium[6])
 {
   return 1;
 }
 
-medium_t device_get(mesh_t mesh, uint8_t medium[6])
+medium_t device_get(tmesh_t tm, uint8_t medium[6])
 {
   medium_t m;
   if(!(m = malloc(sizeof(struct medium_struct)))) return LOG("OOM");
@@ -20,7 +20,7 @@ medium_t device_get(mesh_t mesh, uint8_t medium[6])
   return m;
 }
 
-medium_t device_free(mesh_t mesh, medium_t m)
+medium_t device_free(tmesh_t tm, medium_t m)
 {
   return NULL;
 }
@@ -29,7 +29,8 @@ static struct radio_struct test_device = {
   device_check,
   device_get,
   device_free,
-  NULL
+  NULL,
+  {0}
 };
 
 int main(int argc, char **argv)
