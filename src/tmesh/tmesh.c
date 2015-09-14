@@ -100,21 +100,21 @@ cmnty_t tmesh_private(tmesh_t tm, char *medium, char *name)
 }
 
 // add a link known to be in this community to look for
-cmnty_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link)
+mote_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link)
 {
+  mote_t m;
   if(!tm || !c || !link) return LOG("bad args");
 
-  // check list of motes, add if space and not there
-  // TODO
+  // check list of motes, add if not there
+  for(m=c->motes;m;m = m->next) if(m->link == link) return m;
+
+  if(!(m = mote_new(link))) return LOG("OOM");
+  if(!(m->epochs = epoch_new(0))) return mote_free(m);
+  m->epochs->type = PING;
+  m->next = c->motes;
+  c->motes = m;
   
-//  if(i == c->max) return LOG("community full");
-
-//  if(!(e = epoch_new(tm->mesh,c->medium))) return NULL;
-//  e->type = PING;
-//  c->links[i] = link;
-//  c->epochs[i] = e;
-
-  return c;
+  return m;
 }
 
 // attempt to establish a direct connection

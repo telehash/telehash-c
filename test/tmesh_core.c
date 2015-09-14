@@ -43,10 +43,11 @@ int main(int argc, char **argv)
   lob_t secretsA = mesh_generate(meshA);
   fail_unless(secretsA);
 
-  mesh_t meshB = mesh_new(3);
-  fail_unless(meshB);
-  lob_t secretsB = mesh_generate(meshB);
-  fail_unless(secretsB);
+  lob_t idB = e3x_generate();
+  hashname_t hnB = hashname_keys(lob_linked(idB));
+  fail_unless(hnB);
+  link_t link = link_get(meshA,hnB->hashname);
+  fail_unless(link);
   
   tmesh_t netA = tmesh_new(meshA, NULL);
   fail_unless(netA);
@@ -57,16 +58,13 @@ int main(int argc, char **argv)
   LOG("netA %.*s",c->pipe->path->head_len,c->pipe->path->head);
 
 
-//  fail_unless(tmesh_sync(netA, "fzjb5f4tn4"));
-//  fail_unless(netA->syncs);
-//  fail_unless(netA->syncs->busy == 5000);
-  
   fail_unless(!tmesh_public(netA, "kzdhpa5n6r", NULL));
-  fail_unless(tmesh_public(netA, "kzdhpa5n6r", ""));
-//  fail_unless(netA->disco);
-//  fail_unless(epochs_len(netA->disco) > 0);
-//  fail_unless(netA->dim);
-//  LOG("debug disco pkt %s",lob_json(netA->dim));
+  fail_unless((c = tmesh_public(netA, "kzdhpa5n6r", "")));
+  mote_t m = tmesh_link(netA, c, link);
+  fail_unless(m);
+  fail_unless(m->link == link);
+  fail_unless(m->epochs);
+  fail_unless(m == tmesh_link(netA, c, link));
   
 
 

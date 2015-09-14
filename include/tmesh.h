@@ -41,7 +41,7 @@ cmnty_t tmesh_public(tmesh_t tm, char *medium, char *name);
 cmnty_t tmesh_private(tmesh_t tm, char *medium, char *name);
 
 // add a link known to be in this community to look for
-cmnty_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link);
+mote_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link);
 
 // attempt to establish a direct connection
 cmnty_t tmesh_direct(tmesh_t tm, link_t link, char *medium, uint64_t at);
@@ -79,13 +79,19 @@ struct mote_struct
 
   // next knock state
   util_chunks_t chunks; // actual chunk encoding for r/w frame buffers
-  uint32_t kwin; // current window id
+  epoch_t knock;
   uint32_t kchan; // current channel (< med->chans)
   uint64_t kstart, kstop; // microsecond exact start/stop time
+  enum {ERR, READY, DONE} kstate:2; // knock handling
 
   uint8_t z;
-  enum {ERR, READY, DONE} kstate:2; // knock handling
 };
+
+mote_t mote_new(link_t link);
+mote_t mote_free(mote_t m);
+
+// set best knock win/chan/start/stop
+mote_t mote_knock(mote_t m, medium_t medium, uint64_t from);
 
 // individual epoch state data
 struct epoch_struct
@@ -97,6 +103,12 @@ struct epoch_struct
   enum {RESET, PING, ECHO, PAIR, LINK} type:4;
 
 };
+
+epoch_t epoch_new(uint8_t tx);
+epoch_t epoch_free(epoch_t e);
+
+// sync point for given window
+epoch_t epoch_base(epoch_t e, uint32_t window, uint64_t at);
 
 // simple array utilities
 epoch_t epochs_add(epoch_t es, epoch_t e);
