@@ -51,7 +51,7 @@ cmnty_t tmesh_direct(tmesh_t tm, link_t link, char *medium, uint64_t at);
 struct tmesh_struct
 {
   mesh_t mesh;
-  cmnty_t communities;
+  cmnty_t coms;
   lob_t pubim;
   uint8_t z; // our z-index
   // TODO, add callback hooks for sorting/prioritizing energy usage
@@ -120,6 +120,8 @@ epoch_t epochs_free(epoch_t es);
 // radio devices are single task responsible for all the epochs in one or more mediums
 typedef struct radio_struct
 {
+  uint8_t id;
+
   // return energy cost, or 0 if unknown medium, use for pre-validation/estimation
   uint32_t (*energy)(tmesh_t tm, uint8_t medium[6]);
 

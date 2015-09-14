@@ -58,8 +58,8 @@ static cmnty_t cmnty_new(tmesh_t tm, char *medium, char *name, uint8_t motes)
   if(!(c->medium = radio_medium(tm,bin))) return cmnty_free(c);
   if(!(c->pipe = pipe_new("tmesh"))) return cmnty_free(c);
   c->tm = tm;
-  c->next = tm->communities;
-  tm->communities = c;
+  c->next = tm->coms;
+  tm->coms = c;
 
   // set up pipe
   c->pipe->arg = c;
@@ -234,7 +234,7 @@ tmesh_t tmesh_loop(tmesh_t tm)
   if(!tm) return LOG("bad args");
 
   // process any packets into mesh_receive
-  for(c = tm->communities;c;c = c->next) 
+  for(c = tm->coms;c;c = c->next) 
     for(m=c->motes;m;m=m->next)
       while((packet = util_chunks_receive(m->chunks)))
         mesh_receive(tm->mesh, packet, c->pipe); // TODO associate mote for neighborhood
@@ -252,7 +252,7 @@ tmesh_t tmesh_prep(tmesh_t tm, uint64_t from)
 //  tm->tx = tm->rx = tm->any = NULL;
   
   // queue up any active knocks anywhere
-  for(c = tm->communities;c;c = c->next)
+  for(c = tm->coms;c;c = c->next)
   {
     // TODO check c->ping/echo for tm->any
     // check every mote
@@ -276,6 +276,7 @@ radio_t radio_device(radio_t device)
   {
     if(radio_devices[i]) continue;
     radio_devices[i] = device;
+    device->id = i;
     return device;
   }
   return NULL;
@@ -310,6 +311,12 @@ medium_t radio_medium(tmesh_t tm, uint8_t medium[6])
 // return the next hard-scheduled mote for this radio
 mote_t radio_next(radio_t device, tmesh_t tm)
 {
+  cmnty_t com;
+  if(!tm || !device) return LOG("bad args");
+  for(com=tm->coms;com;com=com->next)
+  {
+    if(com->medium->radio != device->id) continue;
+  }
   // find nearest tx
   //  check if any rx can come first
   // take first rx
