@@ -48,14 +48,14 @@ static cmnty_t cmnty_new(tmesh_t tm, char *medium, char *name, uint8_t motes)
   uint8_t bin[6];
   if(!tm || !motes || !name || !medium || strlen(medium) < 10) return LOG("bad args");
   if(base32_decode(medium,0,bin,6) != 6) return LOG("bad medium encoding: %s",medium);
-  if(!radio_energy(tm->mesh,bin)) return LOG("unknown medium %s",medium);
+  if(!radio_energy(tm,bin)) return LOG("unknown medium %s",medium);
 
   // note, do we need to be paranoid and make sure name is not a duplicate?
 
   if(!(c = malloc(sizeof (struct cmnty_struct)))) return LOG("OOM");
   memset(c,0,sizeof (struct cmnty_struct));
 
-  if(!(c->medium = radio_medium(tm->mesh,bin))) return cmnty_free(c);
+  if(!(c->medium = radio_medium(tm,bin))) return cmnty_free(c);
   if(!(c->pipe = pipe_new("tmesh"))) return cmnty_free(c);
   c->tm = tm;
   c->next = tm->communities;
@@ -242,7 +242,7 @@ tmesh_t tmesh_loop(tmesh_t tm)
   return tm;
 }
 
-tmesh_t tmesh_pre(tmesh_t tm)
+tmesh_t tmesh_prep(tmesh_t tm, uint64_t from)
 {
   cmnty_t c;
   mote_t m;
@@ -266,17 +266,6 @@ tmesh_t tmesh_pre(tmesh_t tm)
   return tm;
 }
 
-tmesh_t tmesh_post(tmesh_t tm, epoch_t e)
-{
-  if(!tm) return LOG("bad args");
-
-  // TODO process whatever e was
-  // if ping/echo, handle special cases directly here
-  
-  return tm;
-}
-
-
 // all devices
 radio_t radio_devices[RADIOS_MAX] = {0};
 
@@ -293,33 +282,33 @@ radio_t radio_device(radio_t device)
 }
 
 // validate medium by checking energy
-uint32_t radio_energy(mesh_t m, uint8_t medium[6])
+uint32_t radio_energy(tmesh_t tm, uint8_t medium[6])
 {
   int i;
   uint32_t energy;
   for(i=0;i<RADIOS_MAX && radio_devices[i];i++)
   {
-    if((energy = radio_devices[i]->energy(m, medium))) return energy;
+    if((energy = radio_devices[i]->energy(tm, medium))) return energy;
   }
   return 0;
 }
 
 // get the full medium
-medium_t radio_medium(mesh_t mesh, uint8_t medium[6])
+medium_t radio_medium(tmesh_t tm, uint8_t medium[6])
 {
   int i;
   medium_t m;
   // get the medium from a device
   for(i=0;i<RADIOS_MAX && radio_devices[i];i++)
   {
-    if((m = radio_devices[i]->get(mesh,medium))) return m;
+    if((m = radio_devices[i]->get(tm,medium))) return m;
   }
   return NULL;
 }
 
 
-// return the next hard-scheduled epoch from this given point in time
-epoch_t radio_next(radio_t device, tmesh_t tm, uint64_t from)
+// return the next hard-scheduled mote for this radio
+mote_t radio_next(radio_t device, tmesh_t tm)
 {
   // find nearest tx
   //  check if any rx can come first
@@ -327,4 +316,11 @@ epoch_t radio_next(radio_t device, tmesh_t tm, uint64_t from)
   //  check if current disco can fit first
   // pop off list and set active
   return NULL;
+}
+
+// signal once a frame has been sent/received for this mote
+void radio_done(radio_t device, tmesh_t tm, mote_t m)
+{
+  // TODO process whatever m was
+  // if ping/echo, handle special cases directly here
 }

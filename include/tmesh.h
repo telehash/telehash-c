@@ -3,17 +3,6 @@
 
 #include "mesh.h"
 
-/*
-- create mote_t
-- move knock_t into mote_t
- - best knock per mote
-- mote_t is instance in a community
-- each mote has one chunks
-- motes can be unlinked during handshaking/ping
-- mote is elected for scheduling
-- mote has list of epochs
-*/
-
 typedef struct tmesh_struct *tmesh_t;
 typedef struct cmnty_struct *cmnty_t;
 typedef struct epoch_struct *epoch_t;
@@ -65,6 +54,7 @@ struct tmesh_struct
   cmnty_t communities;
   lob_t pubim;
   uint8_t z; // our z-index
+  // TODO, add callback hooks for sorting/prioritizing energy usage
 };
 
 // create a new tmesh radio network bound to this mesh
@@ -148,10 +138,10 @@ mote_t radio_next(radio_t device, tmesh_t tm);
 void radio_done(radio_t device, tmesh_t tm, mote_t m);
 
 // validate medium by checking energy
-uint32_t radio_energy(mesh_t m, uint8_t medium[6]);
+uint32_t radio_energy(tmesh_t tm, uint8_t medium[6]);
 
 // get the full medium
-medium_t radio_medium(mesh_t m, uint8_t medium[6]);
+medium_t radio_medium(tmesh_t tm, uint8_t medium[6]);
 
 
 
