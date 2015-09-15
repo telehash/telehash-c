@@ -191,7 +191,8 @@ lob_t tmesh_on_open(link_t link, lob_t open)
 tmesh_t tmesh_new(mesh_t mesh, lob_t options)
 {
   tmesh_t tm;
-  
+  if(!mesh) return NULL;
+
   if(!(tm = malloc(sizeof (struct tmesh_struct)))) return LOG("OOM");
   memset(tm,0,sizeof (struct tmesh_struct));
 
@@ -206,9 +207,14 @@ tmesh_t tmesh_new(mesh_t mesh, lob_t options)
 
 void tmesh_free(tmesh_t tm)
 {
+  cmnty_t c, next;
   if(!tm) return;
-//  xht_free(tm->motes);
-//  lob_free(tm->path); // managed by mesh->paths
+  for(c=tm->coms;c;c=next)
+  {
+    next = c->next;
+    cmnty_free(c);
+  }
+  lob_free(tm->pubim);
   free(tm);
   return;
 }

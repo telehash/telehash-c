@@ -76,12 +76,13 @@ struct mote_struct
   link_t link; // when known
   epoch_t epochs; // sorted order
   mote_t next; // for lists
+  uint8_t ping; // anytime we transmit on this channel, reschedule the echo epoch
 
   // next knock state
   util_chunks_t chunks; // actual chunk encoding for r/w frame buffers
   epoch_t knock;
-  uint32_t kchan; // current channel (< med->chans)
   uint64_t kstart, kstop; // microsecond exact start/stop time
+  uint8_t kchan; // current channel (< med->chans)
   enum {ERR, READY, DONE} kstate:2; // knock handling
 
   uint8_t z;
