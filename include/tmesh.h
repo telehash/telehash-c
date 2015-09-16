@@ -64,9 +64,6 @@ void tmesh_free(tmesh_t tm);
 // process any full packets into the mesh 
 tmesh_t tmesh_loop(tmesh_t tm);
 
-// internal soft scheduling to prep for radio_next
-tmesh_t tmesh_prep(tmesh_t tm, uint64_t from);
-
 // 2^22
 #define EPOCH_WINDOW (uint64_t)4194304
 
@@ -145,6 +142,9 @@ extern radio_t radio_devices[]; // all of em
 
 // add/set a new device
 radio_t radio_device(radio_t device);
+
+// internal soft scheduling to prep for radio_next
+uint8_t radio_prep(radio_t device, tmesh_t tm, uint64_t from);
 
 // return the next hard-scheduled mote for this radio
 mote_t radio_next(radio_t device, tmesh_t tm);

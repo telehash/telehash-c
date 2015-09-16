@@ -76,7 +76,7 @@ static cmnty_t cmnty_new(tmesh_t tm, char *medium, char *name)
 // join a new private/public community
 cmnty_t tmesh_public(tmesh_t tm, char *medium, char *name)
 {
-  epoch_t ping;
+  epoch_t ping, echo;
   uint8_t roll[64];
   cmnty_t c = cmnty_new(tm,medium,name);
   if(!c) return LOG("bad args");
@@ -84,11 +84,16 @@ cmnty_t tmesh_public(tmesh_t tm, char *medium, char *name)
   
   if(!(c->sync = mote_new(NULL))) return cmnty_free(c);
   if(!(ping = c->sync->epochs = epoch_new(1))) return cmnty_free(c);
+  if(!(echo = ping->next = epoch_new(1))) return cmnty_free(c);
   ping->type = PING;
+  echo->type = ECHO;
   e3x_hash(c->medium->bin,6,roll);
   e3x_hash((uint8_t*)name,strlen(name),roll+32);
   e3x_hash(roll,64,ping->secret);
-  // TODO calc and set c->sync->ping
+
+  // cache ping channel for faster detection
+  mote_knock(c->sync,c->medium,0);
+  c->sync->ping = c->sync->kchan;
 
   // generate public intermediate keys packet
   if(!tm->pubim) tm->pubim = hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys));
@@ -112,6 +117,7 @@ cmnty_t tmesh_private(tmesh_t tm, char *medium, char *name)
 // add a link known to be in this community to look for
 mote_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link)
 {
+  uint8_t roll[64];
   mote_t m;
   if(!tm || !c || !link) return LOG("bad args");
 
@@ -124,6 +130,13 @@ mote_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link)
   m->next = c->motes;
   c->motes = m;
   
+  // generate mote-specific ping secret by combining community one with it
+  memcpy(roll,c->sync->epochs->secret,32);
+  memcpy(roll+32,link->id->bin,32);
+  e3x_hash(roll,64,m->epochs->secret);
+  mote_knock(m,c->medium,0);
+  m->ping = m->kchan;
+
   return m;
 }
 
@@ -258,30 +271,6 @@ tmesh_t tmesh_loop(tmesh_t tm)
   return tm;
 }
 
-tmesh_t tmesh_prep(tmesh_t tm, uint64_t from)
-{
-  cmnty_t c;
-  mote_t m;
-  if(!tm) return LOG("bad args");
-
-  // clean state
-//  tm->tx = tm->rx = tm->any = NULL;
-  
-  // queue up any active knocks anywhere
-  for(c = tm->coms;c;c = c->next)
-  {
-    // TODO check c->ping/echo for tm->any
-    // check every mote
-    for(m=c->motes;m;m=m->next)
-    {
-      // check for a chunk waiting and add to tx
-      // else add to rx
-    }
-  }
-
-  return tm;
-}
-
 // all devices
 radio_t radio_devices[RADIOS_MAX] = {0};
 
@@ -321,6 +310,27 @@ medium_t radio_medium(tmesh_t tm, uint8_t medium[6])
     if((m = radio_devices[i]->get(tm,medium))) return m;
   }
   return NULL;
+}
+
+uint8_t radio_prep(radio_t device, tmesh_t tm, uint64_t from)
+{
+  uint8_t ready = 0;
+  cmnty_t com;
+  mote_t mote;
+
+  for(com=tm->coms;com;com=com->next)
+  {
+    if(com->medium->radio != device->id) continue;
+    // TODO check c->sync ping/echo
+    // check every mote
+    for(mote=com->motes;mote;mote=mote->next)
+    {
+      mote_knock(mote,com->medium,from);
+      
+    }
+  }
+  
+  return ready;
 }
 
 
