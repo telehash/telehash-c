@@ -42,11 +42,11 @@ static cmnty_t cmnty_free(cmnty_t c)
 }
 
 // create a new blank community
-static cmnty_t cmnty_new(tmesh_t tm, char *medium, char *name, uint8_t motes)
+static cmnty_t cmnty_new(tmesh_t tm, char *medium, char *name)
 {
   cmnty_t c;
   uint8_t bin[6];
-  if(!tm || !motes || !name || !medium || strlen(medium) < 10) return LOG("bad args");
+  if(!tm || !name || !medium || strlen(medium) < 10) return LOG("bad args");
   if(base32_decode(medium,0,bin,6) != 6) return LOG("bad medium encoding: %s",medium);
   if(!radio_energy(tm,bin)) return LOG("unknown medium %s",medium);
 
@@ -76,9 +76,19 @@ static cmnty_t cmnty_new(tmesh_t tm, char *medium, char *name, uint8_t motes)
 // join a new private/public community
 cmnty_t tmesh_public(tmesh_t tm, char *medium, char *name)
 {
-  cmnty_t c = cmnty_new(tm,medium,name,NEIGHBORS_MAX);
+  epoch_t ping;
+  uint8_t roll[64];
+  cmnty_t c = cmnty_new(tm,medium,name);
   if(!c) return LOG("bad args");
   c->type = PUBLIC;
+  
+  if(!(c->sync = mote_new(NULL))) return cmnty_free(c);
+  if(!(ping = c->sync->epochs = epoch_new(1))) return cmnty_free(c);
+  ping->type = PING;
+  e3x_hash(c->medium->bin,6,roll);
+  e3x_hash((uint8_t*)name,strlen(name),roll+32);
+  e3x_hash(roll,64,ping->secret);
+  // TODO calc and set c->sync->ping
 
   // generate public intermediate keys packet
   if(!tm->pubim) tm->pubim = hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys));
@@ -88,7 +98,7 @@ cmnty_t tmesh_public(tmesh_t tm, char *medium, char *name)
 
 cmnty_t tmesh_private(tmesh_t tm, char *medium, char *name)
 {
-  cmnty_t c = cmnty_new(tm,medium,name,NEIGHBORS_MAX);
+  cmnty_t c = cmnty_new(tm,medium,name);
   if(!c) return LOG("bad args");
   c->type = PRIVATE;
   c->pipe->path = lob_new();
@@ -122,7 +132,7 @@ cmnty_t tmesh_direct(tmesh_t tm, link_t link, char *medium, uint64_t at)
 {
   cmnty_t c;
   if(!link) return LOG("bad args");
-  c = cmnty_new(tm,medium,link->id->hashname,1);
+  c = cmnty_new(tm,medium,link->id->hashname);
   if(!c) return LOG("bad args");
   c->type = DIRECT;
   return c;

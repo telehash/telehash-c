@@ -74,7 +74,7 @@ tmesh_t tmesh_prep(tmesh_t tm, uint64_t from);
 struct mote_struct
 {
   link_t link; // when known
-  epoch_t epochs; // sorted order
+  epoch_t epochs;
   mote_t next; // for lists
   uint8_t ping; // anytime we transmit on this channel, reschedule the echo epoch
 
