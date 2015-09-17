@@ -48,14 +48,14 @@ static cmnty_t cmnty_new(tmesh_t tm, char *medium, char *name)
   uint8_t bin[6];
   if(!tm || !name || !medium || strlen(medium) < 10) return LOG("bad args");
   if(base32_decode(medium,0,bin,6) != 6) return LOG("bad medium encoding: %s",medium);
-  if(!radio_energy(tm,bin)) return LOG("unknown medium %s",medium);
+  if(!medium_check(tm,bin)) return LOG("unknown medium %s",medium);
 
   // note, do we need to be paranoid and make sure name is not a duplicate?
 
   if(!(c = malloc(sizeof (struct cmnty_struct)))) return LOG("OOM");
   memset(c,0,sizeof (struct cmnty_struct));
 
-  if(!(c->medium = radio_medium(tm,bin))) return cmnty_free(c);
+  if(!(c->medium = medium_get(tm,bin))) return cmnty_free(c);
   if(!(c->pipe = pipe_new("tmesh"))) return cmnty_free(c);
   c->tm = tm;
   c->next = tm->coms;
@@ -274,6 +274,31 @@ tmesh_t tmesh_loop(tmesh_t tm)
 // all devices
 radio_t radio_devices[RADIOS_MAX] = {0};
 
+// validate medium by checking energy
+uint32_t medium_check(tmesh_t tm, uint8_t medium[6])
+{
+  int i;
+  uint32_t energy;
+  for(i=0;i<RADIOS_MAX && radio_devices[i];i++)
+  {
+    if((energy = radio_devices[i]->energy(tm, medium))) return energy;
+  }
+  return 0;
+}
+
+// get the full medium
+medium_t medium_get(tmesh_t tm, uint8_t medium[6])
+{
+  int i;
+  medium_t m;
+  // get the medium from a device
+  for(i=0;i<RADIOS_MAX && radio_devices[i];i++)
+  {
+    if((m = radio_devices[i]->get(tm,medium))) return m;
+  }
+  return NULL;
+}
+
 radio_t radio_device(radio_t device)
 {
   int i;
@@ -287,36 +312,11 @@ radio_t radio_device(radio_t device)
   return NULL;
 }
 
-// validate medium by checking energy
-uint32_t radio_energy(tmesh_t tm, uint8_t medium[6])
+radio_t radio_prep(radio_t device, tmesh_t tm, uint64_t from)
 {
-  int i;
-  uint32_t energy;
-  for(i=0;i<RADIOS_MAX && radio_devices[i];i++)
-  {
-    if((energy = radio_devices[i]->energy(tm, medium))) return energy;
-  }
-  return 0;
-}
-
-// get the full medium
-medium_t radio_medium(tmesh_t tm, uint8_t medium[6])
-{
-  int i;
-  medium_t m;
-  // get the medium from a device
-  for(i=0;i<RADIOS_MAX && radio_devices[i];i++)
-  {
-    if((m = radio_devices[i]->get(tm,medium))) return m;
-  }
-  return NULL;
-}
-
-uint8_t radio_prep(radio_t device, tmesh_t tm, uint64_t from)
-{
-  uint8_t ready = 0;
   cmnty_t com;
   mote_t mote;
+  if(!tm || !device) return LOG("bad args");
 
   for(com=tm->coms;com;com=com->next)
   {
@@ -330,30 +330,54 @@ uint8_t radio_prep(radio_t device, tmesh_t tm, uint64_t from)
     }
   }
   
-  return ready;
+  return device;
 }
 
 
 // return the next hard-scheduled mote for this radio
-mote_t radio_next(radio_t device, tmesh_t tm)
+mote_t radio_get(radio_t device, tmesh_t tm)
 {
   cmnty_t com;
   if(!tm || !device) return LOG("bad args");
+
   for(com=tm->coms;com;com=com->next)
   {
     if(com->medium->radio != device->id) continue;
+    // TX > RX
+    // LINK > PAIR > ECHO > PING
+    // keep best TX, take best RX that fits ahead
+    // mode to expand-fill RX for faster pairing
   }
-  // find nearest tx
-  //  check if any rx can come first
-  // take first rx
-  //  check if current disco can fit first
-  // pop off list and set active
   return NULL;
 }
 
 // signal once a frame has been sent/received for this mote
-void radio_done(radio_t device, tmesh_t tm, mote_t m)
+radio_t radio_done(radio_t device, tmesh_t tm, mote_t mote)
 {
-  // TODO process whatever m was
-  // if ping/echo, handle special cases directly here
+  if(mote->kstate == READY) return LOG("knock not done");
+  if(mote->kstate == SKIP) return device; // do nothing
+  
+  switch(mote->knock->type)
+  {
+    case PING:
+      // if RX generate echo TX
+      break;
+    case ECHO:
+      // if RX then create pair
+      break;
+    case PAIR:
+      break;
+    case LINK:
+      break;
+    default :
+      break;
+  }
+  
+  if(mote->knock->dir == TX)
+  {
+    // TODO check priv coms match device and ping->kchan
+    // set up echo RX
+  }
+  
+  return device;
 }

@@ -12,7 +12,7 @@ int main(int argc, char **argv)
   fail_unless(radio_device(&test_device));
 
   e3x_rand(bin,6);
-  medium_t medium = radio_medium(NULL,bin);
+  medium_t medium = medium_get(NULL,bin);
   fail_unless(medium);
 
   epoch_t e = epoch_new(0);
@@ -20,7 +20,7 @@ int main(int argc, char **argv)
 
   char mid[] = "fzjb5f4tn4";
   fail_unless(base32_decode(mid,0,bin,6));
-  fail_unless((medium = radio_medium(NULL,bin)));
+  fail_unless((medium = medium_get(NULL,bin)));
   
   fail_unless(epoch_base(e,0,0));
   fail_unless(e->base == 0);

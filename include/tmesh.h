@@ -19,6 +19,13 @@ struct medium_struct
   uint8_t radio:4; // radio device id based on radio_devices[]
 };
 
+// validate medium by checking energy
+uint32_t medium_check(tmesh_t tm, uint8_t medium[6]);
+
+// get the full medium
+medium_t medium_get(tmesh_t tm, uint8_t medium[6]);
+
+
 // community management
 struct cmnty_struct
 {
@@ -80,7 +87,7 @@ struct mote_struct
   epoch_t knock;
   uint64_t kstart, kstop; // microsecond exact start/stop time
   uint8_t kchan; // current channel (< med->chans)
-  enum {ERR, READY, DONE} kstate:2; // knock handling
+  enum {SKIP, READY, DONE} kstate:2; // knock handling
 
   uint8_t z;
 };
@@ -144,19 +151,13 @@ extern radio_t radio_devices[]; // all of em
 radio_t radio_device(radio_t device);
 
 // internal soft scheduling to prep for radio_next
-uint8_t radio_prep(radio_t device, tmesh_t tm, uint64_t from);
+radio_t radio_prep(radio_t device, tmesh_t tm, uint64_t from);
 
 // return the next hard-scheduled mote for this radio
-mote_t radio_next(radio_t device, tmesh_t tm);
+mote_t radio_get(radio_t device, tmesh_t tm);
 
 // signal once a frame has been sent/received for this mote
-void radio_done(radio_t device, tmesh_t tm, mote_t m);
-
-// validate medium by checking energy
-uint32_t radio_energy(tmesh_t tm, uint8_t medium[6]);
-
-// get the full medium
-medium_t radio_medium(tmesh_t tm, uint8_t medium[6]);
+radio_t radio_done(radio_t device, tmesh_t tm, mote_t m);
 
 
 
