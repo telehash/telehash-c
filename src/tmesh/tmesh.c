@@ -338,17 +338,30 @@ radio_t radio_prep(radio_t device, tmesh_t tm, uint64_t from)
 mote_t radio_get(radio_t device, tmesh_t tm)
 {
   cmnty_t com;
+  mote_t mote, tx, rx;
   if(!tm || !device) return LOG("bad args");
 
+  tx = rx = NULL;
   for(com=tm->coms;com;com=com->next)
   {
     if(com->medium->radio != device->id) continue;
-    // TX > RX
-    // LINK > PAIR > ECHO > PING
-    // keep best TX, take best RX that fits ahead
-    // mode to expand-fill RX for faster pairing
+    for(mote = com->motes;mote;mote = mote->next)
+    {
+      if(!mote->kstate == READY) continue;
+      // TX > RX
+      // LINK > PAIR > ECHO > PING
+      if(mote->knock->dir == TX)
+      {
+        if(!tx || tx->knock->type > mote->knock->type || tx->kstart < mote->kstart) tx = mote;
+      }else{
+        if(!rx || rx->knock->type > mote->knock->type || rx->kstart < mote->kstart) rx = mote;
+      }
+      
+    }
   }
-  return NULL;
+  // TODO keep best TX, take best RX that fits ahead
+  // mode to expand-fill RX for faster pairing or when powered
+  return tx?tx:rx;
 }
 
 // signal once a frame has been sent/received for this mote
