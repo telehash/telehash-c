@@ -37,9 +37,23 @@ int main(int argc, char **argv)
   fail_unless(m);
   fail_unless(m->link == link);
   fail_unless(m->epochs);
+  fail_unless(!m->knock);
+  fail_unless(m->kstate == SKIP);
   fail_unless(m == tmesh_link(netA, c, link));
-  
 
+  fail_unless(mote_knock(m, c->medium, 1));
+  fail_unless(m->knock);
+  fail_unless(m->kstate == READY);
+  LOG("%d %d %d",m->kstart,m->kstop,m->kchan);
+  fail_unless(m->kstart);
+  fail_unless(m->kstop == (m->kstart + 10));
+  fail_unless(m->kchan < 100);
+  uint8_t chan = m->kchan;
+  m->kchan = 101; // set to bad value to make sure prep resets it
+
+  fail_unless(radio_prep(&test_device, netA, 1));
+  fail_unless(m == radio_get(&test_device, netA));
+  fail_unless(m->kchan == chan);
 
   return 0;
 }

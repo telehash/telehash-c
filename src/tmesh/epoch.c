@@ -59,7 +59,6 @@ mote_t mote_knock(mote_t m, medium_t medium, uint64_t from)
   // get the best one
   for(e=m->epochs;e;e=e->next)
   {
-    if(!e->base) continue;
 
     // normalize nonce
     memset(nonce,0,8);
@@ -79,6 +78,8 @@ mote_t mote_knock(mote_t m, medium_t medium, uint64_t from)
       default :
         continue;
     }
+    if(!e->base) continue;
+
     lwin = util_sys_long(win);
     memcpy(nonce,&lwin,4);
   
