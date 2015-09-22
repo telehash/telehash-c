@@ -242,19 +242,6 @@ void tmesh_free(tmesh_t tm)
   return;
 }
 
-
-/* discussion on flow
-
-* my sync is a virtual mote that is constantly reset
-* each mote has it's own time sync base to derive window counters
-* any mote w/ a tx knock ready is priority
-* upon tx, my sync rx is reset
-* when no tx, the next rx is always scheduled
-* when no tx for some period of time, generate one on the sync epoch
-* when in discovery mode, it is a virtual mote that is always tx'ing if nothing else is
-
-*/
-
 tmesh_t tmesh_loop(tmesh_t tm)
 {
   cmnty_t c;

@@ -117,41 +117,7 @@ epoch_t epoch_base(epoch_t e, uint32_t window, uint64_t at)
   return e;
 }
 
-/*
-// reset active knock to next window, 0 cleans out, guarantees an e->knock or returns NULL
-epoch_t epoch_knock(epoch_t e, uint64_t at)
-{
-  knock_t k;
-  uint32_t win;
-  if(!e) return NULL;
-  
-  // free knock
-  if(!at)
-  {
-    if(!e->knock) return NULL;
-    if(e->knock->chunks) util_chunks_free(e->knock->chunks);
-    free(e->knock);
-    e->knock = NULL;
-    return NULL;
-  }
 
-  // init space for one
-  if(!e->knock)
-  {
-    if(!(k = malloc(sizeof(struct knock_struct)))) return LOG("OOM");
-    e->knock = k;
-    memset(k,0,sizeof (struct knock_struct));
-    if(!(k->chunks = util_chunks_new(64))) return epoch_knock(e,0);
-  }
-
-  // determine current window
-  if(at < e->base) at = e->base;
-  win = ((at - e->base) / EPOCH_WINDOW);
-
-  // initialize knock win/chan/start/stop
-  return epoch_window(e, win+1);
-}
-*/
 
 // array utilities
 epoch_t epochs_add(epoch_t es, epoch_t e)
