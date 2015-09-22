@@ -81,6 +81,7 @@ mote_t mote_knock(mote_t m, medium_t medium, uint64_t from)
     if(!e->base) continue;
 
     lwin = util_sys_long(win);
+    memset(nonce,0,8);
     memcpy(nonce,&lwin,4);
   
     // ciphertext the pad

@@ -139,8 +139,8 @@ typedef struct radio_struct
   // perform this knock right _now_
   uint8_t (*knock)(tmesh_t tm, medium_t m, uint8_t dir, uint8_t chan, uint8_t *frame);
   
-  // active frame buffer
-  uint8_t frame[64];
+  // active nonce (8) and frame buffer (64)
+  uint8_t frame[8+64];
 
 } *radio_t;
 

@@ -326,6 +326,7 @@ mote_t radio_get(radio_t device, tmesh_t tm)
 {
   cmnty_t com;
   mote_t mote, tx, rx;
+  uint32_t win, lwin;
   if(!tm || !device) return LOG("bad args");
 
   tx = rx = NULL;
@@ -346,9 +347,24 @@ mote_t radio_get(radio_t device, tmesh_t tm)
       
     }
   }
+
+  mote = tx?tx:rx;
+  if(!mote) return NULL;
+
   // TODO keep best TX, take best RX that fits ahead
   // mode to expand-fill RX for faster pairing or when powered
-  return tx?tx:rx;
+  
+  win = ((mote->kstart - mote->knock->base) / EPOCH_WINDOW);
+  lwin = util_sys_long(win);
+  memset(device->frame,0,8+64);
+  memcpy(device->frame,&lwin,4); // nonce area
+
+  // TODO copy in tx data
+
+  // ciphertext frame
+  chacha20(mote->knock->secret,device->frame,device->frame+8,64);
+
+  return mote;
 }
 
 // signal once a frame has been sent/received for this mote
