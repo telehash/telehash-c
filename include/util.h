@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "util_sys.h"
 #include "util_uri.h"
@@ -31,5 +32,9 @@ uint32_t util_since(uint64_t at); // get ms since the at
 
 // Use a constant time comparison function to avoid timing attacks
 int util_ct_memcmp(const void* s1, const void* s2, size_t n);
+
+// embedded may not have strdup but it's a kinda handy shortcut
+char *util_strdup(const char *str);
+#define strdup util_strdup
 
 #endif
