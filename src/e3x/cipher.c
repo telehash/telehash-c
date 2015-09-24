@@ -32,18 +32,15 @@ uint8_t e3x_cipher_init(lob_t options)
 e3x_cipher_t e3x_cipher_set(uint8_t csid, char *str)
 {
   uint8_t i;
+  
+  if(!csid && str && strlen(str) == 2) util_unhex(str,2,&csid);
 
   for(i=0; i<CS_MAX; i++)
   {
     if(!e3x_cipher_sets[i]) continue;
     if(e3x_cipher_sets[i]->csid == csid) return e3x_cipher_sets[i];
-    if(str)
-    {
-      // hex match
-      if(strcasecmp(e3x_cipher_sets[i]->hex,str) == 0) return e3x_cipher_sets[i];
-      // if they list alg's they support, match on that too
-      if(e3x_cipher_sets[i]->alg && strstr(e3x_cipher_sets[i]->alg,str)) return e3x_cipher_sets[i];
-    }
+    // if they list alg's they support, match on that too
+    if(str && e3x_cipher_sets[i]->alg && strstr(e3x_cipher_sets[i]->alg,str)) return e3x_cipher_sets[i];
   }
 
   return NULL;
