@@ -183,3 +183,16 @@ int util_ct_memcmp(const void* s1, const void* s2, size_t n)
 
     return x;
 }
+
+// embedded may not have strdup but it's a kinda handy shortcut
+char *util_strdup(const char *str)
+{
+  char *ret;
+  size_t len = 0;
+  if(str) len = strlen(str);
+  ret = malloc(len+1);
+  memcpy(ret,str,len);
+  ret[len] = 0;
+  return ret;
+}
+
