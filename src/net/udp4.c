@@ -98,10 +98,18 @@ net_udp4_t net_udp4_new(mesh_t mesh, lob_t options)
   sa.sin_family = AF_INET;
   sa.sin_port = htons(port);
   sa.sin_addr.s_addr = htonl(INADDR_ANY);
-  if (bind (sock, (struct sockaddr*)&sa, size) < 0) return LOG("bind failed %s",strerror(errno));
+  if (bind (sock, (struct sockaddr*)&sa, size) < 0)
+  {
+    close(sock);
+    return LOG("bind failed %s",strerror(errno));
+  }
   getsockname(sock, (struct sockaddr*)&sa, &size);
 
-  if(!(net = malloc(sizeof (struct net_udp4_struct)))) return LOG("OOM");
+  if(!(net = malloc(sizeof (struct net_udp4_struct))))
+  {
+    close(sock);
+    return LOG("OOM");
+  }
   memset(net,0,sizeof (struct net_udp4_struct));
   net->server = sock;
   net->port = ntohs(sa.sin_port);
