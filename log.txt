@@ -1,0 +1,205 @@
+src/mesh.c:39 mesh_new() mesh created version 3.0.14
+ext_peer.c:16: passed 1 tests
+src/e3x/self.c:39 e3x_self_new() self created with 1 csids
+src/mesh.c:78 mesh_load() mesh is jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq
+ext_peer.c:18: passed 2 tests
+ext_peer.c:19: passed 3 tests
+src/mesh.c:39 mesh_new() mesh created version 3.0.14
+ext_peer.c:22: passed 4 tests
+src/e3x/self.c:39 e3x_self_new() self created with 1 csids
+src/mesh.c:78 mesh_load() mesh is qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+ext_peer.c:24: passed 5 tests
+ext_peer.c:25: passed 6 tests
+src/link.c:31 link_new() adding link qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/link.c:132 link_load() adding 1a key to link qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/link.c:156 link_load() new session token 49c97b3d136673e9a929eb14f263f1aa to qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/link.c:187 link_pipe() adding pipe loopback
+src/link.c:384 link_sync() link sync at 1438894571
+src/net/loopback.c:8 pair_send() pair pipe from qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/mesh.c:376 mesh_receive() mesh receiving handshake to qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a via pipe loopback
+src/mesh.c:254 mesh_discover() running mesh discover with {"at":1438894571,"id":"03ef4a734c2a5b1ce9e5e29b7416360c","type":"link","csid":"1a","hashname":"jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq","keys":{"1a":"alq3nexrdc4vvcgjoyeaoxdgqrr6x3jvoy"}}
+src/link.c:31 link_new() adding link jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq
+src/link.c:132 link_load() adding 1a key to link jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq
+src/link.c:156 link_load() new session token 9c9271478e6478c25991305683ac6a63 to jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq
+src/link.c:187 link_pipe() adding pipe loopback
+src/link.c:384 link_sync() link sync at 1438894570
+src/net/loopback.c:8 pair_send() pair pipe from jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq
+src/mesh.c:376 mesh_receive() mesh receiving handshake to jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq via pipe loopback
+src/link.c:258 link_receive_handshake() old/bad at: {"at":1438894570 (1438894570,0,1438894571)
+src/link.c:384 link_sync() link sync at 1438894571
+src/net/loopback.c:8 pair_send() pair pipe from qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/mesh.c:376 mesh_receive() mesh receiving handshake to qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a via pipe loopback
+src/link.c:384 link_sync() link sync at 1438894571
+src/net/loopback.c:8 pair_send() pair pipe from jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq
+src/mesh.c:376 mesh_receive() mesh receiving handshake to jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq via pipe loopback
+src/link.c:277 link_receive_handshake() link ready
+src/link.c:277 link_receive_handshake() link ready
+ext_peer.c:28: passed 7 tests
+ext_peer.c:32: passed 8 tests
+ext_peer.c:33: passed 9 tests
+src/link.c:384 link_sync() link sync at 1438894573
+src/net/loopback.c:8 pair_send() pair pipe from qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/mesh.c:376 mesh_receive() mesh receiving handshake to qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a via pipe loopback
+src/link.c:384 link_sync() link sync at 1438894573
+src/net/loopback.c:8 pair_send() pair pipe from jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq
+src/mesh.c:376 mesh_receive() mesh receiving handshake to jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq via pipe loopback
+ext_peer.c:35: passed 10 tests
+src/link.c:384 link_sync() link sync at 1438894574
+src/net/loopback.c:8 pair_send() pair pipe from jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq
+src/mesh.c:376 mesh_receive() mesh receiving handshake to jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq via pipe loopback
+src/link.c:384 link_sync() link sync at 1438894574
+src/net/loopback.c:8 pair_send() pair pipe from qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/mesh.c:376 mesh_receive() mesh receiving handshake to qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a via pipe loopback
+ext_peer.c:36: passed 11 tests
+ext_peer.c:39: passed 12 tests
+src/ext/peer.c:97 peer_open_peer() incoming peer route request {"type":"peer","peer":"qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a","c":2}
+src/e3x/exchange.c:199 e3x_exchange_send() encrypting head 86 body 0
+src/net/loopback.c:8 pair_send() pair pipe from qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/mesh.c:376 mesh_receive() mesh receiving channel to qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a via pipe loopback
+src/e3x/exchange.c:189 e3x_exchange_receive() decrypted head 86 body 0
+src/mesh.c:425 mesh_receive() channel packet 88 bytes from jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq
+src/ext/peer.c:74 peer_open_connect() invalid peer request
+src/ext/peer.c:109 peer_open_peer() connect delivered to qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+ext_peer.c:44: passed 13 tests
+src/mesh.c:39 mesh_new() mesh created version 3.0.14
+ext_peer.c:48: passed 14 tests
+src/e3x/self.c:39 e3x_self_new() self created with 1 csids
+src/mesh.c:78 mesh_load() mesh is r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq
+ext_peer.c:50: passed 15 tests
+ext_peer.c:51: passed 16 tests
+src/link.c:31 link_new() adding link r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq
+src/link.c:132 link_load() adding 1a key to link r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq
+src/link.c:156 link_load() new session token e5ea1d1e6565ad81c8254ff2819ca497 to r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq
+src/link.c:187 link_pipe() adding pipe loopback
+src/link.c:384 link_sync() link sync at 1438894570
+src/net/loopback.c:8 pair_send() pair pipe from r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq
+src/mesh.c:376 mesh_receive() mesh receiving handshake to r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq via pipe loopback
+src/mesh.c:254 mesh_discover() running mesh discover with {"at":1438894570,"id":"02cb56383c806b5a41d1b8fb99447dee","type":"link","csid":"1a","hashname":"qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a","keys":{"1a":"alilfemb7xkeeisqjkmckabyjrllfzin3u"}}
+src/mesh.c:154 mesh_add() mesh add {"at":1438894570,"id":"02cb56383c806b5a41d1b8fb99447dee","type":"link","csid":"1a","hashname":"qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a","keys":{"1a":"alilfemb7xkeeisqjkmckabyjrllfzin3u"}}
+src/link.c:31 link_new() adding link qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/link.c:132 link_load() adding 1a key to link qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/link.c:156 link_load() new session token af4a7f41831a43e602e8856b8f26fa2c to qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/link.c:187 link_pipe() adding pipe loopback
+src/link.c:384 link_sync() link sync at 1438894571
+src/net/loopback.c:8 pair_send() pair pipe from qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/mesh.c:376 mesh_receive() mesh receiving handshake to qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a via pipe loopback
+src/link.c:384 link_sync() link sync at 1438894571
+src/net/loopback.c:8 pair_send() pair pipe from r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq
+src/mesh.c:376 mesh_receive() mesh receiving handshake to r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq via pipe loopback
+src/link.c:277 link_receive_handshake() link ready
+src/link.c:277 link_receive_handshake() link ready
+ext_peer.c:57: passed 17 tests
+ext_peer.c:61: passed 18 tests
+ext_peer.c:62: passed 19 tests
+src/link.c:384 link_sync() link sync at 1438894572
+src/net/loopback.c:8 pair_send() pair pipe from r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq
+src/mesh.c:376 mesh_receive() mesh receiving handshake to r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq via pipe loopback
+src/link.c:384 link_sync() link sync at 1438894572
+src/net/loopback.c:8 pair_send() pair pipe from qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/mesh.c:376 mesh_receive() mesh receiving handshake to qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a via pipe loopback
+ext_peer.c:64: passed 20 tests
+src/link.c:384 link_sync() link sync at 1438894573
+src/net/loopback.c:8 pair_send() pair pipe from qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/mesh.c:376 mesh_receive() mesh receiving handshake to qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a via pipe loopback
+src/link.c:384 link_sync() link sync at 1438894573
+src/net/loopback.c:8 pair_send() pair pipe from r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq
+src/mesh.c:376 mesh_receive() mesh receiving handshake to r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq via pipe loopback
+ext_peer.c:65: passed 21 tests
+ext_peer.c:68: passed 22 tests
+src/mesh.c:154 mesh_add() mesh add {"hashname":"r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq","keys":{"1a":"ap42x6z546rogivk6yswpffmytfhkxpozi"},"paths":[]}
+src/link.c:31 link_new() adding link r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq
+src/link.c:132 link_load() adding 1a key to link r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq
+src/link.c:156 link_load() new session token d04add5ff53ef39edbdeccff0bb34e5b to r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq
+ext_peer.c:72: passed 23 tests
+src/ext/peer.c:24 peer_send() peering via router qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/e3x/exchange.c:199 e3x_exchange_send() encrypting head 83 body 85
+src/net/loopback.c:8 pair_send() pair pipe from qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/mesh.c:376 mesh_receive() mesh receiving channel to qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a via pipe loopback
+src/e3x/exchange.c:189 e3x_exchange_receive() decrypted head 83 body 85
+src/mesh.c:425 mesh_receive() channel packet 170 bytes from jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq
+src/ext/peer.c:97 peer_open_peer() incoming peer route request {"type":"peer","peer":"r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq","c":3}
+src/e3x/exchange.c:199 e3x_exchange_send() encrypting head 86 body 85
+src/net/loopback.c:8 pair_send() pair pipe from r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq
+src/mesh.c:376 mesh_receive() mesh receiving channel to r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq via pipe loopback
+src/e3x/exchange.c:189 e3x_exchange_receive() decrypted head 86 body 85
+src/mesh.c:425 mesh_receive() channel packet 173 bytes from qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/ext/peer.c:78 peer_open_connect() incoming connect for r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq via qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/mesh.c:376 mesh_receive() mesh receiving handshake to r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq via pipe qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/mesh.c:254 mesh_discover() running mesh discover with {"at":1438894570,"id":"034c664368685118f11b900854475ec3","type":"link","csid":"1a","hashname":"jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq","keys":{"1a":"alq3nexrdc4vvcgjoyeaoxdgqrr6x3jvoy"}}
+src/mesh.c:154 mesh_add() mesh add {"at":1438894570,"id":"034c664368685118f11b900854475ec3","type":"link","csid":"1a","hashname":"jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq","keys":{"1a":"alq3nexrdc4vvcgjoyeaoxdgqrr6x3jvoy"}}
+src/link.c:31 link_new() adding link jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq
+src/link.c:132 link_load() adding 1a key to link jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq
+src/link.c:156 link_load() new session token 9f824837e2b309d34be06b030a381765 to jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq
+src/link.c:187 link_pipe() adding pipe qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/link.c:384 link_sync() link sync at 1438894571
+src/ext/peer.c:24 peer_send() peering via router qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/e3x/exchange.c:199 e3x_exchange_send() encrypting head 83 body 85
+src/net/loopback.c:8 pair_send() pair pipe from qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/mesh.c:376 mesh_receive() mesh receiving channel to qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a via pipe loopback
+src/e3x/exchange.c:189 e3x_exchange_receive() decrypted head 83 body 85
+src/mesh.c:425 mesh_receive() channel packet 170 bytes from r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq
+src/ext/peer.c:97 peer_open_peer() incoming peer route request {"type":"peer","peer":"jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq","c":1}
+src/e3x/exchange.c:199 e3x_exchange_send() encrypting head 86 body 85
+src/net/loopback.c:8 pair_send() pair pipe from jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq
+src/mesh.c:376 mesh_receive() mesh receiving channel to jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq via pipe loopback
+src/e3x/exchange.c:189 e3x_exchange_receive() decrypted head 86 body 85
+src/mesh.c:425 mesh_receive() channel packet 173 bytes from qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/ext/peer.c:78 peer_open_connect() incoming connect for jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq via qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/mesh.c:376 mesh_receive() mesh receiving handshake to jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq via pipe qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/link.c:187 link_pipe() adding pipe qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/link.c:384 link_sync() link sync at 1438894570
+src/ext/peer.c:24 peer_send() peering via router qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/e3x/exchange.c:199 e3x_exchange_send() encrypting head 83 body 85
+src/net/loopback.c:8 pair_send() pair pipe from qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/mesh.c:376 mesh_receive() mesh receiving channel to qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a via pipe loopback
+src/e3x/exchange.c:189 e3x_exchange_receive() decrypted head 83 body 85
+src/mesh.c:425 mesh_receive() channel packet 170 bytes from jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq
+src/ext/peer.c:97 peer_open_peer() incoming peer route request {"type":"peer","peer":"r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq","c":5}
+src/e3x/exchange.c:199 e3x_exchange_send() encrypting head 86 body 85
+src/net/loopback.c:8 pair_send() pair pipe from r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq
+src/mesh.c:376 mesh_receive() mesh receiving channel to r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq via pipe loopback
+src/e3x/exchange.c:189 e3x_exchange_receive() decrypted head 86 body 85
+src/mesh.c:425 mesh_receive() channel packet 173 bytes from qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/ext/peer.c:78 peer_open_connect() incoming connect for r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq via qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/mesh.c:376 mesh_receive() mesh receiving handshake to r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq via pipe qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/link.c:258 link_receive_handshake() old/bad at: {"at":1438894570 (1438894570,0,1438894571)
+src/link.c:384 link_sync() link sync at 1438894571
+src/ext/peer.c:24 peer_send() peering via router qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/e3x/exchange.c:199 e3x_exchange_send() encrypting head 83 body 85
+src/net/loopback.c:8 pair_send() pair pipe from qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/mesh.c:376 mesh_receive() mesh receiving channel to qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a via pipe loopback
+src/e3x/exchange.c:189 e3x_exchange_receive() decrypted head 83 body 85
+src/mesh.c:425 mesh_receive() channel packet 170 bytes from r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq
+src/ext/peer.c:97 peer_open_peer() incoming peer route request {"type":"peer","peer":"jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq","c":3}
+src/e3x/exchange.c:199 e3x_exchange_send() encrypting head 86 body 85
+src/net/loopback.c:8 pair_send() pair pipe from jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq
+src/mesh.c:376 mesh_receive() mesh receiving channel to jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq via pipe loopback
+src/e3x/exchange.c:189 e3x_exchange_receive() decrypted head 86 body 85
+src/mesh.c:425 mesh_receive() channel packet 173 bytes from qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/ext/peer.c:78 peer_open_connect() incoming connect for jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq via qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/mesh.c:376 mesh_receive() mesh receiving handshake to jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq via pipe qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/link.c:384 link_sync() link sync at 1438894571
+src/ext/peer.c:24 peer_send() peering via router qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/e3x/exchange.c:199 e3x_exchange_send() encrypting head 83 body 85
+src/net/loopback.c:8 pair_send() pair pipe from qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/mesh.c:376 mesh_receive() mesh receiving channel to qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a via pipe loopback
+src/e3x/exchange.c:189 e3x_exchange_receive() decrypted head 83 body 85
+src/mesh.c:425 mesh_receive() channel packet 170 bytes from jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq
+src/ext/peer.c:97 peer_open_peer() incoming peer route request {"type":"peer","peer":"r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq","c":7}
+src/e3x/exchange.c:199 e3x_exchange_send() encrypting head 86 body 85
+src/net/loopback.c:8 pair_send() pair pipe from r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq
+src/mesh.c:376 mesh_receive() mesh receiving channel to r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq via pipe loopback
+src/e3x/exchange.c:189 e3x_exchange_receive() decrypted head 86 body 85
+src/mesh.c:425 mesh_receive() channel packet 173 bytes from qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/ext/peer.c:78 peer_open_connect() incoming connect for r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq via qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/mesh.c:376 mesh_receive() mesh receiving handshake to r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq via pipe qmhzggayfnnwyhunbg6pp4rwirrkigchzccw3gky5yzrhcrfdx5a
+src/link.c:277 link_receive_handshake() link ready
+src/ext/peer.c:109 peer_open_peer() connect delivered to r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq
+src/ext/peer.c:109 peer_open_peer() connect delivered to jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq
+src/ext/peer.c:109 peer_open_peer() connect delivered to r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq
+src/link.c:384 link_sync() link sync at 1438894571
+src/link.c:277 link_receive_handshake() link ready
+src/ext/peer.c:109 peer_open_peer() connect delivered to jwg2mokvykgkjm5pjhedbwfnlawytfp7jrfbp7kcbkjmwwiaxggq
+src/ext/peer.c:109 peer_open_peer() connect delivered to r5yticbo6spypcw2jj45t7qbybkiv65qeoltez3gmc4zebtlwqyq
+ext_peer.c:78: passed 24 tests
+ext_peer.c:79 main() routed link connected

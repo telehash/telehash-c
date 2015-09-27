@@ -4,10 +4,14 @@
 
 int main(int argc, char **argv)
 {
-  mesh_t meshA = mesh_new(3);
-  fail_unless(meshA);
-  lob_t secretsA = mesh_generate(meshA);
-  fail_unless(secretsA);
+  lob_t id, options, json;
+  mesh_t meshA;
+  id = util_fjson("/Users/chrigel/.id.json");
+  if(!id) return -1;
+
+  meshA = mesh_new(0);
+  mesh_load(meshA,lob_get_json(id,"secrets"),lob_get_json(id,"keys"));
+  fail_unless(peer_enable(meshA));
 
   mesh_t meshB = mesh_new(3);
   fail_unless(meshB);

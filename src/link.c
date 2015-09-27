@@ -337,7 +337,7 @@ link_t link_receive(link_t link, lob_t inner, pipe_t pipe)
 link_t link_send(link_t link, lob_t outer)
 {
   pipe_t pipe;
-  
+
   if(!link) return LOG("bad args");
   if(!link->pipes || !(pipe = link->pipes->pipe)) return LOG("no network");
 
