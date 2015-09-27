@@ -687,12 +687,12 @@ lob_t lob_array(lob_t list)
   char *json;
   lob_t item, ret;
 
-  json = malloc(len);
+  if(!(json = malloc(len))) return LOG("OOM");
   sprintf(json,"[");
   for(item = list;item;item = lob_next(item))
   {
     len += item->head_len+1;
-    json = realloc(json, len);
+    if(!(json = util_reallocf(json, len))) return LOG("OOM");
     sprintf(json+strlen(json),"%.*s,",(int)item->head_len,item->head);
   }
   if(len == 3)
