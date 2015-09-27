@@ -141,7 +141,7 @@ lob_t util_chunks_receive(util_chunks_t chunks)
   {
     memcpy(append, chunks->reading+(at+1), chunks->reading[at]);
   }
-  ret = lob_decloak(buf,len);
+  ret = (chunks->cloak)?lob_decloak(buf,len):lob_parse(buf,len);
   free(buf);
   
   // advance the reading buffer the whole packet, shrink
