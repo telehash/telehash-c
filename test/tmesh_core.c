@@ -3,34 +3,8 @@
 #include "util_unix.h"
 #include "unit_test.h"
 
-uint32_t device_check(mesh_t mesh, uint8_t medium[6])
-{
-  return 1;
-}
-
-medium_t device_get(mesh_t mesh, uint8_t medium[6])
-{
-  medium_t m;
-  if(!(m = malloc(sizeof(struct medium_struct)))) return LOG("OOM");
-  memset(m,0,sizeof (struct medium_struct));
-  memcpy(m->bin,medium,6);
-  m->chans = 100;
-  m->min = 10;
-  m->max = 1000;
-  return m;
-}
-
-medium_t device_free(mesh_t mesh, medium_t m)
-{
-  return NULL;
-}
-
-static struct radio_struct test_device = {
-  device_check,
-  device_get,
-  device_free,
-  NULL
-};
+#include "./tmesh_device.c"
+extern struct radio_struct test_device;
 
 int main(int argc, char **argv)
 {
@@ -42,10 +16,11 @@ int main(int argc, char **argv)
   lob_t secretsA = mesh_generate(meshA);
   fail_unless(secretsA);
 
-  mesh_t meshB = mesh_new(3);
-  fail_unless(meshB);
-  lob_t secretsB = mesh_generate(meshB);
-  fail_unless(secretsB);
+  lob_t idB = e3x_generate();
+  hashname_t hnB = hashname_keys(lob_linked(idB));
+  fail_unless(hnB);
+  link_t link = link_get(meshA,hnB->hashname);
+  fail_unless(link);
   
   tmesh_t netA = tmesh_new(meshA, NULL);
   fail_unless(netA);
@@ -56,18 +31,29 @@ int main(int argc, char **argv)
   LOG("netA %.*s",c->pipe->path->head_len,c->pipe->path->head);
 
 
-//  fail_unless(tmesh_sync(netA, "fzjb5f4tn4"));
-//  fail_unless(netA->syncs);
-//  fail_unless(netA->syncs->busy == 5000);
-  
   fail_unless(!tmesh_public(netA, "kzdhpa5n6r", NULL));
-  fail_unless(tmesh_public(netA, "kzdhpa5n6r", ""));
-//  fail_unless(netA->disco);
-//  fail_unless(epochs_len(netA->disco) > 0);
-//  fail_unless(netA->dim);
-//  LOG("debug disco pkt %s",lob_json(netA->dim));
-  
+  fail_unless((c = tmesh_public(netA, "kzdhpa5n6r", "")));
+  mote_t m = tmesh_link(netA, c, link);
+  fail_unless(m);
+  fail_unless(m->link == link);
+  fail_unless(m->epochs);
+  fail_unless(!m->knock);
+  fail_unless(m->kstate == SKIP);
+  fail_unless(m == tmesh_link(netA, c, link));
 
+  fail_unless(mote_knock(m, c->medium, 1));
+  fail_unless(m->knock);
+  fail_unless(m->kstate == READY);
+  LOG("%d %d %d",m->kstart,m->kstop,m->kchan);
+  fail_unless(m->kstart);
+  fail_unless(m->kstop == (m->kstart + 10));
+  fail_unless(m->kchan < 100);
+  uint8_t chan = m->kchan;
+  m->kchan = 101; // set to bad value to make sure prep resets it
+
+  fail_unless(radio_prep(&test_device, netA, 1));
+  fail_unless(m == radio_get(&test_device, netA));
+  fail_unless(m->kchan == chan);
 
   return 0;
 }

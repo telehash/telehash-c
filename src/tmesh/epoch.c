@@ -6,54 +6,105 @@
 #include "tmesh.h"
 
 
-epoch_t epoch_new(mesh_t m, uint8_t medium[6])
+epoch_t epoch_new(uint8_t tx)
 {
   epoch_t e;
   
-  if(!medium) return NULL;
-
   if(!(e = malloc(sizeof(struct epoch_struct)))) return LOG("OOM");
   memset(e,0,sizeof (struct epoch_struct));
+  e->dir = (tx)?TX:RX;
 
-  if((e->medium = radio_medium(m, medium))) return e;
-
-  LOG("no device for this medium");
-  return epoch_free(e);
+  return e;
 }
 
 epoch_t epoch_free(epoch_t e)
 {
-  epoch_knock(e,0); // free's knock
-  // TODO medium driver free
   free(e);
   return NULL;
 }
 
-// set knock win/chan/start/stop
-epoch_t epoch_window(epoch_t e, uint32_t window)
+mote_t mote_new(link_t link)
+{
+  mote_t m;
+  
+  if(!(m = malloc(sizeof(struct mote_struct)))) return LOG("OOM");
+  memset(m,0,sizeof (struct mote_struct));
+  
+  if(!(m->chunks = util_chunks_new(64))) return mote_free(m);
+  m->link = link;
+
+  return m;
+}
+
+mote_t mote_free(mote_t m)
+{
+  if(!m) return NULL;
+  util_chunks_free(m->chunks);
+  free(m);
+  return NULL;
+}
+
+// set best knock win/chan/start/stop
+mote_t mote_knock(mote_t m, medium_t medium, uint64_t from)
 {
   uint8_t pad[8];
   uint8_t nonce[8];
-  uint64_t offset;
-  uint32_t win;
-  if(!e || !e->knock || !e->medium->chans) return LOG("bad args");
+  uint64_t offset, start, stop;
+  uint32_t win, lwin;
+  epoch_t e;
+  if(!m || !medium->chans) return LOG("bad args");
+
+  m->knock = NULL;
+
+  // get the best one
+  for(e=m->epochs;e;e=e->next)
+  {
+
+    // normalize nonce
+    memset(nonce,0,8);
+    switch(e->type)
+    {
+      case PING:
+        win = 0;
+        e->base = from; // is always now
+        break;
+      case ECHO:
+        win = 1;
+        break;
+      case PAIR:
+      case LINK:
+        win = ((from - e->base) / EPOCH_WINDOW);
+        break;
+      default :
+        continue;
+    }
+    if(!e->base) continue;
+
+    lwin = util_sys_long(win);
+    memset(nonce,0,8);
+    memcpy(nonce,&lwin,4);
   
-  // normalize nonce
-  memset(nonce,0,8);
-  win = util_sys_long(window);
-  memcpy(nonce,&win,4);
+    // ciphertext the pad
+    memset(pad,0,8);
+    chacha20(e->secret,nonce,pad,8);
+    
+    offset = util_sys_long((unsigned long)(pad[2])) % (EPOCH_WINDOW - medium->min);
+    start = e->base + (EPOCH_WINDOW*win) + offset;
+    stop = start + medium->min;
+    if(!m->knock || stop < m->kstop)
+    {
+      // rx never trumps tx
+      if(m->knock && m->knock->dir == TX && e->dir == RX) continue;
+      m->knock = e;
+      m->kchan = util_sys_short((unsigned short)(pad[0])) % medium->chans;
+      m->kstart = start;
+      m->kstop = stop;
+    }
+  }
   
-  // ciphertext the pad
-  memset(pad,0,8);
-  chacha20(e->secret,nonce,pad,8);
+  if(m->knock) m->kstate = READY;
   
-  e->knock->win = window;
-  e->knock->chan = util_sys_short((unsigned short)(pad[0])) % e->medium->chans;
-  offset = util_sys_long((unsigned long)(pad[2])) % (EPOCH_WINDOW - e->medium->min);
-  e->knock->start = e->base + (EPOCH_WINDOW*window) + offset;
-  e->knock->stop = e->knock->start + e->medium->min;
-  
-  return e;
+  return m;
 }
 
 // sync point for given window
@@ -67,40 +118,7 @@ epoch_t epoch_base(epoch_t e, uint32_t window, uint64_t at)
   return e;
 }
 
-// reset active knock to next window, 0 cleans out, guarantees an e->knock or returns NULL
-epoch_t epoch_knock(epoch_t e, uint64_t at)
-{
-  knock_t k;
-  uint32_t win;
-  if(!e) return NULL;
-  
-  // free knock
-  if(!at)
-  {
-    if(!e->knock) return NULL;
-    if(e->knock->chunks) util_chunks_free(e->knock->chunks);
-    free(e->knock);
-    e->knock = NULL;
-    return NULL;
-  }
 
-  // init space for one
-  if(!e->knock)
-  {
-    if(!(k = malloc(sizeof(struct knock_struct)))) return LOG("OOM");
-    e->knock = k;
-    k->epoch = e;
-    memset(k,0,sizeof (struct knock_struct));
-    if(!(k->chunks = util_chunks_new(64))) return epoch_knock(e,0);
-  }
-
-  // determine current window
-  if(at < e->base) at = e->base;
-  win = ((at - e->base) / EPOCH_WINDOW);
-
-  // initialize knock win/chan/start/stop
-  return epoch_window(e, win+1);
-}
 
 // array utilities
 epoch_t epochs_add(epoch_t es, epoch_t e)

@@ -6,7 +6,7 @@
 typedef struct tmesh_struct *tmesh_t;
 typedef struct cmnty_struct *cmnty_t;
 typedef struct epoch_struct *epoch_t;
-typedef struct knock_struct *knock_t;
+typedef struct mote_struct *mote_t;
 typedef struct medium_struct *medium_t;
 
 // medium management w/ device driver
@@ -18,17 +18,25 @@ struct medium_struct
   uint8_t chans; // number of total channels, set by driver
   uint8_t radio:4; // radio device id based on radio_devices[]
 };
+
+// validate medium by checking energy
+uint32_t medium_check(tmesh_t tm, uint8_t medium[6]);
+
+// get the full medium
+medium_t medium_get(tmesh_t tm, uint8_t medium[6]);
+
+
 // community management
 struct cmnty_struct
 {
   tmesh_t tm;
   char *name;
   medium_t medium;
-  epoch_t ping;
-  link_t *links;
-  epoch_t *epochs;
-  pipe_t pipe;
+  mote_t sync; // ping+echo, only pub/priv
+  mote_t motes; 
+  pipe_t pipe; // one pipe per community as it's shared performance
   struct cmnty_struct *next;
+  uint8_t max;
   enum {NONE, PUBLIC, PRIVATE, DIRECT} type:2;
 };
 
@@ -40,7 +48,7 @@ cmnty_t tmesh_public(tmesh_t tm, char *medium, char *name);
 cmnty_t tmesh_private(tmesh_t tm, char *medium, char *name);
 
 // add a link known to be in this community to look for
-cmnty_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link);
+mote_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link);
 
 // attempt to establish a direct connection
 cmnty_t tmesh_direct(tmesh_t tm, link_t link, char *medium, uint64_t at);
@@ -50,10 +58,10 @@ cmnty_t tmesh_direct(tmesh_t tm, link_t link, char *medium, uint64_t at);
 struct tmesh_struct
 {
   mesh_t mesh;
-  cmnty_t communities;
+  cmnty_t coms;
   lob_t pubim;
   uint8_t z; // our z-index
-  knock_t tx, rx, any; // soft scheduled
+  // TODO, add callback hooks for sorting/prioritizing energy usage
 };
 
 // create a new tmesh radio network bound to this mesh
@@ -63,54 +71,49 @@ void tmesh_free(tmesh_t tm);
 // process any full packets into the mesh 
 tmesh_t tmesh_loop(tmesh_t tm);
 
-// internal soft scheduling to prep for radio_next
-tmesh_t tmesh_pre(tmesh_t tm);
-
-// radio is done, process the epoch
-tmesh_t tmesh_post(tmesh_t tm, epoch_t e);
-
-
 // 2^22
 #define EPOCH_WINDOW (uint64_t)4194304
 
-// knock state holder when sending/receiving
-struct knock_struct
+// mote state tracking
+struct mote_struct
 {
-  knock_t next; // for temporary lists
-  epoch_t epoch; // so knocks can be passed around directly
-  uint32_t win; // current window id
-  uint32_t chan; // current channel (< med->chans)
-  uint64_t start, stop; // microsecond exact start/stop time
-  util_chunks_t chunks; // actual chunk encoding
-  uint8_t len:7; // <= 64
-  enum {TX, RX} dir:1;
-  enum {ERR, READY, DONE} state:2;
+  link_t link; // when known
+  epoch_t epochs;
+  mote_t next; // for lists
+  uint8_t ping; // anytime we transmit on this channel, reschedule the echo epoch
+
+  // next knock state
+  util_chunks_t chunks; // actual chunk encoding for r/w frame buffers
+  epoch_t knock;
+  uint64_t kstart, kstop; // microsecond exact start/stop time
+  uint8_t kchan; // current channel (< med->chans)
+  enum {SKIP, READY, DONE} kstate:2; // knock handling
+
+  uint8_t z;
 };
 
-// individual epoch+medium state data, goal to keep <64b each on 32bit
+mote_t mote_new(link_t link);
+mote_t mote_free(mote_t m);
+
+// set best knock win/chan/start/stop
+mote_t mote_knock(mote_t m, medium_t medium, uint64_t from);
+
+// individual epoch state data
 struct epoch_struct
 {
   uint8_t secret[32];
   uint64_t base; // microsecond of window 0 start
-  knock_t knock; // only exists when active
   epoch_t next; // for epochs_* list utils
-  medium_t medium;
-  cmnty_t community; // which community the epoch belongs to
+  enum {TX, RX} dir:1;
   enum {RESET, PING, ECHO, PAIR, LINK} type:4;
 
 };
 
-epoch_t epoch_new(mesh_t m, uint8_t medium[6]);
+epoch_t epoch_new(uint8_t tx);
 epoch_t epoch_free(epoch_t e);
 
 // sync point for given window
 epoch_t epoch_base(epoch_t e, uint32_t window, uint64_t at);
-
-// set knock chan/start/stop to given window
-epoch_t epoch_window(epoch_t e, uint32_t window);
-
-// reset active knock to next window, 0 cleans out, guarantees an e->knock or returns NULL
-epoch_t epoch_knock(epoch_t e, uint64_t at);
 
 // simple array utilities
 epoch_t epochs_add(epoch_t es, epoch_t e);
@@ -122,18 +125,22 @@ epoch_t epochs_free(epoch_t es);
 // radio devices are single task responsible for all the epochs in one or more mediums
 typedef struct radio_struct
 {
+  uint8_t id;
+
   // return energy cost, or 0 if unknown medium, use for pre-validation/estimation
-  uint32_t (*energy)(mesh_t mesh, uint8_t medium[6]);
+  uint32_t (*energy)(tmesh_t tm, uint8_t medium[6]);
 
   // initialize/get any medium scheduling time/cost and channels
-  medium_t (*get)(mesh_t mesh, uint8_t medium[6]);
+  medium_t (*get)(tmesh_t tm, uint8_t medium[6]);
 
   // when a medium isn't used anymore, let the radio free it
-  medium_t (*free)(mesh_t mesh, medium_t m);
+  medium_t (*free)(tmesh_t tm, medium_t m);
 
-  // perform this epoch's knock right now
-  epoch_t (*knock)(mesh_t mesh, epoch_t e);
+  // perform this knock right _now_
+  uint8_t (*knock)(tmesh_t tm, medium_t m, uint8_t dir, uint8_t chan, uint8_t *frame);
   
+  // active nonce (8) and frame buffer (64)
+  uint8_t frame[8+64];
 
 } *radio_t;
 
@@ -143,14 +150,14 @@ extern radio_t radio_devices[]; // all of em
 // add/set a new device
 radio_t radio_device(radio_t device);
 
-// return the next hard-scheduled knock from this given point in time for this radio
-epoch_t radio_next(radio_t device, tmesh_t tm, uint64_t from);
+// internal soft scheduling to prep for radio_next
+radio_t radio_prep(radio_t device, tmesh_t tm, uint64_t from);
 
-// validate medium by checking energy
-uint32_t radio_energy(mesh_t m, uint8_t medium[6]);
+// return the next hard-scheduled mote for this radio
+mote_t radio_get(radio_t device, tmesh_t tm);
 
-// get the full medium
-medium_t radio_medium(mesh_t m, uint8_t medium[6]);
+// signal once a frame has been sent/received for this mote
+radio_t radio_done(radio_t device, tmesh_t tm, mote_t m);
 
 
 
