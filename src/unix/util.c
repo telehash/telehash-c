@@ -54,6 +54,8 @@ mesh_t util_links(mesh_t mesh, char *file)
 
   // TODO iterate and link
 
+  lob_free(links);
+
   return mesh;
 }
 
