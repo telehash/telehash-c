@@ -128,6 +128,7 @@ uint8_t *lob_head(lob_t p, uint8_t *head, size_t len)
   memmove(p->body,p->raw+(2+p->head_len),p->body_len);
   // copy in new head
   if(head) memcpy(p->head,head,len);
+  else memset(p->head,0,len); // helps with debugging
   p->head_len = len;
   nlen = util_sys_short((uint16_t)len);
   memcpy(p->raw,&nlen,2);
@@ -145,6 +146,7 @@ uint8_t *lob_body(lob_t p, uint8_t *body, size_t len)
   p->head = p->raw+2;
   p->body = p->raw+(2+p->head_len);
   if(body) memcpy(p->body,body,len); // allows lob_body(p,NULL,100) to allocate space
+  else memset(p->body,0,len); // helps with debugging
   p->body_len = len;
   return p->body;
 }
