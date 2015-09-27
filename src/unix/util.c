@@ -21,9 +21,17 @@ lob_t util_fjson(char *file)
   
   fd = fopen(file,"rb");
   if(!fd) return LOG("fopen error %s: %s",file,strerror(errno));
-  if(fstat(fileno(fd),&fs) < 0) return LOG("fstat error %s: %s",file,strerror(errno));
+  if(fstat(fileno(fd),&fs) < 0)
+  {
+    fclose(fd);
+    return LOG("fstat error %s: %s",file,strerror(errno));
+  }
   
-  if(!(buf = malloc((size_t)fs.st_size))) return LOG("OOM");
+  if(!(buf = malloc((size_t)fs.st_size)))
+  {
+    fclose(fd);
+    return LOG("OOM");
+  }
   len = fread(buf,1,(size_t)fs.st_size,fd);
   fclose(fd);
   if(len != (size_t)fs.st_size)
