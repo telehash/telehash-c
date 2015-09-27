@@ -236,8 +236,10 @@ lob_t lob_set_printf(lob_t p, char *key, const char *format, ...)
   if((val = malloc(len))) vsprintf(val, format, ap);
   va_end(ap);
   va_end(cp);
+  if(!val) return NULL;
 
   lob_set(p, key, val);
+  free(val);
   return p;
 }
 
