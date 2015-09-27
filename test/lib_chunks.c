@@ -140,6 +140,42 @@ int main(int argc, char **argv)
   util_chunks_free(c1);
   util_chunks_free(c2);
 
+  // reproduce a gc bug
+  util_chunks_t c3 = util_chunks_new(32);
+  lob_t blob = lob_new();
+  lob_body(blob,NULL,50);
+  for(int i=0;i<10;i++)
+  {
+    fail_unless(util_chunks_send(c3,blob));
+    len = 1;
+    fail_unless(util_chunks_out(c3,&len));
+    fail_unless(len == 32);
+    fail_unless(util_chunks_out(c3,&len) == NULL); // blocked
+    fail_unless(len == 0);
+    fail_unless(util_chunks_next(c3)); // unblock
+    fail_unless(util_chunks_out(c3,&len));
+    fail_unless(len == ((52-32)+3));
+    fail_unless(util_chunks_next(c3)); // unblock
+    fail_unless(util_chunks_out(c3,&len) == NULL);
+    fail_unless(len == 0);
+  }
+
+  fail_unless(util_chunks_send(c3,blob));
+  len = 1;
+  fail_unless(util_chunks_out(c3,&len));
+  fail_unless(len == 32);
+  fail_unless(util_chunks_out(c3,&len) == NULL); // blocked
+  fail_unless(len == 0);
+  fail_unless(util_chunks_next(c3)); // unblock
+  fail_unless(util_chunks_out(c3,&len));
+  fail_unless(len == ((52-32)+3));
+  fail_unless(util_chunks_send(c3,blob));
+  fail_unless(util_chunks_next(c3)); // unblock
+  fail_unless(util_chunks_out(c3,&len));
+  fail_unless(len == 32);
+  fail_unless(util_chunks_out(c3,&len) == NULL);
+  fail_unless(len == 0);
+  
   return 0;
 }
 
