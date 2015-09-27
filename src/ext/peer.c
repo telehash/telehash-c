@@ -156,7 +156,7 @@ link_t peer_connect(link_t peer, link_t router)
   if(!peer || !router) return LOG("bad args");
 
   // get router pipe and handshakes
-  if(!(handshakes = link_handshakes(peer)) || !(pipe = peer_pipe(peer->mesh, router->id->hashname))) return LOG("internal error");
+  if(!(pipe = peer_pipe(peer->mesh, router->id->hashname)) || !(handshakes = link_handshakes(peer))) return LOG("internal error");
   
   // loop through and send each one in a peer request through the router
   for(hs = handshakes; hs; hs = handshakes)
