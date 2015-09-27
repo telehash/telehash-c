@@ -234,7 +234,11 @@ void net_tcp4_accept(net_tcp4_t net)
   while((client = accept(net->server, (struct sockaddr *)&addr,&size)) > 0)
   {
     fcntl(client, F_SETFL, O_NONBLOCK);
-    if(!(pipe = tcp4_pipe(net, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port)))) continue;
+    if(!(pipe = tcp4_pipe(net, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port))))
+    {
+      close(client);
+      continue;
+    }
     LOG("incoming connection from %s",pipe->id);
     to = (pipe_tcp4_t)pipe->arg;
     if(to->client > 0) close(to->client);
