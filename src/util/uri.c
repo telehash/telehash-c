@@ -210,11 +210,11 @@ lob_t util_uri_add_path(lob_t uri, lob_t path)
   if(!uri || !path) return NULL;
   if(!query)
   {
-    query = lob_new();
+    if(!(query = lob_new())) return LOG("OOM");
     lob_link(uri, query);
   }
   // encode and add to chain after query
-  keys = lob_new();
+  if(!(keys = lob_new())) return LOG("OOM");
   lob_set_base32(keys,"paths",path->head,path->head_len);
   lob_link(keys, lob_linked(query));
   lob_link(query, keys);
