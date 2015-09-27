@@ -143,7 +143,6 @@ void *util_reallocf(void *ptr, size_t size)
   }
   ra = realloc(ptr,size);
   if(ra) return ra;
-  memset(ra,0,size); // abz
   free(ptr);
   return NULL;
 }
