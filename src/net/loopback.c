@@ -7,7 +7,8 @@ void pair_send(pipe_t pipe, lob_t packet, link_t link)
   if(!pair || !packet || !link) return;
   LOG("pair pipe from %s",link->id->hashname);
   if(link->mesh == pair->a) mesh_receive(pair->b,packet,pipe);
-  if(link->mesh == pair->b) mesh_receive(pair->a,packet,pipe);
+  else if(link->mesh == pair->b) mesh_receive(pair->a,packet,pipe);
+  else lob_free(packet);
 }
 
 net_loopback_t net_loopback_new(mesh_t a, mesh_t b)
