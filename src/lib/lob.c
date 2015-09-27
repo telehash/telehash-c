@@ -297,6 +297,7 @@ lob_t lob_set_base32(lob_t p, char *key, uint8_t *bin, size_t blen)
   base32_encode(bin, blen, val+1,vlen+1);
   val[vlen+1] = '"';
   lob_set_raw(p,key,0,val,vlen+2);
+  free(val);
   return p;
 }
 
