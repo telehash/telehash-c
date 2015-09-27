@@ -17,9 +17,13 @@ net_loopback_t net_loopback_new(mesh_t a, mesh_t b)
 
   if(!(pair = malloc(sizeof (struct net_loopback_struct)))) return LOG("OOM");
   memset(pair,0,sizeof (struct net_loopback_struct));
+  if(!(pair->pipe = pipe_new("pair")))
+  {
+    free(pair);
+    return LOG("OOM");
+  }
   pair->a = a;
   pair->b = b;
-  pair->pipe = pipe_new("pair");
   pair->pipe->id = strdup("loopback");
   pair->pipe->arg = pair;
   pair->pipe->send = pair_send;
