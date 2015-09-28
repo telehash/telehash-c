@@ -185,13 +185,25 @@ net_tcp4_t net_tcp4_new(mesh_t mesh, lob_t options)
   sa.sin_family = AF_INET;
   sa.sin_port = htons(port);
   sa.sin_addr.s_addr = htonl(INADDR_ANY);
-  if(bind(sock, (struct sockaddr*)&sa, size) < 0) return LOG("bind failed %s",strerror(errno));
+  if(bind(sock, (struct sockaddr*)&sa, size) < 0)
+  {
+    close(sock);
+    return LOG("bind failed %s",strerror(errno));
+  }
   getsockname(sock, (struct sockaddr*)&sa, &size);
-  if(listen(sock, 10) < 0) return LOG("listen failed %s",strerror(errno));
+  if(listen(sock, 10) < 0)
+  {
+    close(sock);
+    return LOG("listen failed %s",strerror(errno));
+  }
   setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (const void *)&opt , sizeof(int));
   fcntl(sock, F_SETFL, O_NONBLOCK);
 
-  if(!(net = malloc(sizeof (struct net_tcp4_struct)))) return LOG("OOM");
+  if(!(net = malloc(sizeof (struct net_tcp4_struct))))
+  {
+    close(sock);
+    return LOG("OOM");
+  }
   memset(net,0,sizeof (struct net_tcp4_struct));
   net->server = sock;
   net->port = ntohs(sa.sin_port);
@@ -234,7 +246,11 @@ void net_tcp4_accept(net_tcp4_t net)
   while((client = accept(net->server, (struct sockaddr *)&addr,&size)) > 0)
   {
     fcntl(client, F_SETFL, O_NONBLOCK);
-    if(!(pipe = tcp4_pipe(net, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port)))) continue;
+    if(!(pipe = tcp4_pipe(net, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port))))
+    {
+      close(client);
+      continue;
+    }
     LOG("incoming connection from %s",pipe->id);
     to = (pipe_tcp4_t)pipe->arg;
     if(to->client > 0) close(to->client);

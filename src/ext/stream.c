@@ -6,7 +6,7 @@ void stream_chan_handler(link_t link, e3x_channel_t chan, void *arg)
   lob_t status, open, packet;
   if(!link) return;
 
-  open = e3x_channel_open(chan);
+  if(!(open = e3x_channel_open(chan))) return; // paranoid
   while((packet = e3x_channel_receiving(chan)))
   {
     lob_free(lob_unlink(open));

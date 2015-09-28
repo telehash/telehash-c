@@ -21,9 +21,17 @@ lob_t util_fjson(char *file)
   
   fd = fopen(file,"rb");
   if(!fd) return LOG("fopen error %s: %s",file,strerror(errno));
-  if(fstat(fileno(fd),&fs) < 0) return LOG("fstat error %s: %s",file,strerror(errno));
+  if(fstat(fileno(fd),&fs) < 0)
+  {
+    fclose(fd);
+    return LOG("fstat error %s: %s",file,strerror(errno));
+  }
   
-  buf = malloc((size_t)fs.st_size);
+  if(!(buf = malloc((size_t)fs.st_size)))
+  {
+    fclose(fd);
+    return LOG("OOM");
+  }
   len = fread(buf,1,(size_t)fs.st_size,fd);
   fclose(fd);
   if(len != (size_t)fs.st_size)
@@ -34,6 +42,7 @@ lob_t util_fjson(char *file)
   
   p = lob_new();
   lob_head(p, buf, len);
+  free(buf);
   if(!p) return LOG("json failed %s parsing %.*s",file,len,buf);
   return p;
 }
@@ -44,6 +53,8 @@ mesh_t util_links(mesh_t mesh, char *file)
   if(!links) return NULL;
 
   // TODO iterate and link
+
+  lob_free(links);
 
   return mesh;
 }
