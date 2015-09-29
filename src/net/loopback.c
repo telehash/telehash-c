@@ -7,7 +7,8 @@ void pair_send(pipe_t pipe, lob_t packet, link_t link)
   if(!pair || !packet || !link) return;
   LOG("pair pipe from %s",link->id->hashname);
   if(link->mesh == pair->a) mesh_receive(pair->b,packet,pipe);
-  if(link->mesh == pair->b) mesh_receive(pair->a,packet,pipe);
+  else if(link->mesh == pair->b) mesh_receive(pair->a,packet,pipe);
+  else lob_free(packet);
 }
 
 net_loopback_t net_loopback_new(mesh_t a, mesh_t b)
@@ -16,9 +17,13 @@ net_loopback_t net_loopback_new(mesh_t a, mesh_t b)
 
   if(!(pair = malloc(sizeof (struct net_loopback_struct)))) return LOG("OOM");
   memset(pair,0,sizeof (struct net_loopback_struct));
+  if(!(pair->pipe = pipe_new("pair")))
+  {
+    free(pair);
+    return LOG("OOM");
+  }
   pair->a = a;
   pair->b = b;
-  pair->pipe = pipe_new("pair");
   pair->pipe->id = strdup("loopback");
   pair->pipe->arg = pair;
   pair->pipe->send = pair_send;

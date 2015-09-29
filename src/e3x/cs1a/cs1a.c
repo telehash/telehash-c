@@ -355,7 +355,11 @@ ephemeral_t ephemeral_new(remote_t remote, lob_t outer)
 
   // decompress the exchange key and get the shared secret
   uECC_decompress(outer->body,ekey);
-  if(!uECC_shared_secret(ekey, remote->esecret, shared)) return LOG("ECDH failed");
+  if(!uECC_shared_secret(ekey, remote->esecret, shared))
+  {
+    ephemeral_free(ephem);
+    return LOG("ECDH failed");
+  }
 
   // combine inputs to create the digest
   memcpy(shared+uECC_BYTES,remote->ecomp,uECC_BYTES+1);

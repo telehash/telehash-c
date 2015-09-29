@@ -236,8 +236,10 @@ lob_t lob_set_printf(lob_t p, char *key, const char *format, ...)
   if((val = malloc(len))) vsprintf(val, format, ap);
   va_end(ap);
   va_end(cp);
+  if(!val) return NULL;
 
   lob_set(p, key, val);
+  free(val);
   return p;
 }
 
@@ -295,6 +297,7 @@ lob_t lob_set_base32(lob_t p, char *key, uint8_t *bin, size_t blen)
   base32_encode(bin, blen, val+1,vlen+1);
   val[vlen+1] = '"';
   lob_set_raw(p,key,0,val,vlen+2);
+  free(val);
   return p;
 }
 
@@ -687,12 +690,12 @@ lob_t lob_array(lob_t list)
   char *json;
   lob_t item, ret;
 
-  json = malloc(len);
+  if(!(json = malloc(len))) return LOG("OOM");
   sprintf(json,"[");
   for(item = list;item;item = lob_next(item))
   {
     len += item->head_len+1;
-    json = realloc(json, len);
+    if(!(json = util_reallocf(json, len))) return LOG("OOM");
     sprintf(json+strlen(json),"%.*s,",(int)item->head_len,item->head);
   }
   if(len == 3)

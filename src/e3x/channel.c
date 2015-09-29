@@ -264,7 +264,7 @@ lob_t e3x_channel_receiving(e3x_channel_t c)
 lob_t e3x_channel_oob(e3x_channel_t c)
 {
   lob_t ret, cur;
-  char *miss;
+  char *miss = NULL;
   uint32_t seq, last, delta;
   size_t len;
   if(!c) return NULL;
@@ -301,13 +301,13 @@ lob_t e3x_channel_oob(e3x_channel_t c)
         delta = seq - last;
         last = seq;
         len += (size_t)snprintf(NULL, 0, "%u,", delta) + 1;
-        if(!(miss = realloc(miss, len))) return lob_free(ret);
+        if(!(miss = util_reallocf(miss, len))) return lob_free(ret);
         sprintf(miss+strlen(miss),"%u,", delta);
       }
       // add current window at the end
       delta = 100; // TODO calculate this from actual space avail
       len += (size_t)snprintf(NULL, 0, "%u]", delta) + 1;
-      if(!(miss = realloc(miss, len))) return lob_free(ret);
+      if(!(miss = util_reallocf(miss, len))) return lob_free(ret);
       sprintf(miss+strlen(miss),"%u]", delta);
       lob_set_raw(ret,"miss",4,miss,strlen(miss));
     }
@@ -315,6 +315,7 @@ lob_t e3x_channel_oob(e3x_channel_t c)
     c->acked = c->ack;
   }
   
+  free(miss);
   return ret;
 }
 

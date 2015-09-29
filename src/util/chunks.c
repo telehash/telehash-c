@@ -72,7 +72,8 @@ util_chunks_t _util_chunks_gc(util_chunks_t chunks)
   chunks->writelen -= len;
   chunks->writeat -= len;
   memmove(chunks->writing,chunks->writing+len,chunks->writelen);
-  chunks->writing = util_reallocf(chunks->writing, chunks->writelen);
+  // this is a premature optimization that is triggering a bug somehow
+//  chunks->writing = util_reallocf(chunks->writing, chunks->writelen);
 
   // tail recurse to eat any more chunks
   return _util_chunks_gc(chunks);
