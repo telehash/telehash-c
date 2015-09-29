@@ -144,7 +144,8 @@ int main(int argc, char **argv)
   util_chunks_t c3 = util_chunks_new(32);
   lob_t blob = lob_new();
   lob_body(blob,NULL,50);
-  for(int i=0;i<10;i++)
+  int i;
+  for(i=0;i<10;i++)
   {
     fail_unless(util_chunks_send(c3,blob));
     len = 1;
