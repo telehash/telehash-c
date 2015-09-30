@@ -261,6 +261,60 @@ lob_t lob_set_uint(lob_t p, char *key, unsigned int val)
   return p;
 }
 
+// embedded friendly float to string, printf float support is a morass
+lob_t lob_set_float(lob_t p, char *key, float value, uint8_t places)
+{
+  int digit;
+  float tens = 0.1;
+  int tenscount = 0;
+  int i;
+  float tempfloat = value;
+  static char buf[16];
+
+  if(!p || !key) return LOG("bad args");
+  
+  buf[0] = 0; // reset
+
+  float d = 0.5;
+  if(value < 0) d *= -1.0;
+  for(i = 0; i < places; i++) d/= 10.0;
+  tempfloat +=  d;
+
+  if(value < 0) tempfloat *= -1.0;
+  while((tens * 10.0) <= tempfloat)
+  {
+    tens *= 10.0;
+    tenscount += 1;
+  }
+
+  if(value < 0) sprintf(buf+strlen(buf),"-");
+
+  if(tenscount == 0) sprintf(buf+strlen(buf),"0");
+
+  for(i=0; i< tenscount; i++)
+  {
+    digit = (int) (tempfloat/tens);
+    sprintf(buf+strlen(buf),"%d",digit);
+    tempfloat = tempfloat - ((float)digit * tens);
+    tens /= 10.0;
+  }
+
+  if(places > 0)
+  {
+    sprintf(buf+strlen(buf),".");
+
+    for(i = 0; i < places; i++) {
+      tempfloat *= 10.0;
+      digit = (int) tempfloat;
+      sprintf(buf+strlen(buf),"%d",digit);
+      tempfloat = tempfloat - (float) digit;
+    }
+  }
+
+  lob_set_raw(p, key, 0, buf, 0);
+  return p;
+}
+
 lob_t lob_set(lob_t p, char *key, char *val)
 {
   if(!val) return LOG("bad args");
@@ -396,6 +450,13 @@ unsigned int lob_get_uint(lob_t p, char *key)
   char *val = lob_get(p,key);
   if(!val) return 0;
   return (unsigned int)strtoul(val,NULL,10);
+}
+
+float lob_get_float(lob_t p, char *key)
+{
+  char *val = lob_get(p,key);
+  if(!val) return 0;
+  return strtof(val,NULL);
 }
 
 // returns ["0","1","2"]

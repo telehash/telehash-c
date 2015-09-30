@@ -106,6 +106,18 @@ int main(int argc, char **argv)
   lob_push(index,c2);
   fail_unless(lob_match(index,"id","c1") == c1);
   fail_unless(lob_match(index,"id","c2") == c2);
+  
+  float f = 42.42;
+  lob_t ft = lob_new();
+  lob_head(ft,(uint8_t*)"{\"foo\":42.42}",13);
+  fail_unless(lob_get_float(ft,"foo") == f);
+  lob_set_float(ft,"bar2",f,2);
+  fail_unless(lob_get_float(ft,"bar2") == f);
+  lob_set_float(ft,"bar1",f,1);
+  fail_unless(lob_get_cmp(ft,"bar1","42.4") == 0);
+  lob_set_float(ft,"bar0",f,0);
+  fail_unless(lob_get_int(ft,"bar0") == 42);
+  LOG("floats %s",lob_json(ft));
 
   return 0;
 }
