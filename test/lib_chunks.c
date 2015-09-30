@@ -13,7 +13,7 @@ int main(int argc, char **argv)
   chunks = util_chunks_new(10);
   lob_t packet = lob_new();
   lob_body(packet,0,100);
-  fail_unless(util_chunks_send(chunks, packet));
+  fail_unless(util_chunks_send(chunks, lob_copy(packet)));
   fail_unless(util_chunks_len(chunks) == 115);
   uint8_t len = 0;
   fail_unless(util_chunks_out(chunks, &len));
@@ -27,7 +27,7 @@ int main(int argc, char **argv)
 
   // check write
   fail_unless(!util_chunks_write(chunks));
-  fail_unless(util_chunks_send(chunks, packet));
+  fail_unless(util_chunks_send(chunks, lob_copy(packet)));
   fail_unless(util_chunks_write(chunks));
   fail_unless(util_chunks_len(chunks) == 115);
   fail_unless(util_chunks_written(chunks,15));
@@ -39,7 +39,7 @@ int main(int argc, char **argv)
   util_chunks_t cbig = util_chunks_new(0);
   lob_t pbig = lob_new();
   lob_body(pbig,0,845);
-  fail_unless(util_chunks_send(cbig, pbig));
+  fail_unless(util_chunks_send(cbig, lob_copy(pbig)));
   size_t lbig = util_chunks_len(cbig);
   fail_unless(lbig == 852);
   fail_unless(util_chunks_written(cbig,lbig));
@@ -47,14 +47,14 @@ int main(int argc, char **argv)
   // try cloaking
   util_chunks_t cloaked = util_chunks_new(20);
   util_chunks_cloak(cloaked);
-  fail_unless(util_chunks_send(cloaked, packet));
+  fail_unless(util_chunks_send(cloaked, lob_copy(packet)));
   printf("CLOAK %d\n",util_chunks_len(cloaked));
   fail_unless(util_chunks_len(cloaked) == 117);
 
   // try send and receive by chunk
   util_chunks_t c1 = util_chunks_new(20);
-  fail_unless(util_chunks_send(c1, packet));
-  fail_unless(util_chunks_send(c1, packet));
+  fail_unless(util_chunks_send(c1, lob_copy(packet)));
+  fail_unless(util_chunks_send(c1, lob_copy(packet)));
   fail_unless(util_chunks_len(c1) == 218);
 
   util_chunks_t c2 = util_chunks_new(2);
@@ -81,8 +81,8 @@ int main(int argc, char **argv)
   // try send and receive by stream
   LOG("chunk stream test");
   c1 = util_chunks_new(10);
-  fail_unless(util_chunks_send(c1, packet));
-  fail_unless(util_chunks_send(c1, packet));
+  fail_unless(util_chunks_send(c1, lob_copy(packet)));
+  fail_unless(util_chunks_send(c1, lob_copy(packet)));
   fail_unless(util_chunks_len(c1) == 230);
 
   c2 = util_chunks_new(20);
@@ -107,9 +107,9 @@ int main(int argc, char **argv)
   // blocking behavior
   LOG("chunk blocking test");
   c1 = util_chunks_new(60);
-  fail_unless(util_chunks_send(c1, packet));
+  fail_unless(util_chunks_send(c1, lob_copy(packet)));
   c2 = util_chunks_new(60);
-  fail_unless(util_chunks_send(c2, packet));
+  fail_unless(util_chunks_send(c2, lob_copy(packet)));
 
   // send first volley
   buf = util_chunks_out(c1, &len);
@@ -147,7 +147,7 @@ int main(int argc, char **argv)
   int i;
   for(i=0;i<10;i++)
   {
-    fail_unless(util_chunks_send(c3,blob));
+    fail_unless(util_chunks_send(c3,lob_copy(blob)));
     len = 1;
     fail_unless(util_chunks_out(c3,&len));
     fail_unless(len == 32);
@@ -161,7 +161,7 @@ int main(int argc, char **argv)
     fail_unless(len == 0);
   }
 
-  fail_unless(util_chunks_send(c3,blob));
+  fail_unless(util_chunks_send(c3,lob_copy(blob)));
   len = 1;
   fail_unless(util_chunks_out(c3,&len));
   fail_unless(len == 32);
@@ -170,7 +170,7 @@ int main(int argc, char **argv)
   fail_unless(util_chunks_next(c3)); // unblock
   fail_unless(util_chunks_out(c3,&len));
   fail_unless(len == ((52-32)+3));
-  fail_unless(util_chunks_send(c3,blob));
+  fail_unless(util_chunks_send(c3,lob_copy(blob)));
   fail_unless(util_chunks_next(c3)); // unblock
   fail_unless(util_chunks_out(c3,&len));
   fail_unless(len == 32);

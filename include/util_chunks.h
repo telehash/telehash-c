@@ -14,7 +14,7 @@ util_chunks_t util_chunks_free(util_chunks_t chunks);
 // enable automatic cloaking
 util_chunks_t util_chunks_cloak(util_chunks_t chunks);
 
-// turn this packet into chunks and append
+// turn this packet into chunks and append, free's out
 util_chunks_t util_chunks_send(util_chunks_t chunks, lob_t out);
 
 // get any packets that have been reassembled from incoming chunks

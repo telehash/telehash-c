@@ -84,10 +84,12 @@ util_chunks_t util_chunks_send(util_chunks_t chunks, lob_t out)
   uint32_t start, at;
   size_t len;
   uint8_t *raw, size, rounds = 1; // TODO random rounds?
-  
-  // validate and gc first
-  if(!_util_chunks_gc(chunks) || !(len = lob_len(out))) return chunks;
+
+  if(!chunks || !(len = lob_len(out))) return LOG("bad args");
   if(chunks->cloak) len += (8*rounds);
+  
+  // internally gc first
+  _util_chunks_gc(chunks);
 
   start = chunks->writelen;
   chunks->writelen += len;
@@ -114,6 +116,7 @@ util_chunks_t util_chunks_send(util_chunks_t chunks, lob_t out)
   chunks->writing[start] = 0; // end of chunks, full packet
   
   if(chunks->cloak) free(raw);
+  lob_free(out);
   
   return chunks;
 }
