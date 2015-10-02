@@ -51,9 +51,11 @@ int main(int argc, char **argv)
   uint8_t chan = m->kchan;
   m->kchan = 101; // set to bad value to make sure prep resets it
 
-  fail_unless(radio_prep(&test_device, netA, 1));
-  fail_unless(m == radio_get(&test_device, netA));
+  fail_unless(tmesh_next(netA, 1, &test_device));
+  fail_unless(m == netA->rx);
   fail_unless(m->kchan == chan);
+  uint8_t frame[64];
+  fail_unless(tmesh_knock(netA, m, frame));
 
   return 0;
 }

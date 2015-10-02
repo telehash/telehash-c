@@ -8,6 +8,7 @@ typedef struct cmnty_struct *cmnty_t;
 typedef struct epoch_struct *epoch_t;
 typedef struct mote_struct *mote_t;
 typedef struct medium_struct *medium_t;
+typedef struct radio_struct *radio_t;
 
 // medium management w/ device driver
 struct medium_struct
@@ -62,6 +63,7 @@ struct tmesh_struct
   lob_t pubim;
   uint8_t z; // our z-index
   // TODO, add callback hooks for sorting/prioritizing energy usage
+  mote_t tx, rx; // cache of prioritized ones
 };
 
 // create a new tmesh radio network bound to this mesh
@@ -70,6 +72,12 @@ void tmesh_free(tmesh_t tm);
 
 // process any full packets into the mesh 
 tmesh_t tmesh_loop(tmesh_t tm);
+
+// resets all windows to from, sets nearest motes in tm->tx and tm->rx
+tmesh_t tmesh_next(tmesh_t tm, uint64_t from, radio_t device);
+mote_t tmesh_knock(tmesh_t tm, mote_t mote, uint8_t *frame);
+tmesh_t tmesh_knocked(tmesh_t tm, mote_t mote);
+
 
 // 2^22
 #define EPOCH_WINDOW (uint64_t)4194304
@@ -122,8 +130,8 @@ size_t epochs_len(epoch_t es);
 epoch_t epochs_free(epoch_t es);
 
 ///////////////////
-// radio devices are single task responsible for all the epochs in one or more mediums
-typedef struct radio_struct
+// radio devices are responsible for all mediums
+struct radio_struct
 {
   uint8_t id;
 
@@ -136,29 +144,13 @@ typedef struct radio_struct
   // when a medium isn't used anymore, let the radio free it
   medium_t (*free)(tmesh_t tm, medium_t m);
 
-  // perform this knock right _now_
-  uint8_t (*knock)(tmesh_t tm, medium_t m, uint8_t dir, uint8_t chan, uint8_t *frame);
-  
-  // active nonce (8) and frame buffer (64)
-  uint8_t frame[8+64];
-
-} *radio_t;
+};
 
 #define RADIOS_MAX 1
 extern radio_t radio_devices[]; // all of em
 
 // add/set a new device
 radio_t radio_device(radio_t device);
-
-// internal soft scheduling to prep for radio_next
-radio_t radio_prep(radio_t device, tmesh_t tm, uint64_t from);
-
-// return the next hard-scheduled mote for this radio
-mote_t radio_get(radio_t device, tmesh_t tm);
-
-// signal once a frame has been sent/received for this mote
-radio_t radio_done(radio_t device, tmesh_t tm, mote_t m);
-
 
 
 #endif

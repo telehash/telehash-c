@@ -299,79 +299,66 @@ radio_t radio_device(radio_t device)
   return NULL;
 }
 
-radio_t radio_prep(radio_t device, tmesh_t tm, uint64_t from)
+tmesh_t tmesh_next(tmesh_t tm, uint64_t from, radio_t device)
 {
   cmnty_t com;
   mote_t mote;
-  if(!tm || !device) return LOG("bad args");
+  if(!tm) return LOG("bad args");
+
+  // reset cached if old
+  if(tm->tx && tm->tx->kstart < from) tm->tx = NULL;
+  if(tm->rx && tm->rx->kstart < from) tm->rx = NULL;
 
   for(com=tm->coms;com;com=com->next)
   {
-    if(com->medium->radio != device->id) continue;
+    if(device && com->medium->radio != device->id) continue;
     // TODO check c->sync ping/echo
     // check every mote
     for(mote=com->motes;mote;mote=mote->next)
     {
       mote_knock(mote,com->medium,from);
-      
-    }
-  }
-  
-  return device;
-}
-
-
-// return the next hard-scheduled mote for this radio
-mote_t radio_get(radio_t device, tmesh_t tm)
-{
-  cmnty_t com;
-  mote_t mote, tx, rx;
-  uint32_t win, lwin;
-  if(!tm || !device) return LOG("bad args");
-
-  tx = rx = NULL;
-  for(com=tm->coms;com;com=com->next)
-  {
-    if(com->medium->radio != device->id) continue;
-    for(mote = com->motes;mote;mote = mote->next)
-    {
       if(!mote->kstate == READY) continue;
       // TX > RX
       // LINK > PAIR > ECHO > PING
       if(mote->knock->dir == TX)
       {
-        if(!tx || tx->knock->type > mote->knock->type || tx->kstart < mote->kstart) tx = mote;
+        if(!tm->tx || tm->tx->knock->type > mote->knock->type || tm->tx->kstart < mote->kstart) tm->tx = mote;
       }else{
-        if(!rx || rx->knock->type > mote->knock->type || rx->kstart < mote->kstart) rx = mote;
+        if(!tm->rx || tm->rx->knock->type > mote->knock->type || tm->rx->kstart < mote->kstart) tm->rx = mote;
       }
       
     }
   }
+  
+  return tm;
+}
 
-  mote = tx?tx:rx;
-  if(!mote) return NULL;
 
-  // TODO keep best TX, take best RX that fits ahead
-  // mode to expand-fill RX for faster pairing or when powered
+mote_t tmesh_knock(tmesh_t tm, mote_t mote, uint8_t *frame)
+{
+  uint8_t nonce[8];
+  uint32_t win, lwin;
+  if(!tm || !mote) return LOG("bad args");
   
   win = ((mote->kstart - mote->knock->base) / EPOCH_WINDOW);
   lwin = util_sys_long(win);
-  memset(device->frame,0,8+64);
-  memcpy(device->frame,&lwin,4); // nonce area
+  memset(nonce,0,8);
+  memcpy(nonce,&lwin,4); // nonce area
 
-  // TODO copy in tx data
+  // TODO copy in tx data from util_chunks
 
   // ciphertext frame
-  chacha20(mote->knock->secret,device->frame,device->frame+8,64);
+  memset(frame,0,64);
+  chacha20(mote->knock->secret,nonce,frame,64);
 
   return mote;
 }
 
-// signal once a frame has been sent/received for this mote
-radio_t radio_done(radio_t device, tmesh_t tm, mote_t mote)
+// signal once a knock has been sent/received for this mote
+tmesh_t tmesh_knocked(tmesh_t tm, mote_t mote)
 {
   if(mote->kstate == READY) return LOG("knock not done");
-  if(mote->kstate == SKIP) return device; // do nothing
+  if(mote->kstate == SKIP) return tm; // do nothing
   
   switch(mote->knock->type)
   {
@@ -395,5 +382,5 @@ radio_t radio_done(radio_t device, tmesh_t tm, mote_t mote)
     // set up echo RX
   }
   
-  return device;
+  return tm;
 }

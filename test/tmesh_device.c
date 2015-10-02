@@ -27,8 +27,6 @@ static struct radio_struct test_device = {
   device_check,
   device_get,
   device_free,
-  NULL,
-  {0}
 };
 
 
