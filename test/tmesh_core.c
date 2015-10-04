@@ -37,25 +37,26 @@ int main(int argc, char **argv)
   fail_unless(m);
   fail_unless(m->link == link);
   fail_unless(m->epochs);
-  fail_unless(!m->knock);
-  fail_unless(m->kstate == SKIP);
   fail_unless(m == tmesh_link(netA, c, link));
+//  fail_unless(m->ping);
 
-  fail_unless(mote_knock(m, c->medium, 1));
-  fail_unless(m->knock);
-  fail_unless(m->kstate == READY);
-  LOG("%d %d %d",m->kstart,m->kstop,m->kchan);
-  fail_unless(m->kstart);
-  fail_unless(m->kstop == (m->kstart + 10));
-  fail_unless(m->kchan < 100);
-  uint8_t chan = m->kchan;
-  m->kchan = 101; // set to bad value to make sure prep resets it
+  struct knock_struct k = {0,0,0,0,0,0,0};
+  k.com = c;
 
-  fail_unless(tmesh_next(netA, 1, &test_device));
-  fail_unless(m == netA->rx);
-  fail_unless(m->kchan == chan);
+  fail_unless(mote_knock(m, &k, 1));
+  fail_unless(k.mote == m);
+  LOG("%d %d %d",k.start,k.stop,k.chan);
+  fail_unless(k.start);
+  fail_unless(k.stop == (k.start + 10));
+  fail_unless(k.chan < 100);
+  uint8_t chan = k.chan;
+
+  k.chan = 101; // set to bad value to make sure prep resets it
+  fail_unless(tmesh_knock(netA, &k, 1, &test_device));
+  fail_unless(m == k.mote);
+  fail_unless(k.chan == chan);
   uint8_t frame[64];
-  fail_unless(tmesh_knock(netA, m, frame));
+  fail_unless(tmesh_knocking(netA, &k, frame));
 
   return 0;
 }

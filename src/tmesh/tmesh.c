@@ -78,6 +78,7 @@ cmnty_t tmesh_public(tmesh_t tm, char *medium, char *name)
 {
   epoch_t ping, echo;
   uint8_t roll[64];
+  struct knock_struct ktmp = {0,0,0,0,0,0,0};
   cmnty_t c = cmnty_new(tm,medium,name);
   if(!c) return LOG("bad args");
   c->type = PUBLIC;
@@ -92,8 +93,9 @@ cmnty_t tmesh_public(tmesh_t tm, char *medium, char *name)
   e3x_hash(roll,64,ping->secret);
 
   // cache ping channel for faster detection
-  mote_knock(c->sync,c->medium,0);
-  c->sync->ping = c->sync->kchan;
+  ktmp.com = c;
+  mote_knock(c->sync,&ktmp,0);
+  c->sync->ping = ktmp.chan;
 
   // generate public intermediate keys packet
   if(!tm->pubim) tm->pubim = hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys));
@@ -119,6 +121,7 @@ mote_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link)
 {
   uint8_t roll[64];
   mote_t m;
+  struct knock_struct ktmp = {0,0,0,0,0,0,0};
   if(!tm || !c || !link) return LOG("bad args");
 
   // check list of motes, add if not there
@@ -134,8 +137,10 @@ mote_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link)
   memcpy(roll,c->sync->epochs->secret,32);
   memcpy(roll+32,link->id->bin,32);
   e3x_hash(roll,64,m->epochs->secret);
-  mote_knock(m,c->medium,0);
-  m->ping = m->kchan;
+
+  ktmp.com = c;
+  mote_knock(m,&ktmp,0);
+  m->ping = ktmp.chan;
 
   return m;
 }
@@ -299,68 +304,72 @@ radio_t radio_device(radio_t device)
   return NULL;
 }
 
-tmesh_t tmesh_next(tmesh_t tm, uint64_t from, radio_t device)
+tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
 {
   cmnty_t com;
   mote_t mote;
-  if(!tm) return LOG("bad args");
-
-  // reset cached if old
-  if(tm->tx && tm->tx->kstart < from) tm->tx = NULL;
-  if(tm->rx && tm->rx->kstart < from) tm->rx = NULL;
+  struct knock_struct ktmp = {0,0,0,0,0,0,0};
+  if(!tm || !k) return LOG("bad args");
 
   for(com=tm->coms;com;com=com->next)
   {
     if(device && com->medium->radio != device->id) continue;
     // TODO check c->sync ping/echo
+    ktmp.com = com;
     // check every mote
     for(mote=com->motes;mote;mote=mote->next)
     {
-      mote_knock(mote,com->medium,from);
-      if(!mote->kstate == READY) continue;
+      if(!mote_knock(mote,&ktmp,from)) continue;
+      // TODO compare ktmp and k
+      memcpy(k, &ktmp, sizeof(struct knock_struct));
       // TX > RX
       // LINK > PAIR > ECHO > PING
+      /*
       if(mote->knock->dir == TX)
       {
         if(!tm->tx || tm->tx->knock->type > mote->knock->type || tm->tx->kstart < mote->kstart) tm->tx = mote;
       }else{
         if(!tm->rx || tm->rx->knock->type > mote->knock->type || tm->rx->kstart < mote->kstart) tm->rx = mote;
       }
+      */
       
     }
   }
   
+  // make sure a knock was found
+  if(!k->com) return NULL;
+
   return tm;
 }
 
 
-mote_t tmesh_knock(tmesh_t tm, mote_t mote, uint8_t *frame)
+tmesh_t tmesh_knocking(tmesh_t tm, knock_t k, uint8_t *frame)
 {
   uint8_t nonce[8];
-  uint32_t win, lwin;
-  if(!tm || !mote) return LOG("bad args");
+  uint32_t win;
+  if(!tm || !k || !frame) return LOG("bad args");
   
-  win = ((mote->kstart - mote->knock->base) / EPOCH_WINDOW);
-  lwin = util_sys_long(win);
+  win = util_sys_long(k->win);
   memset(nonce,0,8);
-  memcpy(nonce,&lwin,4); // nonce area
+  memcpy(nonce,&win,4); // nonce area
 
   // TODO copy in tx data from util_chunks
 
   // ciphertext frame
   memset(frame,0,64);
-  chacha20(mote->knock->secret,nonce,frame,64);
+  chacha20(k->epoch->secret,nonce,frame,64);
 
-  return mote;
+  return tm;
 }
 
 // signal once a knock has been sent/received for this mote
-tmesh_t tmesh_knocked(tmesh_t tm, mote_t mote)
+tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint8_t *frame)
 {
-  if(mote->kstate == READY) return LOG("knock not done");
-  if(mote->kstate == SKIP) return tm; // do nothing
+  if(!tm || !k || !frame) return LOG("bad args");
   
-  switch(mote->knock->type)
+  // TODO, need to handle if it wasn't performed?
+
+  switch(k->epoch->type)
   {
     case PING:
       // if RX generate echo TX
@@ -376,7 +385,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, mote_t mote)
       break;
   }
   
-  if(mote->knock->dir == TX)
+  if(k->epoch->dir == TX)
   {
     // TODO check priv coms match device and ping->kchan
     // set up echo RX

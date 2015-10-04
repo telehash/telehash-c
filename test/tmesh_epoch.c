@@ -29,24 +29,29 @@ int main(int argc, char **argv)
   fail_unless(e->base == 58056960);
   fail_unless(e->base == (100000000 - (uint64_t)(10*(1<<22))));
 
+  struct knock_struct k = {0,0,0,0,0,0,0};
+  struct cmnty_struct com = {0,0,0,0,0,0,0,0,0};
+  com.medium = medium;
+  k.com = &com;
+
   mote_t mote = mote_new(NULL);
   fail_unless(mote);
   mote->epochs = e;
   memset(e->secret,0,32);
   e->base = 1;
   e->type = LINK;
-  fail_unless(mote_knock(mote,medium,10));
-  fail_unless(mote->knock == e);
-  LOG("got channel %d start %d stop %d",mote->kchan,mote->kstart,mote->kstop);
-  fail_unless(mote->kchan == 8);
-  fail_unless(mote->kstart == 8961);
-  fail_unless(mote->kstop == 8971);
+  fail_unless(mote_knock(mote,&k,10));
+  fail_unless(k.epoch == e);
+  LOG("got channel %d start %d stop %d",k.chan,k.start,k.stop);
+  fail_unless(k.chan == 8);
+  fail_unless(k.start == 8961);
+  fail_unless(k.stop == 8971);
 
-  fail_unless(mote_knock(mote,medium,42*EPOCH_WINDOW));
-  LOG("got channel %d start %d stop %d",mote->kchan,mote->kstart,mote->kstop);
-  fail_unless(mote->kchan == 80);
-  fail_unless(mote->kstart == 171974825);
-  fail_unless(mote->kstop == 171974835);
+  fail_unless(mote_knock(mote,&k,42*EPOCH_WINDOW));
+  LOG("got channel %d start %d stop %d",k.chan,k.start,k.stop);
+  fail_unless(k.chan == 80);
+  fail_unless(k.start == 171974825);
+  fail_unless(k.stop == 171974835);
 
   epoch_t es = epochs_add(NULL,e);
   fail_unless(es);

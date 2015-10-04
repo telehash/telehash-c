@@ -45,21 +45,23 @@ mote_t mote_free(mote_t m)
 }
 
 // set best knock win/chan/start/stop
-mote_t mote_knock(mote_t m, medium_t medium, uint64_t from)
+mote_t mote_knock(mote_t m, knock_t k, uint64_t from)
 {
   uint8_t pad[8];
   uint8_t nonce[8];
   uint64_t offset, start, stop;
   uint32_t win, lwin;
   epoch_t e;
-  if(!m || !medium->chans) return LOG("bad args");
+  medium_t medium;
+  if(!m || !k || !k->com) return LOG("bad args");
 
-  m->knock = NULL;
+  k->epoch = NULL;
+  k->mote = m;
+  medium = k->com->medium;
 
   // get the best one
   for(e=m->epochs;e;e=e->next)
   {
-
     // normalize nonce
     memset(nonce,0,8);
     switch(e->type)
@@ -91,18 +93,17 @@ mote_t mote_knock(mote_t m, medium_t medium, uint64_t from)
     offset = util_sys_long((unsigned long)(pad[2])) % (EPOCH_WINDOW - medium->min);
     start = e->base + (EPOCH_WINDOW*win) + offset;
     stop = start + medium->min;
-    if(!m->knock || stop < m->kstop)
+    if(!k->epoch || stop < k->stop)
     {
       // rx never trumps tx
-      if(m->knock && m->knock->dir == TX && e->dir == RX) continue;
-      m->knock = e;
-      m->kchan = util_sys_short((unsigned short)(pad[0])) % medium->chans;
-      m->kstart = start;
-      m->kstop = stop;
+      if(k->epoch && k->epoch->dir == TX && e->dir == RX) continue;
+      k->epoch = e;
+      k->win = win;
+      k->chan = util_sys_short((unsigned short)(pad[0])) % medium->chans;
+      k->start = start;
+      k->stop = stop;
     }
   }
-  
-  if(m->knock) m->kstate = READY;
   
   return m;
 }

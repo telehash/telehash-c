@@ -9,6 +9,7 @@ typedef struct epoch_struct *epoch_t;
 typedef struct mote_struct *mote_t;
 typedef struct medium_struct *medium_t;
 typedef struct radio_struct *radio_t;
+typedef struct knock_struct *knock_t;
 
 // medium management w/ device driver
 struct medium_struct
@@ -63,7 +64,6 @@ struct tmesh_struct
   lob_t pubim;
   uint8_t z; // our z-index
   // TODO, add callback hooks for sorting/prioritizing energy usage
-  mote_t tx, rx; // cache of prioritized ones
 };
 
 // create a new tmesh radio network bound to this mesh
@@ -73,10 +73,22 @@ void tmesh_free(tmesh_t tm);
 // process any full packets into the mesh 
 tmesh_t tmesh_loop(tmesh_t tm);
 
-// resets all windows to from, sets nearest motes in tm->tx and tm->rx
-tmesh_t tmesh_next(tmesh_t tm, uint64_t from, radio_t device);
-mote_t tmesh_knock(tmesh_t tm, mote_t mote, uint8_t *frame);
-tmesh_t tmesh_knocked(tmesh_t tm, mote_t mote);
+// a single knock request ready to go
+struct knock_struct
+{
+  cmnty_t com; // has medium
+  mote_t mote; // has chunks
+  epoch_t epoch; // details
+  // ephemeral things
+  uint32_t win;
+  uint64_t start, stop; // microsecond exact start/stop time
+  uint8_t chan; // current channel (< med->chans)
+};
+
+// fills in next knock based on from and only for this device
+tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device);
+tmesh_t tmesh_knocking(tmesh_t tm, knock_t k, uint8_t *frame); // prep for tx
+tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint8_t *frame); // process done knock
 
 
 // 2^22
@@ -89,13 +101,7 @@ struct mote_struct
   epoch_t epochs;
   mote_t next; // for lists
   uint8_t ping; // anytime we transmit on this channel, reschedule the echo epoch
-
-  // next knock state
   util_chunks_t chunks; // actual chunk encoding for r/w frame buffers
-  epoch_t knock;
-  uint64_t kstart, kstop; // microsecond exact start/stop time
-  uint8_t kchan; // current channel (< med->chans)
-  enum {SKIP, READY, DONE} kstate:2; // knock handling
 
   uint8_t z;
 };
@@ -103,8 +109,8 @@ struct mote_struct
 mote_t mote_new(link_t link);
 mote_t mote_free(mote_t m);
 
-// set best knock win/chan/start/stop
-mote_t mote_knock(mote_t m, medium_t medium, uint64_t from);
+// find best epoch, set knock win/chan/start/stop
+mote_t mote_knock(mote_t m, knock_t k, uint64_t from);
 
 // individual epoch state data
 struct epoch_struct
@@ -151,6 +157,7 @@ extern radio_t radio_devices[]; // all of em
 
 // add/set a new device
 radio_t radio_device(radio_t device);
+
 
 
 #endif
