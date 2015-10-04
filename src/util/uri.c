@@ -31,7 +31,7 @@ lob_t util_uri_parse(char *encoded)
   }
   
   // ensure there's at least a host
-  if(!strlen(encoded) || !isalnum(encoded[0]))
+  if(!strlen(encoded) || !isalnum((int)encoded[0]))
   {
     lob_free(uri);
     return LOG("invalid host: '%s'",encoded);

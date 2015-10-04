@@ -1,7 +1,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "telehash.h"
+#include <inttypes.h>
 #include "telehash.h"
 
 // every new channel has a unique global id
@@ -47,7 +47,7 @@ e3x_channel_t e3x_channel_new(lob_t open)
   memset(c,0,sizeof (struct e3x_channel_struct));
   c->state = OPENING;
   c->id = id;
-  sprintf(c->c,"%u",id);
+  sprintf(c->c,"%" PRIu32,id);
   c->open = lob_copy(open);
   c->type = lob_get(open,"type");
   c->capacity = 1024*1024; // 1MB total default
@@ -300,15 +300,15 @@ lob_t e3x_channel_oob(e3x_channel_t c)
         // insert this missing seq delta
         delta = seq - last;
         last = seq;
-        len += (size_t)snprintf(NULL, 0, "%u,", delta) + 1;
+        len += (size_t)snprintf(NULL, 0, "%" PRIu32 ",", delta) + 1;
         if(!(miss = util_reallocf(miss, len))) return lob_free(ret);
-        sprintf(miss+strlen(miss),"%u,", delta);
+        sprintf(miss+strlen(miss),"%" PRIu32 ",", delta);
       }
       // add current window at the end
       delta = 100; // TODO calculate this from actual space avail
-      len += (size_t)snprintf(NULL, 0, "%u]", delta) + 1;
+      len += (size_t)snprintf(NULL, 0, "%" PRIu32 "]", delta) + 1;
       if(!(miss = util_reallocf(miss, len))) return lob_free(ret);
-      sprintf(miss+strlen(miss),"%u]", delta);
+      sprintf(miss+strlen(miss),"%" PRIu32 "]", delta);
       lob_set_raw(ret,"miss",4,miss,strlen(miss));
     }
 
