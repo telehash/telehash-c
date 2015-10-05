@@ -58,6 +58,7 @@ static cmnty_t cmnty_new(tmesh_t tm, char *medium, char *name)
   if(!(c->medium = medium_get(tm,bin))) return cmnty_free(c);
   if(!(c->pipe = pipe_new("tmesh"))) return cmnty_free(c);
   c->tm = tm;
+  c->type = (c->medium->bin[0] > 128) ? PRIVATE : PUBLIC;
   c->next = tm->coms;
   tm->coms = c;
 
@@ -74,45 +75,43 @@ static cmnty_t cmnty_new(tmesh_t tm, char *medium, char *name)
 // public methods
 
 // join a new private/public community
-cmnty_t tmesh_public(tmesh_t tm, char *medium, char *name)
+cmnty_t tmesh_join(tmesh_t tm, char *medium, char *name)
 {
   epoch_t ping, echo;
   uint8_t roll[64];
   struct knock_struct ktmp = {0,0,0,0,0,0,0};
   cmnty_t c = cmnty_new(tm,medium,name);
   if(!c) return LOG("bad args");
-  c->type = PUBLIC;
+
+  if(c->type == PUBLIC)
+  {
+    if(!(c->sync = mote_new(NULL))) return cmnty_free(c);
+    if(!(ping = c->sync->epochs = epoch_new(1))) return cmnty_free(c);
+    if(!(echo = ping->next = epoch_new(1))) return cmnty_free(c);
+    ping->type = PING;
+    echo->type = ECHO;
+    e3x_hash(c->medium->bin,5,roll);
+    e3x_hash((uint8_t*)name,strlen(name),roll+32);
+    e3x_hash(roll,64,ping->secret);
+
+    // cache ping channel for faster detection
+    ktmp.com = c;
+    mote_knock(c->sync,&ktmp,0);
+    c->sync->ping = ktmp.chan;
+
+    // generate public intermediate keys packet
+    if(!tm->pubim) tm->pubim = hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys));
+    
+  }else{
+    c->pipe->path = lob_new();
+    lob_set(c->pipe->path,"type","tmesh");
+    lob_set(c->pipe->path,"medium",medium);
+    lob_set(c->pipe->path,"name",name);
+    tm->mesh->paths = lob_push(tm->mesh->paths, c->pipe->path);
+    
+  }
   
-  if(!(c->sync = mote_new(NULL))) return cmnty_free(c);
-  if(!(ping = c->sync->epochs = epoch_new(1))) return cmnty_free(c);
-  if(!(echo = ping->next = epoch_new(1))) return cmnty_free(c);
-  ping->type = PING;
-  echo->type = ECHO;
-  e3x_hash(c->medium->bin,5,roll);
-  e3x_hash((uint8_t*)name,strlen(name),roll+32);
-  e3x_hash(roll,64,ping->secret);
 
-  // cache ping channel for faster detection
-  ktmp.com = c;
-  mote_knock(c->sync,&ktmp,0);
-  c->sync->ping = ktmp.chan;
-
-  // generate public intermediate keys packet
-  if(!tm->pubim) tm->pubim = hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys));
-
-  return c;
-}
-
-cmnty_t tmesh_private(tmesh_t tm, char *medium, char *name)
-{
-  cmnty_t c = cmnty_new(tm,medium,name);
-  if(!c) return LOG("bad args");
-  c->type = PRIVATE;
-  c->pipe->path = lob_new();
-  lob_set(c->pipe->path,"type","tmesh");
-  lob_set(c->pipe->path,"medium",medium);
-  lob_set(c->pipe->path,"name",name);
-  tm->mesh->paths = lob_push(tm->mesh->paths, c->pipe->path);
   return c;
 }
 
@@ -144,18 +143,6 @@ mote_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link)
 
   return m;
 }
-
-// attempt to establish a direct connection
-cmnty_t tmesh_direct(tmesh_t tm, link_t link, char *medium, uint64_t at)
-{
-  cmnty_t c;
-  if(!link) return LOG("bad args");
-  c = cmnty_new(tm,medium,link->id->hashname);
-  if(!c) return LOG("bad args");
-  c->type = DIRECT;
-  return c;
-}
-
 
 pipe_t tmesh_on_path(link_t link, lob_t path)
 {

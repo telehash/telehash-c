@@ -39,22 +39,17 @@ struct cmnty_struct
   pipe_t pipe; // one pipe per community as it's shared performance
   struct cmnty_struct *next;
   uint8_t max;
-  enum {NONE, PUBLIC, PRIVATE, DIRECT} type:2;
+  enum {PUBLIC, PRIVATE} type:1;
 };
 
 // maximum neighbors tracked per community
 #define NEIGHBORS_MAX 8
 
 // join a new private/public community
-cmnty_t tmesh_public(tmesh_t tm, char *medium, char *name);
-cmnty_t tmesh_private(tmesh_t tm, char *medium, char *name);
+cmnty_t tmesh_join(tmesh_t tm, char *medium, char *name);
 
 // add a link known to be in this community to look for
 mote_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link);
-
-// attempt to establish a direct connection
-cmnty_t tmesh_direct(tmesh_t tm, link_t link, char *medium, uint64_t at);
-
 
 // overall tmesh manager
 struct tmesh_struct
