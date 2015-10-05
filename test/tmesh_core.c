@@ -24,15 +24,15 @@ int main(int argc, char **argv)
   
   tmesh_t netA = tmesh_new(meshA, NULL);
   fail_unless(netA);
-  cmnty_t c = tmesh_private(netA,"fzjb5f4tn4","foo");
+  cmnty_t c = tmesh_private(netA,"fzjb5f4t","foo");
   fail_unless(c);
   fail_unless(c->medium->bin[0] == 46);
   fail_unless(c->pipe->path);
   LOG("netA %.*s",c->pipe->path->head_len,c->pipe->path->head);
 
 
-  fail_unless(!tmesh_public(netA, "kzdhpa5n6r", NULL));
-  fail_unless((c = tmesh_public(netA, "kzdhpa5n6r", "")));
+  fail_unless(!tmesh_public(netA, "kzdhpa5r", NULL));
+  fail_unless((c = tmesh_public(netA, "kzdhpa5n", "")));
   mote_t m = tmesh_link(netA, c, link);
   fail_unless(m);
   fail_unless(m->link == link);

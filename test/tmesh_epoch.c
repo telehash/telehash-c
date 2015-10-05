@@ -18,8 +18,8 @@ int main(int argc, char **argv)
   epoch_t e = epoch_new(0);
   fail_unless(e);
 
-  char mid[] = "fzjb5f4tn4";
-  fail_unless(base32_decode(mid,0,bin,6));
+  char mid[] = "fzjb5f4t";
+  fail_unless(base32_decode(mid,0,bin,5));
   fail_unless((medium = medium_get(NULL,bin)));
   
   fail_unless(epoch_base(e,0,0));

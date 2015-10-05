@@ -45,9 +45,9 @@ static cmnty_t cmnty_free(cmnty_t c)
 static cmnty_t cmnty_new(tmesh_t tm, char *medium, char *name)
 {
   cmnty_t c;
-  uint8_t bin[6];
-  if(!tm || !name || !medium || strlen(medium) < 10) return LOG("bad args");
-  if(base32_decode(medium,0,bin,6) != 6) return LOG("bad medium encoding: %s",medium);
+  uint8_t bin[5];
+  if(!tm || !name || !medium || strlen(medium) != 8) return LOG("bad args");
+  if(base32_decode(medium,0,bin,5) != 5) return LOG("bad medium encoding: %s",medium);
   if(!medium_check(tm,bin)) return LOG("unknown medium %s",medium);
 
   // note, do we need to be paranoid and make sure name is not a duplicate?
@@ -88,7 +88,7 @@ cmnty_t tmesh_public(tmesh_t tm, char *medium, char *name)
   if(!(echo = ping->next = epoch_new(1))) return cmnty_free(c);
   ping->type = PING;
   echo->type = ECHO;
-  e3x_hash(c->medium->bin,6,roll);
+  e3x_hash(c->medium->bin,5,roll);
   e3x_hash((uint8_t*)name,strlen(name),roll+32);
   e3x_hash(roll,64,ping->secret);
 
@@ -267,7 +267,7 @@ tmesh_t tmesh_loop(tmesh_t tm)
 radio_t radio_devices[RADIOS_MAX] = {0};
 
 // validate medium by checking energy
-uint32_t medium_check(tmesh_t tm, uint8_t medium[6])
+uint32_t medium_check(tmesh_t tm, uint8_t medium[5])
 {
   int i;
   uint32_t energy;
@@ -279,7 +279,7 @@ uint32_t medium_check(tmesh_t tm, uint8_t medium[6])
 }
 
 // get the full medium
-medium_t medium_get(tmesh_t tm, uint8_t medium[6])
+medium_t medium_get(tmesh_t tm, uint8_t medium[5])
 {
   int i;
   medium_t m;

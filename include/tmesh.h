@@ -14,7 +14,7 @@ typedef struct knock_struct *knock_t;
 // medium management w/ device driver
 struct medium_struct
 {
-  uint8_t bin[6];
+  uint8_t bin[5];
   void *device; // used by radio device driver
   uint32_t min, max; // microseconds to tx/rx, set by driver
   uint8_t chans; // number of total channels, set by driver
@@ -22,10 +22,10 @@ struct medium_struct
 };
 
 // validate medium by checking energy
-uint32_t medium_check(tmesh_t tm, uint8_t medium[6]);
+uint32_t medium_check(tmesh_t tm, uint8_t medium[5]);
 
 // get the full medium
-medium_t medium_get(tmesh_t tm, uint8_t medium[6]);
+medium_t medium_get(tmesh_t tm, uint8_t medium[5]);
 
 
 // community management
@@ -142,10 +142,10 @@ struct radio_struct
   uint8_t id;
 
   // return energy cost, or 0 if unknown medium, use for pre-validation/estimation
-  uint32_t (*energy)(tmesh_t tm, uint8_t medium[6]);
+  uint32_t (*energy)(tmesh_t tm, uint8_t medium[5]);
 
   // initialize/get any medium scheduling time/cost and channels
-  medium_t (*get)(tmesh_t tm, uint8_t medium[6]);
+  medium_t (*get)(tmesh_t tm, uint8_t medium[5]);
 
   // when a medium isn't used anymore, let the radio free it
   medium_t (*free)(tmesh_t tm, medium_t m);

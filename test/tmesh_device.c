@@ -1,16 +1,16 @@
 #include "tmesh.h"
 
-uint32_t device_check(tmesh_t tm, uint8_t medium[6])
+uint32_t device_check(tmesh_t tm, uint8_t medium[5])
 {
   return 1;
 }
 
-medium_t device_get(tmesh_t tm, uint8_t medium[6])
+medium_t device_get(tmesh_t tm, uint8_t medium[5])
 {
   medium_t m;
   if(!(m = malloc(sizeof(struct medium_struct)))) return LOG("OOM");
   memset(m,0,sizeof (struct medium_struct));
-  memcpy(m->bin,medium,6);
+  memcpy(m->bin,medium,5);
   m->chans = 100;
   m->min = 10;
   m->max = 1000;
