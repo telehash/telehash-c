@@ -30,6 +30,9 @@ util_chunks_t util_chunks_new(uint8_t size);
 
 util_chunks_t util_chunks_free(util_chunks_t chunks);
 
+// how many bytes have to be written yet
+uint32_t util_chunks_writing(util_chunks_t chunks);
+
 // enable automatic cloaking
 util_chunks_t util_chunks_cloak(util_chunks_t chunks);
 

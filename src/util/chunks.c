@@ -61,6 +61,12 @@ util_chunks_t util_chunks_free(util_chunks_t chunks)
   return NULL;
 }
 
+uint32_t util_chunks_writing(util_chunks_t chunks)
+{
+  if(!chunks) return 0;
+  return lob_len(chunks->writing) - chunks->writeat;
+}
+
 // enable automatic cloaking
 util_chunks_t util_chunks_cloak(util_chunks_t chunks)
 {
