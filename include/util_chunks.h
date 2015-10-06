@@ -23,7 +23,7 @@ typedef struct util_chunks_struct
   uint8_t waiting, waitat;
 
   uint8_t cap;
-  uint8_t cloak:1, blocked:1, blocking:1, ack:1; //bools
+  uint8_t cloak:1, blocked:1, blocking:1, ack:1, flush:1; //bools
 } *util_chunks_t;
 
 
@@ -45,21 +45,9 @@ util_chunks_t util_chunks_send(util_chunks_t chunks, lob_t out);
 lob_t util_chunks_receive(util_chunks_t chunks);
 
 
-////// these are for sending on a transport that is message/frame based, always read first before writing to prevent deadlocks
-
-// get the next chunk, put its length in len
-uint8_t *util_chunks_out(util_chunks_t chunks, uint8_t *len);
-
-// manually advances to the next outgoing chunk
-util_chunks_t util_chunks_next(util_chunks_t chunks);
-
-// process an incoming individual chunk
-util_chunks_t util_chunks_in(util_chunks_t chunks, uint8_t *chunk, uint8_t len);
-
-
 ////// these are for a stream-based transport
 
-// how many bytes are there ready to write (multiple chunks)
+// how many bytes are there ready to write
 uint32_t util_chunks_len(util_chunks_t chunks);
 
 // return the next block of data to be written to the stream transport, max len is util_chunks_len()

@@ -64,8 +64,13 @@ util_chunks_t util_chunks_free(util_chunks_t chunks)
 
 uint32_t util_chunks_writing(util_chunks_t chunks)
 {
+  lob_t cur;
+  uint32_t len = 0;
   if(!chunks) return 0;
-  return lob_len(chunks->writing) - chunks->writeat;
+  util_chunks_len(chunks); // flushes
+  len = lob_len(chunks->writing) - chunks->writeat;
+  for(cur=lob_next(chunks->writing);cur;cur = lob_next(cur)) len += lob_len(cur);
+  return len;
 }
 
 // enable automatic cloaking
@@ -117,44 +122,6 @@ lob_t util_chunks_receive(util_chunks_t chunks)
   return ret;
 }
 
-// get the next chunk, put its length in len
-uint8_t *util_chunks_out(util_chunks_t chunks, uint8_t *len)
-{
-  if(!chunks || !len) return NULL;
-  len[0] = 0;
-
-  // blocked
-  if(chunks->blocked) return NULL;
-
-  // this sets chunks->waiting
-  if(!util_chunks_len(chunks)) return NULL;
-
-  // always block once a full chunk is given out
-  chunks->blocked = chunks->blocking;
-  len[0] = chunks->waiting;
-  return lob_raw(chunks->writing)+chunks->writeat;
-}
-
-// clears out chunk
-util_chunks_t util_chunks_next(util_chunks_t chunks)
-{
-  if(!chunks) return chunks;
-  // only here if we wrote a whole chunk
-  chunks->blocked = 0;
-  // confirm we wrote the chunk data and size
-  chunks->writeat += chunks->waiting;
-  chunks->waiting = chunks->waitat = 0;
-  // advance/free source packet if done w/ it
-  if(chunks->writeat >= lob_len(chunks->writing))
-  {
-    lob_t next = lob_next(chunks->writing);
-    lob_free(chunks->writing);
-    chunks->writing = next;
-    chunks->writeat = 0;
-  }
-  return chunks;
-}
-
 // internal to append read data
 util_chunks_t _util_chunks_append(util_chunks_t chunks, uint8_t *block, size_t len)
 {
@@ -197,9 +164,27 @@ uint32_t util_chunks_len(util_chunks_t chunks)
 
   // if only an ack waiting, send it
   if(!chunks->writing) return (chunks->ack)?1:0;
+  
+  if(chunks->flush) return 1;
 
   // if a chunk was done, advance
-  if(chunks->waitat > chunks->waiting) util_chunks_next(chunks);
+  if(chunks->waitat > chunks->waiting)
+  {
+    // confirm we wrote the chunk data and size
+    chunks->writeat += chunks->waiting;
+    chunks->waiting = chunks->waitat = 0;
+    // advance/free source packet if done w/ it
+    if(chunks->writeat >= lob_len(chunks->writing))
+    {
+      lob_t next = lob_next(chunks->writing);
+      lob_free(chunks->writing);
+      chunks->writing = next;
+      chunks->writeat = 0;
+      // this causes a flushing 0 chunk to be written first
+      chunks->flush = 1;
+      return 1;
+    }
+  }
 
   // what's the total left to write
   size_t avail = lob_len(chunks->writing) - chunks->writeat;
@@ -217,7 +202,7 @@ uint8_t *util_chunks_write(util_chunks_t chunks)
   // ensures consistency
   if(!util_chunks_len(chunks)) return NULL;
   
-  // always write the chunk size byte first, is also the ack
+  // always write the chunk size byte first, is also the ack/flush
   if(!chunks->waitat) return &chunks->waiting;
   
   // into the raw data
@@ -230,6 +215,7 @@ util_chunks_t util_chunks_written(util_chunks_t chunks, size_t len)
   if(!chunks) return NULL;
   if(len > util_chunks_len(chunks)) return LOG("len too big %d > %d",len,util_chunks_len(chunks));
   chunks->waitat += len;
+  chunks->flush = 0;
 
   // clear any ack
   if(!chunks->waiting) chunks->ack = 0;
