@@ -5,16 +5,34 @@
 
 #define CEIL(a, b) (((a) / (b)) + (((a) % (b)) > 0 ? 1 : 0))
 
-struct util_chunks_struct
+// one malloc per chunk, put storage after it
+util_chunks_t util_chunk_new(util_chunks_t chunks, uint8_t size)
 {
-  uint8_t space, cloak, blocked, ack;
+  util_chunk_t chunk;
+  if(!(chunk = malloc(sizeof (struct util_chunk_struct) + size))) return LOG("OOM");
+  memset(chunk,0,sizeof (struct util_chunk_struct) + size);
+  chunk->size = size;
+  chunk->data = chunk+(sizeof (struct util_chunk_struct));
 
-  uint8_t *writing;
-  uint32_t writelen, writeat;
+  // add to reading list
+  if(!chunks->cur)
+  {
+    chunks->reading = chunks->cur = chunk;
+  }else{
+    chunks->cur->next = chunk;
+    chunks->cur = chunk;
+  }
 
-  uint8_t *reading;
-  uint32_t readlen, acked;
-};
+  return chunks;
+}
+
+util_chunk_t util_chunk_free(util_chunk_t chunk)
+{
+  if(!chunk) return NULL;
+  util_chunk_t next = chunk->next;
+  free(chunk);
+  return util_chunk_free(next);
+}
 
 util_chunks_t util_chunks_new(uint8_t size)
 {
@@ -38,8 +56,8 @@ util_chunks_t util_chunks_new(uint8_t size)
 util_chunks_t util_chunks_free(util_chunks_t chunks)
 {
   if(!chunks) return NULL;
-  if(chunks->writing) free(chunks->writing);
-  if(chunks->reading) free(chunks->reading);
+  if(chunks->writing) lob_free(chunks->writing);
+  util_chunk_free(chunks->reading);
   free(chunks);
   return NULL;
 }
@@ -51,35 +69,15 @@ util_chunks_t util_chunks_cloak(util_chunks_t chunks)
   return chunks;
 }
 
-// internal to clean up written data
-util_chunks_t _util_chunks_gc(util_chunks_t chunks)
+util_chunks_t util_chunks_send(util_chunks_t chunks, lob_t out)
 {
-  size_t len;
-  if(!chunks) return NULL;
-
-//  LOG("CHUNK GC %d %d %s",chunks,chunks->writeat,util_hex(chunks->writing,chunks->writelen,NULL));
-
-  // nothing to do
-  if(!chunks->writing || !chunks->writeat || !chunks->writelen) return chunks;
-
-  len = chunks->writing[0]+1;
-  if(len > chunks->writelen) return LOG("bad chunk write data");
-
-  // the current chunk hasn't beeen written yet
-  if(chunks->writeat < len) return chunks;
-
-  // remove the current chunk
-  chunks->writelen -= len;
-  chunks->writeat -= len;
-  memmove(chunks->writing,chunks->writing+len,chunks->writelen);
-  chunks->writing = util_reallocf(chunks->writing, chunks->writelen);
-
-  // tail recurse to eat any more chunks
-  return _util_chunks_gc(chunks);
+  if(!chunks || !out) return LOG("bad args");
+  chunks->writing = lob_push(chunks->writing, out);
+  // TODO cloaking, make lob internalize it
 }
 
 // turn this packet into chunks
-util_chunks_t util_chunks_send(util_chunks_t chunks, lob_t out)
+util_chunks_t util_chunks_xsend(util_chunks_t chunks, lob_t out)
 {
   uint32_t start, at;
   size_t len;
@@ -88,9 +86,6 @@ util_chunks_t util_chunks_send(util_chunks_t chunks, lob_t out)
   if(!chunks || !(len = lob_len(out))) return LOG("bad args");
   if(chunks->cloak) len += (8*rounds);
   
-  // internally gc first
-  _util_chunks_gc(chunks);
-
   start = chunks->writelen;
   chunks->writelen += len;
   chunks->writelen += CEIL(len,chunks->space); // include space for per-chunk start byte
@@ -129,6 +124,8 @@ lob_t util_chunks_receive(util_chunks_t chunks)
   lob_t ret;
 
   if(!chunks || !chunks->reading) return NULL;
+  
+  // find the first short chunk, extract packet
 
   // skip over any 0 acks in the start
   for(start = 0; start < chunks->readlen && chunks->reading[start] == 0; start += 1);

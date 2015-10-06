@@ -4,7 +4,25 @@
 #include <stdint.h>
 #include "lob.h"
 
-typedef struct util_chunks_struct *util_chunks_t;
+// for list of incoming chunks
+typedef struct util_chunk_struct
+{
+  struct util_chunk_t *next;
+  uint8_t size;
+  uint8_t *data;
+} *util_chunk_t;
+
+typedef struct util_chunks_struct
+{
+  uint8_t space, cloak, blocked, ack;
+
+  lob_t writing;
+  size_t writeto, writeat;
+
+  util_chunk_t reading, cur;
+  size_t readat;
+} *util_chunks_t;
+
 
 // size of each chunk, 0 == MAX (256)
 util_chunks_t util_chunks_new(uint8_t size);
