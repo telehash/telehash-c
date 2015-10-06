@@ -7,7 +7,7 @@
 // for list of incoming chunks
 typedef struct util_chunk_struct
 {
-  struct util_chunk_t *next;
+  struct util_chunk_struct *next;
   uint8_t size;
   uint8_t *data;
 } *util_chunk_t;
@@ -17,7 +17,8 @@ typedef struct util_chunks_struct
   uint8_t space, cloak, blocked, ack;
 
   lob_t writing;
-  size_t writeto, writeat;
+  size_t writeat;
+  uint8_t waiting, waitat;
 
   util_chunk_t reading, cur;
   size_t readat;
