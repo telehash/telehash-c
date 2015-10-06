@@ -39,14 +39,15 @@ util_chunks_t util_chunks_new(uint8_t size)
   if(!(chunks = malloc(sizeof (struct util_chunks_struct)))) return LOG("OOM");
   memset(chunks,0,sizeof (struct util_chunks_struct));
   chunks->blocked = 0;
+  chunks->blocking = 1; // default
 
   if(!size)
   {
-    chunks->space = 255;
+    chunks->cap = 255;
   }else if(size == 1){
-    chunks->space = 1; // minimum
+    chunks->cap = 1; // minimum
   }else{
-    chunks->space = size-1;
+    chunks->cap = size-1;
   }
 
   return chunks;
@@ -93,7 +94,7 @@ lob_t util_chunks_receive(util_chunks_t chunks)
   if(!chunks || !chunks->reading) return NULL;
   
   // find the first short chunk, extract packet
-  for(len = 0,chunk = chunks->reading;chunk && chunk->size < chunks->space;len += chunk->size,chunk = chunk->next);
+  for(len = 0,chunk = chunks->reading;chunk && chunk->size < chunks->cap;len += chunk->size,chunk = chunk->next);
   
   if(!chunk) return NULL;
   len += chunk->size; // meh
@@ -125,15 +126,32 @@ uint8_t *util_chunks_out(util_chunks_t chunks, uint8_t *len)
   // blocked
   if(chunks->blocked) return NULL;
 
+  // this sets chunks->waiting
   if(!util_chunks_len(chunks)) return NULL;
+
+  // always block once a full chunk is given out
+  chunks->blocked = chunks->blocking;
   len[0] = chunks->waiting;
   return lob_raw(chunks->writing)+chunks->writeat;
 }
 
-// clears out block
+// clears out chunk
 util_chunks_t util_chunks_next(util_chunks_t chunks)
 {
-  if(chunks) chunks->blocked = 0;
+  if(!chunks) return chunks;
+  // only here if we wrote a whole chunk
+  chunks->blocked = 0;
+  // confirm we wrote the chunk data and size
+  chunks->writeat += chunks->waiting;
+  chunks->waiting = chunks->waitat = 0;
+  // advance/free source packet if done w/ it
+  if(chunks->writeat >= lob_len(chunks->writing))
+  {
+    lob_t next = lob_next(chunks->writing);
+    lob_free(chunks->writing);
+    chunks->writing = next;
+    chunks->writeat = 0;
+  }
   return chunks;
 }
 
@@ -172,24 +190,27 @@ util_chunks_t util_chunks_in(util_chunks_t chunks, uint8_t *chunk, uint8_t len)
 // how many bytes are there waiting
 uint32_t util_chunks_len(util_chunks_t chunks)
 {
-  if(!chunks || !chunks->writing) return 0;
+  if(!chunks || !chunks->writing || chunks->blocked) return 0;
   size_t avail = lob_len(chunks->writing) - chunks->writeat;
 
   // only deal w/ the current chunk
-  if(avail > chunks->space) avail = chunks->space;
+  if(avail > chunks->cap) avail = chunks->cap;
   if(!chunks->waiting) chunks->waiting = avail;
-  if(!chunks->waitat) return 1; // just the chunk size byte
+  if(!chunks->waitat) return 1; // just the chunk size byte first
   return chunks->waiting - chunks->waitat;
 }
 
 // return the next block of data to be written to the stream transport
 uint8_t *util_chunks_write(util_chunks_t chunks)
 {
+  // ensures consistency
   if(!util_chunks_len(chunks)) return NULL;
   
   // always write the chunk size byte first
   if(!chunks->waitat) return &chunks->waiting;
-  return lob_raw(chunks->writing)+chunks->writeat+chunks->waitat;
+  
+  // into the raw data
+  return lob_raw(chunks->writing)+chunks->writeat+(chunks->waitat-1);
 }
 
 // advance the write pointer this far
@@ -198,18 +219,8 @@ util_chunks_t util_chunks_written(util_chunks_t chunks, size_t len)
   if(!chunks) return NULL;
   if(len > util_chunks_len(chunks)) return LOG("len too big %d > %d",len,util_chunks_len(chunks));
   chunks->waitat += len;
-  if(chunks->waitat > chunks->waiting)
-  {
-    chunks->writeat += chunks->waiting;
-    chunks->waiting = chunks->waitat = 0;
-    if(chunks->writeat >= lob_len(chunks->writing))
-    {
-      lob_t next = lob_next(chunks->writing);
-      lob_free(chunks->writing);
-      chunks->writing = next;
-      chunks->writeat = 0;
-    }
-  }
+  // block if chunk is done
+  if(chunks->waitat > chunks->waiting) chunks->blocked = chunks->blocking;
   return chunks;
 }
 

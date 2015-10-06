@@ -14,14 +14,16 @@ typedef struct util_chunk_struct
 
 typedef struct util_chunks_struct
 {
-  uint8_t space, cloak, blocked, ack;
+
+  util_chunk_t reading, cur;
+  size_t readat;
 
   lob_t writing;
   size_t writeat;
   uint8_t waiting, waitat;
 
-  util_chunk_t reading, cur;
-  size_t readat;
+  uint8_t cap;
+  uint8_t cloak:1, blocked:1, blocking:1, ack:1; //bools
 } *util_chunks_t;
 
 
