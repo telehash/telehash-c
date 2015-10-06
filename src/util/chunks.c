@@ -170,6 +170,9 @@ util_chunks_t _util_chunks_append(util_chunks_t chunks, uint8_t *block, size_t l
     quota = *block;
     block++;
     len--;
+    // a chunk was received, unblock and ack
+    chunks->blocked = 0;
+    chunks->ack = 1;
   }
 
   if(len < quota) quota = len;
@@ -190,14 +193,22 @@ util_chunks_t util_chunks_in(util_chunks_t chunks, uint8_t *chunk, uint8_t len)
 // how many bytes are there waiting
 uint32_t util_chunks_len(util_chunks_t chunks)
 {
-  if(!chunks || !chunks->writing || chunks->blocked) return 0;
+  if(!chunks || chunks->blocked) return 0;
+
+  // if only an ack waiting, send it
+  if(!chunks->writing) return (chunks->ack)?1:0;
+
+  // if a chunk was done, advance
+  if(chunks->waitat > chunks->waiting) util_chunks_next(chunks);
+
+  // what's the total left to write
   size_t avail = lob_len(chunks->writing) - chunks->writeat;
 
-  // only deal w/ the current chunk
+  // only deal w/ the next chunk
   if(avail > chunks->cap) avail = chunks->cap;
   if(!chunks->waiting) chunks->waiting = avail;
   if(!chunks->waitat) return 1; // just the chunk size byte first
-  return chunks->waiting - chunks->waitat;
+  return chunks->waiting - (chunks->waitat-1);
 }
 
 // return the next block of data to be written to the stream transport
@@ -206,7 +217,7 @@ uint8_t *util_chunks_write(util_chunks_t chunks)
   // ensures consistency
   if(!util_chunks_len(chunks)) return NULL;
   
-  // always write the chunk size byte first
+  // always write the chunk size byte first, is also the ack
   if(!chunks->waitat) return &chunks->waiting;
   
   // into the raw data
@@ -219,6 +230,10 @@ util_chunks_t util_chunks_written(util_chunks_t chunks, size_t len)
   if(!chunks) return NULL;
   if(len > util_chunks_len(chunks)) return LOG("len too big %d > %d",len,util_chunks_len(chunks));
   chunks->waitat += len;
+
+  // clear any ack
+  if(!chunks->waiting) chunks->ack = 0;
+
   // block if chunk is done
   if(chunks->waitat > chunks->waiting) chunks->blocked = chunks->blocking;
   return chunks;
@@ -232,24 +247,3 @@ util_chunks_t util_chunks_read(util_chunks_t chunks, uint8_t *block, size_t len)
   return chunks;
 }
 
-
-// sends an ack if neccessary, after any more chunks have been received and none waiting to send
-util_chunks_t util_chunks_ack(util_chunks_t chunks)
-{
-  if(!chunks) return NULL;
-  
-  // skip ack if anything waiting
-  if(chunks->writing) return chunks;
-  
-  // flag to send an ack
-  chunks->ack = 1;
-
-  // implicitly unblock after any new chunks
-//  util_chunks_next(chunks);
-
-  // don't ack if the last received was an ack
-//  if(zeros > 1 && (count - chunks->acked) == 1) return NULL;
-
-  return chunks;
-  
-}

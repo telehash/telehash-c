@@ -33,7 +33,6 @@ pipe_t serial_flush(pipe_t pipe)
   if(count)
   {
     LOG("read %d bytes from %s",count,pipe->id);
-    util_chunks_ack(to->chunks);
   }
 
   // any incoming full packets can be received
