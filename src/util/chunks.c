@@ -162,29 +162,8 @@ uint32_t util_chunks_len(util_chunks_t chunks)
 {
   if(!chunks || chunks->blocked) return 0;
 
-  // if only an ack waiting, send it
-  if(!chunks->writing) return (chunks->ack)?1:0;
-  
-  if(chunks->flush) return 1;
-
-  // if a chunk was done, advance
-  if(chunks->waitat > chunks->waiting)
-  {
-    // confirm we wrote the chunk data and size
-    chunks->writeat += chunks->waiting;
-    chunks->waiting = chunks->waitat = 0;
-    // advance/free source packet if done w/ it
-    if(chunks->writeat >= lob_len(chunks->writing))
-    {
-      lob_t next = lob_next(chunks->writing);
-      lob_free(chunks->writing);
-      chunks->writing = next;
-      chunks->writeat = 0;
-      // this causes a flushing 0 chunk to be written first
-      chunks->flush = 1;
-      return 1;
-    }
-  }
+  // when no packet, only send an ack
+  if(!chunks->writing) return (chunks->ack) ? 1 : 0;
 
   // what's the total left to write
   size_t avail = lob_len(chunks->writing) - chunks->writeat;
@@ -192,7 +171,10 @@ uint32_t util_chunks_len(util_chunks_t chunks)
   // only deal w/ the next chunk
   if(avail > chunks->cap) avail = chunks->cap;
   if(!chunks->waiting) chunks->waiting = avail;
-  if(!chunks->waitat) return 1; // just the chunk size byte first
+
+  // just writing the waiting size byte first
+  if(!chunks->waitat) return 1;
+
   return chunks->waiting - (chunks->waitat-1);
 }
 
@@ -212,16 +194,33 @@ uint8_t *util_chunks_write(util_chunks_t chunks)
 // advance the write pointer this far
 util_chunks_t util_chunks_written(util_chunks_t chunks, size_t len)
 {
-  if(!chunks) return NULL;
+  if(!chunks || !len) return NULL;
   if(len > util_chunks_len(chunks)) return LOG("len too big %d > %d",len,util_chunks_len(chunks));
   chunks->waitat += len;
-  chunks->flush = 0;
+  chunks->ack = 0; // any write is an ack
 
-  // clear any ack
-  if(!chunks->waiting) chunks->ack = 0;
+  // if a chunk was done, advance to next chunk
+  if(chunks->waitat > chunks->waiting)
+  {
+    // confirm we wrote the chunk data and size
+    chunks->writeat += chunks->waiting;
+    chunks->waiting = chunks->waitat = 0;
 
-  // block if chunk is done
-  if(chunks->waitat > chunks->waiting) chunks->blocked = chunks->blocking;
+    // only block if it was a full chunk
+    if(chunks->waiting == chunks->cap) chunks->blocked = chunks->blocking;
+
+    // only advance packet after we wrote a flushing 0
+    if(len == 1 && chunks->writeat == lob_len(chunks->writing))
+    {
+      lob_t next = lob_next(chunks->writing);
+      lob_free(chunks->writing);
+      chunks->writing = next;
+      chunks->writeat = 0;
+      // always block after a full packet
+      chunks->blocked = chunks->blocking;
+    }
+  }
+  
   return chunks;
 }
 
