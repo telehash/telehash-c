@@ -13,12 +13,12 @@ util_chunks_t util_chunk_new(util_chunks_t chunks, uint8_t size)
   chunk->data = ((void*)chunk)+(sizeof (struct util_chunk_struct));
 
   // add to reading list
-  if(!chunks->cur)
+  if(!chunks->readcur)
   {
-    chunks->reading = chunks->cur = chunk;
+    chunks->reading = chunks->readcur = chunk;
   }else{
-    chunks->cur->next = chunk;
-    chunks->cur = chunk;
+    chunks->readcur->next = chunk;
+    chunks->readcur = chunk;
   }
   chunks->readat = 0;
 
@@ -110,6 +110,8 @@ lob_t util_chunks_receive(util_chunks_t chunks)
     free(chunks->reading);
   }
   
+  if(!chunks->reading) chunks->readcur = NULL;
+  
   // only if there was a packet
   if(len)
   {
@@ -129,7 +131,7 @@ util_chunks_t _util_chunks_append(util_chunks_t chunks, uint8_t *block, size_t l
   if(!chunks || !block || !len) return chunks;
   uint8_t quota = 0;
   
-  if(chunks->cur) quota = chunks->cur->size - chunks->readat;
+  if(chunks->readcur) quota = chunks->readcur->size - chunks->readat;
   
   // no space so add a new storage chunk
   if(!quota)
@@ -147,7 +149,7 @@ util_chunks_t _util_chunks_append(util_chunks_t chunks, uint8_t *block, size_t l
   if(len < quota) quota = len;
 
   // copy in quota space
-  memcpy(chunks->cur->data,block,quota);
+  memcpy(chunks->readcur->data+chunks->readat,block,quota);
   chunks->readat += quota;
   return _util_chunks_append(chunks,block+quota,len-quota);
 }

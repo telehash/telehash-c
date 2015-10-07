@@ -15,12 +15,13 @@ typedef struct util_chunk_struct
 typedef struct util_chunks_struct
 {
 
-  util_chunk_t reading, cur;
-  size_t readat;
+  util_chunk_t reading, readcur;
 
   lob_t writing;
-  size_t writeat;
-  uint8_t waiting, waitat;
+  size_t writeat; // offset into lob_raw()
+  uint16_t waitat; // gets to 256, offset into current chunk
+  uint8_t waiting; // current writing chunk size;
+  uint8_t readat; // always less than a max chunk, offset into readcur
 
   uint8_t cap;
   uint8_t blocked:1, blocking:1, ack:1; // bool flags

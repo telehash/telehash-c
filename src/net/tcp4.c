@@ -73,6 +73,7 @@ pipe_t tcp4_flush(pipe_t pipe)
     {
       LOG("wrote %d bytes to %s",len,pipe->id);
       util_chunks_written(to->chunks, (size_t)len);
+      LOG("writeat %d written %d",to->chunks->writeat,to->chunks->writing);
     }
   }
 

@@ -41,7 +41,7 @@ pipe_t serial_flush(pipe_t pipe)
   // write the next waiting chunk
   while((len = util_chunks_len(to->chunks)))
   {
-    if((ret = to->write(util_chunks_write(to->chunks), len)) == len)
+    if((ret = to->write(util_chunks_write(to->chunks), len)) > 0)
     {
       LOG("wrote %d size chunk to %s",ret,pipe->id);
       // blocks till next incoming chunk is read before sending more
@@ -49,6 +49,7 @@ pipe_t serial_flush(pipe_t pipe)
     }else{
       LOG("chunk write failed, %d != %d",ret,len);
       // TODO, write a full chunk of zeros to clear any line errors and reset state?
+      break;
     }
   }
 
