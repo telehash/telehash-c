@@ -99,11 +99,12 @@ lob_t util_chunks_receive(util_chunks_t chunks)
   if(!chunks || !chunks->reading) return NULL;
   
   // find the first short chunk, extract packet
-  for(len = 0,chunk = chunks->reading;chunk && chunk->size < chunks->cap;len += chunk->size,chunk = chunk->next);
-  
+  for(len = 0,chunk = chunks->reading;chunk && chunk->size == chunks->cap;len += chunk->size,chunk = chunk->next);// LOG("chunk %d %d len %d next %d",chunk->size,chunks->cap,len,chunk->next);
+
   if(!chunk) return NULL;
   len += chunk->size; // meh
-  
+  chunk = chunk->next; // start of next packet
+
   // TODO make a lob_new that creates space to prevent double-copy here
   uint8_t *buf = malloc(len);
   if(len && !buf) return LOG("OOM");
@@ -117,9 +118,16 @@ lob_t util_chunks_receive(util_chunks_t chunks)
     free(chunks->reading);
   }
   
-  ret = (chunks->cloak)?lob_decloak(buf,len):lob_parse(buf,len);
-  free(buf);
-  return ret;
+  // only if there was a packet
+  if(len)
+  {
+    ret = (chunks->cloak)?lob_decloak(buf,len):lob_parse(buf,len);
+    free(buf);
+    return ret;
+  }
+  
+  // recurse for empty flush chunks
+  return util_chunks_receive(chunks);
 }
 
 // internal to append read data
@@ -146,6 +154,7 @@ util_chunks_t _util_chunks_append(util_chunks_t chunks, uint8_t *block, size_t l
 
   // copy in quota space
   memcpy(chunks->cur->data,block,quota);
+  chunks->readat += quota;
   return _util_chunks_append(chunks,block+quota,len-quota);
 }
 

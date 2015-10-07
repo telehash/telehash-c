@@ -77,6 +77,7 @@ int main(int argc, char **argv)
   fail_unless(max == 26);
   lob_t p1 = util_chunks_receive(c2);
   fail_unless(p1);
+  LOG("len %d",p1->body_len);
   fail_unless(p1->body_len == 100);
   lob_free(p1);
   lob_t p2 = util_chunks_receive(c2);
