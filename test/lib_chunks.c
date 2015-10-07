@@ -97,8 +97,7 @@ int main(int argc, char **argv)
   // send first volley
   len = util_chunks_len(c1);
   buf = util_chunks_write(c1);
-  fail_unless(util_chunks_read(c2,buf,10));
-  fail_unless(util_chunks_read(c2,buf+10,len-10));
+  fail_unless(util_chunks_read(c2,buf,len));
   len = util_chunks_len(c2);
   buf = util_chunks_write(c2);
   fail_unless(util_chunks_read(c1,buf,len)); // one chunk back
@@ -110,6 +109,7 @@ int main(int argc, char **argv)
   len = util_chunks_len(c2);
   buf = util_chunks_write(c2);
   fail_unless(util_chunks_read(c1,buf,len)); // rest back
+  
   
   p1 = util_chunks_receive(c1);
   fail_unless(p1);

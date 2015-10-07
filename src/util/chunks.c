@@ -237,7 +237,7 @@ util_chunks_t util_chunks_written(util_chunks_t chunks, size_t len)
 util_chunks_t util_chunks_read(util_chunks_t chunks, uint8_t *block, size_t len)
 {
   if(!_util_chunks_append(chunks,block,len)) return NULL;
-  if(!chunks->reading || !chunks->readat) return NULL; // paranoid
+  if(!chunks->reading) return NULL; // paranoid
   return chunks;
 }
 
