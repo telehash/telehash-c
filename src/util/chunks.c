@@ -121,6 +121,7 @@ lob_t util_chunks_receive(util_chunks_t chunks)
   // only if there was a packet
   if(len)
   {
+    chunks->ack = 1; // make sure ack is set after any full packets too
     ret = (chunks->cloak)?lob_decloak(buf,len):lob_parse(buf,len);
     free(buf);
     return ret;
@@ -145,9 +146,10 @@ util_chunks_t _util_chunks_append(util_chunks_t chunks, uint8_t *block, size_t l
     quota = *block;
     block++;
     len--;
-    // a chunk was received, unblock and ack
+    // a chunk was received, unblock
     chunks->blocked = 0;
-    chunks->ack = 1;
+    // if it had data, flag to ack
+    if(quota) chunks->ack = 1;
   }
 
   if(len < quota) quota = len;
@@ -203,7 +205,7 @@ uint8_t *util_chunks_write(util_chunks_t chunks)
 // advance the write pointer this far
 util_chunks_t util_chunks_written(util_chunks_t chunks, size_t len)
 {
-  if(!chunks || !len) return NULL;
+  if(!chunks || !len) return chunks;
   if(len > util_chunks_len(chunks)) return LOG("len too big %d > %d",len,util_chunks_len(chunks));
   chunks->waitat += len;
   chunks->ack = 0; // any write is an ack

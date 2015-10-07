@@ -98,18 +98,32 @@ int main(int argc, char **argv)
   len = util_chunks_len(c1);
   buf = util_chunks_write(c1);
   fail_unless(util_chunks_read(c2,buf,len));
+  fail_unless(util_chunks_written(c1,len));
   len = util_chunks_len(c2);
   buf = util_chunks_write(c2);
   fail_unless(util_chunks_read(c1,buf,len)); // one chunk back
+  fail_unless(util_chunks_written(c2,len));
   fail_unless(util_chunks_receive(c1) == NULL); // no packet yet
   fail_unless(util_chunks_receive(c2) == NULL); // no packet yet
-  len = util_chunks_len(c1);
-  buf = util_chunks_write(c1);
-  fail_unless(util_chunks_read(c2,buf,len)); // rest of packet
-  len = util_chunks_len(c2);
-  buf = util_chunks_write(c2);
-  fail_unless(util_chunks_read(c1,buf,len)); // rest back
   
+  // rest of packet
+  size_t len1, len2;
+  for(max=0;max<20;max++)
+  {
+    len1 = util_chunks_len(c1);
+    LOG("len %d blk %d ack %d",len1,c1->blocked,c1->ack);
+    buf = util_chunks_write(c1);
+    fail_unless(util_chunks_read(c2,buf,len1));
+    fail_unless(util_chunks_written(c1,len1));
+    len2 = util_chunks_len(c2);
+    LOG("len %d blk %d ack %d",len2,c2->blocked,c2->ack);
+    buf = util_chunks_write(c2);
+    fail_unless(util_chunks_read(c1,buf,len2));
+    fail_unless(util_chunks_written(c2,len2));
+    if(!len1 && !len2) break;
+  }
+  LOG("max of %d",max);
+  fail_unless(max == 4);
   
   p1 = util_chunks_receive(c1);
   fail_unless(p1);
@@ -121,7 +135,6 @@ int main(int argc, char **argv)
   lob_free(p2);
   util_chunks_free(c1);
   util_chunks_free(c2);
-
 
   
   return 0;
