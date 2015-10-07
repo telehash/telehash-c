@@ -23,7 +23,7 @@ typedef struct util_chunks_struct
   uint8_t waiting, waitat;
 
   uint8_t cap;
-  uint8_t cloak:1, blocked:1, blocking:1, ack:1; // bool flags
+  uint8_t blocked:1, blocking:1, ack:1; // bool flags
 } *util_chunks_t;
 
 
@@ -31,9 +31,6 @@ typedef struct util_chunks_struct
 util_chunks_t util_chunks_new(uint8_t size);
 
 util_chunks_t util_chunks_free(util_chunks_t chunks);
-
-// enable automatic cloaking
-util_chunks_t util_chunks_cloak(util_chunks_t chunks);
 
 // turn this packet into chunks and append, free's out
 util_chunks_t util_chunks_send(util_chunks_t chunks, lob_t out);

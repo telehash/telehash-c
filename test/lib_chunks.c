@@ -48,11 +48,6 @@ int main(int argc, char **argv)
   cbig->blocked = 0;
   fail_unless(util_chunks_len(cbig) == 255);
   
-  // try cloaking
-  util_chunks_t cloaked = util_chunks_new(20);
-  util_chunks_cloak(cloaked);
-  fail_unless(util_chunks_send(cloaked, lob_copy(packet)));
-
   // double and unblocked
   util_chunks_t c1 = util_chunks_new(20);
   c1->blocking = 0;

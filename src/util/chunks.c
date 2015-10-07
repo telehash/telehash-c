@@ -73,18 +73,10 @@ uint32_t util_chunks_writing(util_chunks_t chunks)
   return len;
 }
 
-// enable automatic cloaking
-util_chunks_t util_chunks_cloak(util_chunks_t chunks)
-{
-  if(chunks) chunks->cloak = 1;
-  return chunks;
-}
-
 util_chunks_t util_chunks_send(util_chunks_t chunks, lob_t out)
 {
   if(!chunks || !out) return LOG("bad args");
   chunks->writing = lob_push(chunks->writing, out);
-  // TODO cloaking, make lob internalize it
   return chunks;
 }
 
@@ -122,7 +114,7 @@ lob_t util_chunks_receive(util_chunks_t chunks)
   if(len)
   {
     chunks->ack = 1; // make sure ack is set after any full packets too
-    ret = (chunks->cloak)?lob_decloak(buf,len):lob_parse(buf,len);
+    ret = lob_parse(buf,len);
     free(buf);
     return ret;
   }
