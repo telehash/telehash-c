@@ -7,7 +7,7 @@
 // for list of incoming chunks
 typedef struct util_chunk_struct
 {
-  struct util_chunk_struct *next;
+  struct util_chunk_struct *prev;
   uint8_t size;
   uint8_t *data;
 } *util_chunk_t;
@@ -15,13 +15,13 @@ typedef struct util_chunk_struct
 typedef struct util_chunks_struct
 {
 
-  util_chunk_t reading, readcur;
+  util_chunk_t reading; // stacked linked list of incoming chunks
 
   lob_t writing;
   size_t writeat; // offset into lob_raw()
   uint16_t waitat; // gets to 256, offset into current chunk
   uint8_t waiting; // current writing chunk size;
-  uint8_t readat; // always less than a max chunk, offset into readcur
+  uint8_t readat; // always less than a max chunk, offset into reading
 
   uint8_t cap;
   uint8_t blocked:1, blocking:1, ack:1; // bool flags

@@ -19,6 +19,7 @@ int main(int argc, char **argv)
 
   // check write
   fail_unless(util_chunks_write(chunks));
+  LOG("wait %d write %d",chunks->waitat,chunks->writeat);
   fail_unless(chunks->waitat == 0);
   fail_unless(chunks->writeat == 0);
   fail_unless(util_chunks_written(chunks,1));

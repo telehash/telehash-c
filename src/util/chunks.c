@@ -4,22 +4,20 @@
 #include "telehash.h"
 
 // one malloc per chunk, put storage after it
-util_chunks_t util_chunk_new(util_chunks_t chunks, uint8_t size)
+util_chunks_t util_chunk_new(util_chunks_t chunks, uint8_t len)
 {
   util_chunk_t chunk;
-  if(!(chunk = malloc(sizeof (struct util_chunk_struct) + size))) return LOG("OOM");
-  memset(chunk,0,sizeof (struct util_chunk_struct) + size);
-  chunk->size = size;
+  size_t size = sizeof (struct util_chunk_struct);
+  size += len;
+  if(!(chunk = malloc(size))) return LOG("OOM");
+  memset(chunk,0,size);
+  chunk->size = len;
+  // point to extra space after struct, less opaque
   chunk->data = ((void*)chunk)+(sizeof (struct util_chunk_struct));
 
   // add to reading list
-  if(!chunks->readcur)
-  {
-    chunks->reading = chunks->readcur = chunk;
-  }else{
-    chunks->readcur->next = chunk;
-    chunks->readcur = chunk;
-  }
+  chunk->prev = chunks->reading;
+  chunks->reading = chunk;
   chunks->readat = 0;
 
   return chunks;
@@ -28,9 +26,9 @@ util_chunks_t util_chunk_new(util_chunks_t chunks, uint8_t size)
 util_chunk_t util_chunk_free(util_chunk_t chunk)
 {
   if(!chunk) return NULL;
-  util_chunk_t next = chunk->next;
+  util_chunk_t prev = chunk->prev;
   free(chunk);
-  return util_chunk_free(next);
+  return util_chunk_free(prev);
 }
 
 util_chunks_t util_chunks_new(uint8_t size)
@@ -76,53 +74,72 @@ uint32_t util_chunks_writing(util_chunks_t chunks)
 util_chunks_t util_chunks_send(util_chunks_t chunks, lob_t out)
 {
   if(!chunks || !out) return LOG("bad args");
+//  LOG("sending chunked packet len %d hash %d",lob_len(out),murmur4((uint32_t*)lob_raw(out),lob_len(out)));
+
   chunks->writing = lob_push(chunks->writing, out);
   return chunks;
 }
 
-
 // get any packets that have been reassembled from incoming chunks
 lob_t util_chunks_receive(util_chunks_t chunks)
 {
-  util_chunk_t chunk, next;
+  util_chunk_t chunk, flush;
   size_t len;
-  lob_t ret;
 
   if(!chunks || !chunks->reading) return NULL;
   
-  // find the first short chunk, extract packet
-  for(len = 0,chunk = chunks->reading;chunk && chunk->size == chunks->cap;len += chunk->size,chunk = chunk->next);// LOG("chunk %d %d len %d next %d",chunk->size,chunks->cap,len,chunk->next);
+  // add up total length of any sequence
+  for(flush = NULL,chunk = chunks->reading;chunk;chunk=chunk->prev)
+  {
+    // only start/reset on flush
+    if(chunk->size == 0)
+    {
+      flush = chunk;
+      len = 0;
+    }
+    if(flush) len += chunk->size;
+//    LOG("chunk %d %d len %d next %d",chunk->size,chunks->cap,len,chunk->prev);
+  }
 
-  if(!chunk) return NULL;
-  len += chunk->size; // meh
-  chunk = chunk->next; // start of next packet
+  if(!flush) return NULL;
+  
+  // clip off before flush
+  if(chunks->reading == flush)
+  {
+    chunks->reading = NULL;
+  }else{
+    for(chunk = chunks->reading;chunk->prev != flush;chunk = chunk->prev);
+    chunk->prev = NULL;
+  }
+  
+  // pop off empty flush
+  chunk = flush->prev;
+  free(flush);
+
+  // if lone flush, just recurse
+  if(!chunk) return util_chunks_receive(chunks);
 
   // TODO make a lob_new that creates space to prevent double-copy here
   uint8_t *buf = malloc(len);
-  if(len && !buf) return LOG("OOM");
+  if(!buf) return LOG("OOM");
   
   // eat chunks copying in
-  for(len=0;chunks->reading != chunk;chunks->reading = next)
+  util_chunk_t prev;
+  size_t at;
+  for(at=len;chunk;chunk = prev)
   {
-    next = chunks->reading->next;
-    memcpy(buf+len,chunks->reading->data,chunks->reading->size);
-    len += chunks->reading->size;
-    free(chunks->reading);
+    prev = chunk->prev;
+    // backfill since we're inverted
+    memcpy(buf+(at-chunk->size),chunk->data,chunk->size);
+    at -= chunk->size;
+    free(chunk);
   }
   
-  if(!chunks->reading) chunks->readcur = NULL;
-  
-  // only if there was a packet
-  if(len)
-  {
-    chunks->ack = 1; // make sure ack is set after any full packets too
-    ret = lob_parse(buf,len);
-    free(buf);
-    return ret;
-  }
-  
-  // recurse for empty flush chunks
-  return util_chunks_receive(chunks);
+  chunks->ack = 1; // make sure ack is set after any full packets too
+//  LOG("parsing chunked packet length %d hash %d",len,murmur4((uint32_t*)buf,len));
+  lob_t ret = lob_parse(buf,len);
+  free(buf);
+  return ret;
 }
 
 // internal to append read data
@@ -131,7 +148,7 @@ util_chunks_t _util_chunks_append(util_chunks_t chunks, uint8_t *block, size_t l
   if(!chunks || !block || !len) return chunks;
   uint8_t quota = 0;
   
-  if(chunks->readcur) quota = chunks->readcur->size - chunks->readat;
+  if(chunks->reading) quota = chunks->reading->size - chunks->readat;
   
   // no space so add a new storage chunk
   if(!quota)
@@ -149,7 +166,7 @@ util_chunks_t _util_chunks_append(util_chunks_t chunks, uint8_t *block, size_t l
   if(len < quota) quota = len;
 
   // copy in quota space
-  memcpy(chunks->readcur->data+chunks->readat,block,quota);
+  memcpy(chunks->reading->data+chunks->readat,block,quota);
   chunks->readat += quota;
   return _util_chunks_append(chunks,block+quota,len-quota);
 }
