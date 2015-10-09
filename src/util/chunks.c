@@ -84,7 +84,7 @@ util_chunks_t util_chunks_send(util_chunks_t chunks, lob_t out)
 lob_t util_chunks_receive(util_chunks_t chunks)
 {
   util_chunk_t chunk, flush;
-  size_t len;
+  size_t len = 0;
 
   if(!chunks || !chunks->reading) return NULL;
   
