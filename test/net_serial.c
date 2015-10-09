@@ -74,11 +74,13 @@ int main(int argc, char **argv)
   link_sync(linkAB);
   // let serial go go go
   int loop;
-  for(loop = 1000; loop; loop--)
+  for(loop = 2000; loop; loop--)
   {
     net_serial_loop(netB);
     net_serial_loop(netA);
   }
+  // TODO fix these
+  LOG("BA %d AB %d",e3x_exchange_out(linkBA->x,0),e3x_exchange_out(linkAB->x,0));
   fail_unless(e3x_exchange_out(linkBA->x,0) >= e3x_exchange_out(linkAB->x,0));
   fail_unless(e3x_exchange_out(linkBA->x,0) == e3x_exchange_out(linkAB->x,0));
 

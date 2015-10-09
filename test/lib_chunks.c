@@ -14,24 +14,29 @@ int main(int argc, char **argv)
   lob_t packet = lob_new();
   lob_body(packet,0,100);
   fail_unless(util_chunks_send(chunks, lob_copy(packet)));
-  fail_unless(util_chunks_len(chunks) == 115);
+  fail_unless(util_chunks_len(chunks) == 1);
   uint8_t len = 0;
-  fail_unless(util_chunks_out(chunks, &len));
-  fail_unless(len == 10);
-  fail_unless(util_chunks_len(chunks) == 105);
-  util_chunks_next(chunks);
-  fail_unless(util_chunks_out(chunks, &len));
-  fail_unless(len == 10);
-  fail_unless(util_chunks_len(chunks) == 95);
-  while(util_chunks_len(chunks)) fail_unless(util_chunks_next(chunks) && util_chunks_out(chunks, &len));
 
   // check write
-  fail_unless(!util_chunks_write(chunks));
-  fail_unless(util_chunks_send(chunks, lob_copy(packet)));
   fail_unless(util_chunks_write(chunks));
-  fail_unless(util_chunks_len(chunks) == 115);
-  fail_unless(util_chunks_written(chunks,15));
-  fail_unless(util_chunks_len(chunks) == 100);
+  LOG("wait %d write %d",chunks->waitat,chunks->writeat);
+  fail_unless(chunks->waitat == 0);
+  fail_unless(chunks->writeat == 0);
+  fail_unless(util_chunks_written(chunks,1));
+  LOG("wait %d write %d",chunks->waitat,chunks->writeat);
+  fail_unless(chunks->waitat == 1);
+  fail_unless(chunks->writeat == 0);
+  len = util_chunks_len(chunks);
+  fail_unless(len == 9);
+  fail_unless(util_chunks_written(chunks,4));
+  fail_unless(chunks->waitat == 5);
+  fail_unless(chunks->writeat == 0);
+  fail_unless(util_chunks_len(chunks) == 5);
+  fail_unless(util_chunks_written(chunks,5));
+  fail_unless(chunks->waitat == 0);
+  fail_unless(chunks->writeat == 9);
+
+  chunks->blocked = 0; // for testing
 
   fail_unless(!util_chunks_free(chunks));
 
@@ -40,64 +45,38 @@ int main(int argc, char **argv)
   lob_t pbig = lob_new();
   lob_body(pbig,0,845);
   fail_unless(util_chunks_send(cbig, lob_copy(pbig)));
-  size_t lbig = util_chunks_len(cbig);
-  fail_unless(lbig == 852);
-  fail_unless(util_chunks_written(cbig,lbig));
+  fail_unless(util_chunks_written(cbig,1));
+  cbig->blocked = 0;
+  fail_unless(util_chunks_len(cbig) == 255);
   
-  // try cloaking
-  util_chunks_t cloaked = util_chunks_new(20);
-  util_chunks_cloak(cloaked);
-  fail_unless(util_chunks_send(cloaked, lob_copy(packet)));
-  printf("CLOAK %d\n",util_chunks_len(cloaked));
-  fail_unless(util_chunks_len(cloaked) == 117);
-
-  // try send and receive by chunk
+  // double and unblocked
   util_chunks_t c1 = util_chunks_new(20);
+  c1->blocking = 0;
   fail_unless(util_chunks_send(c1, lob_copy(packet)));
   fail_unless(util_chunks_send(c1, lob_copy(packet)));
-  fail_unless(util_chunks_len(c1) == 218);
 
-  util_chunks_t c2 = util_chunks_new(2);
-  uint8_t *chunk;
-  while(util_chunks_len(c1))
-  {
-    fail_unless((chunk = util_chunks_out(c1,&len)));
-    fail_unless(util_chunks_in(c2,chunk,len));
-    util_chunks_next(c1);
-  }
-  fail_unless(util_chunks_len(c1) == 0);
-  lob_t p1 = util_chunks_receive(c2);
-  fail_unless(p1);
-  fail_unless(p1->body_len == 100);
-  lob_free(p1);
-  lob_t p2 = util_chunks_receive(c2);
-  fail_unless(p2);
-  fail_unless(p2->body_len == 100);
-  lob_free(p2);
-
-  util_chunks_free(c1);
-  util_chunks_free(c2);
 
   // try send and receive by stream
   LOG("chunk stream test");
-  c1 = util_chunks_new(10);
-  fail_unless(util_chunks_send(c1, lob_copy(packet)));
-  fail_unless(util_chunks_send(c1, lob_copy(packet)));
-  fail_unless(util_chunks_len(c1) == 230);
 
-  c2 = util_chunks_new(20);
-  uint8_t *buf;
-  while(util_chunks_len(c1))
+  util_chunks_t c2 = util_chunks_new(20);
+  uint8_t *buf, max;
+  for(max=0;max<100;max++)
   {
+    if(!(len = util_chunks_len(c1))) break;
+    LOG("len %d",len);
     fail_unless((buf = util_chunks_write(c1)));
-    util_chunks_read(c2,buf,10);
-    fail_unless(util_chunks_written(c1,10));
+    util_chunks_read(c2,buf,len);
+    fail_unless(util_chunks_written(c1,len));
   }
-  p1 = util_chunks_receive(c2);
+  LOG("max %d",max);
+  fail_unless(max == 26);
+  lob_t p1 = util_chunks_receive(c2);
   fail_unless(p1);
+  LOG("len %d",p1->body_len);
   fail_unless(p1->body_len == 100);
   lob_free(p1);
-  p2 = util_chunks_receive(c2);
+  lob_t p2 = util_chunks_receive(c2);
   fail_unless(p2);
   fail_unless(p2->body_len == 100);
   lob_free(p2);
@@ -112,22 +91,35 @@ int main(int argc, char **argv)
   fail_unless(util_chunks_send(c2, lob_copy(packet)));
 
   // send first volley
-  buf = util_chunks_out(c1, &len);
-  fail_unless(util_chunks_read(c2,buf,10));
-  fail_unless(util_chunks_ack(c2) == NULL); // incomplete
-  fail_unless(util_chunks_read(c2,buf+10,len-10));
-  fail_unless(util_chunks_ack(c2)); // one chunk
-  buf = util_chunks_out(c2, &len);
+  len = util_chunks_len(c1);
+  buf = util_chunks_write(c1);
+  fail_unless(util_chunks_read(c2,buf,len));
+  fail_unless(util_chunks_written(c1,len));
+  len = util_chunks_len(c2);
+  buf = util_chunks_write(c2);
   fail_unless(util_chunks_read(c1,buf,len)); // one chunk back
-  fail_unless(util_chunks_ack(c1));
+  fail_unless(util_chunks_written(c2,len));
   fail_unless(util_chunks_receive(c1) == NULL); // no packet yet
   fail_unless(util_chunks_receive(c2) == NULL); // no packet yet
-  buf = util_chunks_out(c1, &len);
-  fail_unless(util_chunks_read(c2,buf,len)); // rest of packet
-  fail_unless(util_chunks_ack(c2));
-  buf = util_chunks_out(c2, &len);
-  fail_unless(util_chunks_read(c1,buf,len)); // rest back
-  fail_unless(util_chunks_ack(c1));
+  
+  // rest of packet
+  size_t len1, len2;
+  for(max=0;max<20;max++)
+  {
+    len1 = util_chunks_len(c1);
+    LOG("len %d blk %d ack %d",len1,c1->blocked,c1->ack);
+    buf = util_chunks_write(c1);
+    fail_unless(util_chunks_read(c2,buf,len1));
+    fail_unless(util_chunks_written(c1,len1));
+    len2 = util_chunks_len(c2);
+    LOG("len %d blk %d ack %d",len2,c2->blocked,c2->ack);
+    buf = util_chunks_write(c2);
+    fail_unless(util_chunks_read(c1,buf,len2));
+    fail_unless(util_chunks_written(c2,len2));
+    if(!len1 && !len2) break;
+  }
+  LOG("max of %d",max);
+  fail_unless(max == 4);
   
   p1 = util_chunks_receive(c1);
   fail_unless(p1);
@@ -140,42 +132,6 @@ int main(int argc, char **argv)
   util_chunks_free(c1);
   util_chunks_free(c2);
 
-  // reproduce a gc bug
-  util_chunks_t c3 = util_chunks_new(32);
-  lob_t blob = lob_new();
-  lob_body(blob,NULL,50);
-  int i;
-  for(i=0;i<10;i++)
-  {
-    fail_unless(util_chunks_send(c3,lob_copy(blob)));
-    len = 1;
-    fail_unless(util_chunks_out(c3,&len));
-    fail_unless(len == 32);
-    fail_unless(util_chunks_out(c3,&len) == NULL); // blocked
-    fail_unless(len == 0);
-    fail_unless(util_chunks_next(c3)); // unblock
-    fail_unless(util_chunks_out(c3,&len));
-    fail_unless(len == ((52-32)+3));
-    fail_unless(util_chunks_next(c3)); // unblock
-    fail_unless(util_chunks_out(c3,&len) == NULL);
-    fail_unless(len == 0);
-  }
-
-  fail_unless(util_chunks_send(c3,lob_copy(blob)));
-  len = 1;
-  fail_unless(util_chunks_out(c3,&len));
-  fail_unless(len == 32);
-  fail_unless(util_chunks_out(c3,&len) == NULL); // blocked
-  fail_unless(len == 0);
-  fail_unless(util_chunks_next(c3)); // unblock
-  fail_unless(util_chunks_out(c3,&len));
-  fail_unless(len == ((52-32)+3));
-  fail_unless(util_chunks_send(c3,lob_copy(blob)));
-  fail_unless(util_chunks_next(c3)); // unblock
-  fail_unless(util_chunks_out(c3,&len));
-  fail_unless(len == 32);
-  fail_unless(util_chunks_out(c3,&len) == NULL);
-  fail_unless(len == 0);
   
   return 0;
 }

@@ -73,6 +73,7 @@ pipe_t tcp4_flush(pipe_t pipe)
     {
       LOG("wrote %d bytes to %s",len,pipe->id);
       util_chunks_written(to->chunks, (size_t)len);
+      LOG("writeat %d written %d",to->chunks->writeat,to->chunks->writing);
     }
   }
 
@@ -140,7 +141,6 @@ pipe_t tcp4_pipe(net_tcp4_t net, char *ip, int port)
   inet_aton(ip, &(to->sa.sin_addr));
   to->sa.sin_port = htons(port);
   if(!(to->chunks = util_chunks_new(0))) return tcp4_free(pipe);
-  util_chunks_cloak(to->chunks); // enable cloaking by default
 
   // set up pipe
   pipe->id = strdup(id);
