@@ -9,7 +9,7 @@ typedef struct util_chunk_struct
 {
   struct util_chunk_struct *prev;
   uint8_t size;
-  uint8_t *data;
+  uint8_t data[];
 } *util_chunk_t;
 
 typedef struct util_chunks_struct

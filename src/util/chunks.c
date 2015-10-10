@@ -13,7 +13,7 @@ util_chunks_t util_chunk_new(util_chunks_t chunks, uint8_t len)
   memset(chunk,0,size);
   chunk->size = len;
   // point to extra space after struct, less opaque
-  chunk->data = ((void*)chunk)+(sizeof (struct util_chunk_struct));
+//  chunk->data = ((void*)chunk)+(sizeof (struct util_chunk_struct));
 
   // add to reading list
   chunk->prev = chunks->reading;
@@ -136,7 +136,7 @@ lob_t util_chunks_receive(util_chunks_t chunks)
   }
   
   chunks->ack = 1; // make sure ack is set after any full packets too
-//  LOG("parsing chunked packet length %d hash %d",len,murmur4((uint32_t*)buf,len));
+  LOG("parsing chunked packet length %d hash %d",len,murmur4((uint32_t*)buf,len));
   lob_t ret = lob_parse(buf,len);
   free(buf);
   return ret;
@@ -148,35 +148,28 @@ util_chunks_t _util_chunks_append(util_chunks_t chunks, uint8_t *block, size_t l
   if(!chunks || !block || !len) return chunks;
   uint8_t quota = 0;
   
+  // first, determine if block is a new chunk or a remainder of a previous chunk (quota > 0)
   if(chunks->reading) quota = chunks->reading->size - chunks->readat;
   
-  // no space so add a new storage chunk
+  // no space means we're at a chunk start byte
   if(!quota)
   {
     if(!util_chunk_new(chunks,*block)) return LOG("OOM");
-    quota = *block;
-    block++;
-    len--;
     // a chunk was received, unblock
     chunks->blocked = 0;
     // if it had data, flag to ack
-    if(quota) chunks->ack = 1;
+    if(*block) chunks->ack = 1;
+    // start processing the data now that there's space
+    return _util_chunks_append(chunks,block+1,len-1);
   }
 
+  // only a partial data avail now
   if(len < quota) quota = len;
 
-  // copy in quota space
+  // copy in quota space and recurse
   memcpy(chunks->reading->data+chunks->readat,block,quota);
   chunks->readat += quota;
   return _util_chunks_append(chunks,block+quota,len-quota);
-}
-
-// process an incoming individual chunk
-util_chunks_t util_chunks_in(util_chunks_t chunks, uint8_t *chunk, uint8_t len)
-{
-  if(!chunks || !chunk || !len) return chunks;
-  if(len < (*chunk + 1)) return LOG("invalid chunk len %d < %d+1",len,*chunk);
-  return _util_chunks_append(chunks,chunk,len);
 }
 
 // how many bytes are there waiting
