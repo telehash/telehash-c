@@ -8,7 +8,7 @@ int main(int argc, char **argv)
   fail_unless(e3x_init(opts) == 0);
   fail_unless(!lob_get(opts,"err"));
   fail_unless(!e3x_err());
-  
+  lob_free(opts);
   return 0;
 }
 

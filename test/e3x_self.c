@@ -25,6 +25,10 @@ int main(int argc, char **argv)
     fail_unless(strlen(lob_get(self->keys[i],"hash")) == 52);
   }
 
+  fail_unless(count);
+  e3x_self_free(self);
+  lob_free(id);
+
   return 0;
 }
 
