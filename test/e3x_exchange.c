@@ -48,6 +48,7 @@ int main(int argc, char **argv)
   fail_unless(innerAB2);
   fail_unless(util_cmp(lob_get(innerAB,"te"),"st") == 0);
   lob_free(innerAB2);
+  lob_free(innerAB);
 
   // create exchange B->A and verify message
   e3x_exchange_t xBA = e3x_exchange_new(selfB, csid, keyA);
@@ -78,6 +79,8 @@ int main(int argc, char **argv)
   lob_free(hsAB);
   lob_free(inBA);
   lob_free(hsBA);
+  lob_free(keyA);
+  lob_free(keyB);
   
   // send/receive channel packet
   lob_t chanAB = lob_new();
@@ -90,6 +93,7 @@ int main(int argc, char **argv)
   fail_unless(cinAB);
   fail_unless(lob_get_int(cinAB,"c") == lob_get_int(chanAB,"c"));
   lob_free(cinAB);
+  lob_free(coutAB);
 
   e3x_exchange_free(xAB);
   e3x_exchange_free(xBA);
