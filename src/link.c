@@ -47,15 +47,31 @@ link_t link_new(mesh_t mesh, hashname_t id)
   return link;
 }
 
+e3x_channel_t link_channel_free(link_t link, e3x_channel_t chan);
+
+static void _walkchan(xht_t h, const char *key, void *val, void *arg)
+{
+  link_t link = (link_t)arg;
+  chan_t ch = (chan_t)val;
+  link_channel_free(link, ch->c3);
+}
+
 void link_free(link_t link)
 {
   if(!link) return;
   LOG("dropping link %s",link->id->hashname);
   xht_set(link->mesh->index,link->id->hashname,NULL);
 
-  // TODO go through ->pipes
+  // go through ->pipes
+  seen_t seen, next;
+  for(seen = link->pipes; seen; seen = next)
+  {
+    next = seen->next;
+    free(seen);
+  }
 
-  // TODO go through link->channels
+  // go through link->channels
+  xht_walk(link->channels, _walkchan, link);
   xht_free(link->channels);
   xht_free(link->index);
 
@@ -109,7 +125,10 @@ link_t link_keys(mesh_t mesh, lob_t keys)
   if(!mesh || !keys) return LOG("invalid args");
   csid = hashname_id(mesh->keys,keys);
   if(!csid) return LOG("no supported key");
-  return link_key(mesh, hashname_im(keys,csid), csid);
+  lob_t key = hashname_im(keys,csid);
+  link_t ret = link_key(mesh, key, csid);
+  lob_free(key);
+  return ret;
 }
 
 link_t link_key(mesh_t mesh, lob_t key, uint8_t csid)
@@ -433,6 +452,20 @@ lob_t link_resync(link_t link)
   return link_sync(link);
 }
 
+e3x_channel_t link_channel_free(link_t link, e3x_channel_t chan)
+{
+  chan_t ch;
+  if(!link || !chan) return LOG("bad args");
+  if(!(ch = xht_get(link->channels, e3x_channel_uid(chan)))) return chan;
+  LOG("freeing channel %d %d",e3x_channel_uid(chan),e3x_channel_c(chan));
+  free(chan); // TODO signal to handler?
+  xht_set(link->channels, e3x_channel_uid(chan), NULL);
+  // if still in active index, TODO signal here?
+  if(xht_get(link->index, e3x_channel_c(chan)) == chan) xht_set(link->index, e3x_channel_c(chan), NULL);
+  e3x_channel_free(chan);
+  return NULL;
+}
+
 // create/track a new channel for this open
 e3x_channel_t link_channel(link_t link, lob_t open)
 {
@@ -444,7 +477,7 @@ e3x_channel_t link_channel(link_t link, lob_t open)
   if(!lob_get_int(open,"c")) lob_set_uint(open,"c",e3x_exchange_cid(link->x, NULL));
   c3 = e3x_channel_new(open);
   if(!c3) return LOG("invalid open %s",lob_json(open));
-  LOG("new outgoing channel open: %s",lob_get(open,"type"));
+  LOG("new outgoing channel %d open: %s",e3x_channel_uid(c3), lob_get(open,"type"));
 
   // add this channel to the link's channel index
   if(!(chan = malloc(sizeof (struct chan_struct))))

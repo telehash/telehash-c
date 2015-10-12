@@ -59,6 +59,7 @@ mesh_t mesh_free(mesh_t mesh)
   xht_free(mesh->index);
   lob_free(mesh->keys);
   lob_free(mesh->paths);
+  hashname_free(mesh->id);
   e3x_self_free(mesh->self);
   if(mesh->uri) free(mesh->uri);
   if(mesh->ipv4_local) free(mesh->ipv4_local);

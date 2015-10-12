@@ -17,6 +17,7 @@ int main(int argc, char **argv)
   fail_unless(secrets);
   fail_unless(mesh->self);
   fail_unless(mesh->id);
+  lob_free(secrets);
   
   lob_t idB = e3x_generate();
   hashname_t hnB = hashname_keys(lob_linked(idB));
@@ -29,12 +30,15 @@ int main(int argc, char **argv)
   fail_unless(link_keys(mesh,lob_linked(idB)) == link);
   fail_unless(link->csid);
   fail_unless(link->x);
+  lob_free(idB);
+  hashname_free(hnB);
   
   lob_t open = lob_new();
   lob_set(open,"type","test");
   lob_set_int(open,"c",e3x_exchange_cid(link->x, NULL));
   e3x_channel_t chan = link_channel(link, open);
   fail_unless(chan);
+  lob_free(open);
 
   pipe_t pipe = pipe_new("test");
   fail_unless(pipe);
@@ -50,6 +54,10 @@ int main(int argc, char **argv)
   
   fail_unless(strlen(lob_json(mesh_json(mesh))) > 100);
   fail_unless(strlen(lob_json(lob_array(mesh_links(mesh)))) > 10);
+
+  // TODO track this down
+//  link_free(link);
+  mesh_free(mesh);
 
   return 0;
 }
