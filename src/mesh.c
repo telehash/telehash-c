@@ -411,6 +411,7 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
     if(outer->body_len < 16)
     {
       LOG("packet too small %d",outer->body_len);
+      lob_free(outer);
       return 5;
     }
     util_hex(outer->body, 16, hex);
@@ -423,10 +424,10 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
     }
 
     inner = e3x_exchange_receive(link->x, outer);
+    lob_free(outer);
     if(!inner)
     {
       LOG("channel decryption fail for link %s %s",link->id->hashname,e3x_err());
-      lob_free(outer);
       return 7;
     }
     
@@ -448,6 +449,7 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
     }
     hashname_free(id);
     lob_free(inner);
+    lob_free(outer);
     return 0;
   }
 
