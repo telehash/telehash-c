@@ -59,7 +59,9 @@ int main(int argc, char **argv)
   fail_unless(linkAB);
   fail_unless(linkBA);
 
-  fail_unless(link_resync(linkAB));
+  lob_t hs = link_resync(linkAB);
+  fail_unless(hs);
+  lob_free(hs);
 
   mesh_on_open(meshA, "bulk", bulk_on_open);
   lob_t bulkBA = lob_new();
