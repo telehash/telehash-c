@@ -6,7 +6,7 @@ INCLUDE+=-Iinclude -Iinclude/lib -Iunix
 LIB = src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/lib/chacha.c src/lib/murmur.c
 E3X = src/e3x/e3x.c src/e3x/channel.c src/e3x/self.c src/e3x/exchange.c src/e3x/event.c src/e3x/cipher.c
 MESH = src/mesh.c src/link.c src/pipe.c
-EXT = src/ext/stream.c src/ext/block.c
+EXT = src/ext/stream.c src/ext/block.c src/ext/peer.c src/ext/path.c
 NET = src/net/loopback.c src/net/udp4.c src/net/tcp4.c src/net/serial.c
 UTIL = src/util/util.c src/util/uri.c src/util/chunks.c src/unix/util.c src/unix/util_sys.c
 TMESH = src/tmesh/tmesh.c src/tmesh/epoch.c
@@ -44,8 +44,8 @@ CS_OBJFILES = $(patsubst %.c,%.o,$(CS))
 FULL_OBJFILES = $(LIB_OBJFILES) $(E3X_OBJFILES) $(MESH_OBJFILES) $(EXT_OBJFILES) $(NET_OBJFILES) $(UTIL_OBJFILES) $(CS_OBJFILES)
 
 IDGEN_OBJFILES = $(FULL_OBJFILES) util/idgen.o
-ROUTER_OBJFILES = $(FULL_OBJFILES) util/router.o src/ext/router.o src/ext/path.o src/ext/peer.o
-PING_OBJFILES = $(FULL_OBJFILES) util/ping.o src/ext/path.o
+ROUTER_OBJFILES = $(FULL_OBJFILES) util/router.o 
+PING_OBJFILES = $(FULL_OBJFILES) util/ping.o 
 
 HEADERS=$(wildcard include/*.h)
 
