@@ -39,10 +39,16 @@ lob_t bulk_on_open(link_t link, lob_t open)
 
 int main(int argc, char **argv)
 {
+  lob_t opt = lob_new();
+  lob_set(opt,"force","1a");
+  e3x_init(opt);
+  lob_free(opt);
+
   mesh_t meshA = mesh_new(3);
   fail_unless(meshA);
-  lob_t secretsA = mesh_generate(meshA);
+  lob_t secretsA = e3x_generate();
   fail_unless(secretsA);
+  fail_unless(!mesh_load(meshA, secretsA, lob_linked(secretsA)));
   lob_free(secretsA);
 
   mesh_t meshB = mesh_new(3);
@@ -84,6 +90,7 @@ int main(int argc, char **argv)
   
   mesh_free(meshA);
   mesh_free(meshB);
+  net_loopback_free(pair);
 
   return 0;
 }

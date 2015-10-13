@@ -81,6 +81,8 @@ void link_free(link_t link)
     xht_set(link->mesh->index,link->token,NULL);
     e3x_exchange_free(link->x);
   }
+  lob_free(link->key);
+  lob_free(link->handshakes);
   free(link);
 }
 
@@ -278,17 +280,30 @@ link_t link_receive_handshake(link_t link, lob_t inner, pipe_t pipe)
   lob_t attached, outer = lob_linked(inner);
 
   if(!link || !inner || !outer) return LOG("bad args");
-  if((err = e3x_exchange_verify(link->x,outer))) return LOG("handshake verification fail: %d",err);
+  if((err = e3x_exchange_verify(link->x,outer)))
+  {
+    lob_free(inner);
+    return LOG("handshake verification fail: %d",err);
+  }
 
   if(!link->key)
   {
     hexid = lob_get(inner, "csid");
-    if(!lob_get(link->mesh->keys, hexid)) return LOG("unsupported csid %s",hexid);
+    if(!lob_get(link->mesh->keys, hexid))
+    {
+      LOG("unsupported csid %s",hexid);
+      lob_free(inner);
+      return NULL;
+    }
     util_unhex(hexid, 2, &csid);
     attached = lob_parse(inner->body, inner->body_len);
     ready = link_key(link->mesh, attached, csid);
     lob_free(attached);
-    if(!ready) return LOG("invalid/mismatch link handshake");
+    if(!ready)
+    {
+      lob_free(inner);
+      return LOG("invalid/mismatch link handshake");
+    }
   }
 
   in = e3x_exchange_in(link->x,0);
@@ -306,11 +321,16 @@ link_t link_receive_handshake(link_t link, lob_t inner, pipe_t pipe)
     // just reset pipe seen and call link_sync to resend handshake
     for(seen = link->pipes;pipe && seen;seen = seen->next) if(seen->pipe == pipe) seen->at = 0;
     lob_free(link_sync(link));
+    lob_free(inner);
     return NULL;
   }
 
   // try to sync ephemeral key
-  if(!e3x_exchange_sync(link->x,outer)) return LOG("sync failed");
+  if(!e3x_exchange_sync(link->x,outer))
+  {
+    lob_free(inner);
+    return LOG("sync failed");
+  }
   
   // we may need to re-sync
   if(out != e3x_exchange_out(link->x,0)) lob_free(link_sync(link));
@@ -322,6 +342,7 @@ link_t link_receive_handshake(link_t link, lob_t inner, pipe_t pipe)
     mesh_link(link->mesh, link);
   }
   
+  lob_free(inner);
   return link;
 }
 
