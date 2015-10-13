@@ -41,11 +41,21 @@ mesh_t mesh_new(uint32_t prime)
   return mesh;
 }
 
+static void _walkfree(xht_t h, const char *key, void *val, void *arg)
+{
+  link_t link = (link_t)val;
+  if(!hashname_valid(key)) return;
+  link_free(link);
+}
+
 mesh_t mesh_free(mesh_t mesh)
 {
   on_t on;
   if(!mesh) return NULL;
 
+  // free all links first
+  xht_walk(mesh->index, _walkfree, mesh);
+  
   // free any triggers first
   while(mesh->on)
   {
