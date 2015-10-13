@@ -26,14 +26,14 @@ lob_t bulk_on_open(link_t link, lob_t open)
   // create new channel, set it up, then receive this open
   chan = link_channel(link, open);
   link_handle(link,chan,bulk_handler,NULL);
-  int ret = e3x_channel_receive(chan,open);
-  printf("Done setting up channel ret: %d\n", ret);
-
   lob_t reply = lob_new();
   lob_set(reply,"c",lob_get(open,"c"));
+  int ret = e3x_channel_receive(chan,open); // consumes the open
+  printf("Done setting up channel ret: %d\n", ret);
+
   link_direct(link,reply,NULL);
 
-  return lob_free(open);
+  return NULL;
 }
 
 
@@ -78,7 +78,7 @@ int main(int argc, char **argv)
   }
   
   LOG("bulked %d",bulked);
-  fail_unless(bulked == i);
+  fail_unless(bulked == i+1);
   
 //  mesh_free(meshA);
 //  mesh_free(meshB);
