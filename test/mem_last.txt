@@ -1,0 +1,9 @@
+8	void*
+96	mesh_t
+112	link_t
+88	lob_t
+16	util_chunk_t
+85	hashname_t
+88	e3x_exchange_t
+136	e3x_channel_t
+64	pipe_t

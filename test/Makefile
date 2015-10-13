@@ -2,7 +2,7 @@ TESTS = lib_base32 lib_lob lib_hashname lib_murmur lib_chunks lib_util \
 		e3x_core e3x_self e3x_exchange e3x_event e3x_channel \
 		mesh_core net_loopback net_udp4 net_tcp4 ext_stream lib_chacha \
 		ext_block lib_uri net_handshake lib_socketio lib_jwt lib_base64 \
-		ext_path ext_peer net_serial tmesh_core tmesh_epoch net_bulk
+		ext_path ext_peer net_serial tmesh_core tmesh_epoch net_bulk 
 
 CC=gcc
 CFLAGS+=-O3 -g -Wall -Wextra -Wno-unused-parameter -DDEBUG
@@ -56,9 +56,12 @@ FULL_OBJFILES = $(LIB_OBJFILES) $(E3X_OBJFILES) $(MESH_OBJFILES) $(EXT_OBJFILES)
 
 all: test
 
-test: test-slink tests test-interop
+test: test-slink tests test-interop test-mem
 
 test-slink: net_slink.o bin/test_net_slink
+
+test-mem: mem_last.o bin/test_mem_last
+	@./bin/test_mem_last > ./mem_last.txt 2>&1
 
 test-interop: net_link.o bin/test_net_link
 	@if ./interop.sh ; then \
