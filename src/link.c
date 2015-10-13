@@ -470,17 +470,17 @@ lob_t link_resync(link_t link)
   return link_sync(link);
 }
 
-e3x_channel_t link_channel_free(link_t link, e3x_channel_t chan)
+e3x_channel_t link_channel_free(link_t link, e3x_channel_t c3)
 {
-  chan_t ch;
-  if(!link || !chan) return LOG("bad args");
-  if(!(ch = xht_get(link->channels, e3x_channel_uid(chan)))) return chan;
-  LOG("freeing channel %d %d",e3x_channel_uid(chan),e3x_channel_c(chan));
+  chan_t chan;
+  if(!link || !c3) return LOG("bad args");
+  if(!(chan = xht_get(link->channels, e3x_channel_uid(c3)))) return LOG("channel link mismatch, leaking c3");
+  LOG("freeing channel %d %s",e3x_channel_uid(c3),e3x_channel_c(c3));
   free(chan); // TODO signal to handler?
-  xht_set(link->channels, e3x_channel_uid(chan), NULL);
+  xht_set(link->channels, e3x_channel_uid(c3), NULL);
   // if still in active index, TODO signal here?
-  if(xht_get(link->index, e3x_channel_c(chan)) == chan) xht_set(link->index, e3x_channel_c(chan), NULL);
-  e3x_channel_free(chan);
+  if(xht_get(link->index, e3x_channel_c(c3)) == c3) xht_set(link->index, e3x_channel_c(c3), NULL);
+  e3x_channel_free(c3);
   return NULL;
 }
 
