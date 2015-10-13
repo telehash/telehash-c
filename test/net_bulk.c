@@ -80,8 +80,8 @@ int main(int argc, char **argv)
   LOG("bulked %d",bulked);
   fail_unless(bulked == i+1);
   
-//  mesh_free(meshA);
-//  mesh_free(meshB);
+  mesh_free(meshA);
+  mesh_free(meshB);
 
   return 0;
 }
