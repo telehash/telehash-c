@@ -10,6 +10,8 @@
 #include "telehash.h"
 #include "telehash.h"
 
+// TODO, there are leaks in the usage of libtomcrypt here, but nobody's using it yet
+
 // undefine the void* aliases so we can define them locally
 #undef local_t
 #undef remote_t
@@ -158,6 +160,7 @@ uint8_t cipher_generate(lob_t keys, lob_t secrets)
     return 4;
   }
   lob_set_base32(keys,"2a",buf,len);
+  free(buf);
 
   return 0;
 }
