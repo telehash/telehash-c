@@ -79,7 +79,7 @@ lob_t path_on_open(link_t link, lob_t open)
   {
     if(pipe->path) lob_set_raw(tmp,"path",0,(char*)pipe->path->head,pipe->path->head_len);
     else lob_set_raw(tmp,"path",0,"{}",0);
-    link_direct(link, tmp, pipe);
+    link_direct(link, lob_copy(tmp), pipe);
   }
   lob_free(tmp);
 

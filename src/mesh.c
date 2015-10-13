@@ -41,11 +41,21 @@ mesh_t mesh_new(uint32_t prime)
   return mesh;
 }
 
+static void _walkfree(xht_t h, const char *key, void *val, void *arg)
+{
+  link_t link = (link_t)val;
+  if(!hashname_valid(key)) return;
+  link_free(link);
+}
+
 mesh_t mesh_free(mesh_t mesh)
 {
   on_t on;
   if(!mesh) return NULL;
 
+  // free all links first
+  xht_walk(mesh->index, _walkfree, mesh);
+  
   // free any triggers first
   while(mesh->on)
   {
@@ -59,6 +69,8 @@ mesh_t mesh_free(mesh_t mesh)
   xht_free(mesh->index);
   lob_free(mesh->keys);
   lob_free(mesh->paths);
+  lob_freeall(mesh->cached);
+  hashname_free(mesh->id);
   e3x_self_free(mesh->self);
   if(mesh->uri) free(mesh->uri);
   if(mesh->ipv4_local) free(mesh->ipv4_local);
@@ -410,6 +422,7 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
     if(outer->body_len < 16)
     {
       LOG("packet too small %d",outer->body_len);
+      lob_free(outer);
       return 5;
     }
     util_hex(outer->body, 16, hex);
@@ -422,10 +435,10 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
     }
 
     inner = e3x_exchange_receive(link->x, outer);
+    lob_free(outer);
     if(!inner)
     {
       LOG("channel decryption fail for link %s %s",link->id->hashname,e3x_err());
-      lob_free(outer);
       return 7;
     }
     
@@ -447,6 +460,7 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
     }
     hashname_free(id);
     lob_free(inner);
+    lob_free(outer);
     return 0;
   }
 

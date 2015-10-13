@@ -33,7 +33,7 @@ lob_t lob_free(lob_t p); // returns NULL for convenience
 
 // creates a new parent packet chained to the given child one, so freeing the new packet also free's it
 lob_t lob_chain(lob_t child);
-// manually chain together two packets
+// manually chain together two packets, returns parent, frees any existing child, creates parent if none
 lob_t lob_link(lob_t parent, lob_t child);
 // return a linked child if any
 lob_t lob_linked(lob_t parent);

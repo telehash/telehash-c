@@ -148,26 +148,28 @@ e3x_exchange_t e3x_exchange_sync(e3x_exchange_t x, lob_t outer)
 // just a convenience, generates handshake w/ current e3x_exchange_at value
 lob_t e3x_exchange_handshake(e3x_exchange_t x, lob_t inner)
 {
-  lob_t key;
+  lob_t tmp;
   uint8_t i;
+  uint8_t local = 0;
   if(!x) return LOG("invalid args");
   if(!x->out) return LOG("no out set");
 
   // create deprecated key handshake inner from all supported csets
   if(!inner)
   {
+    local = 1;
     inner = lob_new();
     lob_set(inner, "type", "key");
     // loop through all ciphersets for any keys
     for(i=0; i<CS_MAX; i++)
     {
-      if(!(key = x->self->keys[i])) continue;
+      if(!(tmp = x->self->keys[i])) continue;
       // this csid's key is the body, rest is intermediate in json
       if(e3x_cipher_sets[i] == x->cs)
       {
-        lob_body(inner,key->body,key->body_len);
+        lob_body(inner,tmp->body,tmp->body_len);
       }else{
-        lob_set(inner,e3x_cipher_sets[i]->hex,lob_get(key,"hash"));
+        lob_set(inner,e3x_cipher_sets[i]->hex,lob_get(tmp,"hash"));
       }
     }
   }
@@ -175,7 +177,9 @@ lob_t e3x_exchange_handshake(e3x_exchange_t x, lob_t inner)
   // set standard values
   lob_set_uint(inner,"at",x->out);
 
-  return e3x_exchange_message(x, inner);
+  tmp = e3x_exchange_message(x, inner);
+  if(!local) return tmp;
+  return lob_link(tmp, inner);
 }
 
 // simple encrypt/decrypt conversion of any packet for channels

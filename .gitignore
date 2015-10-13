@@ -2,6 +2,7 @@
 *.a
 *.json
 *.dSYM
+*.dtps
 .DS_Store
 node_modules/
 telehash.c

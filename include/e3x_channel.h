@@ -3,7 +3,31 @@
 #include <stdint.h>
 #include "e3x.h"
 
-typedef struct e3x_channel_struct *e3x_channel_t; // standalone channel packet management, buffering and ordering
+enum e3x_channel_states { ENDED, OPENING, OPEN };
+
+// standalone channel packet management, buffering and ordering
+// internal only structure, always use accessors
+typedef struct e3x_channel_struct
+{
+  uint32_t id; // wire id (not unique)
+  char c[12]; // str of id
+  char uid[9]; // process hex id (unique)
+  char *type;
+  lob_t open; // cached for convenience
+  enum e3x_channel_states state;
+  uint32_t capacity, max; // totals for windowing
+
+  // timer stuff
+  uint32_t tsent, trecv; // last send, recv from util_sys_seconds
+  uint32_t tsince, timeout; // tsince=start, timeout is how many seconds before auto-err
+  lob_t timer; // the timer that has been sent to ev
+  e3x_event_t ev; // the event manager to update our timer with
+  
+  // reliable tracking
+  lob_t out, sent;
+  lob_t in;
+  uint32_t seq, ack, acked, window;
+} *e3x_channel_t;
 
 // caller must manage lists of channels per e3x_exchange based on cid
 e3x_channel_t e3x_channel_new(lob_t open); // open must be e3x_channel_receive or e3x_channel_send next yet
@@ -32,7 +56,6 @@ uint32_t e3x_channel_id(e3x_channel_t c); // numeric of the open->c id
 char *e3x_channel_c(e3x_channel_t c); // string of the c id
 lob_t e3x_channel_open(e3x_channel_t c); // returns the open packet (always cached)
 
-enum e3x_channel_states { ENDED, OPENING, OPEN };
 enum e3x_channel_states e3x_channel_state(e3x_channel_t c);
 
 

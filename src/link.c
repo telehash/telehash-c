@@ -47,15 +47,31 @@ link_t link_new(mesh_t mesh, hashname_t id)
   return link;
 }
 
+e3x_channel_t link_channel_free(link_t link, e3x_channel_t chan);
+
+static void _walkchan(xht_t h, const char *key, void *val, void *arg)
+{
+  link_t link = (link_t)arg;
+  chan_t ch = (chan_t)val;
+  link_channel_free(link, ch->c3);
+}
+
 void link_free(link_t link)
 {
   if(!link) return;
   LOG("dropping link %s",link->id->hashname);
   xht_set(link->mesh->index,link->id->hashname,NULL);
 
-  // TODO go through ->pipes
+  // go through ->pipes
+  seen_t seen, next;
+  for(seen = link->pipes; seen; seen = next)
+  {
+    next = seen->next;
+    free(seen);
+  }
 
-  // TODO go through link->channels
+  // go through link->channels
+  xht_walk(link->channels, _walkchan, link);
   xht_free(link->channels);
   xht_free(link->index);
 
@@ -65,6 +81,8 @@ void link_free(link_t link)
     xht_set(link->mesh->index,link->token,NULL);
     e3x_exchange_free(link->x);
   }
+  lob_free(link->key);
+  lob_free(link->handshakes);
   free(link);
 }
 
@@ -109,7 +127,10 @@ link_t link_keys(mesh_t mesh, lob_t keys)
   if(!mesh || !keys) return LOG("invalid args");
   csid = hashname_id(mesh->keys,keys);
   if(!csid) return LOG("no supported key");
-  return link_key(mesh, hashname_im(keys,csid), csid);
+  lob_t key = hashname_im(keys,csid);
+  link_t ret = link_key(mesh, key, csid);
+  lob_free(key);
+  return ret;
 }
 
 link_t link_key(mesh_t mesh, lob_t key, uint8_t csid)
@@ -259,17 +280,30 @@ link_t link_receive_handshake(link_t link, lob_t inner, pipe_t pipe)
   lob_t attached, outer = lob_linked(inner);
 
   if(!link || !inner || !outer) return LOG("bad args");
-  if((err = e3x_exchange_verify(link->x,outer))) return LOG("handshake verification fail: %d",err);
+  if((err = e3x_exchange_verify(link->x,outer)))
+  {
+    lob_free(inner);
+    return LOG("handshake verification fail: %d",err);
+  }
 
   if(!link->key)
   {
     hexid = lob_get(inner, "csid");
-    if(!lob_get(link->mesh->keys, hexid)) return LOG("unsupported csid %s",hexid);
+    if(!lob_get(link->mesh->keys, hexid))
+    {
+      LOG("unsupported csid %s",hexid);
+      lob_free(inner);
+      return NULL;
+    }
     util_unhex(hexid, 2, &csid);
     attached = lob_parse(inner->body, inner->body_len);
     ready = link_key(link->mesh, attached, csid);
     lob_free(attached);
-    if(!ready) return LOG("invalid/mismatch link handshake");
+    if(!ready)
+    {
+      lob_free(inner);
+      return LOG("invalid/mismatch link handshake");
+    }
   }
 
   in = e3x_exchange_in(link->x,0);
@@ -287,11 +321,16 @@ link_t link_receive_handshake(link_t link, lob_t inner, pipe_t pipe)
     // just reset pipe seen and call link_sync to resend handshake
     for(seen = link->pipes;pipe && seen;seen = seen->next) if(seen->pipe == pipe) seen->at = 0;
     lob_free(link_sync(link));
+    lob_free(inner);
     return NULL;
   }
 
   // try to sync ephemeral key
-  if(!e3x_exchange_sync(link->x,outer)) return LOG("sync failed");
+  if(!e3x_exchange_sync(link->x,outer))
+  {
+    lob_free(inner);
+    return LOG("sync failed");
+  }
   
   // we may need to re-sync
   if(out != e3x_exchange_out(link->x,0)) lob_free(link_sync(link));
@@ -303,6 +342,7 @@ link_t link_receive_handshake(link_t link, lob_t inner, pipe_t pipe)
     mesh_link(link->mesh, link);
   }
   
+  lob_free(inner);
   return link;
 }
 
@@ -317,7 +357,12 @@ link_t link_receive(link_t link, lob_t inner, pipe_t pipe)
   if((chan = xht_get(link->index, lob_get(inner,"c"))))
   {
     LOG("\t<-- %s",lob_json(inner));
-    if(e3x_channel_receive(chan->c3, inner)) return LOG("channel receive error, dropping %s",lob_json(inner));
+    if(e3x_channel_receive(chan->c3, inner))
+    {
+      LOG("channel receive error, dropping %s",lob_json(inner));
+      lob_free(inner);
+      return NULL;
+    }
     if(pipe) link_pipe(link,pipe); // we trust the pipe at this point
     if(chan->handle) chan->handle(link, chan->c3, chan->arg);
     // check if there's any packets to be sent back
@@ -325,8 +370,18 @@ link_t link_receive(link_t link, lob_t inner, pipe_t pipe)
   }
 
   // if it's an open, validate and fire event
-  if(!lob_get(inner,"type")) return LOG("invalid channel open, no type %s",lob_json(inner));
-  if(!e3x_exchange_cid(link->x, inner)) return LOG("invalid channel open id %s",lob_json(inner));
+  if(!lob_get(inner,"type"))
+  {
+    LOG("invalid channel open, no type %s",lob_json(inner));
+    lob_free(inner);
+    return NULL;
+  }
+  if(!e3x_exchange_cid(link->x, inner))
+  {
+    LOG("invalid channel open id %s",lob_json(inner));
+    lob_free(inner);
+    return NULL;
+  }
   if(pipe) link_pipe(link,pipe); // we trust the pipe at this point
   inner = mesh_open(link->mesh,link,inner);
   if(inner)
@@ -344,8 +399,11 @@ link_t link_send(link_t link, lob_t outer)
 {
   pipe_t pipe;
   
-  if(!link) return LOG("bad args");
-  if(!link->pipes || !(pipe = link->pipes->pipe)) return LOG("no network");
+  if(!link || !link->pipes || !(pipe = link->pipes->pipe))
+  {
+    lob_free(outer);
+    return LOG("no network");
+  }
 
   pipe->send(pipe, outer, link);
   return link;
@@ -433,6 +491,20 @@ lob_t link_resync(link_t link)
   return link_sync(link);
 }
 
+e3x_channel_t link_channel_free(link_t link, e3x_channel_t c3)
+{
+  chan_t chan;
+  if(!link || !c3) return LOG("bad args");
+  if(!(chan = xht_get(link->channels, e3x_channel_uid(c3)))) return LOG("channel link mismatch, leaking c3");
+  LOG("freeing channel %d %s",e3x_channel_uid(c3),e3x_channel_c(c3));
+  free(chan); // TODO signal to handler?
+  xht_set(link->channels, e3x_channel_uid(c3), NULL);
+  // if still in active index, TODO signal here?
+  if(xht_get(link->index, e3x_channel_c(c3)) == c3) xht_set(link->index, e3x_channel_c(c3), NULL);
+  e3x_channel_free(c3);
+  return NULL;
+}
+
 // create/track a new channel for this open
 e3x_channel_t link_channel(link_t link, lob_t open)
 {
@@ -444,7 +516,7 @@ e3x_channel_t link_channel(link_t link, lob_t open)
   if(!lob_get_int(open,"c")) lob_set_uint(open,"c",e3x_exchange_cid(link->x, NULL));
   c3 = e3x_channel_new(open);
   if(!c3) return LOG("invalid open %s",lob_json(open));
-  LOG("new outgoing channel open: %s",lob_get(open,"type"));
+  LOG("new outgoing channel %d open: %s",e3x_channel_uid(c3), lob_get(open,"type"));
 
   // add this channel to the link's channel index
   if(!(chan = malloc(sizeof (struct chan_struct))))
@@ -503,6 +575,7 @@ link_t link_direct(link_t link, lob_t inner, pipe_t pipe)
   if(!lob_get_int(inner,"c")) lob_set_uint(inner,"c",e3x_exchange_cid(link->x, NULL));
 
   pipe->send(pipe, e3x_exchange_send(link->x, inner), link);
+  lob_free(inner);
   
   return link;
 }
