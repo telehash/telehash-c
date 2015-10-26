@@ -74,8 +74,9 @@ struct knock_struct
   cmnty_t com; // has medium
   mote_t mote; // has chunks
   uint64_t start, stop; // microsecond exact start/stop time
-  uint8_t chan; // current channel (< med->chans)
   uint8_t frame[64];
+  uint8_t chan; // current channel (< med->chans)
+  uint8_t tx:1;
 };
 
 // fills in next knock based on from and only for this device
@@ -102,8 +103,11 @@ struct mote_struct
 mote_t mote_new(link_t link);
 mote_t mote_free(mote_t m);
 
-// find best epoch, set knock win/chan/start/stop
-mote_t mote_knock(mote_t m, knock_t k, uint64_t from);
+// next knock at
+uint64_t mote_knock(mote_t m, uint64_t from);
+
+// must be called after mote_knock, returns knock direction, tx=0, rx=1, rxlong=2
+uint8_t mote_mode(mote_t m);
 
 ///////////////////
 // radio devices are responsible for all mediums

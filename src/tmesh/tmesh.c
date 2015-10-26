@@ -7,7 +7,7 @@
 //////////////////
 // private community management methods
 
-// find an epoch to send it to in this community
+// find a mote to send it to in this community
 static void cmnty_send(pipe_t pipe, lob_t packet, link_t link)
 {
   cmnty_t c;
@@ -20,7 +20,7 @@ static void cmnty_send(pipe_t pipe, lob_t packet, link_t link)
   }
   c = (cmnty_t)pipe->arg;
 
-  // find link in this community w/ tx epoch
+  // find link in this community
   for(m=c->motes;m;m=m->next) if(m->link == link)
   {
     util_chunks_send(m->chunks, packet);
@@ -50,15 +50,12 @@ static cmnty_t cmnty_new(tmesh_t tm, char *medium, char *name)
   if(base32_decode(medium,0,bin,5) != 5) return LOG("bad medium encoding: %s",medium);
   if(!medium_check(tm,bin)) return LOG("unknown medium %s",medium);
 
-  // note, do we need to be paranoid and make sure name is not a duplicate?
-
   if(!(c = malloc(sizeof (struct cmnty_struct)))) return LOG("OOM");
   memset(c,0,sizeof (struct cmnty_struct));
 
   if(!(c->medium = medium_get(tm,bin))) return cmnty_free(c);
   if(!(c->pipe = pipe_new("tmesh"))) return cmnty_free(c);
   c->tm = tm;
-  c->type = (c->medium->bin[0] > 128) ? PRIVATE : PUBLIC;
   c->next = tm->coms;
   tm->coms = c;
 
@@ -77,27 +74,11 @@ static cmnty_t cmnty_new(tmesh_t tm, char *medium, char *name)
 // join a new private/public community
 cmnty_t tmesh_join(tmesh_t tm, char *medium, char *name)
 {
-  epoch_t ping, echo;
-  uint8_t roll[64];
-  struct knock_struct ktmp = {0,0,0,0,0,0,0};
   cmnty_t c = cmnty_new(tm,medium,name);
   if(!c) return LOG("bad args");
 
-  if(c->type == PUBLIC)
+  if(medium_public(c->medium))
   {
-    if(!(c->sync = mote_new(NULL))) return cmnty_free(c);
-    if(!(ping = c->sync->epochs = epoch_new(1))) return cmnty_free(c);
-    if(!(echo = ping->next = epoch_new(1))) return cmnty_free(c);
-    ping->type = PING;
-    echo->type = ECHO;
-    e3x_hash(c->medium->bin,5,roll);
-    e3x_hash((uint8_t*)name,strlen(name),roll+32);
-    e3x_hash(roll,64,ping->secret);
-
-    // cache ping channel for faster detection
-    ktmp.com = c;
-    mote_knock(c->sync,&ktmp,0);
-    c->sync->ping = ktmp.chan;
 
     // generate public intermediate keys packet
     if(!tm->pubim) tm->pubim = hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys));
@@ -118,28 +99,23 @@ cmnty_t tmesh_join(tmesh_t tm, char *medium, char *name)
 // add a link known to be in this community to look for
 mote_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link)
 {
-  uint8_t roll[64];
   mote_t m;
-  struct knock_struct ktmp = {0,0,0,0,0,0,0};
   if(!tm || !c || !link) return LOG("bad args");
 
   // check list of motes, add if not there
   for(m=c->motes;m;m = m->next) if(m->link == link) return m;
 
   if(!(m = mote_new(link))) return LOG("OOM");
-  if(!(m->epochs = epoch_new(0))) return mote_free(m);
-  m->epochs->type = PING;
   m->next = c->motes;
   c->motes = m;
   
   // generate mote-specific ping secret by combining community one with it
-  memcpy(roll,c->sync->epochs->secret,32);
-  memcpy(roll+32,link->id->bin,32);
-  e3x_hash(roll,64,m->epochs->secret);
-
-  ktmp.com = c;
-  mote_knock(m,&ktmp,0);
-  m->ping = ktmp.chan;
+//  e3x_hash(c->medium->bin,5,roll);
+//  e3x_hash((uint8_t*)(c->name),strlen(c->name),roll+32);
+//  e3x_hash(roll,64,m->secret);
+//  memcpy(roll,c->sync->epochs->secret,32);
+//  memcpy(roll+32,link->id->bin,32);
+//  e3x_hash(roll,64,m->secret);
 
   return m;
 }
@@ -302,20 +278,17 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
 {
   cmnty_t com;
   mote_t mote;
-  struct knock_struct ktmp = {0,0,0,0,0,0,0};
+  uint64_t at;
   if(!tm || !k) return LOG("bad args");
 
   for(com=tm->coms;com;com=com->next)
   {
     if(device && com->medium->radio != device->id) continue;
-    // TODO check c->sync ping/echo
-    ktmp.com = com;
     // check every mote
     for(mote=com->motes;mote;mote=mote->next)
     {
-      if(!mote_knock(mote,&ktmp,from)) continue;
+      at = mote_knock(mote,from);
       // TODO compare ktmp and k
-      memcpy(k, &ktmp, sizeof(struct knock_struct));
       // TX > RX
       // LINK > PAIR > ECHO > PING
       /*
@@ -337,49 +310,29 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
 }
 
 
-tmesh_t tmesh_knocking(tmesh_t tm, knock_t k, uint8_t *frame)
+tmesh_t tmesh_knocking(tmesh_t tm, knock_t k)
 {
-  uint8_t nonce[8];
-  uint32_t win;
-  if(!tm || !k || !frame) return LOG("bad args");
+  if(!tm || !k) return LOG("bad args");
   
-  win = util_sys_long(k->win);
-  memset(nonce,0,8);
-  memcpy(nonce,&win,4); // nonce area
 
   // TODO copy in tx data from util_chunks
 
   // ciphertext frame
-  memset(frame,0,64);
-  chacha20(k->epoch->secret,nonce,frame,64);
+  memset(k->frame,0,64);
+  chacha20(k->mote->secret,k->mote->nonce,k->frame,64);
 
   return tm;
 }
 
 // signal once a knock has been sent/received for this mote
-tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint8_t *frame)
+tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 {
-  if(!tm || !k || !frame) return LOG("bad args");
+  if(!tm || !k) return LOG("bad args");
   
   // TODO, need to handle if it wasn't performed?
 
-  switch(k->epoch->type)
-  {
-    case PING:
-      // if RX generate echo TX
-      break;
-    case ECHO:
-      // if RX then create pair
-      break;
-    case PAIR:
-      break;
-    case LINK:
-      break;
-    default :
-      break;
-  }
   
-  if(k->epoch->dir == TX)
+  if(k->tx)
   {
     // TODO check priv coms match device and ping->kchan
     // set up echo RX
@@ -409,66 +362,17 @@ mote_t mote_free(mote_t m)
   return NULL;
 }
 
-// set best knock win/chan/start/stop
-mote_t mote_knock(mote_t m, knock_t k, uint64_t from)
+// when is next knock
+uint64_t mote_knock(mote_t m, uint64_t from)
 {
-  uint8_t pad[8];
-  uint8_t nonce[8];
-  uint64_t offset, start, stop;
-  uint32_t win, lwin;
-  epoch_t e;
-  medium_t medium;
-  if(!m || !k || !k->com) return LOG("bad args");
+  if(!m || !m->at || !from) return 0;
 
-  k->epoch = NULL;
-  k->mote = m;
-  medium = k->com->medium;
+  // TODO 
+  return 0;
+}
 
-  // get the best one
-  for(e=m->epochs;e;e=e->next)
-  {
-    // normalize nonce
-    memset(nonce,0,8);
-    switch(e->type)
-    {
-      case PING:
-        win = 0;
-        e->base = from; // is always now
-        break;
-      case ECHO:
-        win = 1;
-        break;
-      case PAIR:
-      case LINK:
-        win = ((from - e->base) / EPOCH_WINDOW);
-        break;
-      default :
-        continue;
-    }
-    if(!e->base) continue;
-
-    lwin = util_sys_long(win);
-    memset(nonce,0,8);
-    memcpy(nonce,&lwin,4);
-  
-    // ciphertext the pad
-    memset(pad,0,8);
-    chacha20(e->secret,nonce,pad,8);
-    
-    offset = util_sys_long((unsigned long)(pad[2])) % (EPOCH_WINDOW - medium->min);
-    start = e->base + (EPOCH_WINDOW*win) + offset;
-    stop = start + medium->min;
-    if(!k->epoch || stop < k->stop)
-    {
-      // rx never trumps tx
-      if(k->epoch && k->epoch->dir == TX && e->dir == RX) continue;
-      k->epoch = e;
-      k->win = win;
-      k->chan = util_sys_short((unsigned short)(pad[0])) % medium->chans;
-      k->start = start;
-      k->stop = stop;
-    }
-  }
-  
-  return m;
+// must be called after mote_knock, returns knock direction, tx=0, rx=1, rxlong=2
+uint8_t mote_mode(mote_t m)
+{
+  return 0;
 }

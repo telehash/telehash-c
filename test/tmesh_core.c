@@ -36,27 +36,9 @@ int main(int argc, char **argv)
   mote_t m = tmesh_link(netA, c, link);
   fail_unless(m);
   fail_unless(m->link == link);
-  fail_unless(m->epochs);
   fail_unless(m == tmesh_link(netA, c, link));
 //  fail_unless(m->ping);
 
-  struct knock_struct k = {0,0,0,0,0,0,0};
-  k.com = c;
-
-  fail_unless(mote_knock(m, &k, 1));
-  fail_unless(k.mote == m);
-  LOG("%d %d %d",k.start,k.stop,k.chan);
-  fail_unless(k.start);
-  fail_unless(k.stop == (k.start + 10));
-  fail_unless(k.chan < 100);
-  uint8_t chan = k.chan;
-
-  k.chan = 101; // set to bad value to make sure prep resets it
-  fail_unless(tmesh_knock(netA, &k, 1, &test_device));
-  fail_unless(m == k.mote);
-  fail_unless(k.chan == chan);
-  uint8_t frame[64];
-  fail_unless(tmesh_knocking(netA, &k, frame));
 
   return 0;
 }
