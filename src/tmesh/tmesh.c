@@ -343,13 +343,24 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 
 mote_t mote_new(link_t link)
 {
+  uint8_t i;
   mote_t m;
   
   if(!(m = malloc(sizeof(struct mote_struct)))) return LOG("OOM");
   memset(m,0,sizeof (struct mote_struct));
-  
-  if(!(m->chunks = util_chunks_new(64))) return mote_free(m);
-  m->link = link;
+
+  // determine ordering based on hashname compare
+  if(link)
+  {
+    if(!(m->chunks = util_chunks_new(64))) return mote_free(m);
+    m->link = link;
+    for(i=0;i<32;i++)
+    {
+      if(link->id->bin[i] == link->mesh->id->bin[i]) continue;
+      m->order = (link->id->bin[i] > link->mesh->id->bin[i]) ? 1 : 0;
+      break;
+    }
+  }
 
   return m;
 }
@@ -362,17 +373,40 @@ mote_t mote_free(mote_t m)
   return NULL;
 }
 
+// advance one window forward
+mote_t mote_next(mote_t m)
+{
+  if(!m) return LOG("bad args");
+  // rotate nonce by ciphering it
+  chacha20(m->secret,m->nonce,m->nonce,8);
+  // TODO, handle z scalar
+  // add new time to base
+  m->at += util_sys_long((unsigned long)m->nonce);
+  return m;
+}
+
 // when is next knock
 uint64_t mote_knock(mote_t m, uint64_t from)
 {
+  uint32_t next;
   if(!m || !m->at || !from) return 0;
 
-  // TODO 
-  return 0;
+  next = util_sys_long((unsigned long)m->nonce);
+  if((m->at+next) > from) return m->at+next;
+  // tail recurse to step until the next future one
+  return mote_knock(mote_next(m), from);
 }
 
 // must be called after mote_knock, returns knock direction, tx=0, rx=1, rxlong=2
-uint8_t mote_mode(mote_t m)
+int8_t mote_mode(mote_t m)
 {
-  return 0;
+  if(!m) return -1;
+  // no link means public ping, no nonce means private ping
+  if(!m->link || (uint64_t)(m->nonce) == 0)
+  {
+    m->at++; // use at to toggle state each time
+    return (m->at%2)?0:2; // tx or rxlong
+  }
+  // mode is determined by order and nonce last byte
+  return ((m->nonce[7]%2) == m->order) ? 0 : 1;
 }

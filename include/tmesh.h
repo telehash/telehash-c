@@ -98,6 +98,7 @@ struct mote_struct
   uint64_t at; // microsecond of last knock
   util_chunks_t chunks; // actual chunk encoding for r/w frame buffers
   uint8_t z;
+  uint8_t order; // hashname compare
 };
 
 mote_t mote_new(link_t link);
@@ -107,7 +108,7 @@ mote_t mote_free(mote_t m);
 uint64_t mote_knock(mote_t m, uint64_t from);
 
 // must be called after mote_knock, returns knock direction, tx=0, rx=1, rxlong=2
-uint8_t mote_mode(mote_t m);
+int8_t mote_mode(mote_t m);
 
 ///////////////////
 // radio devices are responsible for all mediums
