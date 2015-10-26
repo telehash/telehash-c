@@ -71,8 +71,7 @@ tmesh_t tmesh_loop(tmesh_t tm);
 // a single knock request ready to go
 struct knock_struct
 {
-  cmnty_t com; // has medium
-  mote_t mote; // has chunks
+  mote_t mote;
   uint64_t start, stop; // microsecond exact start/stop time
   uint8_t frame[64];
   uint8_t chan; // current channel (< med->chans)
@@ -81,7 +80,6 @@ struct knock_struct
 
 // fills in next knock based on from and only for this device
 tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device);
-tmesh_t tmesh_knocking(tmesh_t tm, knock_t k); // prep for tx
 tmesh_t tmesh_knocked(tmesh_t tm, knock_t k); // process done knock
 
 
@@ -91,6 +89,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k); // process done knock
 // mote state tracking
 struct mote_struct
 {
+  cmnty_t com;
   link_t link; // when known
   mote_t next; // for lists
   uint8_t secret[32];
