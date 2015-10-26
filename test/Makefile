@@ -2,7 +2,7 @@ TESTS = lib_base32 lib_lob lib_hashname lib_murmur lib_chunks lib_util \
 		e3x_core e3x_self e3x_exchange e3x_event e3x_channel \
 		mesh_core net_loopback net_udp4 net_tcp4 ext_stream lib_chacha \
 		ext_block lib_uri net_handshake lib_socketio lib_jwt lib_base64 \
-		ext_path ext_peer net_serial tmesh_core tmesh_epoch net_bulk 
+		ext_path ext_peer net_serial tmesh_core net_bulk 
 
 CC=gcc
 CFLAGS+=-O3 -g -Wall -Wextra -Wno-unused-parameter -DDEBUG
@@ -15,7 +15,7 @@ MESH = src/mesh.c src/link.c src/pipe.c
 EXT = src/ext/stream.c src/ext/block.c src/ext/path.c src/ext/peer.c
 NET = src/net/loopback.c src/net/udp4.c src/net/tcp4.c src/net/serial.c
 UTIL = src/util/util.c src/util/uri.c src/util/chunks.c src/unix/util.c src/unix/util_sys.c
-TMESH = src/tmesh/tmesh.c src/tmesh/epoch.c
+TMESH = src/tmesh/tmesh.c 
 
 # CS1a by default
 CS = src/e3x/cs1a/aes.c src/e3x/cs1a/hmac.c src/e3x/cs1a/aes128.c src/e3x/cs1a/cs1a.c src/e3x/cs1a/uECC.c src/e3x/cs1a/sha256.c
