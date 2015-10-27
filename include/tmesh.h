@@ -58,7 +58,8 @@ struct tmesh_struct
   cmnty_t coms;
   lob_t pubim;
   uint8_t z; // our preferred z-index
-  // TODO, add callback hooks for sorting/prioritizing energy usage
+  knock_t (*sort)(knock_t a, knock_t b);
+  
 };
 
 // create a new tmesh radio network bound to this mesh
@@ -108,8 +109,11 @@ mote_t mote_free(mote_t m);
 // resets secret/nonce and to ping mode
 mote_t mote_reset(mote_t m);
 
-// next knock at
-uint64_t mote_knock(mote_t m, uint64_t from);
+// next knock init
+mote_t mote_knock(mote_t m, knock_t k, uint64_t from);
+
+// for tmesh sorting
+knock_t knock_sooner(knock_t a, knock_t b);
 
 ///////////////////
 // radio devices are responsible for all mediums

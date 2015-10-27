@@ -182,6 +182,7 @@ tmesh_t tmesh_new(mesh_t mesh, lob_t options)
   xht_set(mesh->index, "tmesh", tm);
   mesh_on_path(mesh, "tmesh", tmesh_on_path);
   mesh_on_open(mesh, "tmesh_open", tmesh_on_open);
+  tm->sort = knock_sooner;
   
   return tm;
 }
@@ -264,39 +265,51 @@ radio_t radio_device(radio_t device)
   return NULL;
 }
 
+
 tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
 {
   cmnty_t com;
   mote_t mote;
+  struct knock_struct ktmp;
   if(!tm || !k) return LOG("bad args");
 
-  k->mote = NULL;
+  memset(k,0,sizeof(struct knock_struct));
+  memset(&ktmp,0,sizeof(struct knock_struct));
   for(com=tm->coms;com;com=com->next)
   {
     if(device && com->medium->radio != device->id) continue;
     // check every mote
     for(mote=com->motes;mote;mote=mote->next)
     {
-      if(!k->mote)
+      if(!mote_knock(mote,&ktmp,from)) continue;
+      // use the new one if preferred
+      if(!k->mote || tm->sort(k,&ktmp) != k)
       {
-        k->mote = mote;
-        continue;
+        memcpy(k,&ktmp,sizeof(struct knock_struct));
       }
-      // TODO use comparator function between k->mote and mote
-      k->mote = mote;
     }
   }
   
   // make sure a knock was found
   if(!k->mote) return NULL;
-
-  // TODO copy in tx data from util_chunks
-  memset(k->frame,0,64);
   
-  // TODO if ping, copy in nonce-4 and random, hashname if public
+  // fill in tx frame data
+  if(k->tx)
+  {
+    if(k->mote->ping)
+    {
+      // copy in nonce-4 and random, hashname if public
+      memcpy(k->frame,k->mote->nonce,4);
+      if(medium_public(k->mote->com->medium)) memcpy(k->frame+4,tm->mesh->id->bin,32);
+      else e3x_rand(k->frame+4,32);
+      e3x_rand(k->frame+4+32,28);
+    }else{
+      // TODO copy in tx data from util_chunks
+    }
 
-  // ciphertext frame
-  chacha20(k->mote->secret,k->mote->nonce,k->frame,64);
+    // ciphertext frame
+    chacha20(k->mote->secret,k->mote->nonce,k->frame,64);
+  }
 
   return tm;
 }
@@ -307,9 +320,28 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 {
   if(!tm || !k) return LOG("bad args");
   
-  // TODO, need to handle if it wasn't performed?
-
-  // TODO, process based on knock type, if ping pull out nonce for decipher, then make new nonce
+  // decipher frame
+  chacha20(k->mote->secret,k->mote->nonce,k->frame,64);
+  
+  // process based on knock type
+  if(k->tx)
+  {
+    if(k->mote->ping)
+    {
+      // if we responded, reset nonce
+    }else{
+      // advance chunking
+    }
+    return tm;
+  }
+  
+  if(k->mote->ping)
+  {
+    
+  }
+  
+  // TODO check frame[0]
+  // process incoming chunk to link
 
   return tm;
 }
@@ -399,24 +431,33 @@ mote_t mote_next(mote_t m)
   chacha20(m->secret,m->nonce,m->nonce,len);
   // TODO, handle z scalar
   // add new time to base
-  m->at += util_sys_long((unsigned long)m->nonce);
+  m->at += util_sys_long((unsigned long)*(m->nonce));
   return m;
 }
 
 // when is next knock
-uint64_t mote_knock(mote_t m, uint64_t from)
+mote_t mote_knock(mote_t m, knock_t k, uint64_t from)
 {
   uint32_t next;
-  if(!m || !from || !m->at) return 0;
+  if(!m || !k || !from || !m->at) return 0;
 
-  next = util_sys_long((unsigned long)m->nonce);
+  k->mote = m;
+  next = util_sys_long((unsigned long)*(m->nonce));
   if((m->at+next) > from)
   {
+    k->start = m->at+next;
+    k->stop = k->start + (k->tx) ? m->com->medium->max : m->com->medium->min;
+
     // least significant time byte sets direction
-    m->tx = ((m->nonce[3]%2) == m->order) ? 0 : 1;
-    return m->at+next;
+    k->tx = m->tx = ((m->nonce[3]%2) == m->order) ? 0 : 1;
+    return m;
   }
   // tail recurse to step until the next future one
-  return mote_knock(mote_next(m), from);
+  return mote_knock(mote_next(m), k, from);
+}
+
+knock_t knock_sooner(knock_t a, knock_t b)
+{
+  return (a->start < b->start) ? a : b;
 }
 
