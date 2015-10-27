@@ -99,7 +99,6 @@ cmnty_t tmesh_join(tmesh_t tm, char *medium, char *name)
 // add a link known to be in this community to look for
 mote_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link)
 {
-  uint8_t *a, *b, roll[64];
   mote_t m;
   if(!tm || !c || !link) return LOG("bad args");
 
@@ -109,29 +108,9 @@ mote_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link)
   if(!(m = mote_new(link))) return LOG("OOM");
   m->next = c->motes;
   c->motes = m;
+  m->com = c;
   
-  // generate mote-specific secret, roll up community first
-  e3x_hash(c->medium->bin,5,roll);
-  e3x_hash((uint8_t*)(c->name),strlen(c->name),roll+32);
-  e3x_hash(roll,64,m->secret);
-
-  // add both hashnames in order
-  if(m->order)
-  {
-    a = link->id->bin;
-    b = tm->mesh->id->bin;
-  }else{
-    b = link->id->bin;
-    a = tm->mesh->id->bin;
-  }
-  memcpy(roll,m->secret,32);
-  memcpy(roll+32,a,32);
-  e3x_hash(roll,64,m->secret);
-  memcpy(roll,m->secret,32);
-  memcpy(roll+32,b,32);
-  e3x_hash(roll,64,m->secret);
-
-  return m;
+  return mote_reset(m);
 }
 
 pipe_t tmesh_on_path(link_t link, lob_t path)
@@ -313,6 +292,8 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
 
   // TODO copy in tx data from util_chunks
   memset(k->frame,0,64);
+  
+  // TODO if ping, copy in nonce-4 and random, hashname if public
 
   // ciphertext frame
   chacha20(k->mote->secret,k->mote->nonce,k->frame,64);
@@ -328,7 +309,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   
   // TODO, need to handle if it wasn't performed?
 
-  // TODO, process based on knock type
+  // TODO, process based on knock type, if ping pull out nonce for decipher, then make new nonce
 
   return tm;
 }
@@ -365,12 +346,57 @@ mote_t mote_free(mote_t m)
   return NULL;
 }
 
+mote_t mote_reset(mote_t m)
+{
+  uint8_t *a, *b, roll[64];
+  uint8_t zeros[32] = {0};
+  if(!m) return LOG("bad args");
+  
+  // reset nonce
+  memset(m->nonce,0,8);
+
+  // generate mote-specific secret, roll up community first
+  e3x_hash(m->com->medium->bin,5,roll);
+  e3x_hash((uint8_t*)(m->com->name),strlen(m->com->name),roll+32);
+  e3x_hash(roll,64,m->secret);
+
+  // no link, uses zeros
+  if(!m->link)
+  {
+    a = b = zeros;
+  }else{
+    // add both hashnames in order
+    if(m->order)
+    {
+      a = m->link->id->bin;
+      b = m->link->mesh->id->bin;
+    }else{
+      b = m->link->id->bin;
+      a = m->link->mesh->id->bin;
+    }
+  }
+  memcpy(roll,m->secret,32);
+  memcpy(roll+32,a,32);
+  e3x_hash(roll,64,m->secret);
+  memcpy(roll,m->secret,32);
+  memcpy(roll+32,b,32);
+  e3x_hash(roll,64,m->secret);
+  
+  // always in ping mode after reset
+  m->ping = 1;
+
+  return m;
+}
+
 // advance one window forward
 mote_t mote_next(mote_t m)
 {
+  uint8_t len = 8;
   if(!m) return LOG("bad args");
+  // pings have stable channel, only rotate time part
+  if(m->ping) len = 4;
   // rotate nonce by ciphering it
-  chacha20(m->secret,m->nonce,m->nonce,8);
+  chacha20(m->secret,m->nonce,m->nonce,len);
   // TODO, handle z scalar
   // add new time to base
   m->at += util_sys_long((unsigned long)m->nonce);
@@ -381,22 +407,16 @@ mote_t mote_next(mote_t m)
 uint64_t mote_knock(mote_t m, uint64_t from)
 {
   uint32_t next;
-  if(!m || !from) return 0;
-  // if a ping, just use base at as priority
-  if((uint64_t)(m->nonce) == 0) return m->at;
+  if(!m || !from || !m->at) return 0;
 
   next = util_sys_long((unsigned long)m->nonce);
-  if((m->at+next) > from) return m->at+next;
+  if((m->at+next) > from)
+  {
+    // least significant time byte sets direction
+    m->tx = ((m->nonce[3]%2) == m->order) ? 0 : 1;
+    return m->at+next;
+  }
   // tail recurse to step until the next future one
   return mote_knock(mote_next(m), from);
 }
 
-// must be called after mote_knock, returns knock direction, tx=0, rx=1, rxlong=2
-int8_t mote_mode(mote_t m)
-{
-  if(!m) return -1;
-  // no nonce means ping
-  if((uint64_t)(m->nonce) == 0) return (m->at%2)?0:2; // tx or rxlong
-  // mode is determined by order and nonce last byte
-  return ((m->nonce[7]%2) == m->order) ? 0 : 1;
-}

@@ -97,17 +97,19 @@ struct mote_struct
   uint64_t at; // microsecond of last knock
   util_chunks_t chunks; // actual chunk encoding for r/w frame buffers
   uint8_t z;
-  uint8_t order; // hashname compare
+  uint8_t order:1; // is hashname compare
+  uint8_t ping:1; // is in ping mode
+  uint8_t tx:1; // is in tx or rx
 };
 
 mote_t mote_new(link_t link);
 mote_t mote_free(mote_t m);
 
+// resets secret/nonce and to ping mode
+mote_t mote_reset(mote_t m);
+
 // next knock at
 uint64_t mote_knock(mote_t m, uint64_t from);
-
-// must be called after mote_knock, returns knock direction, tx=0, rx=1, rxlong=2
-int8_t mote_mode(mote_t m);
 
 ///////////////////
 // radio devices are responsible for all mediums
