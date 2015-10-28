@@ -80,9 +80,10 @@ cmnty_t tmesh_join(tmesh_t tm, char *medium, char *name)
   if(medium_public(c->medium))
   {
     // generate the public shared ping mote
-    c->public = mote_new(NULL);
+    c->public = c->motes = mote_new(NULL);
     c->public->com = c;
     mote_reset(c->public);
+    c->public->at = 1; // enable to start
 
     // generate public intermediate keys packet
     if(!tm->pubim) tm->pubim = hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys));
@@ -326,6 +327,15 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   mote_t mote;
   if(!tm || !k) return LOG("bad args");
   
+  // always set time base to last knock regardless
+  k->mote->at = k->start;
+
+  if(!k->actual)
+  {
+    LOG("knock error");
+    return tm;
+  }
+
   // convenience
   com = k->mote->com;
   
@@ -371,7 +381,6 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     return tm;
   }
   
-  
   // transmitted knocks handle first
   if(k->tx)
   {
@@ -381,7 +390,9 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   
   // received knock handling now
 
-  // TODO check frame[0]
+  // TODO check frame[0] first
+  k->mote->at = k->actual; // self-correcting sync based on exact rx time
+
   // TODO process incoming chunk to link
 
   return tm;
@@ -425,8 +436,7 @@ mote_t mote_reset(mote_t m)
   uint8_t zeros[32] = {0};
   if(!m) return LOG("bad args");
   
-  // reset nonce and stats
-  memset(m->nonce,0,8);
+  // reset stats
   m->sent = m->received = 0;
 
   // generate mote-specific secret, roll up community first
@@ -455,6 +465,13 @@ mote_t mote_reset(mote_t m)
   memcpy(roll,m->secret,32);
   memcpy(roll+32,b,32);
   e3x_hash(roll,64,m->secret);
+  
+  // initalize nonce based on secret
+  memset(m->nonce,0,8);
+  chacha20(m->secret,m->nonce,m->nonce,8);
+  
+  // randomize unstable half of nonce
+  e3x_rand(m->nonce,4);
   
   // always in ping mode after reset
   m->ping = 1;
@@ -488,10 +505,14 @@ mote_t mote_knock(mote_t m, knock_t k, uint64_t from)
   if((m->at+next) > from)
   {
     k->start = m->at+next;
-    k->stop = k->start + (k->tx) ? m->com->medium->max : m->com->medium->min;
+    k->stop = k->start + (uint64_t)((k->tx) ? m->com->medium->max : m->com->medium->min);
 
     // least significant time byte sets direction
     k->tx = m->tx = ((m->nonce[3]%2) == m->order) ? 0 : 1;
+    
+    // derive current channel
+    k->chan = m->nonce[4] % m->com->medium->chans;
+
     return m;
   }
   // tail recurse to step until the next future one
@@ -500,6 +521,7 @@ mote_t mote_knock(mote_t m, knock_t k, uint64_t from)
 
 knock_t knock_sooner(knock_t a, knock_t b)
 {
+  LOG("knock compare %lld <=> %lld",a->start,b->start);
   return (a->start < b->start) ? a : b;
 }
 

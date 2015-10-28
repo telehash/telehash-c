@@ -74,10 +74,10 @@ tmesh_t tmesh_loop(tmesh_t tm);
 struct knock_struct
 {
   mote_t mote;
-  uint64_t start, stop; // microsecond exact start/stop time
+  uint64_t start, stop, actual; // microsecond exact start/stop time
   uint8_t frame[64];
   uint8_t chan; // current channel (< med->chans)
-  uint8_t tx:1;
+  uint8_t tx:1; // tells radio to tx or rx
 };
 
 // fills in next knock based on from and only for this device
