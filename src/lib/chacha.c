@@ -19,6 +19,11 @@ struct chacha_ctx {
 #define CHACHA_STATELEN		(CHACHA_NONCELEN+CHACHA_CTRLEN)
 #define CHACHA_BLOCKLEN		64
 
+// old gcc
+#if !defined(HAVE_ATTRIBUTE__BOUNDED__) && !defined(__bounded__) 
+#define __bounded__(x, y, z) __unused__ 
+#endif
+
 void chacha_keysetup(struct chacha_ctx *x, const u_char *k, u_int kbits)
     __attribute__((__bounded__(__minbytes__, 2, CHACHA_MINKEYLEN)));
 void chacha_ivsetup(struct chacha_ctx *x, const u_char *iv, const u_char *ctr)
