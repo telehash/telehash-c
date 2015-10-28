@@ -79,6 +79,10 @@ cmnty_t tmesh_join(tmesh_t tm, char *medium, char *name)
 
   if(medium_public(c->medium))
   {
+    // generate the public shared ping mote
+    c->public = mote_new(NULL);
+    c->public->com = c;
+    mote_reset(c->public);
 
     // generate public intermediate keys packet
     if(!tm->pubim) tm->pubim = hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys));
@@ -318,30 +322,67 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
 // signal once a knock has been sent/received for this mote
 tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 {
+  cmnty_t com;
+  mote_t mote;
   if(!tm || !k) return LOG("bad args");
   
+  // convenience
+  com = k->mote->com;
+  
+  // stats
+  if(k->tx) k->mote->sent++;
+  else k->mote->received++;
+
   // decipher frame
   chacha20(k->mote->secret,k->mote->nonce,k->frame,64);
   
-  // process based on knock type
-  if(k->tx)
+  // handle the public ping first
+  if(k->mote == com->public)
   {
-    if(k->mote->ping)
+    // either tx or rx rebases any other unsync'd motes
+    for(mote = com->motes;mote;mote = mote->next)
     {
-      // if we responded, reset nonce
-    }else{
-      // advance chunking
+      if(mote->ping)
+      {
+        // TODO, rebase w/ nonce and time
+      }
+    }
+
+    // if we received one, check/make a mote
+    if(!k->tx)
+    {
+      link_t link;
+      if((link = link_get(tm->mesh, (char*)(k->frame+4))))
+      {
+        // check for existing and ignore
+        for(mote = com->motes;mote;mote = mote->next) if(mote->link == link) return tm;
+        // add new public mote
+        mote = tmesh_link(tm, com, link);
+        // if we sync here it may be premature, future optimization to know if we can
+      }
     }
     return tm;
   }
   
+  // handle a private ping next
   if(k->mote->ping)
   {
-    
+    // TODO depending on mote->order and if we've countered, reset nonce and start handshake
+    return tm;
   }
   
+  
+  // transmitted knocks handle first
+  if(k->tx)
+  {
+    // TODO advance chunking
+    return tm;
+  }
+  
+  // received knock handling now
+
   // TODO check frame[0]
-  // process incoming chunk to link
+  // TODO process incoming chunk to link
 
   return tm;
 }
@@ -384,8 +425,9 @@ mote_t mote_reset(mote_t m)
   uint8_t zeros[32] = {0};
   if(!m) return LOG("bad args");
   
-  // reset nonce
+  // reset nonce and stats
   memset(m->nonce,0,8);
+  m->sent = m->received = 0;
 
   // generate mote-specific secret, roll up community first
   e3x_hash(m->com->medium->bin,5,roll);

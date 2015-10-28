@@ -36,6 +36,7 @@ struct cmnty_struct
   tmesh_t tm;
   char *name;
   medium_t medium;
+  mote_t public; // ping mote
   mote_t motes; 
   pipe_t pipe; // one pipe per community as it's shared performance
   struct cmnty_struct *next;
@@ -97,6 +98,7 @@ struct mote_struct
   uint8_t nonce[8];
   uint64_t at; // microsecond of last knock
   util_chunks_t chunks; // actual chunk encoding for r/w frame buffers
+  uint16_t sent, received;
   uint8_t z;
   uint8_t order:1; // is hashname compare
   uint8_t ping:1; // is in ping mode
