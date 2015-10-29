@@ -287,6 +287,8 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
     for(mote=com->motes;mote;mote=mote->next)
     {
       if(!mote_knock(mote,&ktmp,from)) continue;
+      // if active tx and we don't have any data, skip
+      if(ktmp.tx && !mote->ping && util_chunks_len(mote->chunks) == 0) continue;
       // use the new one if preferred
       if(!k->mote || tm->sort(k,&ktmp) != k)
       {
@@ -309,7 +311,13 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
       else e3x_rand(k->frame+4,32);
       e3x_rand(k->frame+4+32,28);
     }else{
-      // TODO copy in tx data from util_chunks
+      k->frame[0] = 0; // stub for now
+      k->frame[1] = *util_chunks_write(k->mote->chunks); // chunk length
+      util_chunks_written(k->mote->chunks,1);
+      uint32_t len = util_chunks_len(k->mote->chunks);
+      memcpy(k->frame+2,util_chunks_write(k->mote->chunks),len);
+      util_chunks_written(k->mote->chunks,len);
+      // TODO, better chunks api to do in one pass, and not flag written till sent
     }
 
     // ciphertext frame
@@ -378,6 +386,15 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   if(k->mote->ping)
   {
     // TODO depending on mote->order and if we've countered, reset nonce and start handshake
+    if(k->mote->sent && k->mote->received)
+    {
+      // sync w/ given nonce
+      memcpy(k->mote->nonce,k->frame,4);
+      // re-base time 
+      k->mote->at = k->actual;
+      // switch out of ping mode, initiate link/handshake
+      mote_link(k->mote);
+    }
     return tm;
   }
   
@@ -393,7 +410,8 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   // TODO check frame[0] first
   k->mote->at = k->actual; // self-correcting sync based on exact rx time
 
-  // TODO process incoming chunk to link
+  // process incoming chunk to link
+  util_chunks_read(k->mote->chunks,k->frame+1,k->frame[1]+1);
 
   return tm;
 }
@@ -449,6 +467,8 @@ mote_t mote_reset(mote_t m)
   {
     a = b = zeros;
   }else{
+    m->chunks = util_chunks_free(m->chunks);
+    // TODO detach pipe from link
     // add both hashnames in order
     if(m->order)
     {
@@ -517,6 +537,20 @@ mote_t mote_knock(mote_t m, knock_t k, uint64_t from)
   }
   // tail recurse to step until the next future one
   return mote_knock(mote_next(m), k, from);
+}
+
+// initiates handshake over this mote
+mote_t mote_link(mote_t m)
+{
+  if(!m || !m->link) return LOG("bad args");
+  m->ping = 0;
+  m->chunks = util_chunks_free(m->chunks);
+  m->chunks = util_chunks_new(63);
+  // establish the pipe path
+  link_pipe(m->link,m->com->pipe);
+  // trigger a new handshake over it
+  lob_free(link_resync(m->link));
+  return m;
 }
 
 knock_t knock_sooner(knock_t a, knock_t b)

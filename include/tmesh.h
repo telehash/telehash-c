@@ -114,6 +114,9 @@ mote_t mote_reset(mote_t m);
 // next knock init
 mote_t mote_knock(mote_t m, knock_t k, uint64_t from);
 
+// initiates handshake over this mote
+mote_t mote_link(mote_t m);
+
 // for tmesh sorting
 knock_t knock_sooner(knock_t a, knock_t b);
 
