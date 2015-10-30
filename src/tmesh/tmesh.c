@@ -493,14 +493,24 @@ mote_t mote_reset(mote_t m)
   // randomize unstable half of nonce
   e3x_rand(m->nonce,4);
   
-  // always in ping mode after reset
+  // always in ping mode after reset and default z
   m->ping = 1;
+  m->z = m->com->medium->z;
 
   return m;
 }
 
+uint32_t mote_next(mote_t m)
+{
+  if(!m) return 0;
+  uint32_t next;
+  uint8_t z = m->z >> 4; // only high 4 bits
+  memcpy(&next,m->nonce,4);
+  return next >> z; // smaller for high z
+}
+
 // advance one window forward
-mote_t mote_next(mote_t m)
+mote_t mote_window(mote_t m)
 {
   uint8_t len = 8;
   if(!m) return LOG("bad args");
@@ -508,9 +518,8 @@ mote_t mote_next(mote_t m)
   if(m->ping) len = 4;
   // rotate nonce by ciphering it
   chacha20(m->secret,m->nonce,m->nonce,len);
-  // TODO, handle z scalar
   // add new time to base
-  m->at += util_sys_long((unsigned long)*(m->nonce));
+  m->at += mote_next(m);
   return m;
 }
 
@@ -521,7 +530,7 @@ mote_t mote_knock(mote_t m, knock_t k, uint64_t from)
   if(!m || !k || !from || !m->at) return 0;
 
   k->mote = m;
-  next = util_sys_long((unsigned long)*(m->nonce));
+  next = mote_next(m);
   if((m->at+next) > from)
   {
     k->start = m->at+next;
@@ -536,7 +545,7 @@ mote_t mote_knock(mote_t m, knock_t k, uint64_t from)
     return m;
   }
   // tail recurse to step until the next future one
-  return mote_knock(mote_next(m), k, from);
+  return mote_knock(mote_window(m), k, from);
 }
 
 // initiates handshake over this mote

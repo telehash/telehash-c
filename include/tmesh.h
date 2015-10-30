@@ -17,6 +17,7 @@ struct medium_struct
   void *device; // used by radio device driver
   uint32_t min, max; // microseconds to knock, set by driver
   uint8_t chans; // number of total channels, set by driver
+  uint8_t z; // default
   uint8_t radio:4; // radio device id based on radio_devices[]
 };
 

@@ -71,11 +71,11 @@ int main(int argc, char **argv)
   fail_unless(mote_knock(m,knock,2));
   fail_unless(knock->tx);
   LOG("next is %lld",knock->start);
-  fail_unless(knock->start == 16777217);
+  fail_unless(knock->start == 65794);
   fail_unless(mote_knock(m,knock,knock->start+1));
   fail_unless(!knock->tx);
   LOG("next is %lld",knock->start);
-  fail_unless(knock->start == 3187671041);
+  fail_unless(knock->start == 2977811);
 
   mote_reset(m);
   memset(m->nonce,1,4); // nonce is random, force stable for fixture testing
@@ -84,8 +84,8 @@ int main(int argc, char **argv)
   fail_unless(knock->mote == m);
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
   fail_unless(knock->tx);
-  fail_unless(knock->start == 16777217);
-  fail_unless(knock->stop == 16777217+10);
+  fail_unless(knock->start == 65794);
+  fail_unless(knock->stop == 65794+10);
   fail_unless(knock->chan == 34);
   fail_unless(m->at == 1);
   knock->actual = knock->start;
@@ -99,8 +99,8 @@ int main(int argc, char **argv)
   fail_unless(knock->mote == m);
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
   fail_unless(!knock->tx);
-  fail_unless(knock->start == 704643073);
-  fail_unless(knock->stop == 704643073+1000);
+  fail_unless(knock->start == 2763307);
+  fail_unless(knock->stop == 2763307+1000);
   fail_unless(knock->chan == 48);
   // pretend rx failed
   fail_unless(tmesh_knocked(netA,knock));
@@ -111,11 +111,11 @@ int main(int argc, char **argv)
   fail_unless(knock->mote == m);
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
   fail_unless(knock->tx);
-  fail_unless(knock->start == 8220835841);
+  fail_unless(knock->start == 4665060843);
   fail_unless(knock->chan == 48);
   // frame would be random ciphered, but we fixed it to test
   LOG("frame %s",util_hex(knock->frame,32+4,hex)); // just the stable part
-  fail_unless(util_cmp(hex,"768b1bad578277e4e27d83071172b930e6431b15a8311c8c095f486356eab8ab7c553456") == 0);
+  fail_unless(util_cmp(hex,"c4902f857ef0002ca7b864059f87f19f091d80ee01898afc8c9bec014afa3252ff7a4b63") == 0);
   // let's preted it's an rx now
   m->tx = 0;
   knock->actual = knock->start; // fake rx good
@@ -125,7 +125,7 @@ int main(int argc, char **argv)
   LOG("frame %s",util_hex(knock->frame,32+4,hex)); // just the stable part
   fail_unless(memcmp(knock->frame,m->nonce,4) == 0);
   fail_unless(memcmp(knock->frame+4,meshA->id->bin,32) == 0);
-  fail_unless(util_cmp(hex,"e0a48351fea600b08b84ab402fca3951b20b53c87820013574a5bcff1c6674e6b53d7fa6") == 0);
+  fail_unless(util_cmp(hex,"1fcdf969fea600b08b84ab402fca3951b20b53c87820013574a5bcff1c6674e6b53d7fa6") == 0);
 
 
   return 0;
