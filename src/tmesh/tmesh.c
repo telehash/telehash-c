@@ -305,6 +305,18 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
   {
     if(k->mote->ping)
     {
+      // if not sending a pong, rotate nonce until next one is rx for a pong
+      if(!k->mote->pong)
+      {
+        uint8_t next[4], max=16;
+        while(max--)
+        {
+          memcpy(next,k->mote->nonce,4);
+          chacha20(k->mote->secret,k->mote->nonce,next,4);
+          if((k->mote->nonce[3]%2) == k->mote->order) break;
+          memcpy(k->mote->nonce,next,4);
+        }
+      }
       // copy in nonce-4 and random, hashname if public
       memcpy(k->frame,k->mote->nonce,4);
       if(medium_public(k->mote->com->medium)) memcpy(k->frame+4,tm->mesh->id->bin,32);
@@ -371,6 +383,8 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
           k->mote->link = link;
         }
         hashname_free(hn);
+        // also set our order to opposite of theirs since they just tx'd and there's no natural order
+        k->mote->order = (k->frame[3]%2) ? 1 : 0;
       }
 
       // always in pong status after any ping rx
@@ -542,11 +556,11 @@ mote_t mote_knock(mote_t m, knock_t k, uint64_t from)
   next = mote_next(m);
   if((m->at+next) > from)
   {
-    k->start = m->at+next;
-    k->stop = k->start + (uint64_t)((k->tx) ? m->com->medium->max : m->com->medium->min);
-
     // least significant time byte sets direction
     k->tx = m->tx = ((m->nonce[3]%2) == m->order) ? 0 : 1;
+
+    k->start = m->at+next;
+    k->stop = k->start + (uint64_t)((k->tx) ? m->com->medium->max : m->com->medium->min);
     
     // derive current channel
     k->chan = m->nonce[4] % m->com->medium->chans;
