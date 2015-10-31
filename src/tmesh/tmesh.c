@@ -408,7 +408,9 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
         // check for existing mote already or make new
         for(mote = com->motes;mote;mote = mote->next) if(mote->link == k->mote->link) break;
         if(!mote && !(mote = tmesh_link(tm, com, k->mote->link))) return LOG("internal error");
+        // back in open ping mode
         k->mote->link = NULL;
+        k->mote->pong = 0;
       }else{
         mote = k->mote;
       }
