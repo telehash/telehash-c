@@ -103,6 +103,7 @@ struct mote_struct
   uint8_t z;
   uint8_t order:1; // is hashname compare
   uint8_t ping:1; // is in ping mode
+  uint8_t pong:1; // ready for pong
   uint8_t tx:1; // is in tx or rx
 };
 

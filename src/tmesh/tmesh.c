@@ -354,54 +354,63 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   // decipher frame
   chacha20(k->mote->secret,k->mote->nonce,k->frame,64);
   
-  // handle the public ping first
-  if(k->mote == com->public)
-  {
-    // either tx or rx rebases any other unsync'd motes
-    for(mote = com->motes;mote;mote = mote->next)
-    {
-      if(mote->ping)
-      {
-        // TODO, rebase w/ nonce and time
-      }
-    }
-
-    // if we received one, check/make a mote
-    if(!k->tx)
-    {
-      link_t link;
-      if((link = link_get(tm->mesh, (char*)(k->frame+4))))
-      {
-        // check for existing and ignore
-        for(mote = com->motes;mote;mote = mote->next) if(mote->link == link) return tm;
-        // add new public mote
-        mote = tmesh_link(tm, com, link);
-        // if we sync here it may be premature, future optimization to know if we can
-      }
-    }
-    return tm;
-  }
-  
-  // handle a private ping next
+  // handle any ping first
   if(k->mote->ping)
   {
-    // TODO depending on mote->order and if we've countered, reset nonce and start handshake
-    if(k->mote->sent && k->mote->received)
+    // if we received a ping, cache the link
+    if(!k->tx)
     {
-      // sync w/ given nonce
-      memcpy(k->mote->nonce,k->frame,4);
-      // re-base time 
-      k->mote->at = k->actual;
-      // switch out of ping mode, initiate link/handshake
-      mote_link(k->mote);
+      // if it's the public ping, cache the incoming hashname as a link
+      if(k->mote == com->public)
+      {
+        link_t link;
+        hashname_t hn = hashname_new(k->frame+4);
+        if(hn && (link = link_get(tm->mesh, hn->hashname)))
+        {
+          // TODO, clean-up any previous stale link
+          k->mote->link = link;
+        }
+        hashname_free(hn);
+      }
+
+      // always in pong status after any ping rx
+      k->mote->pong = 1;
+
+      // if the nonce doesn't match, we use it and pong next tx
+      if(memcmp(k->frame,k->mote->nonce,4) != 0)
+      {
+        memcpy(k->mote->nonce,k->frame,4);
+        return tm;
+      }
+      // otherwise continue to pong handler
     }
+
+    // when in pong status
+    if(k->mote->pong)
+    {
+      // if public pong, create/rebase mote from cached link
+      if(k->mote == com->public)
+      {
+        // check for existing mote already or make new
+        for(mote = com->motes;mote;mote = mote->next) if(mote->link == k->mote->link) break;
+        if(!mote && !(mote = tmesh_link(tm, com, k->mote->link))) return LOG("internal error");
+        k->mote->link = NULL;
+      }else{
+        mote = k->mote;
+      }
+      // force reset and use given nonce seed to start
+      mote_reset(mote);
+      memcpy(mote->nonce,k->frame,4);
+      mote_link(mote);
+    }
+
     return tm;
   }
   
   // transmitted knocks handle first
   if(k->tx)
   {
-    // TODO advance chunking
+    // TODO advance chunking here instead
     return tm;
   }
   
