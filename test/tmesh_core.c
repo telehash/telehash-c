@@ -100,7 +100,7 @@ int main(int argc, char **argv)
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
   fail_unless(!knock->tx);
   fail_unless(knock->start == 2763307);
-  fail_unless(knock->stop == 2763307+10);
+  fail_unless(knock->stop == 2763307+1000);
   fail_unless(knock->chan == 48);
   // pretend rx failed
   fail_unless(tmesh_knocked(netA,knock));

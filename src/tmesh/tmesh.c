@@ -563,6 +563,9 @@ mote_t mote_knock(mote_t m, knock_t k, uint64_t from)
 
     k->start = m->at+next;
     k->stop = k->start + (uint64_t)((k->tx) ? m->com->medium->max : m->com->medium->min);
+
+    // when receiving a ping, use wide window to catch more
+    if(m->ping) k->stop = k->start + m->com->medium->max;
     
     // derive current channel
     k->chan = m->nonce[4] % m->com->medium->chans;
