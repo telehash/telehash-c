@@ -288,7 +288,7 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
     {
       if(!mote_knock(mote,&ktmp,from)) continue;
       // if active tx and we don't have any data, skip
-      if(ktmp.tx && !mote->ping && util_chunks_len(mote->chunks) == 0) continue;
+      if(ktmp.tx && !mote->ping && util_chunks_size(mote->chunks) < 0) continue;
       // use the new one if preferred
       if(!k->mote || tm->sort(k,&ktmp) != k)
       {
@@ -323,13 +323,14 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
       else e3x_rand(k->frame+4,32);
       e3x_rand(k->frame+4+32,28);
     }else{
-      k->frame[0] = 0; // stub for now
-      k->frame[1] = *util_chunks_write(k->mote->chunks); // chunk length
-      util_chunks_written(k->mote->chunks,1);
-      uint32_t len = util_chunks_len(k->mote->chunks);
-      memcpy(k->frame+2,util_chunks_write(k->mote->chunks),len);
-      util_chunks_written(k->mote->chunks,len);
-      // TODO, better chunks api to do in one pass, and not flag written till sent
+      int16_t size = util_chunks_size(k->mote->chunks);
+      if(size >= 0)
+      {
+        // TODO, real header, term flag
+        k->frame[0] = 0; // stub for now
+        k->frame[1] = (uint8_t)size;
+        memcpy(k->frame+2,util_chunks_frame(k->mote->chunks),size);
+      }
     }
 
     // ciphertext frame
@@ -425,7 +426,8 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   // transmitted knocks handle first
   if(k->tx)
   {
-    // TODO advance chunking here instead
+    // advance chunking now
+    util_chunks_next(k->mote->chunks);
     return tm;
   }
   
