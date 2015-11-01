@@ -59,10 +59,17 @@ util_chunks_t util_chunks_read(util_chunks_t chunks, uint8_t *block, size_t len)
 // size of the next chunk, -1 when none, max is chunks size-1
 int16_t util_chunks_size(util_chunks_t chunks);
 
-// return the next chunk of data, use util_chunks_written(size+1) to advance
-uint8_t *util_chunks_next(util_chunks_t chunks);
+// return the next chunk of data, use util_chunks_next to advance
+uint8_t *util_chunks_frame(util_chunks_t chunks);
+
+// peek into what the next chunk size will be, to see terminator ones
+int16_t util_chunks_peek(util_chunks_t chunks);
 
 // process incoming chunk
 util_chunks_t util_chunks_chunk(util_chunks_t chunks, uint8_t *chunk, int16_t size);
+
+// advance the write past the current chunk
+util_chunks_t util_chunks_next(util_chunks_t chunks);
+
 
 #endif

@@ -210,7 +210,7 @@ uint8_t *util_chunks_write(util_chunks_t chunks)
 util_chunks_t util_chunks_written(util_chunks_t chunks, size_t len)
 {
   if(!chunks || !len) return chunks;
-  if(len > (uint16_t)(util_chunks_size(chunks)+1)) return LOG("len too big %d > %d",len,util_chunks_size(chunks)+1);
+  if(len > util_chunks_len(chunks)) return LOG("len too big %d > %d",len,util_chunks_len(chunks));
   chunks->waitat += len;
   chunks->ack = 0; // any write is an ack
 
@@ -257,8 +257,8 @@ int16_t util_chunks_size(util_chunks_t chunks)
   return chunks->waiting;
 }
 
-// return the next chunk of data, use util_chunks_written(size+1) to advance
-uint8_t *util_chunks_next(util_chunks_t chunks)
+// return the next chunk of data, use util_chunks_next to advance
+uint8_t *util_chunks_frame(util_chunks_t chunks)
 {
   if(!chunks || !chunks->waiting) return NULL;
   // into the raw data
@@ -272,5 +272,25 @@ util_chunks_t util_chunks_chunk(util_chunks_t chunks, uint8_t *chunk, int16_t si
   if(!chunks || size < 0) return NULL;
   if(!_util_chunks_append(chunks,(uint8_t*)&size,1)) return NULL;
   if(!_util_chunks_append(chunks,chunk,size)) return NULL;
+  return chunks;
+}
+
+// peek into what the next chunk size will be, to see terminator ones
+int16_t util_chunks_peek(util_chunks_t chunks)
+{
+  int16_t size = util_chunks_size(chunks);
+  // TODO, peek into next chunk
+  if(size <= 0) return -1;
+  return lob_len(chunks->writing) - (chunks->writeat+size);
+}
+
+// advance the write past the current chunk
+util_chunks_t util_chunks_next(util_chunks_t chunks)
+{
+  int16_t size = util_chunks_size(chunks);
+  if(size < 0) return NULL;
+  // header byte first, then full chunk
+  if(!util_chunks_written(chunks,1)) return NULL;
+  if(!util_chunks_written(chunks,size)) return NULL;
   return chunks;
 }

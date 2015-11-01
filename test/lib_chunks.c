@@ -137,15 +137,18 @@ int main(int argc, char **argv)
   fail_unless(f1);
   fail_unless(util_chunks_send(f1, lob_copy(packet)));
   fail_unless(util_chunks_size(f1) == 9);
-  fail_unless(util_chunks_next(f1));
-  while(util_chunks_size(f1) == 9) fail_unless(util_chunks_written(f1,10));
+  fail_unless(util_chunks_frame(f1));
+  fail_unless(util_chunks_peek(f1));
+  while(util_chunks_size(f1) == 9) fail_unless(util_chunks_next(f1));
   LOG("tail is size %d",util_chunks_size(f1));
   fail_unless(util_chunks_size(f1) == 3);
+  fail_unless(util_chunks_peek(f1) == 0);
   fail_unless(util_chunks_size(f1) == 3);
-  fail_unless(util_chunks_written(f1,4));
+  fail_unless(util_chunks_next(f1));
   fail_unless(util_chunks_size(f1) == 0);
+  fail_unless(util_chunks_peek(f1) == -1);
   fail_unless(util_chunks_size(f1) == 0);
-  fail_unless(util_chunks_written(f1,1));
+  fail_unless(util_chunks_next(f1));
   fail_unless(util_chunks_size(f1) == -1);
   
 
