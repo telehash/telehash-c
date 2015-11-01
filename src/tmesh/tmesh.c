@@ -585,6 +585,12 @@ mote_t mote_link(mote_t m)
   m->chunks = util_chunks_new(63);
   // establish the pipe path
   link_pipe(m->link,m->com->pipe);
+  // if public and no keys, send discovery
+  if(m->com->pubim && !m->link->x)
+  {
+    m->com->pipe->send(m->com->pipe, lob_copy(m->com->pubim), m->link);
+    return m;
+  }
   // trigger a new handshake over it
   lob_free(link_resync(m->link));
   return m;
