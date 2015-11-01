@@ -359,9 +359,8 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   // convenience
   com = k->mote->com;
   
-  // stats
+  // tx stats are always valid
   if(k->tx) k->mote->sent++;
-  else k->mote->received++;
 
   // decipher frame
   chacha20(k->mote->secret,k->mote->nonce,k->frame,64);
@@ -408,7 +407,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
         // check for existing mote already or make new
         for(mote = com->motes;mote;mote = mote->next) if(mote->link == k->mote->link) break;
         if(!mote && !(mote = tmesh_link(tm, com, k->mote->link))) return LOG("internal error");
-        // back in open ping mode
+        // public ping is back in open mode
         k->mote->link = NULL;
         k->mote->pong = 0;
       }else{
@@ -432,8 +431,11 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   
   // received knock handling now
 
-  // TODO check frame[0] first
+  // TODO check and validate frame[0] first
   k->mote->at = k->actual; // self-correcting sync based on exact rx time
+
+  // received stats only after minimal validation
+  k->mote->received++;
 
   // process incoming chunk to link
   util_chunks_read(k->mote->chunks,k->frame+1,k->frame[1]+1);
@@ -586,9 +588,9 @@ mote_t mote_link(mote_t m)
   // establish the pipe path
   link_pipe(m->link,m->com->pipe);
   // if public and no keys, send discovery
-  if(m->com->pubim && !m->link->x)
+  if(m->com->tm->pubim && !m->link->x)
   {
-    m->com->pipe->send(m->com->pipe, lob_copy(m->com->pubim), m->link);
+    m->com->pipe->send(m->com->pipe, lob_copy(m->com->tm->pubim), m->link);
     return m;
   }
   // trigger a new handshake over it
