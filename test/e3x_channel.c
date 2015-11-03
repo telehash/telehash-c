@@ -28,7 +28,12 @@ int main(int argc, char **argv)
   fail_unless(e3x_channel_c(chan) && strlen(e3x_channel_c(chan)) == 1);
   fail_unless(util_cmp(lob_get(e3x_channel_open(chan),"type"),"test") == 0);
   
+  // test timeout erroring
   fail_unless(e3x_channel_timeout(chan,1) == 1);
+  fail_unless(e3x_channel_receive(chan,NULL,2) == 0);
+  lob_t err = e3x_channel_receiving(chan);
+  fail_unless(err);
+  fail_unless(lob_get(err,"err"));
 
   // receive packets
   lob_t incoming = lob_new();
