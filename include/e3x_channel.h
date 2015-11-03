@@ -18,10 +18,8 @@ typedef struct e3x_channel_struct
   uint32_t capacity, max; // totals for windowing
 
   // timer stuff
-  uint32_t tsent, trecv; // last send, recv from util_sys_seconds
-  uint32_t tsince, timeout; // tsince=start, timeout is how many seconds before auto-err
-  lob_t timer; // the timer that has been sent to ev
-  e3x_event_t ev; // the event manager to update our timer with
+  uint32_t tsent, trecv; // last send, recv at
+  uint32_t timeout; // when in the future to trigger timeout
   
   // reliable tracking
   lob_t out, sent;
@@ -33,15 +31,15 @@ typedef struct e3x_channel_struct
 e3x_channel_t e3x_channel_new(lob_t open); // open must be e3x_channel_receive or e3x_channel_send next yet
 void e3x_channel_free(e3x_channel_t c);
 
-// sets new timeout, or returns current time left if 0
-uint32_t e3x_channel_timeout(e3x_channel_t c, e3x_event_t ev, uint32_t timeout);
+// sets when in the future this channel should timeout auto-error from no receive, returns current timeout
+uint32_t e3x_channel_timeout(e3x_channel_t c, uint32_t at);
 
 // sets the max size (in bytes) of all buffered data in or out, returns current usage, can pass 0 just to check
 uint32_t e3x_channel_size(e3x_channel_t c, uint32_t max); // will actively signal incoming window size depending on capacity left
 
 // incoming packets
-uint8_t e3x_channel_receive(e3x_channel_t c, lob_t inner); // usually sets/updates event timer, ret if accepted/valid into receiving queue
-void e3x_channel_sync(e3x_channel_t c, uint8_t sync); // false to force start timers (any new handshake), true to cancel and resend last packet (after any e3x_exchange_sync)
+uint8_t e3x_channel_receive(e3x_channel_t c, lob_t inner, uint32_t now); // ret if accepted/valid into receiving queue, call w/ no inner to trigger timeouts
+void e3x_channel_sync(e3x_channel_t c, uint8_t sync); // false to force start timeouts (after any new handshake), true to cancel and resend last packet (after any e3x_exchange_sync)
 lob_t e3x_channel_receiving(e3x_channel_t c); // get next avail packet in order, null if nothing
 
 // outgoing packets

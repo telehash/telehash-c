@@ -88,27 +88,16 @@ uint32_t _time_left(e3x_channel_t c)
 }
 
 // this will set the default inactivity timeout using this event timer and our uid
-uint32_t e3x_channel_timeout(e3x_channel_t c, e3x_event_t ev, uint32_t timeout)
+uint32_t e3x_channel_timeout(e3x_channel_t c, uint32_t at)
 {
   if(!c) return 0;
 
-  // un-set any
-  if(ev != c->ev)
-  {
-    // cancel and clearn any previous timer state
-    c->timeout = 0;
-    if(c->ev) e3x_event_set(c->ev,NULL,c->uid,0);
-    c->ev = NULL;
-    lob_free(c->timer);
-    c->timer = NULL;
-  }
-  
-  // no event manager, no timeouts
-  if(!ev) return 0;
-  
   // no timeout, just return how much time is left
-  if(!timeout) return _time_left(c);
+  if(!at) return c->timeout;
 
+  c->timeout = at;
+  return c->timeout;
+  
   // add/update new timeout
   c->tsince = util_sys_seconds(); // start timer now
   c->timeout = timeout;
@@ -137,13 +126,33 @@ enum e3x_channel_states e3x_channel_state(e3x_channel_t c)
 // incoming packets
 
 // usually sets/updates event timer, ret if accepted/valid into receiving queue
-uint8_t e3x_channel_receive(e3x_channel_t c, lob_t inner)
+uint8_t e3x_channel_receive(e3x_channel_t c, lob_t inner, uint32_t now)
 {
   lob_t prev, miss;
   uint32_t ack;
 
-  if(!c || !inner) return 1;
+  if(!c) return 1;
+  
+  // do timeout checks
+  if(now)
+  {
+    if(c->timeout)
+    {
+      // trigger error
+      if(at > c->timeout)
+      {
+        c->timeout = 0;
+      }else if(c->trecv){
+        // kick forward when we have a time difference
+        c->timeout += (now - c->trecv);
+      }
+    }
+    c->trecv = now;
+  }
 
+  // no we need a packet
+  if(!inner) return 1;
+  
   // TODO timer checks
   if(inner == c->timer)
   {
