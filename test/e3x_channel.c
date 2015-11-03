@@ -28,14 +28,12 @@ int main(int argc, char **argv)
   fail_unless(e3x_channel_c(chan) && strlen(e3x_channel_c(chan)) == 1);
   fail_unless(util_cmp(lob_get(e3x_channel_open(chan),"type"),"test") == 0);
   
-  // set up timeout
-  e3x_event_t ev = e3x_event_new(1, util_sys_ms(0));
-  fail_unless(e3x_channel_timeout(chan,ev,1) == 1);
+  fail_unless(e3x_channel_timeout(chan,1) == 1);
 
   // receive packets
   lob_t incoming = lob_new();
   lob_set_int(incoming,"test",42);
-  fail_unless(e3x_channel_receive(chan,incoming) == 0);
+  fail_unless(e3x_channel_receive(chan,incoming,0) == 0);
   fail_unless(lob_get_int(e3x_channel_receiving(chan),"test") == 42);
   fail_unless(e3x_channel_receiving(chan) == NULL);
 
@@ -44,8 +42,8 @@ int main(int argc, char **argv)
   fail_unless(lob_get_int(outgoing,"c") == 1);
   lob_set_int(outgoing,"test",42);
   fail_unless(e3x_channel_send(chan,outgoing) == 0);
-  fail_unless(lob_get_int(e3x_channel_sending(chan),"test") == 42);
-  fail_unless(e3x_channel_sending(chan) == NULL);
+  fail_unless(lob_get_int(e3x_channel_sending(chan,0),"test") == 42);
+  fail_unless(e3x_channel_sending(chan,0) == NULL);
 
   // create a reliable channel
   e3x_channel_free(chan);
@@ -54,15 +52,15 @@ int main(int argc, char **argv)
   chan = e3x_channel_new(open);
   fail_unless(chan);
   fail_unless(e3x_channel_state(chan) == OPENING);
-  fail_unless(e3x_channel_sending(chan) == NULL);
+  fail_unless(e3x_channel_sending(chan,0) == NULL);
   
   // receive an out of order packet
   lob_t ooo = lob_new();
   lob_set_int(ooo,"seq",10);
-  fail_unless(e3x_channel_receive(chan, lob_copy(ooo)) == 0);
-  fail_unless(e3x_channel_receive(chan, ooo) == 1); // dedup drop
+  fail_unless(e3x_channel_receive(chan, lob_copy(ooo),0) == 0);
+  fail_unless(e3x_channel_receive(chan, ooo,0) == 1); // dedup drop
   fail_unless(e3x_channel_receiving(chan) == NULL); // nothing to receive yet
-  lob_t oob = e3x_channel_sending(chan); // should have triggered an ack/miss
+  lob_t oob = e3x_channel_sending(chan,0); // should have triggered an ack/miss
   printf("OOB %s\n",lob_json(oob));
   fail_unless(oob);
   fail_unless(lob_get_int(oob,"c") == 1);

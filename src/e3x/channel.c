@@ -46,8 +46,6 @@ e3x_channel_t e3x_channel_new(lob_t open)
 void e3x_channel_free(e3x_channel_t c)
 {
   if(!c) return;
-  // cancel timeouts
-  e3x_channel_timeout(c,NULL,0);
   // free cached packet
   lob_free(c->open);
   // free any other queued packets
@@ -76,17 +74,6 @@ char *e3x_channel_c(e3x_channel_t c)
   return c->c;
 }
 
-// internally calculate until timeout
-uint32_t _time_left(e3x_channel_t c)
-{
-  uint32_t at = util_sys_seconds();
-  if(!c) return 0;
-  if(!c->timeout) return 1; // never timeout
-  // some seconds left yet
-  if((at - c->tsince) < c->timeout) return c->timeout - (at - c->tsince);
-  return 0;
-}
-
 // this will set the default inactivity timeout using this event timer and our uid
 uint32_t e3x_channel_timeout(e3x_channel_t c, uint32_t at)
 {
@@ -97,17 +84,6 @@ uint32_t e3x_channel_timeout(e3x_channel_t c, uint32_t at)
 
   c->timeout = at;
   return c->timeout;
-  
-  // add/update new timeout
-  c->tsince = util_sys_seconds(); // start timer now
-  c->timeout = timeout;
-  c->ev = ev;
-  c->timer = lob_new();
-  lob_set_uint(c->timer,"c",c->id);
-  lob_set(c->timer, "id", c->uid);
-  lob_set(c->timer, "err", "timeout");
-  e3x_event_set(c->ev, c->timer, lob_get(c->timer, "id"), timeout*1000); // ms in the future
-  return _time_left(c);
 }
 
 // returns the open packet (always cached)
@@ -139,9 +115,14 @@ uint8_t e3x_channel_receive(e3x_channel_t c, lob_t inner, uint32_t now)
     if(c->timeout)
     {
       // trigger error
-      if(at > c->timeout)
+      if(now > c->timeout)
       {
         c->timeout = 0;
+        // even if there was a packet, it's invalid now
+        lob_free(inner);
+        inner = lob_new();
+        lob_set_uint(inner,"c",c->id);
+        lob_set(inner, "err", "timeout");
       }else if(c->trecv){
         // kick forward when we have a time difference
         c->timeout += (now - c->trecv);
@@ -150,15 +131,8 @@ uint8_t e3x_channel_receive(e3x_channel_t c, lob_t inner, uint32_t now)
     c->trecv = now;
   }
 
-  // no we need a packet
+  // now we need a packet
   if(!inner) return 1;
-  
-  // TODO timer checks
-  if(inner == c->timer)
-  {
-    // uhoh or resend
-    return 1;
-  }
   
   // no reliability, just append and done
   if(!c->seq)
@@ -211,8 +185,6 @@ uint8_t e3x_channel_receive(e3x_channel_t c, lob_t inner, uint32_t now)
     }
 
   }
-
-  // TODO reset timer stuff
 
   return 0;
 }
@@ -335,10 +307,9 @@ uint8_t e3x_channel_send(e3x_channel_t c, lob_t inner)
 }
 
 // must be called after every send or receive, pass pkt to e3x_encrypt before sending
-lob_t e3x_channel_sending(e3x_channel_t c)
+lob_t e3x_channel_sending(e3x_channel_t c, uint32_t now)
 {
   lob_t ret;
-  uint32_t now;
   if(!c) return NULL;
   
   // packets waiting
@@ -352,7 +323,6 @@ lob_t e3x_channel_sending(e3x_channel_t c)
   }
   
   // check sent list for any flagged to resend
-  now = util_sys_seconds();
   for(ret = c->sent; ret; ret = ret->next)
   {
     if(!ret->id) continue;

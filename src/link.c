@@ -357,7 +357,7 @@ link_t link_receive(link_t link, lob_t inner, pipe_t pipe)
   if((chan = xht_get(link->index, lob_get(inner,"c"))))
   {
     LOG("\t<-- %s",lob_json(inner));
-    if(e3x_channel_receive(chan->c3, inner))
+    if(e3x_channel_receive(chan->c3, inner, util_sys_seconds()))
     {
       LOG("channel receive error, dropping %s",lob_json(inner));
       lob_free(inner);
@@ -553,7 +553,7 @@ link_t link_flush(link_t link, e3x_channel_t c3, lob_t inner)
   
   if(inner) e3x_channel_send(c3, inner);
 
-  while((inner = e3x_channel_sending(c3)))
+  while((inner = e3x_channel_sending(c3, util_sys_seconds())))
   {
     LOG("\t--> %s",lob_json(inner));
     link_send(link, e3x_exchange_send(link->x, inner));

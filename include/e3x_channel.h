@@ -46,7 +46,7 @@ lob_t e3x_channel_receiving(e3x_channel_t c); // get next avail packet in order,
 lob_t e3x_channel_oob(e3x_channel_t c); // id/ack/miss only headers base packet
 lob_t e3x_channel_packet(e3x_channel_t c);  // creates a sequenced packet w/ all necessary headers, just a convenience
 uint8_t e3x_channel_send(e3x_channel_t c, lob_t inner); // adds to sending queue
-lob_t e3x_channel_sending(e3x_channel_t c); // must be called after every send or receive, pass pkt to e3x_exchange_encrypt before sending
+lob_t e3x_channel_sending(e3x_channel_t c, uint32_t now); // must be called after every send or receive, pass pkt to e3x_exchange_encrypt before sending
 
 // convenience functions
 char *e3x_channel_uid(e3x_channel_t c); // process-unique string id
