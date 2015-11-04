@@ -40,7 +40,7 @@ lob_t stream_on_open(link_t link, lob_t open)
   chan = link_channel(link, open);
   link_handle(link,chan,stream_chan_handler,NULL);
 //  xht_set(link->index,"link",chan);
-  e3x_channel_receive(chan,open);
+  e3x_channel_receive(chan,open, util_sys_seconds());
   stream_chan_handler(link,chan,NULL);
   return NULL;
 }

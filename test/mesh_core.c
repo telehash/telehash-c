@@ -55,6 +55,8 @@ int main(int argc, char **argv)
   fail_unless(strlen(lob_json(mesh_json(mesh))) > 100);
   fail_unless(strlen(lob_json(lob_array(mesh_links(mesh)))) > 10);
 
+  fail_unless(mesh_timeouts(mesh, 1));
+
   link_free(link);
   mesh_free(mesh);
 

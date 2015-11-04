@@ -79,5 +79,7 @@ link_t link_flush(link_t link, e3x_channel_t c3, lob_t inner);
 // encrypt and send this one packet on this pipe
 link_t link_direct(link_t link, lob_t inner, pipe_t pipe);
 
+// process any channel timeouts based on the current/given time
+link_t link_timeouts(link_t link, uint32_t now);
 
 #endif
