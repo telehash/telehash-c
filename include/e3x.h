@@ -45,9 +45,6 @@ uint8_t *e3x_hash(uint8_t *in, size_t len, uint8_t *out32);
 // a single exchange (a session w/ local endpoint and remote endpoint)
 #include "e3x_exchange.h"
 
-// standalone timer event utility for channels
-#include "e3x_event.h"
-
 // standalone channel packet buffer/ordering utility
 #include "e3x_channel.h"
 

@@ -357,7 +357,7 @@ link_t link_receive(link_t link, lob_t inner, pipe_t pipe)
   if((chan = xht_get(link->index, lob_get(inner,"c"))))
   {
     LOG("\t<-- %s",lob_json(inner));
-    if(e3x_channel_receive(chan->c3, inner))
+    if(e3x_channel_receive(chan->c3, inner, util_sys_seconds()))
     {
       LOG("channel receive error, dropping %s",lob_json(inner));
       lob_free(inner);
@@ -553,7 +553,7 @@ link_t link_flush(link_t link, e3x_channel_t c3, lob_t inner)
   
   if(inner) e3x_channel_send(c3, inner);
 
-  while((inner = e3x_channel_sending(c3)))
+  while((inner = e3x_channel_sending(c3, util_sys_seconds())))
   {
     LOG("\t--> %s",lob_json(inner));
     link_send(link, e3x_exchange_send(link->x, inner));
@@ -577,5 +577,21 @@ link_t link_direct(link_t link, lob_t inner, pipe_t pipe)
   pipe->send(pipe, e3x_exchange_send(link->x, inner), link);
   lob_free(inner);
   
+  return link;
+}
+
+static void _walkchanto(xht_t h, const char *key, void *val, void *arg)
+{
+  uint32_t* pnow = (uint32_t*)arg;
+  chan_t ch = (chan_t)val;
+  // triggers timeouts
+  e3x_channel_receive(ch->c3, NULL, *pnow);
+}
+
+// process any channel timeouts based on the current/given time
+link_t link_timeouts(link_t link, uint32_t now)
+{
+  if(!link || !now) return LOG("bad args");
+  xht_walk(link->channels, _walkchanto, &now);
   return link;
 }

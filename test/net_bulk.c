@@ -28,7 +28,7 @@ lob_t bulk_on_open(link_t link, lob_t open)
   link_handle(link,chan,bulk_handler,NULL);
   lob_t reply = lob_new();
   lob_set(reply,"c",lob_get(open,"c"));
-  int ret = e3x_channel_receive(chan,open); // consumes the open
+  int ret = e3x_channel_receive(chan,open,0); // consumes the open
   printf("Done setting up channel ret: %d\n", ret);
 
   link_direct(link,reply,NULL);
