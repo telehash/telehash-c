@@ -64,6 +64,9 @@ uint8_t mesh_receive(mesh_t mesh, lob_t packet, pipe_t pipe);
 // process any unencrypted handshake packet, cache if needed
 link_t mesh_receive_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe);
 
+// process any channel timeouts based on the current/given time
+mesh_t mesh_timeouts(mesh_t mesh, uint32_t now);
+
 // callback when the mesh is free'd
 void mesh_on_free(mesh_t mesh, char *id, void (*free)(mesh_t mesh));
 

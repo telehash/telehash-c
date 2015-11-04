@@ -579,3 +579,19 @@ link_t link_direct(link_t link, lob_t inner, pipe_t pipe)
   
   return link;
 }
+
+static void _walkchanto(xht_t h, const char *key, void *val, void *arg)
+{
+  uint32_t* pnow = (uint32_t*)arg;
+  chan_t ch = (chan_t)val;
+  // triggers timeouts
+  e3x_channel_receive(ch->c3, NULL, *pnow);
+}
+
+// process any channel timeouts based on the current/given time
+link_t link_timeouts(link_t link, uint32_t now)
+{
+  if(!link || !now) return LOG("bad args");
+  xht_walk(link->channels, _walkchanto, &now);
+  return link;
+}
