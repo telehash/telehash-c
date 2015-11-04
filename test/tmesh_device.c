@@ -14,6 +14,7 @@ medium_t device_get(tmesh_t tm, uint8_t medium[5])
   m->chans = 100;
   m->min = 10;
   m->max = 1000;
+  m->z = 128;
   return m;
 }
 
