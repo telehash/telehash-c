@@ -541,11 +541,10 @@ uint32_t mote_next(mote_t m)
 // advance one window forward
 mote_t mote_window(mote_t m)
 {
-  uint8_t len = 8;
   if(!m) return LOG("bad args");
 
   // rotate nonce by ciphering it
-  chacha20(m->secret,m->nonce,m->nonce,len);
+  chacha20(m->secret,m->nonce,m->nonce,8);
   // add new time to base
   m->at += mote_next(m);
 
