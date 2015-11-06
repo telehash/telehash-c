@@ -10,6 +10,7 @@ typedef struct pipe_struct *pipe_t;
 #include "e3x.h"
 #include "lib.h"
 #include "util.h"
+#include "chan.h"
 #include "pipe.h"
 #include "link.h"
 

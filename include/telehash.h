@@ -9,6 +9,7 @@ extern "C" {
 #include "lib.h"
 #include "util.h"
 #include "e3x.h"
+#include "chan.h"
 #include "mesh.h"
 #include "link.h"
 #include "pipe.h"
