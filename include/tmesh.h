@@ -4,20 +4,20 @@
 #include "mesh.h"
 
 typedef struct tmesh_struct *tmesh_t;
-typedef struct cmnty_struct *cmnty_t;
-typedef struct epoch_struct *epoch_t;
-typedef struct mote_struct *mote_t;
-typedef struct medium_struct *medium_t;
-typedef struct radio_struct *radio_t;
-typedef struct knock_struct *knock_t;
+typedef struct cmnty_struct *cmnty_t; // list of motes
+typedef struct mote_struct *mote_t; // secret, nonce, time, knock
+typedef struct medium_struct *medium_t; // channels, energy
+typedef struct radio_struct *radio_t; // driver utils
+typedef struct knock_struct *knock_t; // single action
 
 // medium management w/ device driver
 struct medium_struct
 {
   uint8_t bin[5];
   void *device; // used by radio device driver
-  uint32_t min, max; // microseconds to tx/rx, set by driver
+  uint32_t min, max; // microseconds to knock, set by driver
   uint8_t chans; // number of total channels, set by driver
+  uint8_t z; // default
   uint8_t radio:4; // radio device id based on radio_devices[]
 };
 
@@ -27,6 +27,9 @@ uint32_t medium_check(tmesh_t tm, uint8_t medium[5]);
 // get the full medium
 medium_t medium_get(tmesh_t tm, uint8_t medium[5]);
 
+// just convenience util
+uint8_t medium_public(medium_t m);
+
 
 // community management
 struct cmnty_struct
@@ -34,12 +37,11 @@ struct cmnty_struct
   tmesh_t tm;
   char *name;
   medium_t medium;
-  mote_t sync; // ping+echo, only pub/priv
+  mote_t public; // ping mote
   mote_t motes; 
   pipe_t pipe; // one pipe per community as it's shared performance
   struct cmnty_struct *next;
   uint8_t max;
-  enum {PUBLIC, PRIVATE} type:1;
 };
 
 // maximum neighbors tracked per community
@@ -57,8 +59,9 @@ struct tmesh_struct
   mesh_t mesh;
   cmnty_t coms;
   lob_t pubim;
-  uint8_t z; // our z-index
-  // TODO, add callback hooks for sorting/prioritizing energy usage
+  uint8_t z; // our preferred z-index
+  knock_t (*sort)(knock_t a, knock_t b);
+  
 };
 
 // create a new tmesh radio network bound to this mesh
@@ -71,64 +74,53 @@ tmesh_t tmesh_loop(tmesh_t tm);
 // a single knock request ready to go
 struct knock_struct
 {
-  cmnty_t com; // has medium
-  mote_t mote; // has chunks
-  epoch_t epoch; // details
-  // ephemeral things
-  uint32_t win;
-  uint64_t start, stop; // microsecond exact start/stop time
+  mote_t mote;
+  uint64_t start, stop, actual; // microsecond exact start/stop time
+  uint8_t frame[64];
   uint8_t chan; // current channel (< med->chans)
+  uint8_t tx:1; // tells radio to tx or rx
 };
 
 // fills in next knock based on from and only for this device
 tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device);
-tmesh_t tmesh_knocking(tmesh_t tm, knock_t k, uint8_t *frame); // prep for tx
-tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint8_t *frame); // process done knock
+tmesh_t tmesh_knocked(tmesh_t tm, knock_t k); // process done knock
 
 
-// 2^22
-#define EPOCH_WINDOW (uint64_t)4194304
+// 2^18
+#define EPOCH_WINDOW (uint64_t)262144
 
 // mote state tracking
 struct mote_struct
 {
+  cmnty_t com;
   link_t link; // when known
-  epoch_t epochs;
   mote_t next; // for lists
-  uint8_t ping; // anytime we transmit on this channel, reschedule the echo epoch
+  uint8_t secret[32];
+  uint8_t nonce[8];
+  uint64_t at; // microsecond of last knock
   util_chunks_t chunks; // actual chunk encoding for r/w frame buffers
-
+  uint16_t sent, received;
   uint8_t z;
+  uint8_t order:1; // is hashname compare
+  uint8_t ping:1; // is in ping mode
+  uint8_t pong:1; // ready for pong
+  uint8_t tx:1; // is in tx or rx
 };
 
 mote_t mote_new(link_t link);
 mote_t mote_free(mote_t m);
 
-// find best epoch, set knock win/chan/start/stop
+// resets secret/nonce and to ping mode
+mote_t mote_reset(mote_t m);
+
+// next knock init
 mote_t mote_knock(mote_t m, knock_t k, uint64_t from);
 
-// individual epoch state data
-struct epoch_struct
-{
-  uint8_t secret[32];
-  uint64_t base; // microsecond of window 0 start
-  epoch_t next; // for epochs_* list utils
-  enum {TX, RX} dir:1;
-  enum {RESET, PING, ECHO, PAIR, LINK} type:4;
+// initiates handshake over this mote
+mote_t mote_link(mote_t m);
 
-};
-
-epoch_t epoch_new(uint8_t tx);
-epoch_t epoch_free(epoch_t e);
-
-// sync point for given window
-epoch_t epoch_base(epoch_t e, uint32_t window, uint64_t at);
-
-// simple array utilities
-epoch_t epochs_add(epoch_t es, epoch_t e);
-epoch_t epochs_rem(epoch_t es, epoch_t e);
-size_t epochs_len(epoch_t es);
-epoch_t epochs_free(epoch_t es);
+// for tmesh sorting
+knock_t knock_sooner(knock_t a, knock_t b);
 
 ///////////////////
 // radio devices are responsible for all mediums

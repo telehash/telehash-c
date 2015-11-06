@@ -65,7 +65,7 @@ uint8_t *e3x_rand(uint8_t *bytes, size_t len)
 // sha256 hashing, from one of the cipher sets
 uint8_t *e3x_hash(uint8_t *in, size_t len, uint8_t *out32)
 {
-  if(!in || !len || !out32) return out32;
+  if(!in || !out32) return out32;
   if(!e3x_cipher_default)
   {
     LOG("e3x not initialized, no cipher_set");

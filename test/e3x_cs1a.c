@@ -29,6 +29,8 @@ int main(int argc, char **argv)
   char hex[65];
   util_hex(e3x_hash((uint8_t*)"foo",3,buf),32,hex);
   fail_unless(strcmp(hex,"2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae") == 0);
+  util_hex(e3x_hash((uint8_t*)"",0,buf),32,hex);
+  fail_unless(strcmp(hex,"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855") == 0);
 
   lob_t secrets = e3x_generate();
   fail_unless(secrets);

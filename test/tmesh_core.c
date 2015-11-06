@@ -3,21 +3,32 @@
 #include "util_unix.h"
 #include "unit_test.h"
 
+// fixtures
+#define A_KEY "anfpjrveyyloypswpqzlfkjpwynahohffy"
+#define A_SEC "cgcsbs7yphotlb5fxls5ogy2lrc7yxbg"
+#define B_KEY "amhofcnwgmolf3owg2kipr5vus7uifydsy"
+#define B_SEC "ge4i7h3jln4kltngwftg2yqtjjvemerw"
+
 #include "./tmesh_device.c"
 extern struct radio_struct test_device;
 
 int main(int argc, char **argv)
 {
+  radio_t dev;
   fail_unless(!e3x_init(NULL)); // random seed
-  fail_unless(radio_device(&test_device));
+  fail_unless((dev = radio_device(&test_device)));
   
   mesh_t meshA = mesh_new(3);
   fail_unless(meshA);
-  lob_t secretsA = mesh_generate(meshA);
-  fail_unless(secretsA);
+  lob_t keyA = lob_new();
+  lob_set(keyA,"1a",A_KEY);
+  lob_t secA = lob_new();
+  lob_set(secA,"1a",A_SEC);
+  fail_unless(!mesh_load(meshA,secA,keyA));
 
-  lob_t idB = e3x_generate();
-  hashname_t hnB = hashname_keys(lob_linked(idB));
+  lob_t keyB = lob_new();
+  lob_set(keyB,"1a",B_KEY);
+  hashname_t hnB = hashname_keys(keyB);
   fail_unless(hnB);
   link_t link = link_get(meshA,hnB->hashname);
   fail_unless(link);
@@ -27,36 +38,95 @@ int main(int argc, char **argv)
   cmnty_t c = tmesh_join(netA,"qzjb5f4t","foo");
   fail_unless(c);
   fail_unless(c->medium->bin[0] == 134);
+  fail_unless(c->public == NULL);
   fail_unless(c->pipe->path);
   LOG("netA %.*s",c->pipe->path->head_len,c->pipe->path->head);
 
 
+  char hex[256];
+  mote_t m;
   fail_unless(!tmesh_join(netA, "azdhpa5r", NULL));
   fail_unless((c = tmesh_join(netA, "azdhpa5n", "")));
-  mote_t m = tmesh_link(netA, c, link);
+  fail_unless(c->public);
+  m = c->public;
+  memset(m->nonce,42,4); // nonce is random, force stable for fixture testing
+  LOG("nonce %s",util_hex(m->nonce,8,hex));
+  fail_unless(util_cmp(hex,"2a2a2a2a947a5573") == 0);
+
+  m = tmesh_link(netA, c, link);
   fail_unless(m);
   fail_unless(m->link == link);
-  fail_unless(m->epochs);
   fail_unless(m == tmesh_link(netA, c, link));
-//  fail_unless(m->ping);
+  fail_unless(m->ping);
+  fail_unless(m->order == 0);
+  fail_unless(!m->tx);
+  memset(m->nonce,1,4); // nonce is random, force stable for fixture testing
+  LOG("nonce %s",util_hex(m->nonce,8,hex));
+  fail_unless(util_cmp(hex,"01010101ea3272f6") == 0);
+  LOG("secret %s",util_hex(m->secret,32,hex));
+  fail_unless(util_cmp(hex,"e5667e86ecb564f4f04e2b665348381c06765e6f9fa8161d114d5d8046948532") == 0);
+  
+  m->at = 1;
+  knock_t knock = malloc(sizeof(struct knock_struct));
+  fail_unless(mote_knock(m,knock,2));
+  fail_unless(knock->tx);
+  LOG("next is %lld",knock->start);
+  fail_unless(knock->start == 65794);
+  fail_unless(mote_knock(m,knock,knock->start+1));
+  fail_unless(!knock->tx);
+  LOG("next is %lld",knock->start);
+  fail_unless(knock->start == 2977811);
 
-  struct knock_struct k = {0,0,0,0,0,0,0};
-  k.com = c;
+  mote_reset(m);
+  memset(m->nonce,1,4); // nonce is random, force stable for fixture testing
+  m->at = 1;
+  fail_unless(tmesh_knock(netA,knock,2,dev));
+  fail_unless(knock->mote == m);
+  LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
+  fail_unless(knock->tx);
+  fail_unless(knock->start == 65794);
+  fail_unless(knock->stop == 65794+1000);
+  fail_unless(knock->chan == 34);
+  fail_unless(m->at == 1);
+  knock->actual = knock->start;
+  fail_unless(tmesh_knocked(netA,knock));
+  fail_unless(m->at == knock->start);
 
-  fail_unless(mote_knock(m, &k, 1));
-  fail_unless(k.mote == m);
-  LOG("%d %d %d",k.start,k.stop,k.chan);
-  fail_unless(k.start);
-  fail_unless(k.stop == (k.start + 10));
-  fail_unless(k.chan < 100);
-  uint8_t chan = k.chan;
+  // public ping now
+  m->at = 424294967296; // force way future
+  m = c->public;
+  fail_unless(tmesh_knock(netA,knock,3,dev));
+  fail_unless(knock->mote == m);
+  LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
+  fail_unless(!knock->tx);
+  fail_unless(knock->start == 2763307);
+  fail_unless(knock->stop == 2763307+1000);
+  fail_unless(knock->chan == 48);
+  // pretend rx failed
+  fail_unless(tmesh_knocked(netA,knock));
+  fail_unless(m->at == knock->start);
 
-  k.chan = 101; // set to bad value to make sure prep resets it
-  fail_unless(tmesh_knock(netA, &k, 1, &test_device));
-  fail_unless(m == k.mote);
-  fail_unless(k.chan == chan);
-  uint8_t frame[64];
-  fail_unless(tmesh_knocking(netA, &k, frame));
+  // public ping tx
+  fail_unless(tmesh_knock(netA,knock,4664066049,dev));
+  fail_unless(knock->mote == m);
+  LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
+  fail_unless(knock->tx);
+  fail_unless(knock->start == 4665060843);
+  fail_unless(knock->chan == 48);
+  // frame would be random ciphered, but we fixed it to test
+  LOG("frame %s",util_hex(knock->frame,32+4,hex)); // just the stable part
+  fail_unless(util_cmp(hex,"50d4bb4e4231042c10b0913e81b01f0bacfe41877b636abbc1351607bc7dd96cf41c1c41") == 0);
+  // let's preted it's an rx now
+  m->tx = 0;
+  knock->actual = knock->start; // fake rx good
+  fail_unless(tmesh_knocked(netA,knock));
+  fail_unless(m->at == knock->actual);
+  // frame is deciphered
+  LOG("frame %s",util_hex(knock->frame,32+4,hex)); // just the stable part
+  fail_unless(memcmp(knock->frame,m->nonce,4) == 0);
+  fail_unless(memcmp(knock->frame+4,meshA->id->bin,32) == 0);
+  fail_unless(util_cmp(hex,"300045c4fea600b08b84ab402fca3951b20b53c87820013574a5bcff1c6674e6b53d7fa6") == 0);
+
 
   return 0;
 }

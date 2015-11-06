@@ -247,3 +247,50 @@ util_chunks_t util_chunks_read(util_chunks_t chunks, uint8_t *block, size_t len)
   return chunks;
 }
 
+
+////// these are for frame-based transport
+
+// size of the next chunk, -1 when none, max is chunks size-1
+int16_t util_chunks_size(util_chunks_t chunks)
+{
+  if(!util_chunks_len(chunks)) return -1;
+  return chunks->waiting;
+}
+
+// return the next chunk of data, use util_chunks_next to advance
+uint8_t *util_chunks_frame(util_chunks_t chunks)
+{
+  if(!chunks || !chunks->waiting) return NULL;
+  // into the raw data
+  return lob_raw(chunks->writing)+chunks->writeat;
+  
+}
+
+// process incoming chunk
+util_chunks_t util_chunks_chunk(util_chunks_t chunks, uint8_t *chunk, int16_t size)
+{
+  if(!chunks || size < 0) return NULL;
+  if(!_util_chunks_append(chunks,(uint8_t*)&size,1)) return NULL;
+  if(!_util_chunks_append(chunks,chunk,size)) return NULL;
+  return chunks;
+}
+
+// peek into what the next chunk size will be, to see terminator ones
+int16_t util_chunks_peek(util_chunks_t chunks)
+{
+  int16_t size = util_chunks_size(chunks);
+  // TODO, peek into next chunk
+  if(size <= 0) return -1;
+  return lob_len(chunks->writing) - (chunks->writeat+size);
+}
+
+// advance the write past the current chunk
+util_chunks_t util_chunks_next(util_chunks_t chunks)
+{
+  int16_t size = util_chunks_size(chunks);
+  if(size < 0) return NULL;
+  // header byte first, then full chunk
+  if(!util_chunks_written(chunks,1)) return NULL;
+  if(!util_chunks_written(chunks,size)) return NULL;
+  return chunks;
+}
