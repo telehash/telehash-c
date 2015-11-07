@@ -28,7 +28,7 @@ typedef void (*xht_walker)(xht_t h, const char *key, void *val, void *arg);
 void xht_walk(xht_t h, xht_walker w, void *arg);
 
 // iterator through all the keys (NULL to start), use get for values
-const char *xht_iter(xht_t h, const char *key);
+char *xht_iter(xht_t h, char *key);
 
 #endif
 

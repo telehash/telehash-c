@@ -182,30 +182,31 @@ void xht_walk(xht_t h, xht_walker w, void *arg)
                 (*w)(h, n->key, n->val, arg);
 }
 
-const char *xht_iter(xht_t h, const char *key)
+char *xht_iter(xht_t h, char *key)
 {
   xhn n;
   const char *ret;
-  if(!h) return;
+  if(!h) return NULL;
 
   // reset/start
   if(!key) h->iter = 0;
-  
+
   // step through each
   for(ret = NULL;!ret && h->iter < h->prime; h->iter++)
   {
     // find given key in current iter
-    for(n = &h->zen[h->iter]; !ret && n != 0; n = n->next)
+    for(n = &h->zen[h->iter]; !ret && n; n = n->next)
     {
       // take the first one
       if(!key) ret = n->key;
       else if(n->key == key) key = NULL; // take the next one
       
     }
+    if(ret) break;
     // return the next avail key
     key = NULL;
   }
   
-  return ret;
+  return (char*)ret;
 }
 
