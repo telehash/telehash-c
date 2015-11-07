@@ -132,13 +132,13 @@ pipe_t tmesh_on_path(link_t link, lob_t path)
 }
 
 // handle incoming packets for the built-in map channel
-void tmesh_map_handler(link_t link, e3x_channel_t chan, void *arg)
+void tmesh_map_handler(link_t link, chan_t chan, void *arg)
 {
   lob_t packet;
 //  mote_t mote = arg;
   if(!link || !arg) return;
 
-  while((packet = e3x_channel_receiving(chan)))
+  while((packet = chan_receiving(chan)))
   {
     LOG("TODO incoming map packet");
     lob_free(packet);

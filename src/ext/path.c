@@ -10,13 +10,13 @@ typedef struct ping_struct
 } *ping_t;
 
 // handle incoming packets for the built-in stream channel
-void path_ping_handler(link_t link, e3x_channel_t chan, void *arg)
+void path_ping_handler(link_t link, chan_t chan, void *arg)
 {
   lob_t packet;
   ping_t ping = (ping_t)arg;
   if(!link || !ping) return;
 
-  while((packet = e3x_channel_receiving(chan)))
+  while((packet = chan_receiving(chan)))
   {
     LOG("response pong %s",lob_json(packet));
     if(ping->pong)
@@ -30,13 +30,13 @@ void path_ping_handler(link_t link, e3x_channel_t chan, void *arg)
     lob_free(packet);
   }
   
-  if(e3x_channel_state(chan) == ENDED) free(ping);
+  if(chan_state(chan) == CHAN_ENDED) free(ping);
 }
 
 // send a path ping and get callback event
 link_t path_ping(link_t link, void (*pong)(link_t link, lob_t status, void *arg), void *arg)
 {
-  e3x_channel_t chan;
+  chan_t chan;
   lob_t open;
   ping_t ping;
 

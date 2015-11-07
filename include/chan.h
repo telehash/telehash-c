@@ -25,6 +25,10 @@ typedef struct chan_struct
   lob_t out, sent;
   lob_t in;
   uint32_t seq, ack, acked, window;
+  
+  // direct handler
+  void *arg;
+  void (*handle)(link_t link, chan_t c, void *arg);
 } *chan_t;
 
 // caller must manage lists of channels per e3x_exchange based on cid

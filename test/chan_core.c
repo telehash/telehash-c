@@ -9,63 +9,63 @@ int main(int argc, char **argv)
 
   // test creation validation
   lob_t open = lob_new();
-  e3x_channel_t chan = e3x_channel_new(NULL);
+  chan_t chan = chan_new(NULL);
   fail_unless(!chan);
-  chan = e3x_channel_new(open);
+  chan = chan_new(open);
   fail_unless(!chan);
   lob_set_int(open,"c",1);
-  chan = e3x_channel_new(open);
+  chan = chan_new(open);
   fail_unless(!chan);
 
   // actually create a channel now
   lob_set(open,"type","test");
-  chan = e3x_channel_new(open);
+  chan = chan_new(open);
   fail_unless(chan);
-  fail_unless(e3x_channel_state(chan) == OPENING);
-  fail_unless(e3x_channel_id(chan) == 1);
-  fail_unless(e3x_channel_size(chan,0) == 0);
-  fail_unless(e3x_channel_uid(chan) && strlen(e3x_channel_uid(chan)) == 8);
-  fail_unless(e3x_channel_c(chan) && strlen(e3x_channel_c(chan)) == 1);
-  fail_unless(util_cmp(lob_get(e3x_channel_open(chan),"type"),"test") == 0);
+  fail_unless(chan_state(chan) == CHAN_OPENING);
+  fail_unless(chan_id(chan) == 1);
+  fail_unless(chan_size(chan,0) == 0);
+  fail_unless(chan_uid(chan) && strlen(chan_uid(chan)) == 8);
+  fail_unless(chan_c(chan) && strlen(chan_c(chan)) == 1);
+  fail_unless(util_cmp(lob_get(chan_open(chan),"type"),"test") == 0);
   
   // test timeout erroring
-  fail_unless(e3x_channel_timeout(chan,1) == 1);
-  fail_unless(e3x_channel_receive(chan,NULL,2) == 0);
-  lob_t err = e3x_channel_receiving(chan);
+  fail_unless(chan_timeout(chan,1) == 1);
+  fail_unless(chan_receive(chan,NULL,2) == 0);
+  lob_t err = chan_receiving(chan);
   fail_unless(err);
   fail_unless(lob_get(err,"err"));
 
   // receive packets
   lob_t incoming = lob_new();
   lob_set_int(incoming,"test",42);
-  fail_unless(e3x_channel_receive(chan,incoming,0) == 0);
-  fail_unless(lob_get_int(e3x_channel_receiving(chan),"test") == 42);
-  fail_unless(e3x_channel_receiving(chan) == NULL);
+  fail_unless(chan_receive(chan,incoming,0) == 0);
+  fail_unless(lob_get_int(chan_receiving(chan),"test") == 42);
+  fail_unless(chan_receiving(chan) == NULL);
 
   // send packets
-  lob_t outgoing = e3x_channel_packet(chan);
+  lob_t outgoing = chan_packet(chan);
   fail_unless(lob_get_int(outgoing,"c") == 1);
   lob_set_int(outgoing,"test",42);
-  fail_unless(e3x_channel_send(chan,outgoing) == 0);
-  fail_unless(lob_get_int(e3x_channel_sending(chan,0),"test") == 42);
-  fail_unless(e3x_channel_sending(chan,0) == NULL);
+  fail_unless(chan_send(chan,outgoing) == 0);
+  fail_unless(lob_get_int(chan_sending(chan,0),"test") == 42);
+  fail_unless(chan_sending(chan,0) == NULL);
 
   // create a reliable channel
-  e3x_channel_free(chan);
+  chan_free(chan);
   lob_set(open,"type","test");
   lob_set_int(open,"seq",1);
-  chan = e3x_channel_new(open);
+  chan = chan_new(open);
   fail_unless(chan);
-  fail_unless(e3x_channel_state(chan) == OPENING);
-  fail_unless(e3x_channel_sending(chan,0) == NULL);
+  fail_unless(chan_state(chan) == CHAN_OPENING);
+  fail_unless(chan_sending(chan,0) == NULL);
   
   // receive an out of order packet
   lob_t ooo = lob_new();
   lob_set_int(ooo,"seq",10);
-  fail_unless(e3x_channel_receive(chan, lob_copy(ooo),0) == 0);
-  fail_unless(e3x_channel_receive(chan, ooo,0) == 1); // dedup drop
-  fail_unless(e3x_channel_receiving(chan) == NULL); // nothing to receive yet
-  lob_t oob = e3x_channel_sending(chan,0); // should have triggered an ack/miss
+  fail_unless(chan_receive(chan, lob_copy(ooo),0) == 0);
+  fail_unless(chan_receive(chan, ooo,0) == 1); // dedup drop
+  fail_unless(chan_receiving(chan) == NULL); // nothing to receive yet
+  lob_t oob = chan_sending(chan,0); // should have triggered an ack/miss
   printf("OOB %s\n",lob_json(oob));
   fail_unless(oob);
   fail_unless(lob_get_int(oob,"c") == 1);
