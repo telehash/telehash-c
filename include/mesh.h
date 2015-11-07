@@ -4,6 +4,7 @@
 typedef struct mesh_struct *mesh_t;
 typedef struct link_struct *link_t;
 typedef struct pipe_struct *pipe_t;
+typedef struct chan_struct *chan_t;
 
 
 
