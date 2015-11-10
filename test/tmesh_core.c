@@ -49,9 +49,9 @@ int main(int argc, char **argv)
   fail_unless((c = tmesh_join(netA, "azdhpa5n", "")));
   fail_unless(c->public);
   m = c->public;
-  memset(m->nonce,42,4); // nonce is random, force stable for fixture testing
+  memset(m->nonce,42,8); // nonce is random, force stable for fixture testing
   LOG("nonce %s",util_hex(m->nonce,8,hex));
-  fail_unless(util_cmp(hex,"2a2a2a2a947a5573") == 0);
+  fail_unless(util_cmp(hex,"2a2a2a2a2a2a2a2a") == 0);
 
   m = tmesh_link(netA, c, link);
   fail_unless(m);
@@ -60,9 +60,7 @@ int main(int argc, char **argv)
   fail_unless(m->ping);
   fail_unless(m->order == 0);
   fail_unless(!m->tx);
-  memset(m->nonce,1,4); // nonce is random, force stable for fixture testing
-  LOG("nonce %s",util_hex(m->nonce,8,hex));
-  fail_unless(util_cmp(hex,"01010101ea3272f6") == 0);
+  memset(m->nonce,3,8); // nonce is random, force stable for fixture testing
   LOG("secret %s",util_hex(m->secret,32,hex));
   fail_unless(util_cmp(hex,"e5667e86ecb564f4f04e2b665348381c06765e6f9fa8161d114d5d8046948532") == 0);
   
@@ -71,14 +69,14 @@ int main(int argc, char **argv)
   fail_unless(mote_knock(m,knock,2));
   fail_unless(knock->tx);
   LOG("next is %lld",knock->start);
-  fail_unless(knock->start == 65794);
+  fail_unless(knock->start == 197380);
   fail_unless(mote_knock(m,knock,knock->start+1));
   fail_unless(!knock->tx);
   LOG("next is %lld",knock->start);
-  fail_unless(knock->start == 2977811);
+  fail_unless(knock->start == 7831333);
 
   mote_reset(m);
-  memset(m->nonce,1,4); // nonce is random, force stable for fixture testing
+  memset(m->nonce,1,8); // nonce is random, force stable for fixture testing
   m->at = 1;
   fail_unless(tmesh_knock(netA,knock,2,dev));
   fail_unless(knock->mote == m);
@@ -86,7 +84,7 @@ int main(int argc, char **argv)
   fail_unless(knock->tx);
   fail_unless(knock->start == 65794);
   fail_unless(knock->stop == 65794+1000);
-  fail_unless(knock->chan == 34);
+  fail_unless(knock->chan == 30);
   fail_unless(m->at == 1);
   knock->actual = knock->start;
   fail_unless(tmesh_knocked(netA,knock));
@@ -101,7 +99,7 @@ int main(int argc, char **argv)
   fail_unless(!knock->tx);
   fail_unless(knock->start == 2763307);
   fail_unless(knock->stop == 2763307+1000);
-  fail_unless(knock->chan == 48);
+  fail_unless(knock->chan == 14);
   // pretend rx failed
   fail_unless(tmesh_knocked(netA,knock));
   fail_unless(m->at == knock->start);
@@ -111,21 +109,21 @@ int main(int argc, char **argv)
   fail_unless(knock->mote == m);
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
   fail_unless(knock->tx);
-  fail_unless(knock->start == 4665060843);
-  fail_unless(knock->chan == 48);
+  fail_unless(knock->start == 4676829453);
+  fail_unless(knock->chan == 14);
   // frame would be random ciphered, but we fixed it to test
-  LOG("frame %s",util_hex(knock->frame,32+4,hex)); // just the stable part
-  fail_unless(util_cmp(hex,"50d4bb4e4231042c10b0913e81b01f0bacfe41877b636abbc1351607bc7dd96cf41c1c41") == 0);
+  LOG("frame %s",util_hex(knock->frame,32+8,hex)); // just the stable part
+  fail_unless(util_cmp(hex,"dea09cc71df556391d3b278df5e7647163ef2174ef36d9bcd25f730f465498a9cdaee5cfe2be70b6") == 0);
   // let's preted it's an rx now
   m->tx = 0;
   knock->actual = knock->start; // fake rx good
   fail_unless(tmesh_knocked(netA,knock));
   fail_unless(m->at == knock->actual);
   // frame is deciphered
-  LOG("frame %s",util_hex(knock->frame,32+4,hex)); // just the stable part
-  fail_unless(memcmp(knock->frame,m->nonce,4) == 0);
-  fail_unless(memcmp(knock->frame+4,meshA->id->bin,32) == 0);
-  fail_unless(util_cmp(hex,"300045c4fea600b08b84ab402fca3951b20b53c87820013574a5bcff1c6674e6b53d7fa6") == 0);
+  LOG("frame %s",util_hex(knock->frame,32+8,hex)); // just the stable part
+  fail_unless(memcmp(knock->frame,m->nonce,8) == 0);
+  fail_unless(memcmp(knock->frame+8,meshA->id->bin,32) == 0);
+  fail_unless(util_cmp(hex,"481addd8307b0bebfea600b08b84ab402fca3951b20b53c87820013574a5bcff1c6674e6b53d7fa6") == 0);
 
 
   return 0;

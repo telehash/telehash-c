@@ -97,6 +97,7 @@ struct mote_struct
   mote_t next; // for lists
   uint8_t secret[32];
   uint8_t nonce[8];
+  uint8_t chan[2];
   uint64_t at; // microsecond of last knock
   util_chunks_t chunks; // actual chunk encoding for r/w frame buffers
   uint16_t sent, received;

@@ -308,20 +308,19 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
       // if not sending a pong, rotate nonce until next one is rx for a pong
       if(!k->mote->pong)
       {
-        uint8_t next[4], max=16;
+        uint8_t next[8], max=16;
         while(max--)
         {
-          memcpy(next,k->mote->nonce,4);
-          chacha20(k->mote->secret,k->mote->nonce,next,4);
+          memcpy(next,k->mote->nonce,8);
+          chacha20(k->mote->secret,k->mote->nonce,next,8);
           if((k->mote->nonce[3]%2) == k->mote->order) break;
-          memcpy(k->mote->nonce,next,4);
+          memcpy(k->mote->nonce,next,8);
         }
       }
-      // copy in nonce-4 and random, hashname if public
-      memcpy(k->frame,k->mote->nonce,4);
-      if(medium_public(k->mote->com->medium)) memcpy(k->frame+4,tm->mesh->id->bin,32);
-      else e3x_rand(k->frame+4,32);
-      e3x_rand(k->frame+4+32,28);
+      // copy in nonce, hashname and random
+      memcpy(k->frame,k->mote->nonce,8);
+      memcpy(k->frame+8,tm->mesh->id->bin,32);
+      e3x_rand(k->frame+8+32,24);
     }else{
       int16_t size = util_chunks_size(k->mote->chunks);
       if(size >= 0)
@@ -376,7 +375,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
       if(k->mote == com->public)
       {
         link_t link;
-        hashname_t hn = hashname_new(k->frame+4);
+        hashname_t hn = hashname_new(k->frame+8);
         if(hn && (link = link_get(tm->mesh, hn->hashname)))
         {
           // TODO, clean-up any previous stale link
@@ -391,9 +390,9 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
       k->mote->pong = 1;
 
       // if the nonce doesn't match, we use it and pong next tx
-      if(memcmp(k->frame,k->mote->nonce,4) != 0)
+      if(memcmp(k->frame,k->mote->nonce,8) != 0)
       {
-        memcpy(k->mote->nonce,k->frame,4);
+        memcpy(k->mote->nonce,k->frame,8);
         return tm;
       }
       // otherwise continue to pong handler
@@ -416,7 +415,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
       }
       // force reset and use given nonce seed to start
       mote_reset(mote);
-      memcpy(mote->nonce,k->frame,4);
+      memcpy(mote->nonce,k->frame,8);
       mote_link(mote);
     }
 
@@ -515,12 +514,13 @@ mote_t mote_reset(mote_t m)
   memcpy(roll+32,b,32);
   e3x_hash(roll,64,m->secret);
   
-  // initalize nonce based on secret
+  // initalize chan based on secret w/ zero nonce
+  memset(m->chan,0,2);
   memset(m->nonce,0,8);
-  chacha20(m->secret,m->nonce,m->nonce,8);
+  chacha20(m->secret,m->nonce,m->chan,2);
   
-  // randomize unstable half of nonce
-  e3x_rand(m->nonce,4);
+  // randomize nonce
+  e3x_rand(m->nonce,8);
   
   // always in ping mode after reset and default z
   m->ping = 1;
@@ -541,14 +541,20 @@ uint32_t mote_next(mote_t m)
 // advance one window forward
 mote_t mote_window(mote_t m)
 {
-  uint8_t len = 8;
   if(!m) return LOG("bad args");
-  // pings have stable channel, only rotate time part
-  if(m->ping) len = 4;
+
   // rotate nonce by ciphering it
-  chacha20(m->secret,m->nonce,m->nonce,len);
+  chacha20(m->secret,m->nonce,m->nonce,8);
   // add new time to base
   m->at += mote_next(m);
+
+  // get current non-ping channel
+  if(!m->ping)
+  {
+    memset(m->chan,0,2);
+    chacha20(m->secret,m->nonce,m->chan,2);
+  }
+
   return m;
 }
 
@@ -562,8 +568,8 @@ mote_t mote_knock(mote_t m, knock_t k, uint64_t from)
   next = mote_next(m);
   if((m->at+next) > from)
   {
-    // least significant time byte sets direction
-    k->tx = m->tx = ((m->nonce[3]%2) == m->order) ? 0 : 1;
+    // least significant nonce byte sets direction
+    k->tx = m->tx = ((m->nonce[7]%2) == m->order) ? 0 : 1;
 
     k->start = m->at+next;
     k->stop = k->start + (uint64_t)((k->tx) ? m->com->medium->max : m->com->medium->min);
@@ -572,7 +578,7 @@ mote_t mote_knock(mote_t m, knock_t k, uint64_t from)
     if(m->ping) k->stop = k->start + m->com->medium->max;
     
     // derive current channel
-    k->chan = m->nonce[4] % m->com->medium->chans;
+    k->chan = m->chan[1] % m->com->medium->chans;
 
     return m;
   }
