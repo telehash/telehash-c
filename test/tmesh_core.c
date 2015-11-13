@@ -96,6 +96,14 @@ int main(int argc, char **argv)
   fail_unless(mote_seek(m,4242424242,0,nonce));
   LOG("seek %s",util_hex(nonce,8,hex));
   fail_unless(util_cmp(hex,"1c96f4068d76b876") == 0);
+  uint8_t ntmp[8];
+  memcpy(ntmp,m->nonce,8);
+  memcpy(m->nwait,nonce,8);
+  m->waiting = 1;
+  fail_unless(mote_window(m));
+  fail_unless(memcmp(m->nonce,nonce,8) == 0);
+  fail_unless(m->at > 4242424242);
+  memcpy(m->nonce,ntmp,8); // restore for test fixtures
 
   // public ping now
   m->at = 424294967296; // force way future

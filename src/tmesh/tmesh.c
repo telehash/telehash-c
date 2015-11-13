@@ -562,7 +562,7 @@ uint8_t *mote_seek(mote_t m, uint32_t after, uint8_t tx, uint8_t *nonce)
   return nonce;
 }
 
-// advance one window forward
+// advance mote to next valid window
 mote_t mote_window(mote_t m)
 {
   if(!m) return LOG("bad args");
@@ -572,17 +572,21 @@ mote_t mote_window(mote_t m)
   // add new time to base
   m->at += mote_next(m);
 
-  // get current non-ping channel
-  if(!m->ping)
+  // return or unblock if this nonce is the one waited on
+  if(!m->waiting || memcmp(m->nwait,m->nonce,8) == 0)
   {
-    memset(m->chan,0,2);
-    chacha20(m->secret,m->nonce,m->chan,2);
+    m->waiting = 0;
+    // get current non-ping channel
+    if(!m->ping)
+    {
+      memset(m->chan,0,2);
+      chacha20(m->secret,m->nonce,m->chan,2);
+    }
+    return m;
   }
   
-  // unblock if this nonce is the one waited on
-  if(m->waiting && memcmp(m->nwait,m->nonce,8) == 0) m->waiting = 0;
-
-  return m;
+  // tail recurse until not waiting
+  return mote_window(m);
 }
 
 // when is next knock
