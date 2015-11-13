@@ -300,44 +300,40 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
   // make sure a knock was found
   if(!k->mote) return NULL;
   
-  // fill in tx frame data
-  if(k->tx)
+  // receive is on knocked
+  if(!k->tx) return tm;
+
+  // construct ping tx frame data
+  if(k->mote->ping)
   {
-    if(k->mote->ping)
-    {
-      // if not sending a pong, rotate nonce until next one is rx for a pong
-      if(!k->mote->pong)
-      {
-        uint8_t next[8], max=16;
-        while(max--)
-        {
-          memcpy(next,k->mote->nonce,8);
-          chacha20(k->mote->secret,k->mote->nonce,next,8);
-          if((k->mote->nonce[3]%2) == k->mote->order) break;
-          memcpy(k->mote->nonce,next,8);
-        }
-      }
-      // copy in nonce, hashname and random
-      memcpy(k->frame,k->mote->nonce,8);
-      memcpy(k->frame+8,tm->mesh->id->bin,32);
-      e3x_rand(k->frame+8+32,24);
-       // ciphertext frame after nonce
-      chacha20(k->mote->secret,k->mote->nonce,k->frame+8,64-8);
-    }else{
-      int16_t size = util_chunks_size(k->mote->chunks);
-      if(size >= 0)
-      {
-        // TODO, real header, term flag
-        k->frame[0] = 0; // stub for now
-        k->frame[1] = (uint8_t)size;
-        memcpy(k->frame+2,util_chunks_frame(k->mote->chunks),size);
-        // ciphertext full frame
-        chacha20(k->mote->secret,k->mote->nonce,k->frame,64);
-      }else{
-        LOG("BUG/TODO should never be zero");
-      }
-    }
+    // copy in ping nonce
+    memcpy(k->frame,k->mote->nonce,8);
+    // bundle a future rx nonce that we'll wait for next
+    mote_seek(k->mote,k->mote->com->medium->min+k->mote->com->medium->max,0,k->mote->nwait);
+    k->mote->waiting = 1;
+    memcpy(k->frame+8,k->mote->nwait,8);
+    // copy in hashname
+    memcpy(k->frame+8+8,tm->mesh->id->bin,32);
+    // random fill rest
+    e3x_rand(k->frame+8+8+32,64-(8+8+32));
+
+     // ciphertext frame after nonce
+    chacha20(k->mote->secret,k->mote->nonce,k->frame+8,64-8);
+
+    return tm;
   }
+
+  // fill in chunk tx
+  int16_t size = util_chunks_size(k->mote->chunks);
+  if(size < 0) return LOG("BUG/TODO should never be zero");
+  LOG("tx chunk frame size %d",size);
+
+  // TODO, real header, term flag
+  k->frame[0] = 0; // stub for now
+  k->frame[1] = (uint8_t)size; // max 63
+  memcpy(k->frame+2,util_chunks_frame(k->mote->chunks),size);
+  // ciphertext full frame
+  chacha20(k->mote->secret,k->mote->nonce,k->frame,64);
 
   return tm;
 }
@@ -459,7 +455,7 @@ mote_t mote_new(link_t link)
   // determine ordering based on hashname compare
   if(link)
   {
-    if(!(m->chunks = util_chunks_new(64))) return mote_free(m);
+    if(!(m->chunks = util_chunks_new(63))) return mote_free(m);
     m->link = link;
     for(i=0;i<32;i++)
     {

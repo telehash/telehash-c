@@ -92,10 +92,10 @@ int main(int argc, char **argv)
   uint8_t nonce[8];
   fail_unless(mote_seek(m,4242424242,1,nonce));
   LOG("seek %s",util_hex(nonce,8,hex));
-  fail_unless(util_cmp(hex,"e8789665050142b7") == 0);
+  fail_unless(util_cmp(hex,"190e24cb0e578019") == 0);
   fail_unless(mote_seek(m,4242424242,0,nonce));
   LOG("seek %s",util_hex(nonce,8,hex));
-  fail_unless(util_cmp(hex,"1c96f4068d76b876") == 0);
+  fail_unless(util_cmp(hex,"1b886a6e45451adc") == 0);
   uint8_t ntmp[8];
   memcpy(ntmp,m->nonce,8);
   memcpy(m->nwait,nonce,8);
@@ -128,7 +128,7 @@ int main(int argc, char **argv)
   fail_unless(knock->chan == 14);
   // frame would be random ciphered, but we fixed it to test
   LOG("frame %s",util_hex(knock->frame,32+8,hex)); // just the stable part
-  fail_unless(util_cmp(hex,"481addd8307b0beb681c41afa60af692cc571e6ccc689cf9340519102998368bb61906dc87cc5bf0") == 0);
+  fail_unless(util_cmp(hex,"27d6fcdfbcbac5f5e25477919651172ed7a081ecb1639b80349fccb40117c42c4c65feaa638093e7") == 0);
   // let's preted it's an rx now
   knock->tx = 0;
   knock->actual = knock->start; // fake rx good
@@ -137,8 +137,8 @@ int main(int argc, char **argv)
   // frame is deciphered
   LOG("frame %s",util_hex(knock->frame,32+8,hex)); // just the stable part
   fail_unless(memcmp(knock->frame,m->nonce,8) == 0);
-  fail_unless(memcmp(knock->frame+8,meshA->id->bin,32) == 0);
-  fail_unless(util_cmp(hex,"481addd8307b0bebfea600b08b84ab402fca3951b20b53c87820013574a5bcff1c6674e6b53d7fa6") == 0);
+  fail_unless(memcmp(knock->frame+8+8,meshA->id->bin,32) == 0);
+  fail_unless(util_cmp(hex,"27d6fcdfbcbac5f58d9856961a90d930fea600b08b84ab402fca3951b20b53c87820013574a5bcff") == 0);
 
 
   return 0;
