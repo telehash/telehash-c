@@ -529,6 +529,8 @@ mote_t mote_reset(mote_t m)
   // always in ping mode after reset and default z
   m->ping = 1;
   m->z = m->com->medium->z;
+  m->pong = 0;
+  m->waiting = 0;
 
   return m;
 }
@@ -576,6 +578,9 @@ mote_t mote_window(mote_t m)
     memset(m->chan,0,2);
     chacha20(m->secret,m->nonce,m->chan,2);
   }
+  
+  // unblock if this nonce is the one waited on
+  if(m->waiting && memcmp(m->nwait,m->nonce,8) == 0) m->waiting = 0;
 
   return m;
 }
