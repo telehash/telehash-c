@@ -321,6 +321,8 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
       memcpy(k->frame,k->mote->nonce,8);
       memcpy(k->frame+8,tm->mesh->id->bin,32);
       e3x_rand(k->frame+8+32,24);
+       // ciphertext frame after nonce
+      chacha20(k->mote->secret,k->mote->nonce,k->frame+8,64-8);
     }else{
       int16_t size = util_chunks_size(k->mote->chunks);
       if(size >= 0)
@@ -329,11 +331,12 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
         k->frame[0] = 0; // stub for now
         k->frame[1] = (uint8_t)size;
         memcpy(k->frame+2,util_chunks_frame(k->mote->chunks),size);
+        // ciphertext full frame
+        chacha20(k->mote->secret,k->mote->nonce,k->frame,64);
+      }else{
+        LOG("BUG/TODO should never be zero");
       }
     }
-
-    // ciphertext frame
-    chacha20(k->mote->secret,k->mote->nonce,k->frame,64);
   }
 
   return tm;
@@ -362,16 +365,16 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   // tx stats are always valid
   if(k->tx) k->mote->sent++;
 
-  // decipher frame
-  chacha20(k->mote->secret,k->mote->nonce,k->frame,64);
-  
   // handle any ping first
   if(k->mote->ping)
   {
     // if we received a ping, cache the link
     if(!k->tx)
     {
-      // if it's the public ping, cache the incoming hashname as a link
+      // decipher frame using given nonce
+      chacha20(k->mote->secret,k->frame,k->frame+8,64-8);
+
+      // if it's the public ping, cache the incoming hashname as a potential link
       if(k->mote == com->public)
       {
         link_t link;
@@ -430,8 +433,9 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     return tm;
   }
   
-  // received knock handling now
-
+  // received knock handling now, decipher frame
+  chacha20(k->mote->secret,k->mote->nonce,k->frame,64);
+  
   // TODO check and validate frame[0] first
   k->mote->at = k->actual; // self-correcting sync based on exact rx time
 
