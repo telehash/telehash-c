@@ -59,7 +59,6 @@ int main(int argc, char **argv)
   fail_unless(m == tmesh_link(netA, c, link));
   fail_unless(m->ping);
   fail_unless(m->order == 0);
-  fail_unless(!m->tx);
   memset(m->nonce,3,8); // nonce is random, force stable for fixture testing
   LOG("secret %s",util_hex(m->secret,32,hex));
   fail_unless(util_cmp(hex,"e5667e86ecb564f4f04e2b665348381c06765e6f9fa8161d114d5d8046948532") == 0);
@@ -123,15 +122,15 @@ int main(int argc, char **argv)
   LOG("frame %s",util_hex(knock->frame,32+8,hex)); // just the stable part
   fail_unless(util_cmp(hex,"481addd8307b0beb681c41afa60af692cc571e6ccc689cf9340519102998368bb61906dc87cc5bf0") == 0);
   // let's preted it's an rx now
-  m->tx = 0;
+  knock->tx = 0;
   knock->actual = knock->start; // fake rx good
   fail_unless(tmesh_knocked(netA,knock));
   fail_unless(m->at == knock->actual);
   // frame is deciphered
   LOG("frame %s",util_hex(knock->frame,32+8,hex)); // just the stable part
   fail_unless(memcmp(knock->frame,m->nonce,8) == 0);
-//  fail_unless(memcmp(knock->frame+8,meshA->id->bin,32) == 0);
-//  fail_unless(util_cmp(hex,"481addd8307b0bebfea600b08b84ab402fca3951b20b53c87820013574a5bcff1c6674e6b53d7fa6") == 0);
+  fail_unless(memcmp(knock->frame+8,meshA->id->bin,32) == 0);
+  fail_unless(util_cmp(hex,"481addd8307b0bebfea600b08b84ab402fca3951b20b53c87820013574a5bcff1c6674e6b53d7fa6") == 0);
 
 
   return 0;

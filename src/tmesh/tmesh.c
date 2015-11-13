@@ -591,7 +591,7 @@ mote_t mote_knock(mote_t m, knock_t k, uint64_t from)
   if((m->at+next) > from)
   {
     // least significant nonce byte sets direction
-    k->tx = m->tx = ((m->nonce[7]%2) == m->order) ? 0 : 1;
+    k->tx = ((m->nonce[7]%2) == m->order) ? 0 : 1;
 
     k->start = m->at+next;
     k->stop = k->start + (uint64_t)((k->tx) ? m->com->medium->max : m->com->medium->min);
