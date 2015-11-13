@@ -542,6 +542,24 @@ uint32_t mote_next(mote_t m)
   return next >> z; // smaller for high z
 }
 
+// find the first nonce that occurs after this future time of this type
+uint8_t *mote_seek(mote_t m, uint32_t after, uint8_t tx, uint8_t *nonce)
+{
+  if(!m || !nonce || !after) return LOG("bad args");
+  
+  uint32_t at = 0;
+  uint8_t atx = 0;
+  memcpy(nonce,m->nonce,8);
+  while(at < after || atx != tx)
+  {
+    chacha20(m->secret,nonce,nonce,8);
+    at += mote_next(m);
+    atx = ((nonce[7]%2) == m->order) ? 0 : 1;
+  }
+  
+  return nonce;
+}
+
 // advance one window forward
 mote_t mote_window(mote_t m)
 {

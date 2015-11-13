@@ -89,6 +89,14 @@ int main(int argc, char **argv)
   knock->actual = knock->start;
   fail_unless(tmesh_knocked(netA,knock));
   fail_unless(m->at == knock->start);
+  
+  uint8_t nonce[8];
+  fail_unless(mote_seek(m,4242424242,1,nonce));
+  LOG("seek %s",util_hex(nonce,8,hex));
+  fail_unless(util_cmp(hex,"e8789665050142b7") == 0);
+  fail_unless(mote_seek(m,4242424242,0,nonce));
+  LOG("seek %s",util_hex(nonce,8,hex));
+  fail_unless(util_cmp(hex,"1c96f4068d76b876") == 0);
 
   // public ping now
   m->at = 424294967296; // force way future
