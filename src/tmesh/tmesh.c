@@ -342,8 +342,6 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
 // signal once a knock has been sent/received for this mote
 tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 {
-  cmnty_t com;
-  mote_t mote;
   if(!tm || !k) return LOG("bad args");
   
   // always set time base to last knock regardless
@@ -355,46 +353,59 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     return tm;
   }
 
-  // convenience
-  com = k->mote->com;
-  
-  // tx stats are always valid
-  if(k->tx) k->mote->sent++;
+  // tx just changes flags here
+  if(k->tx)
+  {
+    k->mote->sent++;
+    // a sent pong sets this mote free
+    if(k->mote->pong) k->mote->ping = k->mote->pong = 0;
+    else util_chunks_next(k->mote->chunks); // advance chunks if any
+    return tm;
+  }
 
-  // handle any ping first
+  // rx knock handling now
+  
+  // ooh, got a ping eh?
   if(k->mote->ping)
   {
-    // if we received a ping, cache the link
-    if(!k->tx)
+    // first decipher frame using given nonce
+    chacha20(k->mote->secret,k->frame,k->frame+8,64-8);
+
+    // TODO check/get/create mote for bundled hashname
+
+    // TODO set wait for bundled nonce
+
+    // TODO if new ping, sync to it and schedule pong
+
+    // validate if it's an incoming pong
+    if(memcmp(k->frame,k->mote->nonce,8) == 0)
     {
-      // decipher frame using given nonce
-      chacha20(k->mote->secret,k->frame,k->frame+8,64-8);
-
-      // if it's the public ping, cache the incoming hashname as a potential link
-      if(k->mote == com->public)
+      return tm;
+    }
+    /*
+    // if it's the public ping, cache the incoming hashname as a potential link
+    if(k->mote == com->public)
+    {
+      link_t link;
+      hashname_t hn = hashname_new(k->frame+8);
+      if(hn && (link = link_get(tm->mesh, hn->hashname)))
       {
-        link_t link;
-        hashname_t hn = hashname_new(k->frame+8);
-        if(hn && (link = link_get(tm->mesh, hn->hashname)))
-        {
-          // TODO, clean-up any previous stale link
-          k->mote->link = link;
-        }
-        hashname_free(hn);
-        // also set our order to opposite of theirs since they just tx'd and there's no natural order
-        k->mote->order = (k->frame[3]%2) ? 1 : 0;
+        // TODO, clean-up any previous stale link
+        k->mote->link = link;
       }
+      hashname_free(hn);
+      // also set our order to opposite of theirs since they just tx'd and there's no natural order
+      k->mote->order = (k->frame[3]%2) ? 1 : 0;
+    }
 
-      // always in pong status after any ping rx
-      k->mote->pong = 1;
+    // always in pong status after any ping rx
+    k->mote->pong = 1;
 
-      // if the nonce doesn't match, we use it and pong next tx
-      if(memcmp(k->frame,k->mote->nonce,8) != 0)
-      {
-        memcpy(k->mote->nonce,k->frame,8);
-        return tm;
-      }
-      // otherwise continue to pong handler
+    // if the nonce doesn't match, we use it and pong next tx
+    if(memcmp(k->frame,k->mote->nonce,8) != 0)
+    {
+      memcpy(k->mote->nonce,k->frame,8);
+      return tm;
     }
 
     // when in pong status
@@ -417,15 +428,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
       memcpy(mote->nonce,k->frame,8);
       mote_link(mote);
     }
-
-    return tm;
-  }
-  
-  // transmitted knocks handle first
-  if(k->tx)
-  {
-    // advance chunking now
-    util_chunks_next(k->mote->chunks);
+*/
     return tm;
   }
   
