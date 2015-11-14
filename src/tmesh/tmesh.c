@@ -371,17 +371,33 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     // first decipher frame using given nonce
     chacha20(k->mote->secret,k->frame,k->frame+8,64-8);
 
-    // TODO check/get/create mote for bundled hashname
+    // verify/use the mote of the actual transmitter
+    mote_t mote = k->mote;
 
+    // if there's a link, check hashname match
+    if(mote->link)
+    {
+      if(memcmp(k->frame+8+8,k->mote->link->id->bin,32) != 0) return LOG("ping hashname mismatch");
+    }else{
+      // check/get/create mote for bundled hashname
+      hashname_t hn = hashname_new(k->frame+8+8);
+      if(!hn) return LOG("OOM");
+      mote = tmesh_link(tm, k->mote->com, link_get(tm->mesh, hn->hashname));
+      hashname_free(hn);
+      if(!mote) return LOG("mote link failed");
+    }
+  
     // TODO set wait for bundled nonce
 
-    // TODO if new ping, sync to it and schedule pong
-
-    // validate if it's an incoming pong
-    if(memcmp(k->frame,k->mote->nonce,8) == 0)
+    // validate if it's an incoming pong and be free
+    if(memcmp(k->frame,mote->nonce,8) == 0)
     {
+      mote->ping = mote->pong = 0;
       return tm;
     }
+
+    // TODO new ping, sync to it and schedule pong
+
     /*
     // if it's the public ping, cache the incoming hashname as a potential link
     if(k->mote == com->public)
@@ -393,7 +409,6 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
         // TODO, clean-up any previous stale link
         k->mote->link = link;
       }
-      hashname_free(hn);
       // also set our order to opposite of theirs since they just tx'd and there's no natural order
       k->mote->order = (k->frame[3]%2) ? 1 : 0;
     }
