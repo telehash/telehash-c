@@ -352,14 +352,20 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     LOG("knock error");
     return tm;
   }
+  
+  // use actual time to auto-correct for drift
+  k->mote->at = k->actual;
 
   // tx just changes flags here
   if(k->tx)
   {
     k->mote->sent++;
+    LOG("tx done, total %d",k->mote->sent);
+
     // a sent pong sets this mote free
-    if(k->mote->pong) k->mote->ping = k->mote->pong = 0;
+    if(k->mote->pong) mote_sync(k->mote);
     else util_chunks_next(k->mote->chunks); // advance chunks if any
+
     return tm;
   }
 
@@ -368,86 +374,32 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   // ooh, got a ping eh?
   if(k->mote->ping)
   {
+    LOG("rx incoming ping");
+
     // first decipher frame using given nonce
     chacha20(k->mote->secret,k->frame,k->frame+8,64-8);
+    
+    // if this is a link ping, first verify hashname match
+    if(k->mote->link && memcmp(k->frame+8+8,k->mote->link->id->bin,32) != 0) return LOG("ping hashname mismatch");
 
-    // verify/use the mote of the actual transmitter
-    mote_t mote = k->mote;
-
-    // if there's a link, check hashname match
-    if(mote->link)
-    {
-      if(memcmp(k->frame+8+8,k->mote->link->id->bin,32) != 0) return LOG("ping hashname mismatch");
-    }else{
-      // check/get/create mote for bundled hashname
-      hashname_t hn = hashname_new(k->frame+8+8);
-      if(!hn) return LOG("OOM");
-      mote = tmesh_link(tm, k->mote->com, link_get(tm->mesh, hn->hashname));
-      hashname_free(hn);
-      if(!mote) return LOG("mote link failed");
-    }
-  
-    // set wait for bundled nonce
-    memcpy(mote->nwait,k->frame+8,8);
-    mote->waiting = 1;
-
-    // validate if it's an incoming pong
-    if(memcmp(k->frame,mote->nonce,8) == 0)
-    {
-      mote->ping = mote->pong = 0;
-      return tm;
-    }
-
-    // new ping, sync time to it and schedule pong answer (based on nwait above)
-    mote->at = k->actual;
-    mote->pong = 1;
-
-    /*
-    // if it's the public ping, cache the incoming hashname as a potential link
-    if(k->mote == com->public)
-    {
-      link_t link;
-      hashname_t hn = hashname_new(k->frame+8);
-      if(hn && (link = link_get(tm->mesh, hn->hashname)))
-      {
-        // TODO, clean-up any previous stale link
-        k->mote->link = link;
-      }
-      // also set our order to opposite of theirs since they just tx'd and there's no natural order
-      k->mote->order = (k->frame[3]%2) ? 1 : 0;
-    }
-
-    // always in pong status after any ping rx
+    // always sync wait to the bundled nonce for the next pong
+    memcpy(k->mote->nwait,k->frame+8,8);
+    k->mote->waiting = 1;
     k->mote->pong = 1;
 
-    // if the nonce doesn't match, we use it and pong next tx
-    if(memcmp(k->frame,k->mote->nonce,8) != 0)
+    // if it's a public mote, get/create the link mote for the included hashname
+    if(k->mote == k->mote->com->public)
     {
-      memcpy(k->mote->nonce,k->frame,8);
-      return tm;
+      LOG("public ping, checking link mote");
+      hashname_t hn = hashname_new(k->frame+8+8);
+      if(!hn) return LOG("OOM");
+      mote_t mote = tmesh_link(tm, k->mote->com, link_get(tm->mesh, hn->hashname));
+      hashname_free(hn);
+      if(!mote) return LOG("mote link failed");
+      
+      // TODO, hint time to accelerate link mote sync process
     }
 
-    // when in pong status
-    if(k->mote->pong)
-    {
-      // if public pong, create/rebase mote from cached link
-      if(k->mote == com->public)
-      {
-        // check for existing mote already or make new
-        for(mote = com->motes;mote;mote = mote->next) if(mote->link == k->mote->link) break;
-        if(!mote && !(mote = tmesh_link(tm, com, k->mote->link))) return LOG("internal error");
-        // public ping is back in open mode
-        k->mote->link = NULL;
-        k->mote->pong = 0;
-      }else{
-        mote = k->mote;
-      }
-      // force reset and use given nonce seed to start
-      mote_reset(mote);
-      memcpy(mote->nonce,k->frame,8);
-      mote_link(mote);
-    }
-*/
     return tm;
   }
   
@@ -636,9 +588,21 @@ mote_t mote_knock(mote_t m, knock_t k, uint64_t from)
 }
 
 // initiates handshake over this mote
-mote_t mote_link(mote_t m)
+mote_t mote_sync(mote_t m)
 {
-  if(!m || !m->link) return LOG("bad args");
+  if(!m) return LOG("bad args");
+
+  m->pong = 0;
+
+  // handle public beacon motes 
+  if(!m->link)
+  {
+    // TODO intelligent sleepy mode, not just skip some
+    m->at += 1000*1000*5; // 5s
+    return m;
+  }
+
+  // TODO, set up first sync timeout to reset!
   m->ping = 0;
   m->chunks = util_chunks_free(m->chunks);
   m->chunks = util_chunks_new(63);
