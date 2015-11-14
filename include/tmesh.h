@@ -124,8 +124,8 @@ mote_t mote_link(mote_t m);
 // advance mote to next valid window
 mote_t mote_window(mote_t m);
 
-// find the first nonce that occurs after this future time of this type
-uint8_t *mote_seek(mote_t m, uint32_t after, uint8_t tx, uint8_t *nonce);
+// find the first nonce that occurs after this future time of this type, return that time
+uint64_t mote_seek(mote_t m, uint32_t after, uint8_t tx, uint8_t *nonce);
 
 // for tmesh sorting
 knock_t knock_sooner(knock_t a, knock_t b);

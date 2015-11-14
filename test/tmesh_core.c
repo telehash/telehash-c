@@ -93,8 +93,9 @@ int main(int argc, char **argv)
   fail_unless(mote_seek(m,4242424242,1,nonce));
   LOG("seek %s",util_hex(nonce,8,hex));
   fail_unless(util_cmp(hex,"190e24cb0e578019") == 0);
-  fail_unless(mote_seek(m,4242424242,0,nonce));
-  LOG("seek %s",util_hex(nonce,8,hex));
+  uint64_t at = mote_seek(m,4242424242,0,nonce);
+  LOG("seek %s at %lu",util_hex(nonce,8,hex),(long unsigned int)at);
+  fail_unless(at == 4242793192);
   fail_unless(util_cmp(hex,"1b886a6e45451adc") == 0);
   uint8_t ntmp[8];
   memcpy(ntmp,m->nonce,8);
@@ -102,7 +103,7 @@ int main(int argc, char **argv)
   m->waiting = 1;
   fail_unless(mote_window(m));
   fail_unless(memcmp(m->nonce,nonce,8) == 0);
-  fail_unless(m->at > 4242424242);
+  fail_unless(m->at > 4242793192);
   memcpy(m->nonce,ntmp,8); // restore for test fixtures
 
   // public ping now

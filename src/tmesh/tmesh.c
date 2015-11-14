@@ -387,16 +387,20 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
       if(!mote) return LOG("mote link failed");
     }
   
-    // TODO set wait for bundled nonce
+    // set wait for bundled nonce
+    memcpy(mote->nwait,k->frame+8,8);
+    mote->waiting = 1;
 
-    // validate if it's an incoming pong and be free
+    // validate if it's an incoming pong
     if(memcmp(k->frame,mote->nonce,8) == 0)
     {
       mote->ping = mote->pong = 0;
       return tm;
     }
 
-    // TODO new ping, sync to it and schedule pong
+    // new ping, sync time to it and schedule pong answer (based on nwait above)
+    mote->at = k->actual;
+    mote->pong = 1;
 
     /*
     // if it's the public ping, cache the incoming hashname as a potential link
@@ -559,9 +563,9 @@ uint32_t mote_next(mote_t m)
 }
 
 // find the first nonce that occurs after this future time of this type
-uint8_t *mote_seek(mote_t m, uint32_t after, uint8_t tx, uint8_t *nonce)
+uint64_t mote_seek(mote_t m, uint32_t after, uint8_t tx, uint8_t *nonce)
 {
-  if(!m || !nonce || !after) return LOG("bad args");
+  if(!m || !nonce || !after) return 0;
   
   uint32_t at = 0;
   uint8_t atx = 0;
@@ -573,7 +577,7 @@ uint8_t *mote_seek(mote_t m, uint32_t after, uint8_t tx, uint8_t *nonce)
     atx = ((nonce[7]%2) == m->order) ? 0 : 1;
   }
   
-  return nonce;
+  return m->at + at;
 }
 
 // advance mote to next valid window
