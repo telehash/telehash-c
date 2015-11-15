@@ -398,9 +398,11 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 
     // first decipher frame using given nonce
     chacha20(k->mote->secret,k->frame,k->frame+8,64-8);
-    
     // if this is a link ping, first verify hashname match
     if(k->mote->link && memcmp(k->frame+8+8,k->mote->link->id->bin,32) != 0) return LOG("ping hashname mismatch");
+
+    // cache flag if this was a pong by having the correct nonce we were expecting
+    uint8_t pong = (memcmp(k->mote->nonce,k->frame,8) == 0) ? 1 : 0;
 
     // always sync wait to the bundled nonce for the next pong
     memcpy(k->mote->nonce,k->frame,8);
@@ -422,7 +424,8 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
       // if incoming is a pong based on matching nonce, seed = k->mote->nonce and now, else k->mote->nwait and future
       // copy seed into mote when new
     }else{
-      LOG("private ping received");
+      LOG("private %s received",pong?"pong":"ping");
+      if(pong) mote_sync(k->mote);
     }
 
     return tm;
@@ -481,6 +484,8 @@ mote_t mote_reset(mote_t m)
   uint8_t zeros[32] = {0};
   if(!m) return LOG("bad args");
   
+  LOG("resetting mote");
+
   // reset stats
   m->sent = m->received = 0;
 
@@ -551,9 +556,10 @@ uint64_t mote_seek(mote_t m, uint32_t after, uint8_t tx, uint8_t *nonce)
   {
     chacha20(m->secret,nonce,nonce,8);
     at += mote_next(m);
-    atx = ((nonce[7]%2) == m->order) ? 0 : 1;
+    atx = ((nonce[7] & 0b00000001) == m->order) ? 0 : 1;
   }
   
+//  LOG("seeking tx %d after %u got %s",tx,after,util_hex(nonce,8,NULL));
   return m->at + at;
 }
 
@@ -580,7 +586,7 @@ mote_t mote_window(mote_t m)
     return m;
   }
   
-  // tail recurse until not waiting
+  // tail recurse until not waiting, TODO set upper limit failsafe
   return mote_window(m);
 }
 
@@ -592,10 +598,10 @@ mote_t mote_knock(mote_t m, knock_t k, uint64_t from)
 
   k->mote = m;
   next = mote_next(m);
-  if((m->at+next) > from)
+  if((m->at+next) > from && !m->waiting)
   {
-    // least significant nonce byte sets direction
-    k->tx = ((m->nonce[7]%2) == m->order) ? 0 : 1;
+    // least significant nonce bit sets direction
+    k->tx = ((m->nonce[7] & 0b00000001) == m->order) ? 0 : 1;
 
     k->start = m->at+next;
     k->stop = k->start + (uint64_t)((k->tx) ? m->com->medium->max : m->com->medium->min);
@@ -616,6 +622,8 @@ mote_t mote_knock(mote_t m, knock_t k, uint64_t from)
 mote_t mote_sync(mote_t m)
 {
   if(!m) return LOG("bad args");
+
+  LOG("synchronizing mote");
 
   m->pong = 0;
 
