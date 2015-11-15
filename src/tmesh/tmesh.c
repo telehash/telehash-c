@@ -535,13 +535,12 @@ mote_t mote_reset(mote_t m)
   return m;
 }
 
-uint32_t mote_next(mote_t m)
+uint32_t mote_next(uint8_t *nonce, uint8_t z)
 {
-  if(!m) return 0;
   uint32_t next;
-  uint8_t z = m->z >> 4; // only high 4 bits
-  memcpy(&next,m->nonce,4);
-  return next >> z; // smaller for high z
+  memcpy(&next,nonce,4);
+  // smaller for high z, using only high 4 bits of z
+  return next >> (z >> 4);
 }
 
 // find the first nonce that occurs after this future time of this type
@@ -549,73 +548,63 @@ uint64_t mote_seek(mote_t m, uint32_t after, uint8_t tx, uint8_t *nonce)
 {
   if(!m || !nonce || !after) return 0;
   
-  uint32_t at = 0;
-  uint8_t atx = 0;
   memcpy(nonce,m->nonce,8);
+  uint32_t at = mote_next(nonce,m->z);
+  uint8_t atx = ((nonce[7] & 0b00000001) == m->order) ? 0 : 1;
   while(at < after || atx != tx)
   {
     chacha20(m->secret,nonce,nonce,8);
-    at += mote_next(m);
+    at += mote_next(nonce,m->z);
     atx = ((nonce[7] & 0b00000001) == m->order) ? 0 : 1;
   }
   
-//  LOG("seeking tx %d after %u got %s",tx,after,util_hex(nonce,8,NULL));
-  return m->at + at;
-}
-
-// advance mote to next valid window
-mote_t mote_window(mote_t m)
-{
-  if(!m) return LOG("bad args");
-
-  // rotate nonce by ciphering it
-  chacha20(m->secret,m->nonce,m->nonce,8);
-  // add new time to base
-  m->at += mote_next(m);
-
-  // return or unblock if this nonce is the one waited on
-  if(!m->waiting || memcmp(m->nwait,m->nonce,8) == 0)
-  {
-    m->waiting = 0;
-    // get current non-ping channel
-    if(!m->ping)
-    {
-      memset(m->chan,0,2);
-      chacha20(m->secret,m->nonce,m->chan,2);
-    }
-    return m;
-  }
-  
-  // tail recurse until not waiting, TODO set upper limit failsafe
-  return mote_window(m);
+//  LOG("seeking tx %d after %u got %s at %lu",tx,after,util_hex(nonce,8,NULL),at);
+  return at;
 }
 
 // when is next knock
 mote_t mote_knock(mote_t m, knock_t k, uint64_t from)
 {
   uint32_t next;
-  if(!m || !k || !from || !m->at) return 0;
+  if(!m || !k || !from) return LOG("bad args");
+  if(!m->at) return LOG("paused mote");
 
   k->mote = m;
-  next = mote_next(m);
-  if((m->at+next) > from && !m->waiting)
+  k->start = k->stop = 0;
+
+  next = mote_next(m->nonce,m->z);
+  while((m->at+next) < from || m->waiting)
   {
-    // least significant nonce bit sets direction
-    k->tx = ((m->nonce[7] & 0b00000001) == m->order) ? 0 : 1;
-
-    k->start = m->at+next;
-    k->stop = k->start + (uint64_t)((k->tx) ? m->com->medium->max : m->com->medium->min);
-
-    // when receiving a ping, use wide window to catch more
-    if(m->ping) k->stop = k->start + m->com->medium->max;
-    
-    // derive current channel
-    k->chan = m->chan[1] % m->com->medium->chans;
-
-    return m;
+    m->at += next;
+    // rotate nonce by ciphering it
+    chacha20(m->secret,m->nonce,m->nonce,8);
+    next = mote_next(m->nonce,m->z);
+    // clear wait if matched
+    if(m->waiting && memcmp(m->nwait,m->nonce,8) == 0) m->waiting = 0;
+    // waiting failsafe
+    if(m->at > (from + 1000*1000*100)) return LOG("waiting nonce not found by %lu %lu",m->at,from);
   }
-  // tail recurse to step until the next future one
-  return mote_knock(mote_window(m), k, from);
+
+  // set current non-ping channel
+  if(!m->ping)
+  {
+    memset(m->chan,0,2);
+    chacha20(m->secret,m->nonce,m->chan,2);
+  }
+
+  // least significant nonce bit sets direction
+  k->tx = ((m->nonce[7] & 0b00000001) == m->order) ? 0 : 1;
+
+  k->start = m->at+next;
+  k->stop = k->start + (uint64_t)((k->tx) ? m->com->medium->max : m->com->medium->min);
+
+  // when receiving a ping, use wide window to catch more
+  if(m->ping) k->stop = k->start + m->com->medium->max;
+  
+  // derive current channel
+  k->chan = m->chan[1] % m->com->medium->chans;
+
+  return m;
 }
 
 // initiates handshake over this mote

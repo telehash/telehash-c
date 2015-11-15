@@ -124,9 +124,6 @@ mote_t mote_knock(mote_t m, knock_t k, uint64_t from);
 // initiates handshake over this synchronized mote
 mote_t mote_sync(mote_t m);
 
-// advance mote to next valid window
-mote_t mote_window(mote_t m);
-
 // find the first nonce that occurs after this future time of this type, return that time
 uint64_t mote_seek(mote_t m, uint32_t after, uint8_t tx, uint8_t *nonce);
 

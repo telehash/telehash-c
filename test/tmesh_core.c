@@ -72,7 +72,7 @@ int main(int argc, char **argv)
   fail_unless(mote_knock(m,knock,knock->start+1));
   fail_unless(!knock->tx);
   LOG("next is %lld",knock->start);
-  fail_unless(knock->start == 7831333);
+  fail_unless(knock->start == 4113046);
 
   mote_reset(m);
   memset(m->nonce,1,8); // nonce is random, force stable for fixture testing
@@ -92,19 +92,19 @@ int main(int argc, char **argv)
   uint8_t nonce[8];
   fail_unless(mote_seek(m,4242424242,1,nonce));
   LOG("seek %s",util_hex(nonce,8,hex));
-  fail_unless(util_cmp(hex,"190e24cb0e578019") == 0);
-  uint64_t at = mote_seek(m,4242424242,0,nonce);
+  fail_unless(util_cmp(hex,"ccacdb14f20eaf6b") == 0);
+  uint64_t at = mote_seek(m,42424242,0,nonce);
   LOG("seek %s at %lu",util_hex(nonce,8,hex),(long unsigned int)at);
-  fail_unless(at == 4242793192);
-  fail_unless(util_cmp(hex,"1b886a6e45451adc") == 0);
-  uint8_t ntmp[8];
-  memcpy(ntmp,m->nonce,8);
+  fail_unless(at == 52646813);
+  fail_unless(util_cmp(hex,"a6a46f5066ebda08") == 0);
   memcpy(m->nwait,nonce,8);
   m->waiting = 1;
-  fail_unless(mote_window(m));
+  struct knock_struct ktmp;
+  fail_unless(mote_knock(m,&ktmp,1));
+  fail_unless(m->waiting == 0);
   fail_unless(memcmp(m->nonce,nonce,8) == 0);
-  fail_unless(m->at > 4242793192);
-  memcpy(m->nonce,ntmp,8); // restore for test fixtures
+  LOG("at is %lu",m->at);
+  fail_unless(m->at >= 47441147);
 
   // public ping now
   m->at = 424294967296; // force way future
@@ -125,7 +125,7 @@ int main(int argc, char **argv)
   fail_unless(knock->mote == m);
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
   fail_unless(knock->tx);
-  fail_unless(knock->start == 4676829453);
+  fail_unless(knock->start == 4664913505);
   fail_unless(knock->chan == 14);
   // frame would be random ciphered, but we fixed it to test
   LOG("frame %s",util_hex(knock->frame,32+8,hex)); // just the stable part
