@@ -41,7 +41,7 @@ int main(int argc, char **argv)
   fail_unless(c->public == NULL);
   fail_unless(c->pipe->path);
   LOG("netA %.*s",c->pipe->path->head_len,c->pipe->path->head);
-
+  fail_unless(tmesh_leave(netA,c));
 
   char hex[256];
   mote_t m;
@@ -182,12 +182,34 @@ int main(int argc, char **argv)
   LOG("secret %s",util_hex(mAB->secret,32,hex));
   fail_unless(util_cmp(hex,"9a972d28dcc211d43eafdca7877bed1bbeaec30fd3740f4b787355d10423ad12") == 0);
   
-  knock_t knAB, knBA;
+  knock_t knAB;
   knAB = malloc(sizeof(struct knock_struct));
-  knBA = malloc(sizeof(struct knock_struct));
+  mAB->at = 1;
+  memset(mAB->nonce,42,8);
   fail_unless(tmesh_knock(netA,knAB,3,NULL));
-  LOG("xxx %d %d %d",knAB->mote,mAB,mBA);
   fail_unless(knAB->mote == mAB);
+  LOG("tx is %d chan %d at %lu",knAB->tx,knAB->chan,knAB->start);
+  fail_unless(knAB->chan == 35);
+  fail_unless(knAB->tx == 0);
+
+  knock_t knBA;
+  knBA = malloc(sizeof(struct knock_struct));
+  mBA->at = 1;
+  memset(mBA->nonce,0,8);
+  fail_unless(tmesh_knock(netB,knBA,3,NULL));
+  fail_unless(knBA->mote == mBA);
+  LOG("tx is %d chan %d at %lu",knBA->tx,knBA->chan,knAB->start);
+  fail_unless(knBA->chan == 35);
+  fail_unless(knBA->tx == 1);
+
+  // fake reception, with fake cake
+  memcpy(knAB->frame,knBA->frame,64);
+  knAB->actual = knBA->start;
+  fail_unless(tmesh_knocked(netA,knAB));
+  fail_unless(mAB->pong);
+  fail_unless(mAB->waiting);
+  fail_unless(memcmp(mAB->nonce,mBA->nonce,8) == 0);
+  fail_unless(memcmp(mAB->nwait,mBA->nwait,8) == 0);
 
   return 0;
 }

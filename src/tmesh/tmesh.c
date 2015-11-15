@@ -36,7 +36,7 @@ static cmnty_t cmnty_free(cmnty_t c)
   if(!c) return NULL;
   // do not free c->name, it's part of c->pipe
   // TODO free motes
-  pipe_free(c->pipe);
+//  pipe_free(c->pipe); path may be in mesh->paths 
   free(c);
   return NULL;
 }
@@ -420,6 +420,8 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
       // TODO, hint time to accelerate link mote sync process
       // if incoming is a pong based on matching nonce, seed = k->mote->nonce and now, else k->mote->nwait and future
       // copy seed into mote when new
+    }else{
+      LOG("private ping received");
     }
 
     return tm;
