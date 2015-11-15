@@ -403,6 +403,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     if(k->mote->link && memcmp(k->frame+8+8,k->mote->link->id->bin,32) != 0) return LOG("ping hashname mismatch");
 
     // always sync wait to the bundled nonce for the next pong
+    memcpy(k->mote->nonce,k->frame,8);
     memcpy(k->mote->nwait,k->frame+8,8);
     k->mote->waiting = 1;
     k->mote->pong = 1;
