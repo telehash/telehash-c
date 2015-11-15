@@ -141,6 +141,53 @@ int main(int argc, char **argv)
   fail_unless(memcmp(knock->frame+8+8,meshA->id->bin,32) == 0);
   fail_unless(util_cmp(hex,"27d6fcdfbcbac5f58d9856961a90d930fea600b08b84ab402fca3951b20b53c87820013574a5bcff") == 0);
 
+  // leave public community
+  fail_unless(tmesh_leave(netA,c));
+
+  // two motes meshing
+  mesh_t meshB = mesh_new(3);
+  fail_unless(meshB);
+  lob_t secB = lob_new();
+  lob_set(secB,"1a",B_SEC);
+  fail_unless(!mesh_load(meshB,secB,keyB));
+
+  hashname_t hnA = hashname_keys(keyA);
+  fail_unless(hnA);
+  link_t linkBA = link_get(meshB,hnA->hashname);
+  fail_unless(linkBA);
+  
+  tmesh_t netB = tmesh_new(meshB, NULL);
+  fail_unless(netB);
+  cmnty_t cB = tmesh_join(netB,"qzjb5f4t","test");
+  fail_unless(cB);
+  fail_unless(cB->pipe->path);
+  LOG("netB %s",lob_json(cB->pipe->path));
+
+  cmnty_t cA = tmesh_join(netA,"qzjb5f4t","test");
+  fail_unless(cA);
+  fail_unless(cA->pipe->path);
+  LOG("netA %s",lob_json(cA->pipe->path));
+  
+  mote_t mBA = tmesh_link(netB, cB, linkBA);
+  fail_unless(mBA);
+  fail_unless(mBA->ping);
+  fail_unless(mBA->order == 1);
+  LOG("secret %s",util_hex(mBA->secret,32,hex));
+  fail_unless(util_cmp(hex,"9a972d28dcc211d43eafdca7877bed1bbeaec30fd3740f4b787355d10423ad12") == 0);
+
+  mote_t mAB = tmesh_link(netA, cA, link);
+  fail_unless(mAB);
+  fail_unless(mAB->ping);
+  fail_unless(mAB->order == 0);
+  LOG("secret %s",util_hex(mAB->secret,32,hex));
+  fail_unless(util_cmp(hex,"9a972d28dcc211d43eafdca7877bed1bbeaec30fd3740f4b787355d10423ad12") == 0);
+  
+  knock_t knAB, knBA;
+  knAB = malloc(sizeof(struct knock_struct));
+  knBA = malloc(sizeof(struct knock_struct));
+  fail_unless(tmesh_knock(netA,knAB,3,dev));
+  LOG("xxx %d %d %d",knAB->mote,mAB,mBA);
+  fail_unless(knAB->mote == mAB);
 
   return 0;
 }

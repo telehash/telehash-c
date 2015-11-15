@@ -101,6 +101,26 @@ cmnty_t tmesh_join(tmesh_t tm, char *medium, char *name)
   return c;
 }
 
+// leave any community
+tmesh_t tmesh_leave(tmesh_t tm, cmnty_t c)
+{
+  cmnty_t i, cn, c2 = NULL;
+  if(!tm || !c) return LOG("bad args");
+  
+  // snip c out
+  for(i=tm->coms;i;i = cn)
+  {
+    cn = i->next;
+    if(i==c) continue;
+    i->next = c2;
+    c2 = i;
+  }
+  tm->coms = c2;
+  
+  cmnty_free(c);
+  return tm;
+}
+
 // add a link known to be in this community to look for
 mote_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link)
 {
@@ -398,6 +418,8 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
       if(!mote) return LOG("mote link failed");
       
       // TODO, hint time to accelerate link mote sync process
+      // if incoming is a pong based on matching nonce, seed = k->mote->nonce and now, else k->mote->nwait and future
+      // copy seed into mote when new
     }
 
     return tm;

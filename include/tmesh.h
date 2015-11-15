@@ -50,6 +50,9 @@ struct cmnty_struct
 // join a new private/public community
 cmnty_t tmesh_join(tmesh_t tm, char *medium, char *name);
 
+// leave any community
+tmesh_t tmesh_leave(tmesh_t tm, cmnty_t c);
+
 // add a link known to be in this community to look for
 mote_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link);
 
