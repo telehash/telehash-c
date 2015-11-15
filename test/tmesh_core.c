@@ -185,7 +185,7 @@ int main(int argc, char **argv)
   knock_t knAB, knBA;
   knAB = malloc(sizeof(struct knock_struct));
   knBA = malloc(sizeof(struct knock_struct));
-  fail_unless(tmesh_knock(netA,knAB,3,dev));
+  fail_unless(tmesh_knock(netA,knAB,3,NULL));
   LOG("xxx %d %d %d",knAB->mote,mAB,mBA);
   fail_unless(knAB->mote == mAB);
 
