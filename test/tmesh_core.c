@@ -41,7 +41,7 @@ int main(int argc, char **argv)
   fail_unless(c->public == NULL);
   fail_unless(c->pipe->path);
   LOG("netA %.*s",c->pipe->path->head_len,c->pipe->path->head);
-
+  fail_unless(tmesh_leave(netA,c));
 
   char hex[256];
   mote_t m;
@@ -59,7 +59,6 @@ int main(int argc, char **argv)
   fail_unless(m == tmesh_link(netA, c, link));
   fail_unless(m->ping);
   fail_unless(m->order == 0);
-  fail_unless(!m->tx);
   memset(m->nonce,3,8); // nonce is random, force stable for fixture testing
   LOG("secret %s",util_hex(m->secret,32,hex));
   fail_unless(util_cmp(hex,"e5667e86ecb564f4f04e2b665348381c06765e6f9fa8161d114d5d8046948532") == 0);
@@ -73,7 +72,7 @@ int main(int argc, char **argv)
   fail_unless(mote_knock(m,knock,knock->start+1));
   fail_unless(!knock->tx);
   LOG("next is %lld",knock->start);
-  fail_unless(knock->start == 7831333);
+  fail_unless(knock->start == 4113046);
 
   mote_reset(m);
   memset(m->nonce,1,8); // nonce is random, force stable for fixture testing
@@ -89,6 +88,23 @@ int main(int argc, char **argv)
   knock->actual = knock->start;
   fail_unless(tmesh_knocked(netA,knock));
   fail_unless(m->at == knock->start);
+  
+  uint8_t nonce[8];
+  fail_unless(mote_seek(m,4242424242,1,nonce));
+  LOG("seek %s",util_hex(nonce,8,hex));
+  fail_unless(util_cmp(hex,"ccacdb14f20eaf6b") == 0);
+  uint64_t at = mote_seek(m,42424242,0,nonce);
+  LOG("seek %s at %lu",util_hex(nonce,8,hex),(long unsigned int)at);
+  fail_unless(at == 52646813);
+  fail_unless(util_cmp(hex,"a6a46f5066ebda08") == 0);
+  memcpy(m->nwait,nonce,8);
+  m->waiting = 1;
+  struct knock_struct ktmp;
+  fail_unless(mote_knock(m,&ktmp,1));
+  fail_unless(m->waiting == 0);
+  fail_unless(memcmp(m->nonce,nonce,8) == 0);
+  LOG("at is %lu",m->at);
+  fail_unless(m->at >= 47441147);
 
   // public ping now
   m->at = 424294967296; // force way future
@@ -109,22 +125,119 @@ int main(int argc, char **argv)
   fail_unless(knock->mote == m);
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
   fail_unless(knock->tx);
-  fail_unless(knock->start == 4676829453);
+  fail_unless(knock->start == 4664913505);
   fail_unless(knock->chan == 14);
   // frame would be random ciphered, but we fixed it to test
   LOG("frame %s",util_hex(knock->frame,32+8,hex)); // just the stable part
-  fail_unless(util_cmp(hex,"dea09cc71df556391d3b278df5e7647163ef2174ef36d9bcd25f730f465498a9cdaee5cfe2be70b6") == 0);
+  fail_unless(util_cmp(hex,"27d6fcdfbcbac5f5e25477919651172ed7a081ecb1639b80349fccb40117c42c4c65feaa638093e7") == 0);
   // let's preted it's an rx now
-  m->tx = 0;
+  knock->tx = 0;
   knock->actual = knock->start; // fake rx good
   fail_unless(tmesh_knocked(netA,knock));
   fail_unless(m->at == knock->actual);
   // frame is deciphered
   LOG("frame %s",util_hex(knock->frame,32+8,hex)); // just the stable part
   fail_unless(memcmp(knock->frame,m->nonce,8) == 0);
-  fail_unless(memcmp(knock->frame+8,meshA->id->bin,32) == 0);
-  fail_unless(util_cmp(hex,"481addd8307b0bebfea600b08b84ab402fca3951b20b53c87820013574a5bcff1c6674e6b53d7fa6") == 0);
+  fail_unless(memcmp(knock->frame+8+8,meshA->id->bin,32) == 0);
+  fail_unless(util_cmp(hex,"27d6fcdfbcbac5f58d9856961a90d930fea600b08b84ab402fca3951b20b53c87820013574a5bcff") == 0);
 
+  // leave public community
+  fail_unless(tmesh_leave(netA,c));
+
+  // two motes meshing
+  mesh_t meshB = mesh_new(3);
+  fail_unless(meshB);
+  lob_t secB = lob_new();
+  lob_set(secB,"1a",B_SEC);
+  fail_unless(!mesh_load(meshB,secB,keyB));
+
+  hashname_t hnA = hashname_keys(keyA);
+  fail_unless(hnA);
+  link_t linkBA = link_get(meshB,hnA->hashname);
+  fail_unless(linkBA);
+  
+  tmesh_t netB = tmesh_new(meshB, NULL);
+  fail_unless(netB);
+  cmnty_t cB = tmesh_join(netB,"qzjb5f4t","test");
+  fail_unless(cB);
+  fail_unless(cB->pipe->path);
+  LOG("netB %s",lob_json(cB->pipe->path));
+
+  cmnty_t cA = tmesh_join(netA,"qzjb5f4t","test");
+  fail_unless(cA);
+  fail_unless(cA->pipe->path);
+  LOG("netA %s",lob_json(cA->pipe->path));
+  
+  mote_t mBA = tmesh_link(netB, cB, linkBA);
+  fail_unless(mBA);
+  fail_unless(mBA->ping);
+  fail_unless(mBA->order == 1);
+  LOG("secret %s",util_hex(mBA->secret,32,hex));
+  fail_unless(util_cmp(hex,"9a972d28dcc211d43eafdca7877bed1bbeaec30fd3740f4b787355d10423ad12") == 0);
+
+  mote_t mAB = tmesh_link(netA, cA, link);
+  fail_unless(mAB);
+  fail_unless(mAB->ping);
+  fail_unless(mAB->order == 0);
+  LOG("secret %s",util_hex(mAB->secret,32,hex));
+  fail_unless(util_cmp(hex,"9a972d28dcc211d43eafdca7877bed1bbeaec30fd3740f4b787355d10423ad12") == 0);
+  
+  knock_t knAB;
+  knAB = malloc(sizeof(struct knock_struct));
+  mAB->at = 1;
+  memset(mAB->nonce,42,8);
+  fail_unless(tmesh_knock(netA,knAB,3,NULL));
+  fail_unless(knAB->mote == mAB);
+  LOG("tx is %d chan %d at %lu nonce %s",knAB->tx,knAB->chan,knAB->start,util_hex(mAB->nonce,8,NULL));
+  fail_unless(knAB->chan == 35);
+  fail_unless(knAB->tx == 0);
+
+  knock_t knBA;
+  knBA = malloc(sizeof(struct knock_struct));
+  mBA->at = 1;
+  memset(mBA->nonce,0,8);
+  fail_unless(tmesh_knock(netB,knBA,3,NULL));
+  fail_unless(knBA->mote == mBA);
+  LOG("tx is %d chan %d at %lu",knBA->tx,knBA->chan,knAB->start);
+  fail_unless(knBA->chan == 35);
+  fail_unless(knBA->tx == 1);
+
+  // fake reception, with fake cake
+  memcpy(knAB->frame,knBA->frame,64);
+  knAB->actual = knBA->start;
+  knBA->actual = knBA->start;
+  fail_unless(tmesh_knocked(netA,knAB)); // the rx
+  fail_unless(mAB->pong);
+  fail_unless(mAB->waiting);
+  fail_unless(memcmp(mAB->nonce,mBA->nonce,8) == 0);
+  fail_unless(memcmp(mAB->nwait,mBA->nwait,8) == 0);
+  fail_unless(tmesh_knocked(netB,knBA)); // the tx
+  
+  // back to the future
+  uint64_t now = knAB->actual + 1;
+  fail_unless(tmesh_knock(netA,knAB,now,NULL));
+  fail_unless(knAB->mote == mAB);
+  LOG("tx is %d chan %d at %lu nonce %s",knAB->tx,knAB->chan,knAB->start,util_hex(mAB->nonce,8,NULL));
+  fail_unless(knAB->tx == 1);
+  fail_unless(tmesh_knock(netB,knBA,now,NULL));
+  fail_unless(knBA->mote == mBA);
+  LOG("tx is %d chan %d at %lu nonce %s",knBA->tx,knBA->chan,knAB->start,util_hex(mBA->nonce,8,NULL));
+  fail_unless(knBA->tx == 0);
+  
+  // dance
+  memcpy(knBA->frame,knAB->frame,64);
+  knAB->actual = knAB->start;
+  knBA->actual = knAB->start;
+  fail_unless(tmesh_knocked(netB,knBA)); // the rx
+  // in sync!
+  fail_unless(!mBA->pong);
+  fail_unless(!mBA->ping);
+  
+  fail_unless(tmesh_knocked(netA,knAB)); // the tx
+  // in sync!
+  fail_unless(!mAB->pong);
+  fail_unless(!mAB->ping);
+  
 
   return 0;
 }

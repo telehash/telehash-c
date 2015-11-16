@@ -36,7 +36,7 @@ static cmnty_t cmnty_free(cmnty_t c)
   if(!c) return NULL;
   // do not free c->name, it's part of c->pipe
   // TODO free motes
-  pipe_free(c->pipe);
+//  pipe_free(c->pipe); path may be in mesh->paths 
   free(c);
   return NULL;
 }
@@ -99,6 +99,26 @@ cmnty_t tmesh_join(tmesh_t tm, char *medium, char *name)
   
 
   return c;
+}
+
+// leave any community
+tmesh_t tmesh_leave(tmesh_t tm, cmnty_t c)
+{
+  cmnty_t i, cn, c2 = NULL;
+  if(!tm || !c) return LOG("bad args");
+  
+  // snip c out
+  for(i=tm->coms;i;i = cn)
+  {
+    cn = i->next;
+    if(i==c) continue;
+    i->next = c2;
+    c2 = i;
+  }
+  tm->coms = c2;
+  
+  cmnty_free(c);
+  return tm;
 }
 
 // add a link known to be in this community to look for
@@ -300,41 +320,40 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
   // make sure a knock was found
   if(!k->mote) return NULL;
   
-  // fill in tx frame data
-  if(k->tx)
-  {
-    if(k->mote->ping)
-    {
-      // if not sending a pong, rotate nonce until next one is rx for a pong
-      if(!k->mote->pong)
-      {
-        uint8_t next[8], max=16;
-        while(max--)
-        {
-          memcpy(next,k->mote->nonce,8);
-          chacha20(k->mote->secret,k->mote->nonce,next,8);
-          if((k->mote->nonce[3]%2) == k->mote->order) break;
-          memcpy(k->mote->nonce,next,8);
-        }
-      }
-      // copy in nonce, hashname and random
-      memcpy(k->frame,k->mote->nonce,8);
-      memcpy(k->frame+8,tm->mesh->id->bin,32);
-      e3x_rand(k->frame+8+32,24);
-    }else{
-      int16_t size = util_chunks_size(k->mote->chunks);
-      if(size >= 0)
-      {
-        // TODO, real header, term flag
-        k->frame[0] = 0; // stub for now
-        k->frame[1] = (uint8_t)size;
-        memcpy(k->frame+2,util_chunks_frame(k->mote->chunks),size);
-      }
-    }
+  // receive is on knocked
+  if(!k->tx) return tm;
 
-    // ciphertext frame
-    chacha20(k->mote->secret,k->mote->nonce,k->frame,64);
+  // construct ping tx frame data
+  if(k->mote->ping)
+  {
+    // copy in ping nonce
+    memcpy(k->frame,k->mote->nonce,8);
+    // bundle a future rx nonce that we'll wait for next
+    mote_seek(k->mote,k->mote->com->medium->min+k->mote->com->medium->max,0,k->mote->nwait);
+    k->mote->waiting = 1;
+    memcpy(k->frame+8,k->mote->nwait,8);
+    // copy in hashname
+    memcpy(k->frame+8+8,tm->mesh->id->bin,32);
+    // random fill rest
+    e3x_rand(k->frame+8+8+32,64-(8+8+32));
+
+     // ciphertext frame after nonce
+    chacha20(k->mote->secret,k->mote->nonce,k->frame+8,64-8);
+
+    return tm;
   }
+
+  // fill in chunk tx
+  int16_t size = util_chunks_size(k->mote->chunks);
+  if(size < 0) return LOG("BUG/TODO should never be zero");
+  LOG("tx chunk frame size %d",size);
+
+  // TODO, real header, term flag
+  k->frame[0] = 0; // stub for now
+  k->frame[1] = (uint8_t)size; // max 63
+  memcpy(k->frame+2,util_chunks_frame(k->mote->chunks),size);
+  // ciphertext full frame
+  chacha20(k->mote->secret,k->mote->nonce,k->frame,64);
 
   return tm;
 }
@@ -343,8 +362,6 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
 // signal once a knock has been sent/received for this mote
 tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 {
-  cmnty_t com;
-  mote_t mote;
   if(!tm || !k) return LOG("bad args");
   
   // always set time base to last knock regardless
@@ -355,83 +372,68 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     LOG("knock error");
     return tm;
   }
-
-  // convenience
-  com = k->mote->com;
   
-  // tx stats are always valid
-  if(k->tx) k->mote->sent++;
+  // use actual time to auto-correct for drift
+  k->mote->at = k->actual;
 
-  // decipher frame
-  chacha20(k->mote->secret,k->mote->nonce,k->frame,64);
-  
-  // handle any ping first
-  if(k->mote->ping)
-  {
-    // if we received a ping, cache the link
-    if(!k->tx)
-    {
-      // if it's the public ping, cache the incoming hashname as a link
-      if(k->mote == com->public)
-      {
-        link_t link;
-        hashname_t hn = hashname_new(k->frame+8);
-        if(hn && (link = link_get(tm->mesh, hn->hashname)))
-        {
-          // TODO, clean-up any previous stale link
-          k->mote->link = link;
-        }
-        hashname_free(hn);
-        // also set our order to opposite of theirs since they just tx'd and there's no natural order
-        k->mote->order = (k->frame[3]%2) ? 1 : 0;
-      }
-
-      // always in pong status after any ping rx
-      k->mote->pong = 1;
-
-      // if the nonce doesn't match, we use it and pong next tx
-      if(memcmp(k->frame,k->mote->nonce,8) != 0)
-      {
-        memcpy(k->mote->nonce,k->frame,8);
-        return tm;
-      }
-      // otherwise continue to pong handler
-    }
-
-    // when in pong status
-    if(k->mote->pong)
-    {
-      // if public pong, create/rebase mote from cached link
-      if(k->mote == com->public)
-      {
-        // check for existing mote already or make new
-        for(mote = com->motes;mote;mote = mote->next) if(mote->link == k->mote->link) break;
-        if(!mote && !(mote = tmesh_link(tm, com, k->mote->link))) return LOG("internal error");
-        // public ping is back in open mode
-        k->mote->link = NULL;
-        k->mote->pong = 0;
-      }else{
-        mote = k->mote;
-      }
-      // force reset and use given nonce seed to start
-      mote_reset(mote);
-      memcpy(mote->nonce,k->frame,8);
-      mote_link(mote);
-    }
-
-    return tm;
-  }
-  
-  // transmitted knocks handle first
+  // tx just changes flags here
   if(k->tx)
   {
-    // advance chunking now
-    util_chunks_next(k->mote->chunks);
+    k->mote->sent++;
+    LOG("tx done, total %d",k->mote->sent);
+
+    // a sent pong sets this mote free
+    if(k->mote->pong) mote_sync(k->mote);
+    else util_chunks_next(k->mote->chunks); // advance chunks if any
+
+    return tm;
+  }
+
+  // rx knock handling now
+  
+  // ooh, got a ping eh?
+  if(k->mote->ping)
+  {
+    LOG("rx incoming ping");
+
+    // first decipher frame using given nonce
+    chacha20(k->mote->secret,k->frame,k->frame+8,64-8);
+    // if this is a link ping, first verify hashname match
+    if(k->mote->link && memcmp(k->frame+8+8,k->mote->link->id->bin,32) != 0) return LOG("ping hashname mismatch");
+
+    // cache flag if this was a pong by having the correct nonce we were expecting
+    uint8_t pong = (memcmp(k->mote->nonce,k->frame,8) == 0) ? 1 : 0;
+
+    // always sync wait to the bundled nonce for the next pong
+    memcpy(k->mote->nonce,k->frame,8);
+    memcpy(k->mote->nwait,k->frame+8,8);
+    k->mote->waiting = 1;
+    k->mote->pong = 1;
+
+    // if it's a public mote, get/create the link mote for the included hashname
+    if(k->mote == k->mote->com->public)
+    {
+      LOG("public ping, checking link mote");
+      hashname_t hn = hashname_new(k->frame+8+8);
+      if(!hn) return LOG("OOM");
+      mote_t mote = tmesh_link(tm, k->mote->com, link_get(tm->mesh, hn->hashname));
+      hashname_free(hn);
+      if(!mote) return LOG("mote link failed");
+      
+      // TODO, hint time to accelerate link mote sync process
+      // if incoming is a pong based on matching nonce, seed = k->mote->nonce and now, else k->mote->nwait and future
+      // copy seed into mote when new
+    }else{
+      LOG("private %s received",pong?"pong":"ping");
+      if(pong) mote_sync(k->mote);
+    }
+
     return tm;
   }
   
-  // received knock handling now
-
+  // received knock handling now, decipher frame
+  chacha20(k->mote->secret,k->mote->nonce,k->frame,64);
+  
   // TODO check and validate frame[0] first
   k->mote->at = k->actual; // self-correcting sync based on exact rx time
 
@@ -455,7 +457,7 @@ mote_t mote_new(link_t link)
   // determine ordering based on hashname compare
   if(link)
   {
-    if(!(m->chunks = util_chunks_new(64))) return mote_free(m);
+    if(!(m->chunks = util_chunks_new(63))) return mote_free(m);
     m->link = link;
     for(i=0;i<32;i++)
     {
@@ -482,6 +484,8 @@ mote_t mote_reset(mote_t m)
   uint8_t zeros[32] = {0};
   if(!m) return LOG("bad args");
   
+  LOG("resetting mote");
+
   // reset stats
   m->sent = m->received = 0;
 
@@ -525,71 +529,102 @@ mote_t mote_reset(mote_t m)
   // always in ping mode after reset and default z
   m->ping = 1;
   m->z = m->com->medium->z;
+  m->pong = 0;
+  m->waiting = 0;
 
   return m;
 }
 
-uint32_t mote_next(mote_t m)
+uint32_t mote_next(uint8_t *nonce, uint8_t z)
 {
-  if(!m) return 0;
   uint32_t next;
-  uint8_t z = m->z >> 4; // only high 4 bits
-  memcpy(&next,m->nonce,4);
-  return next >> z; // smaller for high z
+  memcpy(&next,nonce,4);
+  // smaller for high z, using only high 4 bits of z
+  return next >> (z >> 4);
 }
 
-// advance one window forward
-mote_t mote_window(mote_t m)
+// find the first nonce that occurs after this future time of this type
+uint64_t mote_seek(mote_t m, uint32_t after, uint8_t tx, uint8_t *nonce)
 {
-  if(!m) return LOG("bad args");
-
-  // rotate nonce by ciphering it
-  chacha20(m->secret,m->nonce,m->nonce,8);
-  // add new time to base
-  m->at += mote_next(m);
-
-  // get current non-ping channel
-  if(!m->ping)
+  if(!m || !nonce || !after) return 0;
+  
+  memcpy(nonce,m->nonce,8);
+  uint32_t at = mote_next(nonce,m->z);
+  uint8_t atx = ((nonce[7] & 0b00000001) == m->order) ? 0 : 1;
+  while(at < after || atx != tx)
   {
-    memset(m->chan,0,2);
-    chacha20(m->secret,m->nonce,m->chan,2);
+    chacha20(m->secret,nonce,nonce,8);
+    at += mote_next(nonce,m->z);
+    atx = ((nonce[7] & 0b00000001) == m->order) ? 0 : 1;
   }
-
-  return m;
+  
+//  LOG("seeking tx %d after %u got %s at %lu",tx,after,util_hex(nonce,8,NULL),at);
+  return at;
 }
 
 // when is next knock
 mote_t mote_knock(mote_t m, knock_t k, uint64_t from)
 {
   uint32_t next;
-  if(!m || !k || !from || !m->at) return 0;
+  if(!m || !k || !from) return LOG("bad args");
+  if(!m->at) return LOG("paused mote");
 
   k->mote = m;
-  next = mote_next(m);
-  if((m->at+next) > from)
+  k->start = k->stop = 0;
+
+  next = mote_next(m->nonce,m->z);
+  while((m->at+next) < from || m->waiting)
   {
-    // least significant nonce byte sets direction
-    k->tx = m->tx = ((m->nonce[7]%2) == m->order) ? 0 : 1;
-
-    k->start = m->at+next;
-    k->stop = k->start + (uint64_t)((k->tx) ? m->com->medium->max : m->com->medium->min);
-
-    // when receiving a ping, use wide window to catch more
-    if(m->ping) k->stop = k->start + m->com->medium->max;
-    
-    // derive current channel
-    k->chan = m->chan[1] % m->com->medium->chans;
-
-    return m;
+    m->at += next;
+    // rotate nonce by ciphering it
+    chacha20(m->secret,m->nonce,m->nonce,8);
+    next = mote_next(m->nonce,m->z);
+    // clear wait if matched
+    if(m->waiting && memcmp(m->nwait,m->nonce,8) == 0) m->waiting = 0;
+    // waiting failsafe
+    if(m->at > (from + 1000*1000*100)) return LOG("waiting nonce not found by %lu %lu",m->at,from);
   }
-  // tail recurse to step until the next future one
-  return mote_knock(mote_window(m), k, from);
+
+  // set current non-ping channel
+  if(!m->ping)
+  {
+    memset(m->chan,0,2);
+    chacha20(m->secret,m->nonce,m->chan,2);
+  }
+
+  // least significant nonce bit sets direction
+  k->tx = ((m->nonce[7] & 0b00000001) == m->order) ? 0 : 1;
+
+  k->start = m->at+next;
+  k->stop = k->start + (uint64_t)((k->tx) ? m->com->medium->max : m->com->medium->min);
+
+  // when receiving a ping, use wide window to catch more
+  if(m->ping) k->stop = k->start + m->com->medium->max;
+  
+  // derive current channel
+  k->chan = m->chan[1] % m->com->medium->chans;
+
+  return m;
 }
 
 // initiates handshake over this mote
-mote_t mote_link(mote_t m)
+mote_t mote_sync(mote_t m)
 {
-  if(!m || !m->link) return LOG("bad args");
+  if(!m) return LOG("bad args");
+
+  LOG("synchronizing mote");
+
+  m->pong = 0;
+
+  // handle public beacon motes 
+  if(!m->link)
+  {
+    // TODO intelligent sleepy mode, not just skip some
+    m->at += 1000*1000*5; // 5s
+    return m;
+  }
+
+  // TODO, set up first sync timeout to reset!
   m->ping = 0;
   m->chunks = util_chunks_free(m->chunks);
   m->chunks = util_chunks_new(63);

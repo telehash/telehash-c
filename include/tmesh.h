@@ -50,6 +50,9 @@ struct cmnty_struct
 // join a new private/public community
 cmnty_t tmesh_join(tmesh_t tm, char *medium, char *name);
 
+// leave any community
+tmesh_t tmesh_leave(tmesh_t tm, cmnty_t c);
+
 // add a link known to be in this community to look for
 mote_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link);
 
@@ -97,6 +100,7 @@ struct mote_struct
   mote_t next; // for lists
   uint8_t secret[32];
   uint8_t nonce[8];
+  uint8_t nwait[8]; // future nonce
   uint8_t chan[2];
   uint64_t at; // microsecond of last knock
   util_chunks_t chunks; // actual chunk encoding for r/w frame buffers
@@ -105,7 +109,7 @@ struct mote_struct
   uint8_t order:1; // is hashname compare
   uint8_t ping:1; // is in ping mode
   uint8_t pong:1; // ready for pong
-  uint8_t tx:1; // is in tx or rx
+  uint8_t waiting:1; // nwait is set
 };
 
 mote_t mote_new(link_t link);
@@ -117,8 +121,11 @@ mote_t mote_reset(mote_t m);
 // next knock init
 mote_t mote_knock(mote_t m, knock_t k, uint64_t from);
 
-// initiates handshake over this mote
-mote_t mote_link(mote_t m);
+// initiates handshake over this synchronized mote
+mote_t mote_sync(mote_t m);
+
+// find the first nonce that occurs after this future time of this type, return that time
+uint64_t mote_seek(mote_t m, uint32_t after, uint8_t tx, uint8_t *nonce);
 
 // for tmesh sorting
 knock_t knock_sooner(knock_t a, knock_t b);
