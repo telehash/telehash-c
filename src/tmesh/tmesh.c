@@ -340,6 +340,8 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
      // ciphertext frame after nonce
     chacha20(k->mote->secret,k->mote->nonce,k->frame+8,64-8);
 
+    LOG("PING TX %s",util_hex(k->frame,8,NULL));
+
     return tm;
   }
 
@@ -394,7 +396,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   // ooh, got a ping eh?
   if(k->mote->ping)
   {
-    LOG("rx incoming ping");
+    LOG("PING RX %s",util_hex(k->frame,8,NULL));
 
     // first decipher frame using given nonce
     chacha20(k->mote->secret,k->frame,k->frame+8,64-8);
@@ -413,7 +415,11 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     // if it's a public mote, get/create the link mote for the included hashname
     if(k->mote == k->mote->com->public)
     {
-      LOG("public ping, checking link mote");
+      LOG("public %s, checking link mote",pong?"pong":"ping");
+
+      // since there's no ordering w/ public pings, make sure we're inverted to the sender for the pong
+      k->mote->order = (k->mote->nonce[7] & 0b00000001) ? 1 : 0;
+      
       hashname_t hn = hashname_new(k->frame+8+8);
       if(!hn) return LOG("OOM");
       mote_t mote = tmesh_link(tm, k->mote->com, link_get(tm->mesh, hn->hashname));
@@ -421,7 +427,8 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
       if(!mote) return LOG("mote link failed");
       
       // TODO, hint time to accelerate link mote sync process
-      // if incoming is a pong based on matching nonce, seed = k->mote->nonce and now, else k->mote->nwait and future
+      mote->at = k->actual;
+      // if incoming is a pong, seed = k->mote->nonce and now, else k->mote->nwait and future
       // copy seed into mote when new
     }else{
       LOG("private %s received",pong?"pong":"ping");
@@ -540,7 +547,9 @@ uint32_t mote_next(uint8_t *nonce, uint8_t z)
   uint32_t next;
   memcpy(&next,nonce,4);
   // smaller for high z, using only high 4 bits of z
-  return next >> (z >> 4);
+  z >>= 4;
+  next >>= z;
+  return next;
 }
 
 // find the first nonce that occurs after this future time of this type
@@ -565,20 +574,17 @@ uint64_t mote_seek(mote_t m, uint32_t after, uint8_t tx, uint8_t *nonce)
 // when is next knock
 mote_t mote_knock(mote_t m, knock_t k, uint64_t from)
 {
-  uint32_t next;
   if(!m || !k || !from) return LOG("bad args");
   if(!m->at) return LOG("paused mote");
 
   k->mote = m;
   k->start = k->stop = 0;
 
-  next = mote_next(m->nonce,m->z);
-  while((m->at+next) < from || m->waiting)
+  while(m->at < from || m->waiting)
   {
-    m->at += next;
     // rotate nonce by ciphering it
     chacha20(m->secret,m->nonce,m->nonce,8);
-    next = mote_next(m->nonce,m->z);
+    m->at += mote_next(m->nonce,m->z);
     // clear wait if matched
     if(m->waiting && memcmp(m->nwait,m->nonce,8) == 0) m->waiting = 0;
     // waiting failsafe
@@ -595,7 +601,7 @@ mote_t mote_knock(mote_t m, knock_t k, uint64_t from)
   // least significant nonce bit sets direction
   k->tx = ((m->nonce[7] & 0b00000001) == m->order) ? 0 : 1;
 
-  k->start = m->at+next;
+  k->start = m->at;
   k->stop = k->start + (uint64_t)((k->tx) ? m->com->medium->max : m->com->medium->min);
 
   // when receiving a ping, use wide window to catch more
@@ -643,7 +649,15 @@ mote_t mote_sync(mote_t m)
 
 knock_t knock_sooner(knock_t a, knock_t b)
 {
-  LOG("knock compare %lld <=> %lld",a->start,b->start);
+  LOG("knock compare A %lu",a->start);
+  LOG("knock compare B %lu",b->start);
+  // any that finish before another starts
+  if(a->stop < b->start) return a;
+  if(b->stop < a->start) return b;
+  // any with link over without
+  if(a->mote->link && !b->mote->link) return a;
+  if(b->mote->link && !a->mote->link) return b;
+  // firstie
   return (a->start < b->start) ? a : b;
 }
 
