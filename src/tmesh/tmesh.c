@@ -323,7 +323,7 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
   // receive is on knocked
   if(!k->tx) return tm;
 
-  // construct ping tx frame data
+  // construct ping tx frame data, same for all the things
   if(k->mote->ping)
   {
     // copy in ping nonce
@@ -340,7 +340,7 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
      // ciphertext frame after nonce
     chacha20(k->mote->secret,k->mote->nonce,k->frame+8,64-8);
 
-    LOG("PING TX %s",util_hex(k->frame,8,NULL));
+    LOG("TX %s %s",k->mote->pong?"pong":"ping",util_hex(k->frame,8,NULL));
 
     return tm;
   }
@@ -348,7 +348,7 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
   // fill in chunk tx
   int16_t size = util_chunks_size(k->mote->chunks);
   if(size < 0) return LOG("BUG/TODO should never be zero");
-  LOG("tx chunk frame size %d",size);
+  LOG("TX chunk frame size %d",size);
 
   // TODO, real header, term flag
   k->frame[0] = 0; // stub for now
@@ -366,26 +366,23 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 {
   if(!tm || !k) return LOG("bad args");
   
-  // always set time base to last knock regardless
-  k->mote->at = k->start;
-
   if(!k->actual)
   {
     LOG("knock error");
     return tm;
   }
   
-  // use actual time to auto-correct for drift
-  k->mote->at = k->actual;
-
   // tx just changes flags here
   if(k->tx)
   {
+    // use actual tx time to auto-correct for drift
+    k->mote->at = k->actual;
+
     k->mote->sent++;
     LOG("tx done, total %d",k->mote->sent);
 
     // a sent pong sets this mote free
-    if(k->mote->pong) mote_sync(k->mote);
+    if(k->mote->pong) mote_synced(k->mote);
     else util_chunks_next(k->mote->chunks); // advance chunks if any
 
     return tm;
@@ -407,6 +404,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     uint8_t pong = (memcmp(k->mote->nonce,k->frame,8) == 0) ? 1 : 0;
 
     // always sync wait to the bundled nonce for the next pong
+    k->mote->at = k->actual;
     memcpy(k->mote->nonce,k->frame,8);
     memcpy(k->mote->nwait,k->frame+8,8);
     k->mote->waiting = 1;
@@ -422,18 +420,33 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
       
       hashname_t hn = hashname_new(k->frame+8+8);
       if(!hn) return LOG("OOM");
-      mote_t mote = tmesh_link(tm, k->mote->com, link_get(tm->mesh, hn->hashname));
+      mote_t lmote = tmesh_link(tm, k->mote->com, link_get(tm->mesh, hn->hashname));
       hashname_free(hn);
-      if(!mote) return LOG("mote link failed");
+      if(!lmote) return LOG("mote link failed");
       
-      // TODO, hint time to accelerate link mote sync process
-      mote->at = k->actual;
-      // if incoming is a pong, seed = k->mote->nonce and now, else k->mote->nwait and future
-      // copy seed into mote when new
+      // set up the relevant link mote to sync if it's not yet
+      if(!lmote->at)
+      {
+        LOG("new mote to %s",lmote->link->id->hashname);
+
+        // just clone the nonce as a sync point
+        memcpy(lmote->nonce,k->mote->nonce,8);
+
+        // sync time now only on a pong, else cache on public
+        if(pong)
+        {
+          lmote->at = k->mote->at;
+        }else{
+          k->mote->link = lmote->link;
+        }
+      }
+
     }else{
       LOG("private %s received",pong?"pong":"ping");
-      if(pong) mote_sync(k->mote);
     }
+
+    // any received pong here means this mote is synced
+    if(pong) mote_synced(k->mote);
 
     return tm;
   }
@@ -441,11 +454,15 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   // received knock handling now, decipher frame
   chacha20(k->mote->secret,k->mote->nonce,k->frame,64);
   
-  // TODO check and validate frame[0] first
-  k->mote->at = k->actual; // self-correcting sync based on exact rx time
+  // TODO check and validate frame[0] now
+
+  // self-correcting sync based on exact rx time
+  k->mote->at = k->actual;
 
   // received stats only after minimal validation
   k->mote->received++;
+  
+  LOG("rx done, total %d chunk len %d",k->mote->received,k->frame[1]);
 
   // process incoming chunk to link
   util_chunks_read(k->mote->chunks,k->frame+1,k->frame[1]+1);
@@ -575,7 +592,7 @@ uint64_t mote_seek(mote_t m, uint32_t after, uint8_t tx, uint8_t *nonce)
 mote_t mote_knock(mote_t m, knock_t k, uint64_t from)
 {
   if(!m || !k || !from) return LOG("bad args");
-  if(!m->at) return LOG("paused mote");
+  if(!m->at) return LOG("paused mote %s",m->link?m->link->id->hashname:"beacon");
 
   k->mote = m;
   k->start = k->stop = 0;
@@ -613,26 +630,36 @@ mote_t mote_knock(mote_t m, knock_t k, uint64_t from)
   return m;
 }
 
-// initiates handshake over this mote
-mote_t mote_sync(mote_t m)
+// change mote to synchronized state (post-pong), initiates handshake over link mote
+mote_t mote_synced(mote_t m)
 {
   if(!m) return LOG("bad args");
 
-  LOG("synchronizing mote");
+  LOG("mote ready");
 
   m->pong = 0;
 
-  // handle public beacon motes 
-  if(!m->link)
+  // handle public beacon motes special
+  if(m == m->com->public)
   {
+    // sync any cached link mote
+    if(m->link)
+    {
+      mote_t lmote = tmesh_link(m->com->tm, m->com, m->link);
+      lmote->at = m->at;
+      mote_synced(lmote);
+      m->link = NULL;
+    }
+
     // TODO intelligent sleepy mode, not just skip some
-    m->at += 1000*1000*5; // 5s
+//    m->at += 1000*1000*5; // 5s
+
     return m;
   }
 
   // TODO, set up first sync timeout to reset!
   m->ping = 0;
-  m->chunks = util_chunks_free(m->chunks);
+  util_chunks_free(m->chunks);
   m->chunks = util_chunks_new(63);
   // establish the pipe path
   link_pipe(m->link,m->com->pipe);
