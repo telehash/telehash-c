@@ -83,7 +83,8 @@ cmnty_t tmesh_join(tmesh_t tm, char *medium, char *name)
     c->public = c->motes = mote_new(NULL);
     c->public->com = c;
     mote_reset(c->public);
-    c->public->at = 1; // enable to start
+    c->public->at = 1; // enabled by default, TODO make recent to avoid window catchup
+    c->public->public = 1;
 
     // generate public intermediate keys packet
     if(!tm->pubim) tm->pubim = hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys));
@@ -307,8 +308,7 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
     for(mote=com->motes;mote;mote=mote->next)
     {
       if(!mote_knock(mote,&ktmp,from)) continue;
-      // if active tx and we don't have any data, skip
-      if(ktmp.tx && !mote->ping && util_chunks_size(mote->chunks) < 0) continue;
+      // TODO, optimize skipping tx knocks if nothing to send
       // use the new one if preferred
       if(!k->mote || tm->sort(k,&ktmp) != k)
       {
@@ -320,6 +320,8 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
   // make sure a knock was found
   if(!k->mote) return NULL;
   
+  LOG("mote %s nonce %s",k->mote->public?"public beacon":k->mote->link->id->hashname,util_hex(k->mote->nonce,8,NULL));
+
   // receive is on knocked
   if(!k->tx) return tm;
 
@@ -340,14 +342,15 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
      // ciphertext frame after nonce
     chacha20(k->mote->secret,k->mote->nonce,k->frame+8,64-8);
 
-    LOG("TX %s %s",k->mote->pong?"pong":"ping",util_hex(k->frame,8,NULL));
+    LOG("TX %s %s %s",k->mote->public?"public":"link",k->mote->pong?"pong":"ping",util_hex(k->frame,8,NULL));
 
     return tm;
   }
 
   // fill in chunk tx
   int16_t size = util_chunks_size(k->mote->chunks);
-  if(size < 0) return LOG("BUG/TODO should never be zero");
+  if(size < 0) return tm; // nothing to send, noop
+
   LOG("TX chunk frame size %d",size);
 
   // TODO, real header, term flag
@@ -404,14 +407,16 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     uint8_t pong = (memcmp(k->mote->nonce,k->frame,8) == 0) ? 1 : 0;
 
     // always sync wait to the bundled nonce for the next pong
+    if(k->mote->at != k->actual) LOG("adjusting time sync by %ld",k->actual-k->mote->at);
     k->mote->at = k->actual;
     memcpy(k->mote->nonce,k->frame,8);
     memcpy(k->mote->nwait,k->frame+8,8);
     k->mote->waiting = 1;
     k->mote->pong = 1;
+    LOG("waiting for nonce %s",util_hex(k->mote->nwait,8,NULL));
 
     // if it's a public mote, get/create the link mote for the included hashname
-    if(k->mote == k->mote->com->public)
+    if(k->mote->public)
     {
       LOG("public %s, checking link mote",pong?"pong":"ping");
 
@@ -428,9 +433,6 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
       if(!lmote->at)
       {
         LOG("new mote to %s",lmote->link->id->hashname);
-
-        // just clone the nonce as a sync point
-        memcpy(lmote->nonce,k->mote->nonce,8);
 
         // sync time now only on a pong, else cache on public
         if(pong)
@@ -592,7 +594,7 @@ uint64_t mote_seek(mote_t m, uint32_t after, uint8_t tx, uint8_t *nonce)
 mote_t mote_knock(mote_t m, knock_t k, uint64_t from)
 {
   if(!m || !k || !from) return LOG("bad args");
-  if(!m->at) return LOG("paused mote %s",m->link?m->link->id->hashname:"beacon");
+  if(!m->at) return NULL;//LOG("paused mote %s",m->link?m->link->id->hashname:"public beacon");
 
   k->mote = m;
   k->start = k->stop = 0;
@@ -605,7 +607,7 @@ mote_t mote_knock(mote_t m, knock_t k, uint64_t from)
     // clear wait if matched
     if(m->waiting && memcmp(m->nwait,m->nonce,8) == 0) m->waiting = 0;
     // waiting failsafe
-    if(m->at > (from + 1000*1000*100)) return LOG("waiting nonce not found by %lu %lu",m->at,from);
+    if(m->at > (from + 1000*1000*100)) return LOG("waiting nonce not found by %d %d",(m->at/1000),(from/1000));
   }
 
   // set current non-ping channel
@@ -640,14 +642,13 @@ mote_t mote_synced(mote_t m)
   m->pong = 0;
 
   // handle public beacon motes special
-  if(m == m->com->public)
+  if(m->public)
   {
     // sync any cached link mote
     if(m->link)
     {
       mote_t lmote = tmesh_link(m->com->tm, m->com, m->link);
       lmote->at = m->at;
-      mote_synced(lmote);
       m->link = NULL;
     }
 

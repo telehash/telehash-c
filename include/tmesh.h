@@ -110,6 +110,7 @@ struct mote_struct
   uint8_t ping:1; // is in ping mode
   uint8_t pong:1; // ready for pong
   uint8_t waiting:1; // nwait is set
+  uint8_t public:1; // is a special public beacon mote
 };
 
 mote_t mote_new(link_t link);
