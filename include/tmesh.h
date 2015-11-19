@@ -103,6 +103,7 @@ struct mote_struct
   uint8_t nwait[8]; // future nonce
   uint8_t chan[2];
   uint64_t at; // microsecond of last knock
+  uint64_t tmp; // TODO remove, for debugging only
   util_chunks_t chunks; // actual chunk encoding for r/w frame buffers
   uint16_t sent, received;
   uint8_t z;

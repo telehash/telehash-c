@@ -321,6 +321,7 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
   if(!k->mote) return NULL;
   
   LOG("mote %s nonce %s",k->mote->public?"public beacon":k->mote->link->id->hashname,util_hex(k->mote->nonce,8,NULL));
+  if(k->mote->tmp) LOG("knock start offset from first sync %lu",k->start - k->mote->tmp);
 
   // receive is on knocked
   if(!k->tx) return tm;
@@ -657,6 +658,9 @@ mote_t mote_synced(mote_t m)
 
     return m;
   }
+  
+  // TODO remove, for debug only
+  m->tmp = m->at; // save first sync for differential logging
 
   // TODO, set up first sync timeout to reset!
   m->ping = 0;
