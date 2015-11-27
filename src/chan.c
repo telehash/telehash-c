@@ -4,9 +4,6 @@
 #include <inttypes.h>
 #include "telehash.h"
 
-// every new channel has a unique global id
-static uint32_t _uids = 0;
-
 // open must be chan_receive or chan_send next yet
 chan_t chan_new(lob_t open)
 {
@@ -24,14 +21,9 @@ chan_t chan_new(lob_t open)
   memset(c,0,sizeof (struct chan_struct));
   c->state = CHAN_OPENING;
   c->id = id;
-  sprintf(c->c,"%" PRIu32,id);
   c->open = lob_copy(open);
   c->type = lob_get(open,"type");
   c->capacity = 1024*1024; // 1MB total default
-
-  // generate a unique id in hex
-  _uids++;
-  util_hex((uint8_t*)&_uids,4,c->uid);
 
   // reliability
   if(lob_get(open,"seq"))
@@ -39,7 +31,7 @@ chan_t chan_new(lob_t open)
     c->seq = 1;
   }
 
-  LOG("new %s channel %s %d %s",c->seq?"reliable":"unreliable",c->uid,id,type);
+  LOG("new %s channel %d %s",c->seq?"reliable":"unreliable",id,type);
   return c;
 }
 
@@ -54,24 +46,11 @@ void chan_free(chan_t c)
   free(c);
 }
 
-// return its unique id in hex
-char *chan_uid(chan_t c)
-{
-  if(!c) return NULL;
-  return c->uid;
-}
-
 // return the numeric per-exchange id
 uint32_t chan_id(chan_t c)
 {
   if(!c) return 0;
   return c->id;
-}
-
-char *chan_c(chan_t c)
-{
-  if(!c) return NULL;
-  return c->c;
 }
 
 // this will set the default inactivity timeout using this event timer and our uid
@@ -193,7 +172,7 @@ uint8_t chan_receive(chan_t c, lob_t inner, uint32_t now)
 void chan_sync(chan_t c, uint8_t sync)
 {
   if(!c) return;
-  LOG("%s sync %d TODO",c->uid,sync);
+  LOG("%d sync %d TODO",c->id,sync);
 }
 
 // get next avail packet in order, null if nothing

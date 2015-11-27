@@ -4,7 +4,7 @@
 #include "telehash.h"
 #include "telehash.h"
 
-// internal structures to manage our link-local state about pipes and channels
+// internal structures to manage our link-local state about pipes
 
 // list of active pipes and state per link
 typedef struct seen_struct

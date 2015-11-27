@@ -9,9 +9,8 @@ enum chan_states { CHAN_ENDED, CHAN_OPENING, CHAN_OPEN };
 // internal only structure, always use accessors
 typedef struct chan_struct
 {
+  link_t link; // so channels can be first-class
   uint32_t id; // wire id (not unique)
-  char c[12]; // str of id
-  char uid[9]; // process hex id (unique)
   char *type;
   lob_t open; // cached for convenience
   enum chan_states state;
@@ -53,11 +52,8 @@ uint8_t chan_send(chan_t c, lob_t inner); // adds to sending queue
 lob_t chan_sending(chan_t c, uint32_t now); // must be called after every send or receive, pass pkt to e3x_exchange_encrypt before sending
 
 // convenience functions
-char *chan_uid(chan_t c); // process-unique string id
 uint32_t chan_id(chan_t c); // numeric of the open->c id
-char *chan_c(chan_t c); // string of the c id
 lob_t chan_open(chan_t c); // returns the open packet (always cached)
-
 enum chan_states chan_state(chan_t c);
 
 
