@@ -104,7 +104,7 @@ struct mote_struct
   uint8_t nonce[8];
   uint8_t nwait[8]; // future nonce
   uint8_t chan[2];
-  uint32_t next; // microseconds until next knock
+  uint32_t at; // microseconds until next knock
   util_chunks_t chunks; // actual chunk encoding for r/w frame buffers
   uint16_t sent, received;
   uint8_t z;
@@ -121,7 +121,7 @@ mote_t mote_free(mote_t m);
 // resets secret/nonce and to ping mode
 mote_t mote_reset(mote_t m);
 
-// advance window, set relative time
+// advance window by relative time
 mote_t mote_bttf(mote_t m, uint32_t us);
 
 // next knock init
@@ -131,7 +131,7 @@ mote_t mote_knock(mote_t m, knock_t k);
 mote_t mote_synced(mote_t m);
 
 // find the first nonce that occurs after this future time of this type
-mote_t mote_seek(mote_t m, uint32_t after, uint8_t tx, uint8_t *nonce);
+mote_t mote_wait(mote_t m, uint32_t after, uint8_t tx, uint8_t *set);
 
 // for tmesh sorting
 knock_t knock_sooner(knock_t a, knock_t b);
