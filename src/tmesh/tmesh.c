@@ -292,7 +292,27 @@ radio_t radio_device(radio_t device)
 }
 
 
-tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
+// advance all windows forward this many microseconds, all knocks are relative to this call
+tmesh_t tmesh_bttf(tmesh_t tm, uint32_t us)
+{
+  cmnty_t com;
+  mote_t mote;
+  if(!tm || !us) return LOG("bad args");
+
+  for(com=tm->coms;com;com=com->next)
+  {
+    // inform every
+    for(mote=com->motes;mote;mote=mote->next)
+    {
+      mote_bttf(mote,us);
+    }
+  }
+  
+  return tm;
+}
+
+// fills in next knock for this device only
+tmesh_t tmesh_knock(tmesh_t tm, knock_t k, radio_t device)
 {
   cmnty_t com;
   mote_t mote;
@@ -307,8 +327,9 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
     // check every mote
     for(mote=com->motes;mote;mote=mote->next)
     {
-      if(!mote_knock(mote,&ktmp,from)) continue;
       // TODO, optimize skipping tx knocks if nothing to send
+      mote_knock(mote,&ktmp);
+
       // use the new one if preferred
       if(!k->mote || tm->sort(k,&ktmp) != k)
       {
@@ -321,7 +342,6 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
   if(!k->mote) return NULL;
   
   LOG("mote %s nonce %s",k->mote->public?"public beacon":k->mote->link->id->hashname,util_hex(k->mote->nonce,8,NULL));
-  if(k->mote->tmp) LOG("knock start offset from first sync %lu",k->start - k->mote->tmp);
 
   // receive is on knocked
   if(!k->tx) return tm;
@@ -331,9 +351,8 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
   {
     // copy in ping nonce
     memcpy(k->frame,k->mote->nonce,8);
-    // bundle a future rx nonce that we'll wait for next
-    mote_seek(k->mote,k->mote->com->medium->min+k->mote->com->medium->max,0,k->mote->nwait);
-    k->mote->waiting = 1;
+    // wait for the next future rx nonce
+    mote_wait(k->mote,k->mote->com->medium->min+k->mote->com->medium->max,0,NULL);
     memcpy(k->frame+8,k->mote->nwait,8);
     // copy in hashname
     memcpy(k->frame+8+8,tm->mesh->id->bin,32);
@@ -380,7 +399,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   if(k->tx)
   {
     // use actual tx time to auto-correct for drift
-    k->mote->at = k->actual;
+    k->mote->at += k->actual;
 
     k->mote->sent++;
     LOG("tx done, total %d",k->mote->sent);
@@ -408,11 +427,9 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     uint8_t pong = (memcmp(k->mote->nonce,k->frame,8) == 0) ? 1 : 0;
 
     // always sync wait to the bundled nonce for the next pong
-    if(k->mote->at != k->actual) LOG("adjusting time sync by %ld",k->actual-k->mote->at);
-    k->mote->at = k->actual;
+    k->mote->at += k->actual;
     memcpy(k->mote->nonce,k->frame,8);
-    memcpy(k->mote->nwait,k->frame+8,8);
-    k->mote->waiting = 1;
+    mote_wait(k->mote,k->mote->com->medium->min+k->mote->com->medium->max,1,k->frame+8);
     k->mote->pong = 1;
     LOG("waiting for nonce %s",util_hex(k->mote->nwait,8,NULL));
 
@@ -460,7 +477,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   // TODO check and validate frame[0] now
 
   // self-correcting sync based on exact rx time
-  k->mote->at = k->actual;
+  k->mote->at += k->actual;
 
   // received stats only after minimal validation
   k->mote->received++;
@@ -572,44 +589,72 @@ uint32_t mote_next(uint8_t *nonce, uint8_t z)
   return next;
 }
 
-// find the first nonce that occurs after this future time of this type
-uint64_t mote_seek(mote_t m, uint32_t after, uint8_t tx, uint8_t *nonce)
+// set mote to wait for the first nonce that occurs after this future time of this type, match set nonce if given
+mote_t mote_wait(mote_t m, uint32_t after, uint8_t tx, uint8_t *set)
 {
-  if(!m || !nonce || !after) return 0;
+  uint8_t nonce[8];
+  if(!m || !after) return LOG("bad args");
   
   memcpy(nonce,m->nonce,8);
   uint32_t at = mote_next(nonce,m->z);
   uint8_t atx = ((nonce[7] & 0b00000001) == m->order) ? 0 : 1;
   while(at < after || atx != tx)
   {
+    // once after is passed, keep at zero
+    if(at > after) after = 0;
+    else after -= at;
+
+    // step forward
     chacha20(m->secret,nonce,nonce,8);
-    at += mote_next(nonce,m->z);
+    at = mote_next(nonce,m->z);
     atx = ((nonce[7] & 0b00000001) == m->order) ? 0 : 1;
+    
+    // see if any given nonce matches to stop at early
+    if(set && atx == tx && memcmp(set,nonce,8) == 0) break;
   }
   
-//  LOG("seeking tx %d after %u got %s at %lu",tx,after,util_hex(nonce,8,NULL),at);
-  return at;
+  memcpy(m->nwait,nonce,8);
+  m->waiting = 1;
+  
+  if(set && memcmp(set,nonce,8) != 0) return LOG("warning, set wait nonce was not found in window sequence");
+
+  return m;
 }
 
-// when is next knock
-mote_t mote_knock(mote_t m, knock_t k, uint64_t from)
+// advance window by relative time
+mote_t mote_bttf(mote_t m, uint32_t us)
 {
-  if(!m || !k || !from) return LOG("bad args");
-  if(!m->at) return NULL;//LOG("paused mote %s",m->link?m->link->id->hashname:"public beacon");
+  if(!m || !us) return LOG("bad args");
+
+  while(us > m->at)
+  {
+    // trim relative
+    us -= m->at;
+    // rotate nonce by ciphering it
+    chacha20(m->secret,m->nonce,m->nonce,8);
+    m->at = mote_next(m->nonce,m->z);
+    // clear wait if matched
+    if(m->waiting && memcmp(m->nwait,m->nonce,8) == 0)
+    {
+      LOG("clearing mote wait");
+      m->waiting = 0;
+    }
+  }
+  
+  // move relative forward
+  m->at -= us;
+
+  return m;
+}
+
+// next knock init
+mote_t mote_knock(mote_t m, knock_t k)
+{
+  if(!m || !k) return LOG("bad args");
+  if(m->waiting) return LOG("mote waiting: %s",m->link?m->link->id->hashname:"public beacon");
 
   k->mote = m;
   k->start = k->stop = 0;
-
-  while(m->at < from || m->waiting)
-  {
-    // rotate nonce by ciphering it
-    chacha20(m->secret,m->nonce,m->nonce,8);
-    m->at += mote_next(m->nonce,m->z);
-    // clear wait if matched
-    if(m->waiting && memcmp(m->nwait,m->nonce,8) == 0) m->waiting = 0;
-    // waiting failsafe
-    if(m->at > (from + 1000*1000*100)) return LOG("waiting nonce not found by %d %d",(m->at/1000),(from/1000));
-  }
 
   // set current non-ping channel
   if(!m->ping)
@@ -621,12 +666,16 @@ mote_t mote_knock(mote_t m, knock_t k, uint64_t from)
   // least significant nonce bit sets direction
   k->tx = ((m->nonce[7] & 0b00000001) == m->order) ? 0 : 1;
 
+  // set relative start/stop times
   k->start = m->at;
-  k->stop = k->start + (uint64_t)((k->tx) ? m->com->medium->max : m->com->medium->min);
+  k->stop = k->start + ((k->tx) ? m->com->medium->max : m->com->medium->min);
 
   // when receiving a ping, use wide window to catch more
   if(m->ping) k->stop = k->start + m->com->medium->max;
-  
+
+  // very remote case of overlow (70min minus max micros), just sets to max avail, slight inefficiency
+  if(k->stop < k->start) k->stop = 0xffffffff;
+
   // derive current channel
   k->chan = m->chan[1] % m->com->medium->chans;
 
@@ -659,9 +708,6 @@ mote_t mote_synced(mote_t m)
     return m;
   }
   
-  // TODO remove, for debug only
-  m->tmp = m->at; // save first sync for differential logging
-
   // TODO, set up first sync timeout to reset!
   m->ping = 0;
   util_chunks_free(m->chunks);

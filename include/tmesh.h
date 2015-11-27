@@ -78,19 +78,22 @@ tmesh_t tmesh_loop(tmesh_t tm);
 struct knock_struct
 {
   mote_t mote;
-  uint64_t start, stop, actual; // microsecond exact start/stop time
+  uint32_t start, stop;
+  int16_t actual; // microsecond drift from start
   uint8_t frame[64];
   uint8_t chan; // current channel (< med->chans)
   uint8_t tx:1; // tells radio to tx or rx
 };
 
-// fills in next knock based on from and only for this device
-tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device);
-tmesh_t tmesh_knocked(tmesh_t tm, knock_t k); // process done knock
+// advance all windows forward this many microseconds, all knocks are relative to this call
+tmesh_t tmesh_bttf(tmesh_t tm, uint32_t us);
 
+// fills in next knock for this device only
+tmesh_t tmesh_knock(tmesh_t tm, knock_t k, radio_t device);
 
-// 2^18
-#define EPOCH_WINDOW (uint64_t)262144
+// process done knock
+tmesh_t tmesh_knocked(tmesh_t tm, knock_t k);
+
 
 // mote state tracking
 struct mote_struct
@@ -102,8 +105,7 @@ struct mote_struct
   uint8_t nonce[8];
   uint8_t nwait[8]; // future nonce
   uint8_t chan[2];
-  uint64_t at; // microsecond of last knock
-  uint64_t tmp; // TODO remove, for debugging only
+  uint32_t at; // microseconds until next knock
   util_chunks_t chunks; // actual chunk encoding for r/w frame buffers
   uint16_t sent, received;
   uint8_t z;
@@ -120,14 +122,17 @@ mote_t mote_free(mote_t m);
 // resets secret/nonce and to ping mode
 mote_t mote_reset(mote_t m);
 
+// advance window by relative time
+mote_t mote_bttf(mote_t m, uint32_t us);
+
 // next knock init
-mote_t mote_knock(mote_t m, knock_t k, uint64_t from);
+mote_t mote_knock(mote_t m, knock_t k);
 
 // initiates handshake over this synchronized mote
 mote_t mote_synced(mote_t m);
 
-// find the first nonce that occurs after this future time of this type, return that time
-uint64_t mote_seek(mote_t m, uint32_t after, uint8_t tx, uint8_t *nonce);
+// find the first nonce that occurs after this future time of this type
+mote_t mote_wait(mote_t m, uint32_t after, uint8_t tx, uint8_t *set);
 
 // for tmesh sorting
 knock_t knock_sooner(knock_t a, knock_t b);
