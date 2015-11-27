@@ -617,7 +617,7 @@ mote_t mote_wait(mote_t m, uint32_t after, uint8_t tx, uint8_t *set)
   memcpy(m->nwait,nonce,8);
   m->waiting = 1;
   
-  if(set && memcmp(set,nonce,8) != 0) LOG("warning, set wait nonce was not found in window sequence");
+  if(set && memcmp(set,nonce,8) != 0) return LOG("warning, set wait nonce was not found in window sequence");
 
   return m;
 }

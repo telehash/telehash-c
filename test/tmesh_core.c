@@ -65,11 +65,13 @@ int main(int argc, char **argv)
   
   m->at = 1;
   knock_t knock = malloc(sizeof(struct knock_struct));
-  fail_unless(mote_knock(m,knock,4200000));
+  fail_unless(mote_bttf(m,4200000));
+  LOG("next is %lld",m->at);
+  fail_unless(m->at == 8599862);
+  fail_unless(mote_knock(m,knock));
   fail_unless(knock->tx);
-  LOG("next is %lld",knock->start);
-  fail_unless(knock->start == 8599862);
-  fail_unless(mote_knock(m,knock,knock->start+1));
+  fail_unless(mote_bttf(m,8599862+1));
+  fail_unless(mote_knock(m,knock));
   fail_unless(!knock->tx);
   LOG("next is %lld",knock->start);
   fail_unless(knock->start == 20170206);
@@ -77,7 +79,8 @@ int main(int argc, char **argv)
   mote_reset(m);
   memset(m->nonce,2,8); // nonce is random, force stable for fixture testing
   m->at = 1;
-  fail_unless(tmesh_knock(netA,knock,2,dev));
+  fail_unless(tmesh_bttf(netA,2));
+  fail_unless(tmesh_knock(netA,knock,dev));
   fail_unless(knock->mote == m);
   LOG("tx %d start %lld stop %lld chan %d at %lld",knock->tx,knock->start,knock->stop,knock->chan,m->at);
   fail_unless(knock->tx);
@@ -90,17 +93,15 @@ int main(int argc, char **argv)
   fail_unless(m->at == knock->start);
   
   uint8_t nonce[8];
-  fail_unless(mote_seek(m,4242424242,1,nonce));
-  LOG("seek %s",util_hex(nonce,8,hex));
+  fail_unless(mote_wait(m,4242424242,1,NULL));
+  LOG("seek %s",util_hex(m->nwait,8,hex));
   fail_unless(util_cmp(hex,"15b28afc066a9f8f") == 0);
-  uint64_t at = mote_seek(m,42424242,0,nonce);
-  LOG("seek %s at %lu",util_hex(nonce,8,hex),(long unsigned int)at);
-  fail_unless(at == 46592336);
+  memcpy(nonce,m->nwait,8);
+  fail_unless(mote_wait(m,42424242,0,nonce));
+  LOG("seek %s",util_hex(nonce,8,hex));
   fail_unless(util_cmp(hex,"218e5955e2326f46") == 0);
-  memcpy(m->nwait,nonce,8);
-  m->waiting = 1;
   struct knock_struct ktmp;
-  fail_unless(mote_knock(m,&ktmp,1));
+  fail_unless(mote_knock(m,&ktmp));
   fail_unless(m->waiting == 0);
   fail_unless(memcmp(m->nonce,nonce,8) == 0);
   LOG("at is %lu",m->at);
@@ -109,7 +110,8 @@ int main(int argc, char **argv)
   // public ping now
   m->at = 424294967; // force way future
   m = c->public;
-  fail_unless(tmesh_knock(netA,knock,3,dev));
+  fail_unless(tmesh_bttf(netA,3));
+  fail_unless(tmesh_knock(netA,knock,dev));
   fail_unless(knock->mote == m);
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
   fail_unless(knock->tx);
@@ -121,7 +123,8 @@ int main(int argc, char **argv)
   fail_unless(m->at == knock->start);
 
   // public ping tx
-  fail_unless(tmesh_knock(netA,knock,437478935,dev));
+  fail_unless(tmesh_bttf(netA,437478935));
+  fail_unless(tmesh_knock(netA,knock,dev));
   fail_unless(knock->mote == m);
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
   fail_unless(knock->tx);
@@ -186,7 +189,8 @@ int main(int argc, char **argv)
   knAB = malloc(sizeof(struct knock_struct));
   mAB->at = 1;
   memset(mAB->nonce,12,8);
-  fail_unless(tmesh_knock(netA,knAB,3,NULL));
+  fail_unless(tmesh_bttf(netA,3));
+  fail_unless(tmesh_knock(netA,knAB,NULL));
   fail_unless(knAB->mote == mAB);
   LOG("tx is %d chan %d at %lu nonce %s",knAB->tx,knAB->chan,knAB->start,util_hex(mAB->nonce,8,NULL));
   fail_unless(knAB->chan == 35);
@@ -196,7 +200,8 @@ int main(int argc, char **argv)
   knBA = malloc(sizeof(struct knock_struct));
   mBA->at = 1;
   memset(mBA->nonce,0,8);
-  fail_unless(tmesh_knock(netB,knBA,3,NULL));
+  fail_unless(tmesh_bttf(netB,3));
+  fail_unless(tmesh_knock(netB,knBA,NULL));
   fail_unless(knBA->mote == mBA);
   LOG("tx is %d chan %d at %lu",knBA->tx,knBA->chan,knAB->start);
   fail_unless(knBA->chan == 35);
@@ -214,12 +219,13 @@ int main(int argc, char **argv)
   fail_unless(tmesh_knocked(netB,knBA)); // the tx
   
   // back to the future
-  uint64_t now = knAB->actual + 1;
-  fail_unless(tmesh_knock(netA,knAB,now,NULL));
+  fail_unless(tmesh_bttf(netA,1));
+  fail_unless(tmesh_knock(netA,knAB,NULL));
   fail_unless(knAB->mote == mAB);
   LOG("tx is %d chan %d at %lu nonce %s",knAB->tx,knAB->chan,knAB->start,util_hex(mAB->nonce,8,NULL));
   fail_unless(knAB->tx == 1);
-  fail_unless(tmesh_knock(netB,knBA,now,NULL));
+  fail_unless(tmesh_bttf(netB,1));
+  fail_unless(tmesh_knock(netB,knBA,NULL));
   fail_unless(knBA->mote == mBA);
   LOG("tx is %d chan %d at %lu nonce %s",knBA->tx,knBA->chan,knAB->start,util_hex(mBA->nonce,8,NULL));
   fail_unless(knBA->tx == 0);
