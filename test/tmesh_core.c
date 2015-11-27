@@ -67,10 +67,10 @@ int main(int argc, char **argv)
   knock_t knock = malloc(sizeof(struct knock_struct));
   fail_unless(mote_bttf(m,4200000));
   LOG("next is %lld",m->at);
-  fail_unless(m->at == 8599862);
+  fail_unless(m->at == 4399862);
   fail_unless(mote_knock(m,knock));
   fail_unless(knock->tx);
-  fail_unless(mote_bttf(m,8599862+1));
+  fail_unless(mote_bttf(m,4399862+1));
   fail_unless(mote_knock(m,knock));
   fail_unless(!knock->tx);
   LOG("next is %lld",knock->start);
