@@ -74,7 +74,7 @@ int main(int argc, char **argv)
   fail_unless(mote_knock(m,knock));
   fail_unless(!knock->tx);
   LOG("next is %lld",knock->start);
-  fail_unless(knock->start == 20170206);
+  fail_unless(knock->start == 11570343);
 
   mote_reset(m);
   memset(m->nonce,2,8); // nonce is random, force stable for fixture testing
@@ -84,28 +84,26 @@ int main(int argc, char **argv)
   fail_unless(knock->mote == m);
   LOG("tx %d start %lld stop %lld chan %d at %lld",knock->tx,knock->start,knock->stop,knock->chan,m->at);
   fail_unless(knock->tx);
-  fail_unless(knock->start == 2779758);
-  fail_unless(knock->stop == 2779758+1000);
+  fail_unless(knock->start == 2779756);
+  fail_unless(knock->stop == 2779756+1000);
   fail_unless(knock->chan == 30);
-  fail_unless(m->at == 2779758);
-  knock->actual = knock->start;
+  fail_unless(m->at == 2779756);
+  knock->actual = 1;
   fail_unless(tmesh_knocked(netA,knock));
-  fail_unless(m->at == knock->start);
   
   uint8_t nonce[8];
   fail_unless(mote_wait(m,4242424242,1,NULL));
   LOG("seek %s",util_hex(m->nwait,8,hex));
   fail_unless(util_cmp(hex,"15b28afc066a9f8f") == 0);
   memcpy(nonce,m->nwait,8);
-  fail_unless(mote_wait(m,42424242,0,nonce));
+  fail_unless(mote_wait(m,4242424242,1,nonce));
   LOG("seek %s",util_hex(nonce,8,hex));
-  fail_unless(util_cmp(hex,"218e5955e2326f46") == 0);
-  struct knock_struct ktmp;
-  fail_unless(mote_knock(m,&ktmp));
+  fail_unless(util_cmp(hex,"15b28afc066a9f8f") == 0);
+  fail_unless(mote_bttf(m,4242424243));
   fail_unless(m->waiting == 0);
   fail_unless(memcmp(m->nonce,nonce,8) == 0);
   LOG("at is %lu",m->at);
-  fail_unless(m->at >= 46592337);
+  fail_unless(m->at >= 16019871);
 
   // public ping now
   m->at = 424294967; // force way future
@@ -115,8 +113,8 @@ int main(int argc, char **argv)
   fail_unless(knock->mote == m);
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
   fail_unless(knock->tx);
-  fail_unless(knock->start == 5223482);
-  fail_unless(knock->stop == 5223482+1000);
+  fail_unless(knock->start == 5223477);
+  fail_unless(knock->stop == 5223477+1000);
   fail_unless(knock->chan == 14);
   // pretend rx failed
   fail_unless(tmesh_knocked(netA,knock));
@@ -128,16 +126,15 @@ int main(int argc, char **argv)
   fail_unless(knock->mote == m);
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
   fail_unless(knock->tx);
-  fail_unless(knock->start == 439009220);
+  fail_unless(knock->start == 1530280);
   fail_unless(knock->chan == 14);
   // frame would be random ciphered, but we fixed it to test
   LOG("frame %s",util_hex(knock->frame,32+8,hex)); // just the stable part
   fail_unless(util_cmp(hex,"0731ffea6a27124b0731ffea6a27124b6ea8a74bc285295d4f4d667c4f30a5266b66abc8e1a45e9b") == 0);
   // let's preted it's an rx now
   knock->tx = 0;
-  knock->actual = knock->start; // fake rx good
+  knock->actual = 1; // fake rx good
   fail_unless(tmesh_knocked(netA,knock));
-  fail_unless(m->at == knock->actual);
   // frame is deciphered
   LOG("frame %s",util_hex(knock->frame,32+8,hex)); // just the stable part
   fail_unless(memcmp(knock->frame,m->nonce,8) == 0);
@@ -223,17 +220,17 @@ int main(int argc, char **argv)
   fail_unless(tmesh_knock(netA,knAB,NULL));
   fail_unless(knAB->mote == mAB);
   LOG("tx is %d chan %d at %lu nonce %s",knAB->tx,knAB->chan,knAB->start,util_hex(mAB->nonce,8,NULL));
-  fail_unless(knAB->tx == 1);
+  fail_unless(knAB->tx == 0);
   fail_unless(tmesh_bttf(netB,1));
   fail_unless(tmesh_knock(netB,knBA,NULL));
   fail_unless(knBA->mote == mBA);
   LOG("tx is %d chan %d at %lu nonce %s",knBA->tx,knBA->chan,knAB->start,util_hex(mBA->nonce,8,NULL));
-  fail_unless(knBA->tx == 0);
+  fail_unless(knBA->tx == 1);
   
   // dance
   memcpy(knBA->frame,knAB->frame,64);
-  knAB->actual = knAB->start;
-  knBA->actual = knAB->start;
+  knAB->actual = 1;
+  knBA->actual = 1;
   fail_unless(tmesh_knocked(netB,knBA)); // the rx
   // in sync!
   fail_unless(!mBA->pong);
