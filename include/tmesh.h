@@ -121,8 +121,11 @@ mote_t mote_free(mote_t m);
 // resets secret/nonce and to ping mode
 mote_t mote_reset(mote_t m);
 
+// advance window, set relative time
+mote_t mote_bttf(mote_t m, uint32_t us);
+
 // next knock init
-mote_t mote_knock(mote_t m, knock_t k, uint32_t us);
+mote_t mote_knock(mote_t m, knock_t k);
 
 // initiates handshake over this synchronized mote
 mote_t mote_synced(mote_t m);

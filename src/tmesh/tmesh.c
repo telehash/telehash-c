@@ -292,7 +292,27 @@ radio_t radio_device(radio_t device)
 }
 
 
-tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
+// advance all windows forward this many microseconds, all knocks are relative to this call
+tmesh_t tmesh_bttf(tmesh_t tm, uint32_t us)
+{
+  cmnty_t com;
+  mote_t mote;
+  if(!tm || !k) return LOG("bad args");
+
+  for(com=tm->coms;com;com=com->next)
+  {
+    // check every mote
+    for(mote=com->motes;mote;mote=mote->next)
+    {
+//      mote_knock(mote,&ktmp,from);
+    }
+  }
+  
+  return tm;
+}
+
+// fills in next knock for this device only
+tmesh_t tmesh_knock(tmesh_t tm, knock_t k, radio_t device)
 {
   cmnty_t com;
   mote_t mote;
@@ -307,7 +327,6 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device)
     // check every mote
     for(mote=com->motes;mote;mote=mote->next)
     {
-      if(!mote_knock(mote,&ktmp,from)) continue;
       // TODO, optimize skipping tx knocks if nothing to send
       // use the new one if preferred
       if(!k->mote || tm->sort(k,&ktmp) != k)
@@ -591,16 +610,12 @@ uint64_t mote_seek(mote_t m, uint32_t after, uint8_t tx, uint8_t *nonce)
   return at;
 }
 
-// when is next knock
-mote_t mote_knock(mote_t m, knock_t k, uint64_t from)
+// advance window, set relative time
+mote_t mote_bttf(mote_t m, uint32_t us)
 {
-  if(!m || !k || !from) return LOG("bad args");
-  if(!m->at) return NULL;//LOG("paused mote %s",m->link?m->link->id->hashname:"public beacon");
+  if(!m || !us) return LOG("bad args");
 
-  k->mote = m;
-  k->start = k->stop = 0;
-
-  while(m->at < from || m->waiting)
+  while(us > m->next)
   {
     // rotate nonce by ciphering it
     chacha20(m->secret,m->nonce,m->nonce,8);
@@ -610,6 +625,18 @@ mote_t mote_knock(mote_t m, knock_t k, uint64_t from)
     // waiting failsafe
     if(m->at > (from + 1000*1000*100)) return LOG("waiting nonce not found by %d %d",(m->at/1000),(from/1000));
   }
+
+  return m;
+}
+
+// next knock init
+mote_t mote_knock(mote_t m, knock_t k)
+{
+  if(!m || !k) return LOG("bad args");
+  if(!m->at) return NULL;//LOG("paused mote %s",m->link?m->link->id->hashname:"public beacon");
+
+  k->mote = m;
+  k->start = k->stop = 0;
 
   // set current non-ping channel
   if(!m->ping)
