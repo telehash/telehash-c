@@ -184,48 +184,44 @@ int main(int argc, char **argv)
   
   knock_t knAB;
   knAB = malloc(sizeof(struct knock_struct));
-  mAB->at = 1;
   memset(mAB->nonce,12,8);
-  fail_unless(tmesh_bttf(netA,3));
+  fail_unless(tmesh_bttf(netA,1));
   fail_unless(tmesh_knock(netA,knAB,NULL));
   fail_unless(knAB->mote == mAB);
-  LOG("tx is %d chan %d at %lu nonce %s",knAB->tx,knAB->chan,knAB->start,util_hex(mAB->nonce,8,NULL));
+  LOG("AB tx is %d chan %d at %lu nonce %s",knAB->tx,knAB->chan,knAB->start,util_hex(mAB->nonce,8,NULL));
   fail_unless(knAB->chan == 35);
   fail_unless(knAB->tx == 0);
 
   knock_t knBA;
   knBA = malloc(sizeof(struct knock_struct));
-  mBA->at = 1;
   memset(mBA->nonce,0,8);
-  fail_unless(tmesh_bttf(netB,3));
+  fail_unless(tmesh_bttf(netB,1));
   fail_unless(tmesh_knock(netB,knBA,NULL));
   fail_unless(knBA->mote == mBA);
-  LOG("tx is %d chan %d at %lu",knBA->tx,knBA->chan,knAB->start);
+  LOG("BA tx is %d chan %d at %lu",knBA->tx,knBA->chan,knAB->start);
   fail_unless(knBA->chan == 35);
   fail_unless(knBA->tx == 1);
 
   // fake reception, with fake cake
   memcpy(knAB->frame,knBA->frame,64);
-  knAB->actual = knBA->start;
-  knBA->actual = knBA->start;
+  knAB->actual = 1;
+  knBA->actual = 1;
   fail_unless(tmesh_knocked(netA,knAB)); // the rx
   fail_unless(mAB->pong);
   fail_unless(mAB->waiting);
   fail_unless(memcmp(mAB->nonce,mBA->nonce,8) == 0);
   fail_unless(memcmp(mAB->nwait,mBA->nwait,8) == 0);
   fail_unless(tmesh_knocked(netB,knBA)); // the tx
-  
+
   // back to the future
-  fail_unless(tmesh_bttf(netA,1));
-  fail_unless(tmesh_knock(netA,knAB,NULL));
+  while(!tmesh_knock(netA,knAB,NULL)) fail_unless(tmesh_bttf(netA,mAB->at+1));
   fail_unless(knAB->mote == mAB);
-  LOG("tx is %d chan %d at %lu nonce %s",knAB->tx,knAB->chan,knAB->start,util_hex(mAB->nonce,8,NULL));
-  fail_unless(knAB->tx == 0);
-  fail_unless(tmesh_bttf(netB,1));
-  fail_unless(tmesh_knock(netB,knBA,NULL));
+  LOG("AB tx is %d chan %d at %lu nonce %s",knAB->tx,knAB->chan,knAB->start,util_hex(mAB->nonce,8,NULL));
+  fail_unless(knAB->tx == 1);
+  while(!tmesh_knock(netB,knBA,NULL)) fail_unless(tmesh_bttf(netB,mBA->at+1));
   fail_unless(knBA->mote == mBA);
-  LOG("tx is %d chan %d at %lu nonce %s",knBA->tx,knBA->chan,knAB->start,util_hex(mBA->nonce,8,NULL));
-  fail_unless(knBA->tx == 1);
+  LOG("BA tx is %d chan %d at %lu nonce %s",knBA->tx,knBA->chan,knAB->start,util_hex(mBA->nonce,8,NULL));
+  fail_unless(knBA->tx == 0);
   
   // dance
   memcpy(knBA->frame,knAB->frame,64);

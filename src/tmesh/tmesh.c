@@ -634,7 +634,11 @@ mote_t mote_bttf(mote_t m, uint32_t us)
     chacha20(m->secret,m->nonce,m->nonce,8);
     m->at = mote_next(m->nonce,m->z);
     // clear wait if matched
-    if(m->waiting && memcmp(m->nwait,m->nonce,8) == 0) m->waiting = 0;
+    if(m->waiting && memcmp(m->nwait,m->nonce,8) == 0)
+    {
+      LOG("clearing mote wait");
+      m->waiting = 0;
+    }
   }
   
   // move relative forward
@@ -647,7 +651,7 @@ mote_t mote_bttf(mote_t m, uint32_t us)
 mote_t mote_knock(mote_t m, knock_t k)
 {
   if(!m || !k) return LOG("bad args");
-  if(!m->at) return NULL;//LOG("paused mote %s",m->link?m->link->id->hashname:"public beacon");
+  if(m->waiting) return LOG("mote waiting: %s",m->link?m->link->id->hashname:"public beacon");
 
   k->mote = m;
   k->start = k->stop = 0;
