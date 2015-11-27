@@ -399,7 +399,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   if(k->tx)
   {
     // use actual tx time to auto-correct for drift
-    k->mote->at = k->actual;
+    k->mote->at += k->actual;
 
     k->mote->sent++;
     LOG("tx done, total %d",k->mote->sent);
@@ -427,8 +427,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     uint8_t pong = (memcmp(k->mote->nonce,k->frame,8) == 0) ? 1 : 0;
 
     // always sync wait to the bundled nonce for the next pong
-    if(k->mote->at != k->actual) LOG("adjusting time sync by %ld",k->actual-k->mote->at);
-    k->mote->at = k->actual;
+    k->mote->at += k->actual;
     memcpy(k->mote->nonce,k->frame,8);
     mote_wait(k->mote,k->mote->com->medium->min+k->mote->com->medium->max,1,k->frame+8);
     k->mote->pong = 1;
@@ -478,7 +477,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   // TODO check and validate frame[0] now
 
   // self-correcting sync based on exact rx time
-  k->mote->at = k->actual;
+  k->mote->at += k->actual;
 
   // received stats only after minimal validation
   k->mote->received++;

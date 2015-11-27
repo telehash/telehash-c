@@ -78,7 +78,8 @@ tmesh_t tmesh_loop(tmesh_t tm);
 struct knock_struct
 {
   mote_t mote;
-  uint32_t start, stop, actual; // microsecond exact start/stop time
+  uint32_t start, stop;
+  int16_t actual; // microsecond drift from start
   uint8_t frame[64];
   uint8_t chan; // current channel (< med->chans)
   uint8_t tx:1; // tells radio to tx or rx
