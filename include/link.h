@@ -13,7 +13,7 @@ struct link_struct
   lob_t key;
   lob_t handshakes;
   uint8_t csid;
-  xht_t index, channels;
+  chan_t chans;
   char token[33];
   
   // these are for internal link management only

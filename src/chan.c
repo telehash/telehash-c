@@ -359,10 +359,10 @@ uint32_t chan_size(chan_t c, uint32_t max)
 // set up internal handler for all incoming packets on this channel
 chan_t chan_handle(chan_t c, void (*handle)(chan_t c, void *arg), void *arg)
 {
-  if(!link || !c) return LOG("bad args");
+  if(!c) return LOG("bad args");
 
   c->handle = handle;
   c->arg = arg;
 
-  return link;
+  return c;
 }

@@ -49,11 +49,11 @@ void link_free(link_t link)
     free(seen);
   }
 
-  // go through link->chan
-  chan_t c, next;
-  for(c = link->chan;c;c = next)
+  // go through link->chans
+  chan_t c, cnext;
+  for(c = link->chans;c;c = cnext)
   {
-    next = chan_next(c);
+    cnext = chan_next(c);
     chan_free(c);
   }
 
@@ -83,6 +83,15 @@ link_t link_get(mesh_t mesh, char *hashname)
   }
 
   return link;
+}
+
+// get existing channel id if any
+chan_t link_chan_get(link_t link, uint32_t id)
+{
+  chan_t c;
+  if(!link || !id) return NULL;
+  for(c = link->chans;c;c = chan_next(c)) if(chan_id(c) == id) return c;
+  return NULL;
 }
 
 // get link info json
@@ -467,16 +476,6 @@ lob_t link_resync(link_t link)
   return link_sync(link);
 }
 
-// get existing channel id if any
-chan_t link_chan_get(link_t link, uint32_t id)
-{
-  chan_t c;
-  if(!link || !id) return NULL;
-  for(c = link->chans;c;c = chan_next(c)) if(chan_id(c) == id) return c;
-  return NULL;
-}
-
-
 // create/track a new channel for this open
 chan_t link_chan(link_t link, lob_t open)
 {
@@ -489,9 +488,9 @@ chan_t link_chan(link_t link, lob_t open)
   if(!c) return LOG("invalid open %s",lob_json(open));
   LOG("new outgoing channel %d open: %s",chan_id(c), lob_get(open,"type"));
 
-  chan->link = link;
-  chan->next = link->chans;
-  link->chans = chan;
+  c->link = link;
+  c->next = link->chans;
+  link->chans = c;
 
   return c;
 }
