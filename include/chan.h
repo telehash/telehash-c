@@ -10,10 +10,10 @@ enum chan_states { CHAN_ENDED, CHAN_OPENING, CHAN_OPEN };
 typedef struct chan_struct
 {
   link_t link; // so channels can be first-class
+  chan_t next; // links keep lists
   uint32_t id; // wire id (not unique)
   char *type;
   lob_t open; // cached for convenience
-  enum chan_states state;
   uint32_t capacity, max; // totals for windowing
 
   // timer stuff
@@ -27,7 +27,9 @@ typedef struct chan_struct
   
   // direct handler
   void *arg;
-  void (*handle)(link_t link, chan_t c, void *arg);
+  void (*handle)(chan_t c, void *arg);
+
+  enum chan_states state;
 } *chan_t;
 
 // caller must manage lists of channels per e3x_exchange based on cid
@@ -51,9 +53,13 @@ lob_t chan_packet(chan_t c);  // creates a sequenced packet w/ all necessary hea
 uint8_t chan_send(chan_t c, lob_t inner); // adds to sending queue
 lob_t chan_sending(chan_t c, uint32_t now); // must be called after every send or receive, pass pkt to e3x_exchange_encrypt before sending
 
-// convenience functions
-uint32_t chan_id(chan_t c); // numeric of the open->c id
-lob_t chan_open(chan_t c); // returns the open packet (always cached)
+// set up internal handler for all incoming packets on this channel
+chan_t chan_handle(chan_t c, void (*handle)(chan_t c, void *arg), void *arg);
+
+// convenience functions, accessors
+chan_t chan_next(chan_t c); // c->next
+uint32_t chan_id(chan_t c); // c->id
+lob_t chan_open(chan_t c); // c->open
 enum chan_states chan_state(chan_t c);
 
 

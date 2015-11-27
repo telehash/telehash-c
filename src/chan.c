@@ -43,6 +43,8 @@ void chan_free(chan_t c)
   // free any other queued packets
   lob_freeall(c->in);
   lob_freeall(c->out);
+  // TODO signal handler
+  // TODO remove from link->chans
   free(c);
 }
 
@@ -70,6 +72,12 @@ lob_t chan_open(chan_t c)
 {
   if(!c) return NULL;
   return c->open;
+}
+
+chan_t chan_next(chan_t c)
+{
+  if(!c) return NULL;
+  return c->next;
 }
 
 enum chan_states chan_state(chan_t c)
@@ -164,6 +172,8 @@ uint8_t chan_receive(chan_t c, lob_t inner, uint32_t now)
     }
 
   }
+
+  if(c->handle) c->handle(c, c->arg);
 
   return 0;
 }
@@ -344,4 +354,15 @@ uint32_t chan_size(chan_t c, uint32_t max)
   }
 
   return size;
+}
+
+// set up internal handler for all incoming packets on this channel
+chan_t chan_handle(chan_t c, void (*handle)(chan_t c, void *arg), void *arg)
+{
+  if(!link || !c) return LOG("bad args");
+
+  c->handle = handle;
+  c->arg = arg;
+
+  return link;
 }

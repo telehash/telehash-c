@@ -68,13 +68,10 @@ lob_t link_resync(link_t link);
 link_t link_up(link_t link);
 
 // create/track a new channel for this open
-chan_t link_channel(link_t link, lob_t open);
-
-// set up internal handler for all incoming packets on this channel
-link_t link_handle(link_t link, chan_t c3, void (*handle)(link_t link, chan_t c3, void *arg), void *arg);
+chan_t link_chan(link_t link, lob_t open);
 
 // encrypt and send any outgoing packets for this channel, send the inner if given
-link_t link_flush(link_t link, chan_t c3, lob_t inner);
+link_t link_flush(link_t link, chan_t c, lob_t inner);
 
 // encrypt and send this one packet on this pipe
 link_t link_direct(link_t link, lob_t inner, pipe_t pipe);
