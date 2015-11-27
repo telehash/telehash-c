@@ -50,6 +50,9 @@ struct cmnty_struct
 // join a new private/public community
 cmnty_t tmesh_join(tmesh_t tm, char *medium, char *name);
 
+// leave any community
+tmesh_t tmesh_leave(tmesh_t tm, cmnty_t c);
+
 // add a link known to be in this community to look for
 mote_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link);
 
@@ -75,19 +78,22 @@ tmesh_t tmesh_loop(tmesh_t tm);
 struct knock_struct
 {
   mote_t mote;
-  uint64_t start, stop, actual; // microsecond exact start/stop time
+  uint32_t start, stop;
+  int16_t actual; // microsecond drift from start
   uint8_t frame[64];
   uint8_t chan; // current channel (< med->chans)
   uint8_t tx:1; // tells radio to tx or rx
 };
 
-// fills in next knock based on from and only for this device
-tmesh_t tmesh_knock(tmesh_t tm, knock_t k, uint64_t from, radio_t device);
-tmesh_t tmesh_knocked(tmesh_t tm, knock_t k); // process done knock
+// advance all windows forward this many microseconds, all knocks are relative to this call
+tmesh_t tmesh_bttf(tmesh_t tm, uint32_t us);
 
+// fills in next knock for this device only
+tmesh_t tmesh_knock(tmesh_t tm, knock_t k, radio_t device);
 
-// 2^18
-#define EPOCH_WINDOW (uint64_t)262144
+// process done knock
+tmesh_t tmesh_knocked(tmesh_t tm, knock_t k);
+
 
 // mote state tracking
 struct mote_struct
@@ -97,14 +103,17 @@ struct mote_struct
   mote_t next; // for lists
   uint8_t secret[32];
   uint8_t nonce[8];
-  uint64_t at; // microsecond of last knock
+  uint8_t nwait[8]; // future nonce
+  uint8_t chan[2];
+  uint32_t at; // microseconds until next knock
   util_chunks_t chunks; // actual chunk encoding for r/w frame buffers
   uint16_t sent, received;
   uint8_t z;
   uint8_t order:1; // is hashname compare
   uint8_t ping:1; // is in ping mode
   uint8_t pong:1; // ready for pong
-  uint8_t tx:1; // is in tx or rx
+  uint8_t waiting:1; // nwait is set
+  uint8_t public:1; // is a special public beacon mote
 };
 
 mote_t mote_new(link_t link);
@@ -113,11 +122,17 @@ mote_t mote_free(mote_t m);
 // resets secret/nonce and to ping mode
 mote_t mote_reset(mote_t m);
 
-// next knock init
-mote_t mote_knock(mote_t m, knock_t k, uint64_t from);
+// advance window by relative time
+mote_t mote_bttf(mote_t m, uint32_t us);
 
-// initiates handshake over this mote
-mote_t mote_link(mote_t m);
+// next knock init
+mote_t mote_knock(mote_t m, knock_t k);
+
+// initiates handshake over this synchronized mote
+mote_t mote_synced(mote_t m);
+
+// find the first nonce that occurs after this future time of this type
+mote_t mote_wait(mote_t m, uint32_t after, uint8_t tx, uint8_t *set);
 
 // for tmesh sorting
 knock_t knock_sooner(knock_t a, knock_t b);
