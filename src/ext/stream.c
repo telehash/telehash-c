@@ -39,8 +39,8 @@ lob_t stream_on_open(link_t link, lob_t open)
   // create new channel, set it up, then receive this open
   chan = link_chan(link, open);
   chan_handle(chan,stream_chan_handler,NULL);
-  chan_receive(chan,open, util_sys_seconds());
-  stream_chan_handler(chan,NULL);
+  chan_receive(chan,open);
+  chan_process(chan, 0);
   return NULL;
 }
 

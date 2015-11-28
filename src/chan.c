@@ -35,17 +35,18 @@ chan_t chan_new(lob_t open)
   return c;
 }
 
-void chan_free(chan_t c)
+chan_t chan_free(chan_t c)
 {
-  if(!c) return;
+  if(!c) return NULL;
   // free cached packet
   lob_free(c->open);
   // free any other queued packets
   lob_freeall(c->in);
-  lob_freeall(c->out);
+  lob_freeall(c->sent);
   // TODO signal handler
   // TODO remove from link->chans
   free(c);
+  return NULL;
 }
 
 // return the numeric per-exchange id
@@ -88,45 +89,19 @@ enum chan_states chan_state(chan_t c)
 
 // incoming packets
 
-// usually sets/updates event timer, ret if accepted/valid into receiving queue
-uint8_t chan_receive(chan_t c, lob_t inner, uint32_t now)
+// process into receiving queue
+chan_t chan_receive(chan_t c, lob_t inner)
 {
   lob_t prev, miss;
   uint32_t ack;
 
-  if(!c) return 1;
-  
-  // do timeout checks
-  if(now)
-  {
-    if(c->timeout)
-    {
-      // trigger error
-      if(now > c->timeout)
-      {
-        c->timeout = 0;
-        // even if there was a packet, it's invalid now
-        lob_free(inner);
-        inner = lob_new();
-        lob_set_uint(inner,"c",c->id);
-        lob_set(inner, "err", "timeout");
-      }else if(c->trecv){
-        // kick forward when we have a time difference
-        c->timeout += (now - c->trecv);
-      }
-    }
-    c->trecv = now;
-  }
-
-  // now we need a packet
-  if(!inner) return 1;
+  if(!c || !inner) return LOG("bad args");
   
   // no reliability, just append and done
   if(!c->seq)
   {
     c->in = lob_push(c->in, inner);
-    if(c->handle) c->handle(c, c->arg);
-    return 0;
+    return c;
   }
 
   // reliability
@@ -138,7 +113,8 @@ uint8_t chan_receive(chan_t c, lob_t inner, uint32_t now)
     if(inner->id <= c->acked)
     {
       LOG("dropping old seq %d",inner->id);
-      return 1;
+      lob_free(inner);
+      return NULL;
     }
 
     // insert it sorted
@@ -148,21 +124,21 @@ uint8_t chan_receive(chan_t c, lob_t inner, uint32_t now)
     {
       LOG("dropping dup seq %d",inner->id);
       lob_free(inner);
-      return 1;
+      return NULL;
     }
     c->in = lob_insert(c->in, prev, inner);
 //    LOG("inserted seq %d",c->in?c->in->id:-1);
   }
 
-  // remove any from outgoing cache that have been ack'd
+  // remove any from sent cache that have been ack'd
   if((ack = lob_get_uint(inner, "ack")))
   {
-    prev = c->out;
+    prev = c->sent;
     while(prev && prev->id <= ack)
     {
-      c->out = lob_splice(c->out, prev);
+      c->sent = lob_splice(c->sent, prev);
       lob_free(prev); // TODO, notify app this packet was ack'd
-      prev = c->out;
+      prev = c->sent;
     }
 
     // process array, update list of packets that are missed or not
@@ -174,16 +150,15 @@ uint8_t chan_receive(chan_t c, lob_t inner, uint32_t now)
 
   }
 
-  if(c->handle) c->handle(c, c->arg);
-
-  return 0;
+  return c;
 }
 
 // false to force start timers (any new handshake), true to cancel and resend last packet (after any e3x_sync)
-void chan_sync(chan_t c, uint8_t sync)
+chan_t chan_sync(chan_t c, uint8_t sync)
 {
-  if(!c) return;
+  if(!c) return NULL;
   LOG("%d sync %d TODO",c->id,sync);
+  return c;
 }
 
 // get next avail packet in order, null if nothing
@@ -286,32 +261,50 @@ lob_t chan_packet(chan_t c)
 }
 
 // adds to sending queue, expects valid packet
-uint8_t chan_send(chan_t c, lob_t inner)
+chan_t chan_send(chan_t c, lob_t inner)
 {
-  if(!c || !inner) return 1;
+  if(!c || !inner) return LOG("bad args");
   
   LOG("channel send %d %s",c->id,lob_json(inner));
-  c->out = lob_push(c->out, inner);
+  link_send(c->link, e3x_exchange_send(c->link->x, inner));
 
-  return 0;
+  // if it's a content packet and reliable, add to sent list (push is dup safe since inner may be on it already)
+  if(c->seq && inner->id) c->sent = lob_push(c->sent, inner);
+  else lob_free(inner);
+
+  return c;
 }
 
-// must be called after every send or receive, pass pkt to e3x_encrypt before sending
-lob_t chan_sending(chan_t c, uint32_t now)
+// must be called after every send or receive, processes resends/timeouts, fires handlers
+chan_t chan_process(chan_t c, uint32_t now)
 {
   lob_t ret;
   if(!c) return NULL;
-  
-  // packets waiting
-  if(c->out)
+
+  // do timeout checks
+  if(now)
   {
-    ret = lob_shift(c->out);
-    c->out = ret->next;
-    // if it's a content packet and reliable, add to sent list
-    if(c->seq && ret->id) c->sent = lob_push(c->sent, lob_copy(ret));
-    return ret;
+    if(c->timeout)
+    {
+      // trigger error
+      if(now > c->timeout)
+      {
+        c->timeout = 0;
+        lob_t err = lob_new();
+        lob_set_uint(err,"c",c->id);
+        lob_set(err, "err", "timeout");
+        c->in = lob_push(c->in, err);
+      }else if(c->trecv){
+        // kick forward when we have a time difference
+        c->timeout += (now - c->trecv);
+      }
+    }
+    c->trecv = now;
   }
   
+  // fire receiving handlers
+  if(c->in && c->handle) c->handle(c, c->arg);
+
   // check sent list for any flagged to resend
   for(ret = c->sent; ret; ret = ret->next)
   {
@@ -319,13 +312,15 @@ lob_t chan_sending(chan_t c, uint32_t now)
     if(ret->id == now) continue;
     // max once per second throttle resend
     ret->id = now;
-    return ret;
+    chan_send(c,ret);
   }
   
   LOG("sending ack %d acked %d",c->ack,c->acked);
 
   // if we need to generate an ack/miss yet, do that
-  if(c->ack != c->acked) return chan_oob(c);
+  if(c->ack != c->acked) chan_send(c,chan_oob(c));
+  
+  // TODO if channel is now ended, free it
   
   return NULL;
 }
@@ -347,7 +342,7 @@ uint32_t chan_size(chan_t c, uint32_t max)
     size += lob_len(cur);
     cur = cur->next;
   }
-  cur = c->out;
+  cur = c->sent;
   while(cur)
   {
     size += lob_len(cur);

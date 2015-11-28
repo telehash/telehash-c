@@ -54,7 +54,7 @@ link_t path_ping(link_t link, void (*pong)(link_t link, lob_t status, void *arg)
   // create new channel, set it up, then receive this open
   chan = link_chan(link, open);
   chan_handle(chan, path_ping_handler, ping);
-  link_flush(link, chan, open);
+  chan_send(chan, open);
   return link;
 }
 

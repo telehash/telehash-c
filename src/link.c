@@ -348,10 +348,13 @@ link_t link_receive(link_t link, lob_t inner, pipe_t pipe)
   if((c = link_chan_get(link, lob_get_int(inner,"c"))))
   {
     LOG("\t<-- %s",lob_json(inner));
-    if(pipe) link_pipe(link,pipe); // we trust the pipe at this point
-    chan_receive(c, inner, util_sys_seconds());
-    // check if there's any packets to be sent back
-    return link_flush(link, c, NULL);
+    // we trust the pipe at this point
+    if(pipe) link_pipe(link,pipe);
+    // consume inner
+    chan_receive(c, inner);
+    // process any changes
+    chan_process(c, 0);
+    return link;
   }
 
   // if it's an open, validate and fire event
@@ -495,25 +498,6 @@ chan_t link_chan(link_t link, lob_t open)
   return c;
 }
 
-// process any outgoing packets for this channel, optionally send given packet too
-link_t link_flush(link_t link, chan_t c, lob_t inner)
-{
-  if(!link || !c) return LOG("bad args");
-  
-  if(inner) chan_send(c, inner);
-
-  while((inner = chan_sending(c, util_sys_seconds())))
-  {
-    LOG("\t--> %s",lob_json(inner));
-    link_send(link, e3x_exchange_send(link->x, inner));
-    lob_free(inner);
-  }
-  
-  // TODO if channel is now ended, free it
-
-  return link;
-}
-
 // encrypt and send this one packet on this pipe
 link_t link_direct(link_t link, lob_t inner, pipe_t pipe)
 {
@@ -530,10 +514,10 @@ link_t link_direct(link_t link, lob_t inner, pipe_t pipe)
 }
 
 // process any channel timeouts based on the current/given time
-link_t link_timeouts(link_t link, uint32_t now)
+link_t link_process(link_t link, uint32_t now)
 {
   chan_t c;
   if(!link || !now) return LOG("bad args");
-  for(c = link->chans;c;c = chan_next(c)) chan_receive(c, NULL, now);
+  for(c = link->chans;c;c = chan_next(c)) chan_process(c, now);
   return link;
 }
