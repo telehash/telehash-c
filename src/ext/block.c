@@ -4,7 +4,6 @@
 // individual pipe local info
 typedef struct ext_block_struct
 {
-  link_t link;
   chan_t chan;
   uint32_t min;
   lob_t cache;
@@ -12,11 +11,11 @@ typedef struct ext_block_struct
 } *ext_block_t;
 
 // handle incoming packets for the built-in block channel
-void block_chan_handler(link_t link, chan_t chan, void *arg)
+void block_chan_handler(chan_t chan, void *arg)
 {
   lob_t packet, last;
   ext_block_t block = arg;
-  if(!link) return;
+  if(!chan) return;
 
   // just append all packets, processed during block_receive()
   last = block->cache;
@@ -36,11 +35,15 @@ void block_chan_handler(link_t link, chan_t chan, void *arg)
 // new incoming block channel, set up handler
 lob_t block_on_open(link_t link, lob_t open)
 {
-  ext_block_t block;
+  ext_block_t block, blocks, b;
   if(!link) return open;
   if(lob_get_cmp(open,"type","block")) return open;
 
-  if((block = xht_get(link->index, "block")))
+  // find existing for this link
+  blocks = xht_get(link->mesh->index, "blocks");
+  for(b=blocks,block=NULL;b;b=b->next) if(b->chan->link == link) block = b;
+
+  if(block)
   {
     LOG("note: new incoming block channel replacing existing one");
     // TODO delete old channel
@@ -50,15 +53,14 @@ lob_t block_on_open(link_t link, lob_t open)
     // create new block
     if(!(block = malloc(sizeof (struct ext_block_struct)))) return LOG("OOM");
     memset(block,0,sizeof (struct ext_block_struct));
-    block->link = link;
     // add to list of all blocks
-    block->next = xht_get(link->mesh->index, "blocks");
+    block->next = blocks;
     xht_set(link->mesh->index, "blocks", block);
   }
 
   // create new channel for this block handler
-  block->chan = link_channel(link, open);
-  link_handle(link,block->chan,block_chan_handler,block);
+  block->chan = link_chan(link, open);
+  chan_handle(block->chan,block_chan_handler,block);
 
   return NULL;
 }
@@ -78,15 +80,15 @@ lob_t ext_block_receive(mesh_t mesh)
 }
 
 // creates/reuses a single default block channel on the link
-link_t ext_block_send(link_t link, lob_t block)
+link_t ext_block_send(link_t link, lob_t data)
 {
-  chan_t chan;
-  if(!link || !block) return LOG("bad args");
+  ext_block_t block = NULL;
+  if(!link || !data) return LOG("bad args");
   
-  if(!(chan = xht_get(link->index,"block")))
+  // TODO get existing block channel
+  if(!block)
   {
     // TODO create outgoing channel
-    xht_set(link->index,"block",chan);
   }
   
   // break block into packets and send

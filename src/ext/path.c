@@ -10,11 +10,11 @@ typedef struct ping_struct
 } *ping_t;
 
 // handle incoming packets for the built-in stream channel
-void path_ping_handler(link_t link, chan_t chan, void *arg)
+void path_ping_handler(chan_t chan, void *arg)
 {
   lob_t packet;
   ping_t ping = (ping_t)arg;
-  if(!link || !ping) return;
+  if(!chan || !ping) return;
 
   while((packet = chan_receiving(chan)))
   {
@@ -22,7 +22,7 @@ void path_ping_handler(link_t link, chan_t chan, void *arg)
     if(ping->pong)
     {
       lob_set_uint(packet,"rtt",util_since(ping->at));
-      ping->pong(link, packet, ping->arg);
+      ping->pong(chan->link, packet, ping->arg);
       ping->pong = NULL;
     }
     // TODO process incoming paths for public IPs
@@ -52,8 +52,8 @@ link_t path_ping(link_t link, void (*pong)(link_t link, lob_t status, void *arg)
   // paths
 
   // create new channel, set it up, then receive this open
-  chan = link_channel(link, open);
-  link_handle(link, chan, path_ping_handler, ping);
+  chan = link_chan(link, open);
+  chan_handle(chan, path_ping_handler, ping);
   link_flush(link, chan, open);
   return link;
 }

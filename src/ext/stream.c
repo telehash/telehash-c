@@ -1,10 +1,10 @@
 #include "telehash.h"
 
 // handle incoming packets for the built-in stream channel
-void stream_chan_handler(link_t link, chan_t chan, void *arg)
+void stream_chan_handler(chan_t chan, void *arg)
 {
   lob_t status, open, packet;
-  if(!link) return;
+  if(!chan) return;
 
   if(!(open = chan_open(chan))) return; // paranoid
   while((packet = chan_receiving(chan)))
@@ -21,7 +21,7 @@ void stream_chan_handler(link_t link, chan_t chan, void *arg)
     lob_link(open,status);
 
     // send out link update/change signal
-    mesh_link(link->mesh, link);
+    mesh_link(chan->link->mesh, chan->link);
   }
 }
 
@@ -37,11 +37,10 @@ lob_t stream_on_open(link_t link, lob_t open)
   LOG("incoming stream channel open");
 
   // create new channel, set it up, then receive this open
-  chan = link_channel(link, open);
-  link_handle(link,chan,stream_chan_handler,NULL);
-//  xht_set(link->index,"link",chan);
+  chan = link_chan(link, open);
+  chan_handle(chan,stream_chan_handler,NULL);
   chan_receive(chan,open, util_sys_seconds());
-  stream_chan_handler(link,chan,NULL);
+  stream_chan_handler(chan,NULL);
   return NULL;
 }
 
