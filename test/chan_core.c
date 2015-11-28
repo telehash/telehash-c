@@ -28,7 +28,7 @@ int main(int argc, char **argv)
   
   // test timeout erroring
   fail_unless(chan_timeout(chan,1) == 1);
-  fail_unless(chan_receive(chan,NULL,2) == 0);
+  fail_unless(chan_process(chan,2));
   lob_t err = chan_receiving(chan);
   fail_unless(err);
   fail_unless(lob_get(err,"err"));
@@ -36,7 +36,7 @@ int main(int argc, char **argv)
   // receive packets
   lob_t incoming = lob_new();
   lob_set_int(incoming,"test",42);
-  fail_unless(chan_receive(chan,incoming,0) == 0);
+  fail_unless(chan_receive(chan,incoming));
   fail_unless(lob_get_int(chan_receiving(chan),"test") == 42);
   fail_unless(chan_receiving(chan) == NULL);
 
@@ -44,9 +44,7 @@ int main(int argc, char **argv)
   lob_t outgoing = chan_packet(chan);
   fail_unless(lob_get_int(outgoing,"c") == 1);
   lob_set_int(outgoing,"test",42);
-  fail_unless(chan_send(chan,outgoing) == 0);
-  fail_unless(lob_get_int(chan_sending(chan,0),"test") == 42);
-  fail_unless(chan_sending(chan,0) == NULL);
+  fail_unless(!chan_send(chan,outgoing)); // dropped, no link
 
   // create a reliable channel
   chan_free(chan);
@@ -55,15 +53,15 @@ int main(int argc, char **argv)
   chan = chan_new(open);
   fail_unless(chan);
   fail_unless(chan_state(chan) == CHAN_OPENING);
-  fail_unless(chan_sending(chan,0) == NULL);
+  fail_unless(chan_process(chan,0));
   
   // receive an out of order packet
   lob_t ooo = lob_new();
   lob_set_int(ooo,"seq",10);
-  fail_unless(chan_receive(chan, lob_copy(ooo),0) == 0);
-  fail_unless(chan_receive(chan, ooo,0) == 1); // dedup drop
+  fail_unless(chan_receive(chan, lob_copy(ooo)));
+  fail_unless(!chan_receive(chan, ooo)); // dedup drop
   fail_unless(chan_receiving(chan) == NULL); // nothing to receive yet
-  lob_t oob = chan_sending(chan,0); // should have triggered an ack/miss
+  lob_t oob = chan_oob(chan); // should have triggered an ack/miss
   printf("OOB %s\n",lob_json(oob));
   fail_unless(oob);
   fail_unless(lob_get_int(oob,"c") == 1);

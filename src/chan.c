@@ -266,6 +266,12 @@ chan_t chan_send(chan_t c, lob_t inner)
   if(!c || !inner) return LOG("bad args");
   
   LOG("channel send %d %s",c->id,lob_json(inner));
+  if(!c->link)
+  {
+    lob_free(inner);
+    return LOG("dropping packet, no link");
+  }
+
   link_send(c->link, e3x_exchange_send(c->link->x, inner));
 
   // if it's a content packet and reliable, add to sent list (push is dup safe since inner may be on it already)
@@ -322,7 +328,7 @@ chan_t chan_process(chan_t c, uint32_t now)
   
   // TODO if channel is now ended, free it
   
-  return NULL;
+  return c;
 }
 
 // size (in bytes) of buffered data in or out
