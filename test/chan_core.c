@@ -24,8 +24,6 @@ int main(int argc, char **argv)
   fail_unless(chan_state(chan) == CHAN_OPENING);
   fail_unless(chan_id(chan) == 1);
   fail_unless(chan_size(chan,0) == 0);
-  fail_unless(chan_uid(chan) && strlen(chan_uid(chan)) == 8);
-  fail_unless(chan_c(chan) && strlen(chan_c(chan)) == 1);
   fail_unless(util_cmp(lob_get(chan_open(chan),"type"),"test") == 0);
   
   // test timeout erroring

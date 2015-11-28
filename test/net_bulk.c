@@ -3,7 +3,7 @@
 #include "unit_test.h"
 
 int bulked = 0;
-void bulk_handler(link_t link, chan_t chan, void *arg)
+void bulk_handler(chan_t chan, void *arg)
 {
   lob_t packet;
 
@@ -24,8 +24,8 @@ lob_t bulk_on_open(link_t link, lob_t open)
   LOG("incoming bulk start");
 
   // create new channel, set it up, then receive this open
-  chan = link_channel(link, open);
-  link_handle(link,chan,bulk_handler,NULL);
+  chan = link_chan(link, open);
+  chan_handle(chan,bulk_handler,NULL);
   lob_t reply = lob_new();
   lob_set(reply,"c",lob_get(open,"c"));
   int ret = chan_receive(chan,open,0); // consumes the open

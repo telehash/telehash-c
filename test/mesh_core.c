@@ -36,7 +36,7 @@ int main(int argc, char **argv)
   lob_t open = lob_new();
   lob_set(open,"type","test");
   lob_set_int(open,"c",e3x_exchange_cid(link->x, NULL));
-  chan_t chan = link_channel(link, open);
+  chan_t chan = link_chan(link, open);
   fail_unless(chan);
   lob_free(open);
 

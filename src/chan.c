@@ -125,6 +125,7 @@ uint8_t chan_receive(chan_t c, lob_t inner, uint32_t now)
   if(!c->seq)
   {
     c->in = lob_push(c->in, inner);
+    if(c->handle) c->handle(c, c->arg);
     return 0;
   }
 
