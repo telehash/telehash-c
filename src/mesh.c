@@ -167,11 +167,11 @@ static void _walklinkto(xht_t h, const char *key, void *val, void *arg)
   link_t link = (link_t)val;
   uint32_t* pnow = (uint32_t*)arg;
   if(!hashname_valid(key)) return;
-  link_timeouts(link, *pnow);
+  link_process(link, *pnow);
 }
 
 // process any channel timeouts based on the current/given time
-mesh_t mesh_timeouts(mesh_t mesh, uint32_t now)
+mesh_t mesh_process(mesh_t mesh, uint32_t now)
 {
   if(!mesh || !now) return LOG("bad args");
   xht_walk(mesh->index, _walklinkto, &now);

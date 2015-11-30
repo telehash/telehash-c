@@ -13,7 +13,7 @@ struct link_struct
   lob_t key;
   lob_t handshakes;
   uint8_t csid;
-  xht_t index, channels;
+  chan_t chans;
   char token[33];
   
   // these are for internal link management only
@@ -68,18 +68,12 @@ lob_t link_resync(link_t link);
 link_t link_up(link_t link);
 
 // create/track a new channel for this open
-e3x_channel_t link_channel(link_t link, lob_t open);
-
-// set up internal handler for all incoming packets on this channel
-link_t link_handle(link_t link, e3x_channel_t c3, void (*handle)(link_t link, e3x_channel_t c3, void *arg), void *arg);
-
-// encrypt and send any outgoing packets for this channel, send the inner if given
-link_t link_flush(link_t link, e3x_channel_t c3, lob_t inner);
+chan_t link_chan(link_t link, lob_t open);
 
 // encrypt and send this one packet on this pipe
 link_t link_direct(link_t link, lob_t inner, pipe_t pipe);
 
 // process any channel timeouts based on the current/given time
-link_t link_timeouts(link_t link, uint32_t now);
+link_t link_process(link_t link, uint32_t now);
 
 #endif

@@ -4,7 +4,7 @@
 #include "telehash.h"
 #include "telehash.h"
 
-// internal structures to manage our link-local state about pipes and channels
+// internal structures to manage our link-local state about pipes
 
 // list of active pipes and state per link
 typedef struct seen_struct
@@ -13,14 +13,6 @@ typedef struct seen_struct
   uint32_t at;
   struct seen_struct *next;
 } *seen_t;
-
-// these sit in the xht index to wrap the e3x_channel and recipient handler
-typedef struct chan_struct
-{
-  e3x_channel_t c3;
-  void *arg;
-  void (*handle)(link_t link, e3x_channel_t c3, void *arg);
-} *chan_t;
 
 link_t link_new(mesh_t mesh, hashname_t id)
 {
@@ -40,20 +32,7 @@ link_t link_new(mesh_t mesh, hashname_t id)
   link->mesh = mesh;
   xht_set(mesh->index,id->hashname,link);
 
-  // to size larger, app can xht_free(); link->channels = xht_new(BIGGER) at start itself
-  link->channels = xht_new(5); // index of all channels
-  link->index = xht_new(5); // index for active channels and extensions
-
   return link;
-}
-
-e3x_channel_t link_channel_free(link_t link, e3x_channel_t chan);
-
-static void _walkchan(xht_t h, const char *key, void *val, void *arg)
-{
-  link_t link = (link_t)arg;
-  chan_t ch = (chan_t)val;
-  link_channel_free(link, ch->c3);
 }
 
 void link_free(link_t link)
@@ -70,10 +49,13 @@ void link_free(link_t link)
     free(seen);
   }
 
-  // go through link->channels
-  xht_walk(link->channels, _walkchan, link);
-  xht_free(link->channels);
-  xht_free(link->index);
+  // go through link->chans
+  chan_t c, cnext;
+  for(c = link->chans;c;c = cnext)
+  {
+    cnext = chan_next(c);
+    chan_free(c);
+  }
 
   hashname_free(link->id);
   if(link->x)
@@ -101,6 +83,15 @@ link_t link_get(mesh_t mesh, char *hashname)
   }
 
   return link;
+}
+
+// get existing channel id if any
+chan_t link_chan_get(link_t link, uint32_t id)
+{
+  chan_t c;
+  if(!link || !id) return NULL;
+  for(c = link->chans;c;c = chan_next(c)) if(chan_id(c) == id) return c;
+  return NULL;
 }
 
 // get link info json
@@ -349,24 +340,21 @@ link_t link_receive_handshake(link_t link, lob_t inner, pipe_t pipe)
 // process a decrypted channel packet
 link_t link_receive(link_t link, lob_t inner, pipe_t pipe)
 {
-  chan_t chan;
+  chan_t c;
 
   if(!link || !inner) return LOG("bad args");
 
   // see if existing channel and send there
-  if((chan = xht_get(link->index, lob_get(inner,"c"))))
+  if((c = link_chan_get(link, lob_get_int(inner,"c"))))
   {
     LOG("\t<-- %s",lob_json(inner));
-    if(e3x_channel_receive(chan->c3, inner, util_sys_seconds()))
-    {
-      LOG("channel receive error, dropping %s",lob_json(inner));
-      lob_free(inner);
-      return NULL;
-    }
-    if(pipe) link_pipe(link,pipe); // we trust the pipe at this point
-    if(chan->handle) chan->handle(link, chan->c3, chan->arg);
-    // check if there's any packets to be sent back
-    return link_flush(link, chan->c3, NULL);
+    // we trust the pipe at this point
+    if(pipe) link_pipe(link,pipe);
+    // consume inner
+    chan_receive(c, inner);
+    // process any changes
+    chan_process(c, 0);
+    return link;
   }
 
   // if it's an open, validate and fire event
@@ -491,78 +479,23 @@ lob_t link_resync(link_t link)
   return link_sync(link);
 }
 
-e3x_channel_t link_channel_free(link_t link, e3x_channel_t c3)
-{
-  chan_t chan;
-  if(!link || !c3) return LOG("bad args");
-  if(!(chan = xht_get(link->channels, e3x_channel_uid(c3)))) return LOG("channel link mismatch, leaking c3");
-  LOG("freeing channel %d %s",e3x_channel_uid(c3),e3x_channel_c(c3));
-  free(chan); // TODO signal to handler?
-  xht_set(link->channels, e3x_channel_uid(c3), NULL);
-  // if still in active index, TODO signal here?
-  if(xht_get(link->index, e3x_channel_c(c3)) == c3) xht_set(link->index, e3x_channel_c(c3), NULL);
-  e3x_channel_free(c3);
-  return NULL;
-}
-
 // create/track a new channel for this open
-e3x_channel_t link_channel(link_t link, lob_t open)
+chan_t link_chan(link_t link, lob_t open)
 {
-  chan_t chan;
-  e3x_channel_t c3;
+  chan_t c;
   if(!link || !open) return LOG("bad args");
 
   // add an outgoing cid if none set
   if(!lob_get_int(open,"c")) lob_set_uint(open,"c",e3x_exchange_cid(link->x, NULL));
-  c3 = e3x_channel_new(open);
-  if(!c3) return LOG("invalid open %s",lob_json(open));
-  LOG("new outgoing channel %d open: %s",e3x_channel_uid(c3), lob_get(open,"type"));
+  c = chan_new(open);
+  if(!c) return LOG("invalid open %s",lob_json(open));
+  LOG("new outgoing channel %d open: %s",chan_id(c), lob_get(open,"type"));
 
-  // add this channel to the link's channel index
-  if(!(chan = malloc(sizeof (struct chan_struct))))
-  {
-    e3x_channel_free(c3);
-    return LOG("OOM");
-  }
-  memset(chan,0,sizeof (struct chan_struct));
-  chan->c3 = c3;
-  xht_set(link->channels, e3x_channel_uid(c3), chan);
-  xht_set(link->index, e3x_channel_c(c3), chan);
+  c->link = link;
+  c->next = link->chans;
+  link->chans = c;
 
-  return c3;
-}
-
-// set up internal handler for all incoming packets on this channel
-link_t link_handle(link_t link, e3x_channel_t c3, void (*handle)(link_t link, e3x_channel_t c3, void *arg), void *arg)
-{
-  chan_t chan;
-  if(!link || !c3) return LOG("bad args");
-  chan = xht_get(link->channels, e3x_channel_uid(c3));
-  if(!chan) return LOG("unknown channel %s",e3x_channel_uid(c3));
-
-  chan->handle = handle;
-  chan->arg = arg;
-
-  return link;
-}
-
-// process any outgoing packets for this channel, optionally send given packet too
-link_t link_flush(link_t link, e3x_channel_t c3, lob_t inner)
-{
-  if(!link || !c3) return LOG("bad args");
-  
-  if(inner) e3x_channel_send(c3, inner);
-
-  while((inner = e3x_channel_sending(c3, util_sys_seconds())))
-  {
-    LOG("\t--> %s",lob_json(inner));
-    link_send(link, e3x_exchange_send(link->x, inner));
-    lob_free(inner);
-  }
-  
-  // TODO if channel is now ended, remove from link->index
-
-  return link;
+  return c;
 }
 
 // encrypt and send this one packet on this pipe
@@ -580,18 +513,11 @@ link_t link_direct(link_t link, lob_t inner, pipe_t pipe)
   return link;
 }
 
-static void _walkchanto(xht_t h, const char *key, void *val, void *arg)
-{
-  uint32_t* pnow = (uint32_t*)arg;
-  chan_t ch = (chan_t)val;
-  // triggers timeouts
-  e3x_channel_receive(ch->c3, NULL, *pnow);
-}
-
 // process any channel timeouts based on the current/given time
-link_t link_timeouts(link_t link, uint32_t now)
+link_t link_process(link_t link, uint32_t now)
 {
+  chan_t c;
   if(!link || !now) return LOG("bad args");
-  xht_walk(link->channels, _walkchanto, &now);
+  for(c = link->chans;c;c = chan_next(c)) chan_process(c, now);
   return link;
 }

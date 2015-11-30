@@ -4,8 +4,8 @@ CFLAGS+=-g -Wall -Wextra -Wno-unused-parameter -DDEBUG
 INCLUDE+=-Iinclude -Iinclude/lib -Iunix
 
 LIB = src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/lib/chacha.c src/lib/murmur.c
-E3X = src/e3x/e3x.c src/e3x/channel.c src/e3x/self.c src/e3x/exchange.c src/e3x/cipher.c
-MESH = src/mesh.c src/link.c src/pipe.c
+E3X = src/e3x/e3x.c src/e3x/self.c src/e3x/exchange.c src/e3x/cipher.c
+MESH = src/mesh.c src/link.c src/chan.c src/pipe.c
 EXT = src/ext/stream.c src/ext/block.c src/ext/peer.c src/ext/path.c
 NET = src/net/loopback.c src/net/udp4.c src/net/tcp4.c src/net/serial.c
 UTIL = src/util/util.c src/util/uri.c src/util/chunks.c src/unix/util.c src/unix/util_sys.c
@@ -59,7 +59,7 @@ deps:
 
 static: libtelehash
 	@cat $(LIB) $(E3X) $(MESH) $(EXT) $(UTIL) > telehash.c
-	@cat include/lob.h include/xht.h include/e3x_cipher.h include/e3x_self.h include/e3x_exchange.h include/e3x_channel.h include/hashname.h include/mesh.h include/link.h include/util_chunks.h include/*.h > telehash.h
+	@cat include/lob.h include/xht.h include/e3x_cipher.h include/e3x_self.h include/e3x_exchange.h include/hashname.h include/mesh.h include/link.h include/chan.h include/util_chunks.h include/*.h > telehash.h
 	@sed -i.bak "/#include \"/d" telehash.h
 	@rm -f telehash.h.bak
 
@@ -67,7 +67,7 @@ static-cs1a:
 	@echo "#include <telehash.h>" > telehash.c
 	@cat $(LIB) $(E3X) $(MESH) $(EXT) $(UTIL) src/e3x/cs1a/aes.c src/e3x/cs1a/hmac.c src/e3x/cs1a/aes128.c src/e3x/cs1a/cs1a.c src/e3x/cs1a/uECC.c src/e3x/cs1a/sha256.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c >> telehash.c
 	@sed -i '' "/#include \"/d" telehash.c
-	@cat include/lob.h include/xht.h include/e3x_cipher.h include/e3x_self.h include/e3x_exchange.h include/e3x_channel.h include/hashname.h include/mesh.h include/link.h include/util_chunks.h include/*.h > telehash.h
+	@cat include/lob.h include/xht.h include/e3x_cipher.h include/e3x_self.h include/e3x_exchange.h include/hashname.h include/mesh.h include/link.h include/chan.h include/util_chunks.h include/*.h > telehash.h
 	@sed -i.bak "/#include \"/d" telehash.h
 	@rm -f telehash.h.bak
 
@@ -75,7 +75,7 @@ static-tmesh:
 	@echo "#include <telehash.h>" > telehash.c
 	@cat $(LIB) $(E3X) $(MESH) $(EXT) $(UTIL) $(TMESH) >> telehash.c
 	@sed -i '' "/#include \"/d" telehash.c
-	@cat include/lob.h include/xht.h include/e3x_cipher.h include/e3x_self.h include/e3x_exchange.h include/e3x_channel.h include/hashname.h include/mesh.h include/link.h include/util_chunks.h include/*.h > telehash.h
+	@cat include/lob.h include/xht.h include/e3x_cipher.h include/e3x_self.h include/e3x_exchange.h include/hashname.h include/mesh.h include/link.h include/chan.h include/util_chunks.h include/*.h > telehash.h
 	@sed -i.bak "/#include \"/d" telehash.h
 	@rm -f telehash.h.bak
 

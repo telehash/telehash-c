@@ -4,12 +4,14 @@
 typedef struct mesh_struct *mesh_t;
 typedef struct link_struct *link_t;
 typedef struct pipe_struct *pipe_t;
+typedef struct chan_struct *chan_t;
 
 
 
 #include "e3x.h"
 #include "lib.h"
 #include "util.h"
+#include "chan.h"
 #include "pipe.h"
 #include "link.h"
 
@@ -65,7 +67,7 @@ uint8_t mesh_receive(mesh_t mesh, lob_t packet, pipe_t pipe);
 link_t mesh_receive_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe);
 
 // process any channel timeouts based on the current/given time
-mesh_t mesh_timeouts(mesh_t mesh, uint32_t now);
+mesh_t mesh_process(mesh_t mesh, uint32_t now);
 
 // callback when the mesh is free'd
 void mesh_on_free(mesh_t mesh, char *id, void (*free)(mesh_t mesh));

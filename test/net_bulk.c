@@ -3,20 +3,20 @@
 #include "unit_test.h"
 
 int bulked = 0;
-void bulk_handler(link_t link, e3x_channel_t chan, void *arg)
+void bulk_handler(chan_t chan, void *arg)
 {
   lob_t packet;
 
-  while((packet = e3x_channel_receiving(chan)))
+  while((packet = chan_receiving(chan)))
   {
-    e3x_channel_send(chan,e3x_channel_packet(chan));
+    chan_send(chan,chan_packet(chan));
     lob_free(packet);
     bulked++;
   }
   
 }
 
-e3x_channel_t chan = NULL;
+chan_t chan = NULL;
 lob_t bulk_on_open(link_t link, lob_t open)
 {
   if(lob_get_cmp(open,"type","bulk")) return open;
@@ -24,12 +24,12 @@ lob_t bulk_on_open(link_t link, lob_t open)
   LOG("incoming bulk start");
 
   // create new channel, set it up, then receive this open
-  chan = link_channel(link, open);
-  link_handle(link,chan,bulk_handler,NULL);
+  chan = link_chan(link, open);
+  chan_handle(chan,bulk_handler,NULL);
   lob_t reply = lob_new();
   lob_set(reply,"c",lob_get(open,"c"));
-  int ret = e3x_channel_receive(chan,open,0); // consumes the open
-  printf("Done setting up channel ret: %d\n", ret);
+  chan_receive(chan,open); // consumes the open
+  printf("Done setting up channel: %d\n", chan_size(chan,0));
 
   link_direct(link,reply,NULL);
 

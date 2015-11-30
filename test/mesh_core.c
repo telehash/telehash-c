@@ -36,7 +36,7 @@ int main(int argc, char **argv)
   lob_t open = lob_new();
   lob_set(open,"type","test");
   lob_set_int(open,"c",e3x_exchange_cid(link->x, NULL));
-  e3x_channel_t chan = link_channel(link, open);
+  chan_t chan = link_chan(link, open);
   fail_unless(chan);
   lob_free(open);
 
@@ -55,7 +55,7 @@ int main(int argc, char **argv)
   fail_unless(strlen(lob_json(mesh_json(mesh))) > 100);
   fail_unless(strlen(lob_json(lob_array(mesh_links(mesh)))) > 10);
 
-  fail_unless(mesh_timeouts(mesh, 1));
+  fail_unless(mesh_process(mesh, 1));
 
   link_free(link);
   mesh_free(mesh);

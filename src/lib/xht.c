@@ -14,6 +14,7 @@ typedef struct xhashname_struct
 struct xht_struct
 {
     uint32_t prime;
+    uint32_t iter;
     xhn zen;
 };
 
@@ -55,6 +56,7 @@ xht_t xht_new(unsigned int prime)
 
     xnew = (xht_t)malloc(sizeof(struct xht_struct));
     if(!xnew) return NULL;
+    memset(xnew,0,sizeof(struct xht_struct));
     xnew->prime = (uint32_t)prime;
     xnew->zen = (xhn)malloc(sizeof(struct xhashname_struct)*prime); /* array of xhn size of prime */
     if(!xnew->zen)
@@ -178,5 +180,33 @@ void xht_walk(xht_t h, xht_walker w, void *arg)
         for(n = &h->zen[i]; n != 0; n = n->next)
             if(n->key != 0 && n->val != 0)
                 (*w)(h, n->key, n->val, arg);
+}
+
+char *xht_iter(xht_t h, char *key)
+{
+  xhn n;
+  const char *ret;
+  if(!h) return NULL;
+
+  // reset/start
+  if(!key) h->iter = 0;
+
+  // step through each
+  for(ret = NULL;!ret && h->iter < h->prime; h->iter++)
+  {
+    // find given key in current iter
+    for(n = &h->zen[h->iter]; !ret && n; n = n->next)
+    {
+      // take the first one
+      if(!key) ret = n->key;
+      else if(n->key == key) key = NULL; // take the next one
+      
+    }
+    if(ret) break;
+    // return the next avail key
+    key = NULL;
+  }
+  
+  return (char*)ret;
 }
 

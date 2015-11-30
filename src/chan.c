@@ -4,15 +4,12 @@
 #include <inttypes.h>
 #include "telehash.h"
 
-// every new channel has a unique global id
-static uint32_t _uids = 0;
-
-// open must be e3x_channel_receive or e3x_channel_send next yet
-e3x_channel_t e3x_channel_new(lob_t open)
+// open must be chan_receive or chan_send next yet
+chan_t chan_new(lob_t open)
 {
   uint32_t id;
   char *type;
-  e3x_channel_t c;
+  chan_t c;
 
   if(!open) return LOG("open packet required");
   id = (uint32_t)lob_get_int(open,"c");
@@ -20,18 +17,13 @@ e3x_channel_t e3x_channel_new(lob_t open)
   type = lob_get(open,"type");
   if(!type) return LOG("missing channel type");
 
-  c = malloc(sizeof (struct e3x_channel_struct));
-  memset(c,0,sizeof (struct e3x_channel_struct));
-  c->state = OPENING;
+  c = malloc(sizeof (struct chan_struct));
+  memset(c,0,sizeof (struct chan_struct));
+  c->state = CHAN_OPENING;
   c->id = id;
-  sprintf(c->c,"%" PRIu32,id);
   c->open = lob_copy(open);
   c->type = lob_get(open,"type");
   c->capacity = 1024*1024; // 1MB total default
-
-  // generate a unique id in hex
-  _uids++;
-  util_hex((uint8_t*)&_uids,4,c->uid);
 
   // reliability
   if(lob_get(open,"seq"))
@@ -39,43 +31,33 @@ e3x_channel_t e3x_channel_new(lob_t open)
     c->seq = 1;
   }
 
-  LOG("new %s channel %s %d %s",c->seq?"reliable":"unreliable",c->uid,id,type);
+  LOG("new %s channel %d %s",c->seq?"reliable":"unreliable",id,type);
   return c;
 }
 
-void e3x_channel_free(e3x_channel_t c)
+chan_t chan_free(chan_t c)
 {
-  if(!c) return;
+  if(!c) return NULL;
   // free cached packet
   lob_free(c->open);
   // free any other queued packets
   lob_freeall(c->in);
-  lob_freeall(c->out);
+  lob_freeall(c->sent);
+  // TODO signal handler
+  // TODO remove from link->chans
   free(c);
-}
-
-// return its unique id in hex
-char *e3x_channel_uid(e3x_channel_t c)
-{
-  if(!c) return NULL;
-  return c->uid;
+  return NULL;
 }
 
 // return the numeric per-exchange id
-uint32_t e3x_channel_id(e3x_channel_t c)
+uint32_t chan_id(chan_t c)
 {
   if(!c) return 0;
   return c->id;
 }
 
-char *e3x_channel_c(e3x_channel_t c)
-{
-  if(!c) return NULL;
-  return c->c;
-}
-
 // this will set the default inactivity timeout using this event timer and our uid
-uint32_t e3x_channel_timeout(e3x_channel_t c, uint32_t at)
+uint32_t chan_timeout(chan_t c, uint32_t at)
 {
   if(!c) return 0;
 
@@ -87,58 +69,39 @@ uint32_t e3x_channel_timeout(e3x_channel_t c, uint32_t at)
 }
 
 // returns the open packet (always cached)
-lob_t e3x_channel_open(e3x_channel_t c)
+lob_t chan_open(chan_t c)
 {
   if(!c) return NULL;
   return c->open;
 }
 
-enum e3x_channel_states e3x_channel_state(e3x_channel_t c)
+chan_t chan_next(chan_t c)
 {
-  if(!c) return ENDED;
+  if(!c) return NULL;
+  return c->next;
+}
+
+enum chan_states chan_state(chan_t c)
+{
+  if(!c) return CHAN_ENDED;
   return c->state;
 }
 
 // incoming packets
 
-// usually sets/updates event timer, ret if accepted/valid into receiving queue
-uint8_t e3x_channel_receive(e3x_channel_t c, lob_t inner, uint32_t now)
+// process into receiving queue
+chan_t chan_receive(chan_t c, lob_t inner)
 {
   lob_t prev, miss;
   uint32_t ack;
 
-  if(!c) return 1;
-  
-  // do timeout checks
-  if(now)
-  {
-    if(c->timeout)
-    {
-      // trigger error
-      if(now > c->timeout)
-      {
-        c->timeout = 0;
-        // even if there was a packet, it's invalid now
-        lob_free(inner);
-        inner = lob_new();
-        lob_set_uint(inner,"c",c->id);
-        lob_set(inner, "err", "timeout");
-      }else if(c->trecv){
-        // kick forward when we have a time difference
-        c->timeout += (now - c->trecv);
-      }
-    }
-    c->trecv = now;
-  }
-
-  // now we need a packet
-  if(!inner) return 1;
+  if(!c || !inner) return LOG("bad args");
   
   // no reliability, just append and done
   if(!c->seq)
   {
     c->in = lob_push(c->in, inner);
-    return 0;
+    return c;
   }
 
   // reliability
@@ -150,7 +113,8 @@ uint8_t e3x_channel_receive(e3x_channel_t c, lob_t inner, uint32_t now)
     if(inner->id <= c->acked)
     {
       LOG("dropping old seq %d",inner->id);
-      return 1;
+      lob_free(inner);
+      return NULL;
     }
 
     // insert it sorted
@@ -160,21 +124,21 @@ uint8_t e3x_channel_receive(e3x_channel_t c, lob_t inner, uint32_t now)
     {
       LOG("dropping dup seq %d",inner->id);
       lob_free(inner);
-      return 1;
+      return NULL;
     }
     c->in = lob_insert(c->in, prev, inner);
 //    LOG("inserted seq %d",c->in?c->in->id:-1);
   }
 
-  // remove any from outgoing cache that have been ack'd
+  // remove any from sent cache that have been ack'd
   if((ack = lob_get_uint(inner, "ack")))
   {
-    prev = c->out;
+    prev = c->sent;
     while(prev && prev->id <= ack)
     {
-      c->out = lob_splice(c->out, prev);
+      c->sent = lob_splice(c->sent, prev);
       lob_free(prev); // TODO, notify app this packet was ack'd
-      prev = c->out;
+      prev = c->sent;
     }
 
     // process array, update list of packets that are missed or not
@@ -186,18 +150,19 @@ uint8_t e3x_channel_receive(e3x_channel_t c, lob_t inner, uint32_t now)
 
   }
 
-  return 0;
+  return c;
 }
 
 // false to force start timers (any new handshake), true to cancel and resend last packet (after any e3x_sync)
-void e3x_channel_sync(e3x_channel_t c, uint8_t sync)
+chan_t chan_sync(chan_t c, uint8_t sync)
 {
-  if(!c) return;
-  LOG("%s sync %d TODO",c->uid,sync);
+  if(!c) return NULL;
+  LOG("%d sync %d TODO",c->id,sync);
+  return c;
 }
 
 // get next avail packet in order, null if nothing
-lob_t e3x_channel_receiving(e3x_channel_t c)
+lob_t chan_receiving(chan_t c)
 {
   lob_t ret;
   if(!c || !c->in) return NULL;
@@ -219,7 +184,7 @@ lob_t e3x_channel_receiving(e3x_channel_t c)
 // outgoing packets
 
 // ack/miss only base packet
-lob_t e3x_channel_oob(e3x_channel_t c)
+lob_t chan_oob(chan_t c)
 {
   lob_t ret, cur;
   char *miss = NULL;
@@ -278,12 +243,12 @@ lob_t e3x_channel_oob(e3x_channel_t c)
 }
 
 // creates a packet w/ necessary json, best way to get valid packet for this channel
-lob_t e3x_channel_packet(e3x_channel_t c)
+lob_t chan_packet(chan_t c)
 {
   lob_t ret;
   if(!c) return NULL;
   
-  ret = e3x_channel_oob(c);
+  ret = chan_oob(c);
 
   // if reliable, add seq here too
   if(c->seq)
@@ -296,32 +261,56 @@ lob_t e3x_channel_packet(e3x_channel_t c)
 }
 
 // adds to sending queue, expects valid packet
-uint8_t e3x_channel_send(e3x_channel_t c, lob_t inner)
+chan_t chan_send(chan_t c, lob_t inner)
 {
-  if(!c || !inner) return 1;
+  if(!c || !inner) return LOG("bad args");
   
   LOG("channel send %d %s",c->id,lob_json(inner));
-  c->out = lob_push(c->out, inner);
+  if(!c->link)
+  {
+    lob_free(inner);
+    return LOG("dropping packet, no link");
+  }
 
-  return 0;
+  link_send(c->link, e3x_exchange_send(c->link->x, inner));
+
+  // if it's a content packet and reliable, add to sent list (push is dup safe since inner may be on it already)
+  if(c->seq && inner->id) c->sent = lob_push(c->sent, inner);
+  else lob_free(inner);
+
+  return c;
 }
 
-// must be called after every send or receive, pass pkt to e3x_encrypt before sending
-lob_t e3x_channel_sending(e3x_channel_t c, uint32_t now)
+// must be called after every send or receive, processes resends/timeouts, fires handlers
+chan_t chan_process(chan_t c, uint32_t now)
 {
   lob_t ret;
   if(!c) return NULL;
-  
-  // packets waiting
-  if(c->out)
+
+  // do timeout checks
+  if(now)
   {
-    ret = lob_shift(c->out);
-    c->out = ret->next;
-    // if it's a content packet and reliable, add to sent list
-    if(c->seq && ret->id) c->sent = lob_push(c->sent, lob_copy(ret));
-    return ret;
+    if(c->timeout)
+    {
+      // trigger error
+      if(now > c->timeout)
+      {
+        c->timeout = 0;
+        lob_t err = lob_new();
+        lob_set_uint(err,"c",c->id);
+        lob_set(err, "err", "timeout");
+        c->in = lob_push(c->in, err);
+      }else if(c->trecv){
+        // kick forward when we have a time difference
+        c->timeout += (now - c->trecv);
+      }
+    }
+    c->trecv = now;
   }
   
+  // fire receiving handlers
+  if(c->in && c->handle) c->handle(c, c->arg);
+
   // check sent list for any flagged to resend
   for(ret = c->sent; ret; ret = ret->next)
   {
@@ -329,19 +318,21 @@ lob_t e3x_channel_sending(e3x_channel_t c, uint32_t now)
     if(ret->id == now) continue;
     // max once per second throttle resend
     ret->id = now;
-    return ret;
+    chan_send(c,ret);
   }
   
   LOG("sending ack %d acked %d",c->ack,c->acked);
 
   // if we need to generate an ack/miss yet, do that
-  if(c->ack != c->acked) return e3x_channel_oob(c);
+  if(c->ack != c->acked) chan_send(c,chan_oob(c));
   
-  return NULL;
+  // TODO if channel is now ended, free it
+  
+  return c;
 }
 
 // size (in bytes) of buffered data in or out
-uint32_t e3x_channel_size(e3x_channel_t c, uint32_t max)
+uint32_t chan_size(chan_t c, uint32_t max)
 {
   uint32_t size = 0;
   lob_t cur;
@@ -357,7 +348,7 @@ uint32_t e3x_channel_size(e3x_channel_t c, uint32_t max)
     size += lob_len(cur);
     cur = cur->next;
   }
-  cur = c->out;
+  cur = c->sent;
   while(cur)
   {
     size += lob_len(cur);
@@ -365,4 +356,15 @@ uint32_t e3x_channel_size(e3x_channel_t c, uint32_t max)
   }
 
   return size;
+}
+
+// set up internal handler for all incoming packets on this channel
+chan_t chan_handle(chan_t c, void (*handle)(chan_t c, void *arg), void *arg)
+{
+  if(!c) return LOG("bad args");
+
+  c->handle = handle;
+  c->arg = arg;
+
+  return c;
 }
