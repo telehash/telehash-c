@@ -291,66 +291,12 @@ radio_t radio_device(radio_t device)
   return NULL;
 }
 
-
-// advance all windows forward this many microseconds, all knocks are relative to this call
-tmesh_t tmesh_bttf(tmesh_t tm, uint32_t us)
-{
-  cmnty_t com;
-  mote_t mote;
-  if(!tm || !us) return LOG("bad args");
-
-  for(com=tm->coms;com;com=com->next)
-  {
-    // inform every
-    for(mote=com->motes;mote;mote=mote->next)
-    {
-      mote_bttf(mote,us);
-    }
-  }
-  
-  return tm;
-}
-
 // fills in next knock for this device only
-tmesh_t tmesh_knock(tmesh_t tm, knock_t k, radio_t device)
+tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
 {
-  cmnty_t com;
-  mote_t mote;
-  struct knock_struct ktmp;
   if(!tm || !k) return LOG("bad args");
 
-  memset(k,0,sizeof(struct knock_struct));
-  memset(&ktmp,0,sizeof(struct knock_struct));
-  for(com=tm->coms;com;com=com->next)
-  {
-    if(device && com->medium->radio != device->id) continue;
-    // check every mote
-    for(mote=com->motes;mote;mote=mote->next)
-    {
-      // TODO, optimize skipping tx knocks if nothing to send
-      mote_knock(mote,&ktmp);
-
-      if(mote->waiting)
-      {
-        LOG("mote waiting: %s",mote->link?mote->link->id->hashname:"public beacon");
-        continue;
-      }
-
-      // use the new one if preferred
-      if(!k->mote || tm->sort(k,&ktmp) != k)
-      {
-        memcpy(k,&ktmp,sizeof(struct knock_struct));
-      }
-    }
-  }
-  
-  // make sure a knock was found
-  if(!k->mote) return NULL;
-  
   LOG("mote %s nonce %s",k->mote->public?"public beacon":k->mote->link->id->hashname,util_hex(k->mote->nonce,8,NULL));
-
-  // receive is on knocked
-  if(!k->tx) return tm;
 
   // construct ping tx frame data, same for all the things
   if(k->mote->ping)
@@ -395,7 +341,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 {
   if(!tm || !k) return LOG("bad args");
   
-  if(!k->actual)
+  if(!k->adjust)
   {
     LOG("knock error");
     return tm;
@@ -405,7 +351,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   if(k->tx)
   {
     // use actual tx time to auto-correct for drift
-    k->mote->at += k->actual;
+    k->mote->at += k->adjust;
 
     k->mote->sent++;
     LOG("tx done, total %d",k->mote->sent);
@@ -433,7 +379,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     uint8_t pong = (memcmp(k->mote->nonce,k->frame,8) == 0) ? 1 : 0;
 
     // always sync wait to the bundled nonce for the next pong
-    k->mote->at += k->actual;
+    k->mote->at += k->adjust;
     memcpy(k->mote->nonce,k->frame,8);
 
     // since there's no ordering w/ public pings, make sure we're inverted to the sender for the pong
@@ -485,7 +431,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   // TODO check and validate frame[0] now
 
   // self-correcting sync based on exact rx time
-  k->mote->at += k->actual;
+  k->mote->at += k->adjust;
 
   // received stats only after minimal validation
   k->mote->received++;
@@ -497,6 +443,86 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 
   return tm;
 }
+
+// advance all windows forward this many microseconds, all knocks are relative to this call
+uint32_t tmesh_process(tmesh_t tm, uint32_t us)
+{
+  cmnty_t com;
+  mote_t mote;
+  uint32_t ret = 1000*1000*5; // 5s default max when radio busy, TODO is do we even need this when interrupt driven
+  struct knock_struct ktmp;
+  if(!tm || !us) return ret;
+
+  for(com=tm->coms;com;com=com->next)
+  {
+    // update active knock
+    radio_t device = radio_devices[com->medium->radio];
+    knock_t knock = &(device->knock);
+    knock->start -= (knock->start < us) ? knock->start : us;
+    knock->stop -= (knock->stop < us) ? knock->stop : us;
+
+    // inform every
+    for(mote=com->motes;mote;mote=mote->next)
+    {
+      mote_bttf(mote,us);
+    }
+
+    // any busy device is locked, can't do anything
+    if(device->busy)
+    {
+      LOG("device busy");
+      continue;
+    }
+
+    // not started yet
+    if(knock->start)
+    {
+      if(knock->start < ret) ret = knock->start;
+      continue;
+    }
+
+    // process any completed knocks
+    if(knock->mote)
+    {
+      tmesh_knocked(tm, knock);
+      memset(knock,0,sizeof(struct knock_struct));
+    }
+    
+    // look for a better/new knock
+    memset(&ktmp,0,sizeof(struct knock_struct));
+    for(mote=com->motes;mote;mote=mote->next)
+    {
+      // this mote has the current knock already
+      if(knock->mote == mote) continue;
+
+      // TODO, optimize skipping tx knocks if nothing to send
+      mote_knock(mote,&ktmp);
+
+      if(mote->waiting)
+      {
+        LOG("mote waiting: %s",mote->link?mote->link->id->hashname:"public beacon");
+        continue;
+      }
+
+      // use the new one if preferred
+      if(!knock->mote || tm->sort(knock,&ktmp) != knock)
+      {
+        memcpy(knock,&ktmp,sizeof(struct knock_struct));
+      }
+    }
+
+    // no knock elected
+    if(!knock->start) continue;
+
+    if(knock->start < ret) ret = knock->start;
+
+    // do the work to fill in the tx frame only once here
+    if(knock->tx) tmesh_knock(tm, knock);
+  }
+  
+  return ret;
+}
+
 
 mote_t mote_new(link_t link)
 {

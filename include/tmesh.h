@@ -79,8 +79,8 @@ struct knock_struct
 {
   mote_t mote;
   uint32_t start, stop;
-  int16_t actual; // microsecond drift from start
   uint8_t frame[64];
+  int16_t adjust; // microsecond drift from start
   uint8_t chan; // current channel (< med->chans)
   uint8_t tx:1; // tells radio to tx or rx
 };
