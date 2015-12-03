@@ -330,6 +330,12 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k, radio_t device)
       // TODO, optimize skipping tx knocks if nothing to send
       mote_knock(mote,&ktmp);
 
+      if(mote->waiting)
+      {
+        LOG("mote waiting: %s",mote->link?mote->link->id->hashname:"public beacon");
+        continue;
+      }
+
       // use the new one if preferred
       if(!k->mote || tm->sort(k,&ktmp) != k)
       {
@@ -429,6 +435,10 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     // always sync wait to the bundled nonce for the next pong
     k->mote->at += k->actual;
     memcpy(k->mote->nonce,k->frame,8);
+
+    // since there's no ordering w/ public pings, make sure we're inverted to the sender for the pong
+    k->mote->order = (k->mote->nonce[7] & 0b00000001) ? 1 : 0;
+
     mote_wait(k->mote,k->mote->com->medium->min+k->mote->com->medium->max,1,k->frame+8);
     k->mote->pong = 1;
     LOG("waiting for nonce %s",util_hex(k->mote->nwait,8,NULL));
@@ -437,9 +447,6 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     if(k->mote->public)
     {
       LOG("public %s, checking link mote",pong?"pong":"ping");
-
-      // since there's no ordering w/ public pings, make sure we're inverted to the sender for the pong
-      k->mote->order = (k->mote->nonce[7] & 0b00000001) ? 1 : 0;
       
       hashname_t hn = hashname_new(k->frame+8+8);
       if(!hn) return LOG("OOM");
@@ -458,6 +465,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
           lmote->at = k->mote->at;
         }else{
           k->mote->link = lmote->link;
+          lmote->waiting = 1; // fake TODO
         }
       }
 
