@@ -13,9 +13,9 @@ typedef struct knock_struct *knock_t; // single action
 // medium management w/ device driver
 struct medium_struct
 {
-  uint8_t bin[5];
   void *device; // used by radio device driver
   uint32_t min, max; // microseconds to knock, set by driver
+  uint8_t bin[5];
   uint8_t chans; // number of total channels, set by driver
   uint8_t z; // default
   uint8_t radio:4; // radio device id based on radio_devices[]
@@ -85,15 +85,8 @@ struct knock_struct
   uint8_t tx:1; // tells radio to tx or rx
 };
 
-// advance all windows forward this many microseconds, all knocks are relative to this call
-tmesh_t tmesh_bttf(tmesh_t tm, uint32_t us);
-
-// fills in next knock for this device only
-tmesh_t tmesh_knock(tmesh_t tm, knock_t k, radio_t device);
-
-// process done knock
-tmesh_t tmesh_knocked(tmesh_t tm, knock_t k);
-
+// advance all windows forward this many microseconds, all radio knocks are relative to this call, returns when to call again
+uint32_t tmesh_process(tmesh_t tm, uint32_t us);
 
 // mote state tracking
 struct mote_struct
@@ -150,9 +143,12 @@ struct radio_struct
   // when a medium isn't used anymore, let the radio free it
   medium_t (*free)(tmesh_t tm, medium_t m);
   
+  // local storage of an active knock
+  struct knock_struct knock;
+
   uint8_t id:4;
   uint8_t busy:4;
-
+  
 };
 
 #define RADIOS_MAX 1
