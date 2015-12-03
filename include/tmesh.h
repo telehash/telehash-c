@@ -141,8 +141,6 @@ knock_t knock_sooner(knock_t a, knock_t b);
 // radio devices are responsible for all mediums
 struct radio_struct
 {
-  uint8_t id;
-
   // return energy cost, or 0 if unknown medium, use for pre-validation/estimation
   uint32_t (*energy)(tmesh_t tm, uint8_t medium[5]);
 
@@ -151,6 +149,9 @@ struct radio_struct
 
   // when a medium isn't used anymore, let the radio free it
   medium_t (*free)(tmesh_t tm, medium_t m);
+  
+  uint8_t id:4;
+  uint8_t busy:4;
 
 };
 
