@@ -460,7 +460,7 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
     // check in on a ready knock
     if(knock->ready)
     {
-      LOG("a knock is active yet and%s done",knock->done?"":" not");
+      LOG("a knock is %s",knock->done?"done":"active yet");
       // if it's not done
       if(!knock->done)
       {
