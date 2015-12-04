@@ -327,7 +327,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 {
   if(!tm || !k) return LOG("bad args");
   
-  if(!k->adjust)
+  if(k->err)
   {
     LOG("knock error");
     return tm;
