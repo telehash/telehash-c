@@ -227,22 +227,6 @@ void tmesh_free(tmesh_t tm)
   return;
 }
 
-tmesh_t tmesh_loop(tmesh_t tm)
-{
-  cmnty_t c;
-  lob_t packet;
-  mote_t m;
-  if(!tm) return LOG("bad args");
-
-  // process any packets into mesh_receive
-  for(c = tm->coms;c;c = c->next) 
-    for(m=c->motes;m;m=m->next)
-      while((packet = util_chunks_receive(m->chunks)))
-        mesh_receive(tm->mesh, packet, c->pipe); // TODO associate mote for neighborhood
-  
-  return tm;
-}
-
 // all devices
 radio_t radio_devices[RADIOS_MAX] = {0};
 
@@ -286,6 +270,8 @@ radio_t radio_device(radio_t device)
     if(radio_devices[i]) continue;
     radio_devices[i] = device;
     device->id = i;
+    device->knock = malloc(sizeof(struct knock_struct));
+    memset(device->knock,0,sizeof(struct knock_struct));
     return device;
   }
   return NULL;
@@ -449,60 +435,60 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
 {
   cmnty_t com;
   mote_t mote;
+  lob_t packet;
   uint32_t ret = 1000*1000*5; // 5s default max when radio busy, TODO is do we even need this when interrupt driven
   struct knock_struct ktmp;
   if(!tm || !us) return ret;
 
   for(com=tm->coms;com;com=com->next)
   {
-    // update active knock
     radio_t device = radio_devices[com->medium->radio];
-    knock_t knock = &(device->knock);
-    knock->start -= (knock->start < us) ? knock->start : us;
-    knock->stop -= (knock->stop < us) ? knock->stop : us;
+    knock_t knock = device->knock;
 
-    // inform every
-    for(mote=com->motes;mote;mote=mote->next)
+    // check in on a ready knock
+    if(knock->ready)
     {
-      mote_bttf(mote,us);
+      // if it's not done
+      if(!knock->done)
+      {
+        // update active knock
+        knock->start -= (knock->start < us) ? knock->start : us;
+        knock->stop -= (knock->stop < us) ? knock->stop : us;
+        // wait time depends, busy means next stop
+        if(knock->busy)
+        {
+          // of note, a stop of 0 here means radio is busy past stop time, could be noteworthy
+          if(knock->stop < ret) ret = knock->stop;
+        }else{
+          // waiting to start yet
+          if(knock->start < ret) ret = knock->start;
+        }
+      }else{
+        // ready and done, process it
+        tmesh_knocked(tm, knock); // mote->at is old time
+        memset(knock,0,sizeof(struct knock_struct));
+      }
     }
 
-    // any busy device is locked, can't do anything
-    if(device->busy)
-    {
-      LOG("device busy");
-      continue;
-    }
-
-    // not started yet
-    if(knock->start)
-    {
-      if(knock->start < ret) ret = knock->start;
-      continue;
-    }
-
-    // process any completed knocks
-    if(knock->mote)
-    {
-      tmesh_knocked(tm, knock);
-      memset(knock,0,sizeof(struct knock_struct));
-    }
-    
-    // look for a better/new knock
+    // walk the motes
     memset(&ktmp,0,sizeof(struct knock_struct));
     for(mote=com->motes;mote;mote=mote->next)
     {
+      // process any packets on this mote
+      while((packet = util_chunks_receive(mote->chunks)))
+        mesh_receive(tm->mesh, packet, com->pipe); // TODO associate mote for neighborhood
+
+      // inform every mote of the time change
+      mote_bttf(mote,us);
+      
+      // a knock is already active
+      if(knock->ready) continue;
+
       // this mote has the current knock already
       if(knock->mote == mote) continue;
 
       // TODO, optimize skipping tx knocks if nothing to send
       mote_knock(mote,&ktmp);
-
-      if(mote->waiting)
-      {
-        LOG("mote waiting: %s",mote->link?mote->link->id->hashname:"public beacon");
-        continue;
-      }
 
       // use the new one if preferred
       if(!knock->mote || tm->sort(knock,&ktmp) != knock)
@@ -511,9 +497,11 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
       }
     }
 
-    // no knock elected
-    if(!knock->start) continue;
+    // no knock available
+    if(!knock->mote) continue;
 
+    // signal this knock is ready to roll
+    knock->ready = 1;
     if(knock->start < ret) ret = knock->start;
 
     // do the work to fill in the tx frame only once here
@@ -677,6 +665,18 @@ mote_t mote_bttf(mote_t m, uint32_t us)
   
   // move relative forward
   m->at -= us;
+  
+  // if still waiting, advance time till then for next event
+  if(m->waiting)
+  {
+    uint8_t nonce[8];
+    memcpy(nonce,m->nonce,8);
+    while(memcmp(m->nwait,nonce,8))
+    {
+      chacha20(m->secret,nonce,nonce,8);
+      m->at += mote_next(m->nonce,m->z);
+    }
+  }
 
   return m;
 }

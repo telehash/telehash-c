@@ -71,8 +71,8 @@ struct tmesh_struct
 tmesh_t tmesh_new(mesh_t mesh, lob_t options);
 void tmesh_free(tmesh_t tm);
 
-// process any full packets into the mesh 
-tmesh_t tmesh_loop(tmesh_t tm);
+// advance all windows forward this many microseconds, all radio knocks are relative to this call, returns when to call again
+uint32_t tmesh_process(tmesh_t tm, uint32_t us);
 
 // a single knock request ready to go
 struct knock_struct
@@ -82,11 +82,13 @@ struct knock_struct
   uint8_t frame[64];
   int16_t adjust; // microsecond drift from start
   uint8_t chan; // current channel (< med->chans)
+  // boolean flags for state tracking
   uint8_t tx:1; // tells radio to tx or rx
+  uint8_t ready:1; // is ready to transceive
+  uint8_t busy:1; // is actively transceiving
+  uint8_t done:1; // is done transceiving
+  uint8_t err:1; // failed
 };
-
-// advance all windows forward this many microseconds, all radio knocks are relative to this call, returns when to call again
-uint32_t tmesh_process(tmesh_t tm, uint32_t us);
 
 // mote state tracking
 struct mote_struct
@@ -143,12 +145,11 @@ struct radio_struct
   // when a medium isn't used anymore, let the radio free it
   medium_t (*free)(tmesh_t tm, medium_t m);
   
-  // local storage of an active knock
-  struct knock_struct knock;
+  // shared between tmesh and driver
+  knock_t knock;
 
+  // guid
   uint8_t id:4;
-  uint8_t busy:4;
-  
 };
 
 #define RADIOS_MAX 1

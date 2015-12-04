@@ -64,7 +64,7 @@ int main(int argc, char **argv)
   fail_unless(util_cmp(hex,"e5667e86ecb564f4f04e2b665348381c06765e6f9fa8161d114d5d8046948532") == 0);
   
   m->at = 1;
-  knock_t knock = &dev->knock;
+  knock_t knock = dev->knock;
   fail_unless(mote_bttf(m,4200000));
   LOG("next is %lld",m->at);
   fail_unless(m->at == 4399862);
@@ -179,7 +179,7 @@ int main(int argc, char **argv)
   LOG("secret %s",util_hex(mAB->secret,32,hex));
   fail_unless(util_cmp(hex,"9a972d28dcc211d43eafdca7877bed1bbeaec30fd3740f4b787355d10423ad12") == 0);
   
-  knock_t knAB = &dev->knock;
+  knock_t knAB = dev->knock;
   memset(mAB->nonce,12,8);
   fail_unless(tmesh_process(netA,1));
   fail_unless(knAB->mote == mAB);
@@ -187,7 +187,7 @@ int main(int argc, char **argv)
   fail_unless(knAB->chan == 35);
   fail_unless(knAB->tx == 0);
 
-  knock_t knBA = &dev->knock;
+  knock_t knBA = dev->knock;
   memset(mBA->nonce,0,8);
   fail_unless(tmesh_process(netB,1));
   fail_unless(knBA->mote == mBA);
