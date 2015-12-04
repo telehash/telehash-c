@@ -609,7 +609,7 @@ uint32_t mote_next(mote_t m, uint8_t *nonce)
 {
   uint32_t next;
   if(!nonce) nonce = m->nonce;
-  next = util_sys_long((unsigned long)&nonce);
+  next = util_sys_long((unsigned long)*nonce);
   // smaller for high z, using only high 4 bits of z
   m->z >>= 4;
   next >>= m->z;
@@ -658,6 +658,7 @@ mote_t mote_bttf(mote_t m, uint32_t us)
     // rotate nonce by ciphering it
     chacha20(m->secret,m->nonce,m->nonce,8);
     m->at = mote_next(m,NULL);
+//    LOG("blah %d %s",m->at,util_hex(m->nonce,8,NULL));
   }
   
   // move relative forward
