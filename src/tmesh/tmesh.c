@@ -382,7 +382,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     memcpy(k->mote->nonce,k->frame,8);
 
     // since there's no ordering w/ public pings, make sure we're inverted to the sender for the pong
-    k->mote->order = mote_tx(k->mote,NULL) ? 0 : 1;
+    if(k->mote->public) k->mote->order = mote_tx(k->mote,NULL) ? 0 : 1;
 
     mote_wait(k->mote,k->mote->com->medium->min+k->mote->com->medium->max,1,k->frame+8);
     k->mote->pong = 1;
@@ -636,6 +636,7 @@ mote_t mote_wait(mote_t m, uint32_t after, uint8_t tx, uint8_t *set)
   memcpy(nonce,m->nonce,8);
   at = m->at;
   atx = mote_tx(m,nonce);
+  LOG("start order %d current %d seeking %d on %d",m->order,atx,tx,m);
   while(at < after || atx != tx)
   {
     LOG("at %lu after %lu tx %d atx %d nonce %s",at,after,tx,atx,util_hex(nonce,8,NULL));
@@ -722,7 +723,7 @@ mote_t mote_synced(mote_t m)
 {
   if(!m) return LOG("bad args");
 
-  LOG("mote ready");
+  LOG("mote synchronized!");
 
   m->pong = 0;
 

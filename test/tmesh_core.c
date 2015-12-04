@@ -206,36 +206,51 @@ int main(int argc, char **argv)
   knAB->done = 1;
   knBA->done = 1;
   
+  LOG("process netA");
   dev->knock = knAB; // manually swapping
   next = tmesh_process(netA,1);
   fail_unless(mAB->pong);
-  fail_unless(memcmp(mAB->nonce,mBA->nonce,8) == 0);
 
+  LOG("process netB");
   dev->knock = knBA; // manually swapping
   next = tmesh_process(netB,1);
 
   // back to the future
+  dev->knock = knAB; // manually swapping
   while(knAB->mote != mAB) fail_unless(tmesh_process(netA,mAB->at+1));
   LOG("AB tx is %d chan %d at %lu nonce %s",knAB->tx,knAB->chan,knAB->start,util_hex(mAB->nonce,8,NULL));
   fail_unless(knAB->tx == 1);
+  dev->knock = knBA; // manually swapping
   while(knBA->mote != mBA) fail_unless(tmesh_process(netB,mBA->at+1));
   LOG("BA tx is %d chan %d at %lu nonce %s",knBA->tx,knBA->chan,knAB->start,util_hex(mBA->nonce,8,NULL));
   fail_unless(knBA->tx == 0);
   
   // dance
+  LOG("transceive");
   memcpy(knBA->frame,knAB->frame,64);
   knAB->done = 1;
   knBA->done = 1;
 
+  LOG("BA ping %d pong %d",mBA->ping,mBA->pong);
+  LOG("AB ping %d pong %d",mAB->ping,mAB->pong);
+
+  LOG("process netB");
   dev->knock = knBA; // manually swapping
   next = tmesh_process(netB,1);
+
+  LOG("BA ping %d pong %d",mBA->ping,mBA->pong);
+  LOG("AB ping %d pong %d",mAB->ping,mAB->pong);
 
   // in sync!
   fail_unless(!mBA->pong);
   fail_unless(!mBA->ping);
   
+  LOG("process netA");
   dev->knock = knAB; // manually swapping
   next = tmesh_process(netA,1);
+
+  LOG("BA ping %d pong %d",mBA->ping,mBA->pong);
+  LOG("AB ping %d pong %d",mAB->ping,mAB->pong);
 
   // in sync!
   fail_unless(!mAB->pong);
