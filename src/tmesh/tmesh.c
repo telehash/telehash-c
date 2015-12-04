@@ -291,7 +291,7 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
     memcpy(k->frame,k->mote->nonce,8);
     // wait for the next future rx nonce
     mote_wait(k->mote,k->mote->com->medium->min+k->mote->com->medium->max,0,NULL);
-    memcpy(k->frame+8,k->mote->nwait,8);
+    memcpy(k->frame+8,k->mote->nonce,8);
     // copy in hashname
     memcpy(k->frame+8+8,tm->mesh->id->bin,32);
     // random fill rest
@@ -321,6 +321,12 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
   return tm;
 }
 
+// least significant nonce bit sets direction
+uint8_t mote_tx(mote_t m, uint8_t *nonce)
+{
+  if(!nonce) nonce = m->nonce;
+  return ((nonce[7] & 0b00000001) == m->order) ? 0 : 1;
+}
 
 // signal once a knock has been sent/received for this mote
 tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
@@ -369,11 +375,10 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     memcpy(k->mote->nonce,k->frame,8);
 
     // since there's no ordering w/ public pings, make sure we're inverted to the sender for the pong
-    k->mote->order = (k->mote->nonce[7] & 0b00000001) ? 1 : 0;
+    k->mote->order = mote_tx(k->mote,NULL);
 
     mote_wait(k->mote,k->mote->com->medium->min+k->mote->com->medium->max,1,k->frame+8);
     k->mote->pong = 1;
-    LOG("waiting for nonce %s",util_hex(k->mote->nwait,8,NULL));
 
     // if it's a public mote, get/create the link mote for the included hashname
     if(k->mote->public)
@@ -387,7 +392,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
       if(!lmote) return LOG("mote link failed");
       
       // set up the relevant link mote to sync if it's not yet
-      if(!lmote->at)
+      if(lmote->ping)
       {
         LOG("new mote to %s",lmote->link->id->hashname);
 
@@ -397,7 +402,6 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
           lmote->at = k->mote->at;
         }else{
           k->mote->link = lmote->link;
-          lmote->waiting = 1; // fake TODO
         }
       }
 
@@ -596,49 +600,48 @@ mote_t mote_reset(mote_t m)
   m->ping = 1;
   m->z = m->com->medium->z;
   m->pong = 0;
-  m->waiting = 0;
 
   return m;
 }
 
-uint32_t mote_next(uint8_t *nonce, uint8_t z)
+// internal util
+uint32_t mote_next(mote_t m, uint8_t *nonce)
 {
   uint32_t next;
-  memcpy(&next,nonce,4);
+  if(!nonce) nonce = m->nonce;
+  next = util_sys_long((unsigned long)&nonce);
   // smaller for high z, using only high 4 bits of z
-  z >>= 4;
-  next >>= z;
+  m->z >>= 4;
+  next >>= m->z;
   return next;
 }
 
-// set mote to wait for the first nonce that occurs after this future time of this type, match set nonce if given
+// set mote forward to the first nonce that occurs after this future time of this type, stop at set nonce if given
 mote_t mote_wait(mote_t m, uint32_t after, uint8_t tx, uint8_t *set)
 {
-  uint8_t nonce[8];
+  uint8_t nonce[8], atx;
+  uint32_t at;
   if(!m || !after) return LOG("bad args");
   
   memcpy(nonce,m->nonce,8);
-  uint32_t at = mote_next(nonce,m->z);
-  uint8_t atx = ((nonce[7] & 0b00000001) == m->order) ? 0 : 1;
+  at = m->at;
+  atx = mote_tx(m,nonce);
   while(at < after || atx != tx)
   {
-    // once after is passed, keep at zero
-    if(at > after) after = 0;
-    else after -= at;
-
     // step forward
     chacha20(m->secret,nonce,nonce,8);
-    at = mote_next(nonce,m->z);
-    atx = ((nonce[7] & 0b00000001) == m->order) ? 0 : 1;
-    
+    at += mote_next(m,nonce);
+    atx = mote_tx(m,nonce);
+
     // see if any given nonce matches to stop at early
     if(set && atx == tx && memcmp(set,nonce,8) == 0) break;
   }
-  
-  memcpy(m->nwait,nonce,8);
-  m->waiting = 1;
-  
+
   if(set && memcmp(set,nonce,8) != 0) return LOG("warning, set wait nonce was not found in window sequence");
+
+  // set into the future
+  memcpy(m->nonce,nonce,8);
+  m->at = at;
 
   return m;
 }
@@ -654,30 +657,12 @@ mote_t mote_bttf(mote_t m, uint32_t us)
     us -= m->at;
     // rotate nonce by ciphering it
     chacha20(m->secret,m->nonce,m->nonce,8);
-    m->at = mote_next(m->nonce,m->z);
-    // clear wait if matched
-    if(m->waiting && memcmp(m->nwait,m->nonce,8) == 0)
-    {
-      LOG("clearing mote wait");
-      m->waiting = 0;
-    }
+    m->at = mote_next(m,NULL);
   }
   
   // move relative forward
   m->at -= us;
   
-  // if still waiting, advance time till then for next event
-  if(m->waiting)
-  {
-    uint8_t nonce[8];
-    memcpy(nonce,m->nonce,8);
-    while(memcmp(m->nwait,nonce,8))
-    {
-      chacha20(m->secret,nonce,nonce,8);
-      m->at += mote_next(m->nonce,m->z);
-    }
-  }
-
   return m;
 }
 
@@ -685,7 +670,6 @@ mote_t mote_bttf(mote_t m, uint32_t us)
 mote_t mote_knock(mote_t m, knock_t k)
 {
   if(!m || !k) return LOG("bad args");
-  if(m->waiting) return LOG("mote waiting: %s",m->link?m->link->id->hashname:"public beacon");
 
   k->mote = m;
   k->start = k->stop = 0;
@@ -696,9 +680,6 @@ mote_t mote_knock(mote_t m, knock_t k)
     memset(m->chan,0,2);
     chacha20(m->secret,m->nonce,m->chan,2);
   }
-
-  // least significant nonce bit sets direction
-  k->tx = ((m->nonce[7] & 0b00000001) == m->order) ? 0 : 1;
 
   // set relative start/stop times
   k->start = m->at;
@@ -712,6 +693,9 @@ mote_t mote_knock(mote_t m, knock_t k)
 
   // derive current channel
   k->chan = m->chan[1] % m->com->medium->chans;
+
+  // direction
+  k->tx = mote_tx(m,NULL);
 
   return m;
 }
