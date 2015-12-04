@@ -297,8 +297,11 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
     // random fill rest
     e3x_rand(k->frame+8+8+32,64-(8+8+32));
 
+    LOG("sekrit %s",util_hex(k->mote->secret,32,NULL));
+    LOG("pre %s",util_hex(k->frame+8,64-8,NULL));
      // ciphertext frame after nonce
-    chacha20(k->mote->secret,k->mote->nonce,k->frame+8,64-8);
+    chacha20(k->mote->secret,k->frame,k->frame+8,64-8);
+    LOG("post %s",util_hex(k->frame+8,64-8,NULL));
 
     LOG("TX %s %s %s",k->mote->public?"public":"link",k->mote->pong?"pong":"ping",util_hex(k->frame,8,NULL));
 
@@ -363,7 +366,10 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     LOG("PING RX %s",util_hex(k->frame,8,NULL));
 
     // first decipher frame using given nonce
+    LOG("sekrit %s",util_hex(k->mote->secret,32,NULL));
+    LOG("pre %s",util_hex(k->frame+8,64-8,NULL));
     chacha20(k->mote->secret,k->frame,k->frame+8,64-8);
+    LOG("post %s",util_hex(k->frame+8,64-8,NULL));
     // if this is a link ping, first verify hashname match
     if(k->mote->link && memcmp(k->frame+8+8,k->mote->link->id->bin,32) != 0) return LOG("ping hashname mismatch");
 
@@ -375,7 +381,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     memcpy(k->mote->nonce,k->frame,8);
 
     // since there's no ordering w/ public pings, make sure we're inverted to the sender for the pong
-    k->mote->order = mote_tx(k->mote,NULL);
+    k->mote->order = mote_tx(k->mote,NULL) ? 0 : 1;
 
     mote_wait(k->mote,k->mote->com->medium->min+k->mote->com->medium->max,1,k->frame+8);
     k->mote->pong = 1;
@@ -440,7 +446,7 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
   cmnty_t com;
   mote_t mote;
   lob_t packet;
-  uint32_t ret = 1000*1000*5; // 5s default max when radio busy, TODO is do we even need this when interrupt driven
+  uint32_t ret = 0xffffffff;
   struct knock_struct ktmp;
   if(!tm || !us) return ret;
 
@@ -452,9 +458,11 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
     // check in on a ready knock
     if(knock->ready)
     {
+      LOG("a knock is active yet");
       // if it's not done
       if(!knock->done)
       {
+        LOG("not done, adjusting");
         // update active knock
         knock->start -= (knock->start < us) ? knock->start : us;
         knock->stop -= (knock->stop < us) ? knock->stop : us;
@@ -468,6 +476,7 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
           if(knock->start < ret) ret = knock->start;
         }
       }else{
+        LOG("it's done now");
         // ready and done, process it
         tmesh_knocked(tm, knock); // mote->at is old time
         memset(knock,0,sizeof(struct knock_struct));
@@ -488,9 +497,6 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
       // a knock is already active
       if(knock->ready) continue;
 
-      // this mote has the current knock already
-      if(knock->mote == mote) continue;
-
       // TODO, optimize skipping tx knocks if nothing to send
       mote_knock(mote,&ktmp);
 
@@ -504,9 +510,12 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
     // no knock available
     if(!knock->mote) continue;
 
+    if(knock->start < ret) ret = knock->start;
+    if(knock->ready) continue;
+
+    LOG("new knock out");
     // signal this knock is ready to roll
     knock->ready = 1;
-    if(knock->start < ret) ret = knock->start;
 
     // do the work to fill in the tx frame only once here
     if(knock->tx) tmesh_knock(tm, knock);
@@ -611,8 +620,7 @@ uint32_t mote_next(mote_t m, uint8_t *nonce)
   if(!nonce) nonce = m->nonce;
   next = util_sys_long((unsigned long)*nonce);
   // smaller for high z, using only high 4 bits of z
-  m->z >>= 4;
-  next >>= m->z;
+  next >>= (m->z >> 4);
   return next;
 }
 
@@ -628,15 +636,21 @@ mote_t mote_wait(mote_t m, uint32_t after, uint8_t tx, uint8_t *set)
   atx = mote_tx(m,nonce);
   while(at < after || atx != tx)
   {
+    LOG("at %lu after %lu tx %d atx %d nonce %s",at,after,tx,atx,util_hex(nonce,8,NULL));
+    // see if any given nonce matches to stop at early
+    if(set) LOG("atx %d tx %d memcmp %d",atx, tx, memcmp(set,nonce,8));
+    if(set && at >= after && atx == tx && memcmp(set,nonce,8) == 0) break;
+
     // step forward
     chacha20(m->secret,nonce,nonce,8);
+    LOG("next is %lu",mote_next(m,nonce));
     at += mote_next(m,nonce);
     atx = mote_tx(m,nonce);
-
-    // see if any given nonce matches to stop at early
-    if(set && atx == tx && memcmp(set,nonce,8) == 0) break;
   }
 
+  LOG("final at %lu after %lu tx %d atx %d nonce %s",at,after,tx,atx,util_hex(nonce,8,NULL));
+  LOG("m->nonce %s",util_hex(m->nonce,8,NULL));
+  if(set) LOG("set %s",util_hex(set,8,NULL));
   if(set && memcmp(set,nonce,8) != 0) return LOG("warning, set wait nonce was not found in window sequence");
 
   // set into the future
@@ -689,7 +703,7 @@ mote_t mote_knock(mote_t m, knock_t k)
   // when receiving a ping, use wide window to catch more
   if(m->ping) k->stop = k->start + m->com->medium->max;
 
-  // very remote case of overlow (70min minus max micros), just sets to max avail, slight inefficiency
+  // very remote case of overlow (70min minus max micros), just sets to max avail, slight inefficiency?
   if(k->stop < k->start) k->stop = 0xffffffff;
 
   // derive current channel
