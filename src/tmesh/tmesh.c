@@ -460,11 +460,10 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
     // check in on a ready knock
     if(knock->ready)
     {
-      LOG("a knock is active yet");
+      LOG("a knock is active yet and%s done",knock->done?"":" not");
       // if it's not done
       if(!knock->done)
       {
-        LOG("not done, adjusting");
         // update active knock
         knock->start -= (knock->start < us) ? knock->start : us;
         knock->stop -= (knock->stop < us) ? knock->stop : us;
@@ -478,7 +477,6 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
           if(knock->start < ret) ret = knock->start;
         }
       }else{
-        LOG("it's done now");
         // ready and done, process it
         tmesh_knocked(tm, knock); // mote->at is old time
         memset(knock,0,sizeof(struct knock_struct));
@@ -515,9 +513,9 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
     if(knock->start < ret) ret = knock->start;
     if(knock->ready) continue;
 
-    LOG("new knock out");
     // signal this knock is ready to roll
     knock->ready = 1;
+    LOG("new knock ready");
 
     // do the work to fill in the tx frame only once here
     if(knock->tx) tmesh_knock(tm, knock);
@@ -636,24 +634,17 @@ mote_t mote_wait(mote_t m, uint32_t after, uint8_t tx, uint8_t *set)
   memcpy(nonce,m->nonce,8);
   at = m->at;
   atx = mote_tx(m,nonce);
-  LOG("start order %d current %d seeking %d on %d",m->order,atx,tx,m);
   while(at < after || atx != tx)
   {
-    LOG("at %lu after %lu tx %d atx %d nonce %s",at,after,tx,atx,util_hex(nonce,8,NULL));
     // see if any given nonce matches to stop at early
-    if(set) LOG("atx %d tx %d memcmp %d",atx, tx, memcmp(set,nonce,8));
     if(set && at >= after && atx == tx && memcmp(set,nonce,8) == 0) break;
 
     // step forward
     chacha20(m->secret,nonce,nonce,8);
-    LOG("next is %lu",mote_next(m,nonce));
     at += mote_next(m,nonce);
     atx = mote_tx(m,nonce);
   }
 
-  LOG("final at %lu after %lu tx %d atx %d nonce %s",at,after,tx,atx,util_hex(nonce,8,NULL));
-  LOG("m->nonce %s",util_hex(m->nonce,8,NULL));
-  if(set) LOG("set %s",util_hex(set,8,NULL));
   if(set && memcmp(set,nonce,8) != 0) return LOG("warning, set wait nonce was not found in window sequence");
 
   // set into the future
@@ -675,7 +666,6 @@ mote_t mote_bttf(mote_t m, uint32_t us)
     // rotate nonce by ciphering it
     chacha20(m->secret,m->nonce,m->nonce,8);
     m->at = mote_next(m,NULL);
-//    LOG("blah %d %s",m->at,util_hex(m->nonce,8,NULL));
   }
   
   // move relative forward
@@ -763,8 +753,6 @@ mote_t mote_synced(mote_t m)
 
 knock_t knock_sooner(knock_t a, knock_t b)
 {
-  LOG("knock compare A %lu",a->start);
-  LOG("knock compare B %lu",b->start);
   // any that finish before another starts
   if(a->stop < b->start) return a;
   if(b->stop < a->start) return b;
