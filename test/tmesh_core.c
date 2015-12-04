@@ -137,12 +137,9 @@ int main(int argc, char **argv)
   knock->done = 1; // fake rx good
   LOG("faking rx in");
   next = tmesh_process(netA,553648170);
+  fail_unless(!knock->done);
   LOG("next %lu",next);
   fail_unless(next == 1572874);
-  // frame is deciphered
-  LOG("frame %s",util_hex(knock->frame,32+8,hex)); // just the stable part
-  fail_unless(util_cmp(hex,"2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a6c82e5906fc7ac4468503a82a02b4d42ae404fb42d64a003") == 0);
-  fail_unless(memcmp(knock->frame+8+8,meshA->id->bin,32) == 0);
 
   // leave public community
   fail_unless(tmesh_leave(netA,c));
@@ -186,6 +183,7 @@ int main(int argc, char **argv)
   fail_unless(util_cmp(hex,"9a972d28dcc211d43eafdca7877bed1bbeaec30fd3740f4b787355d10423ad12") == 0);
   
   knock_t knAB = dev->knock;
+  memset(knAB,0,sizeof(struct knock_struct));
   memset(mAB->nonce,12,8);
   fail_unless(tmesh_process(netA,1));
   fail_unless(knAB->mote == mAB);
@@ -193,7 +191,9 @@ int main(int argc, char **argv)
   fail_unless(knAB->chan == 35);
   fail_unless(knAB->tx == 0);
 
-  knock_t knBA = dev->knock;
+  knock_t knBA = malloc(sizeof(struct knock_struct));
+  memset(knBA,0,sizeof(struct knock_struct));
+  dev->knock = knBA; // manually swapping
   memset(mBA->nonce,0,8);
   fail_unless(tmesh_process(netB,1));
   fail_unless(knBA->mote == mBA);
@@ -203,12 +203,16 @@ int main(int argc, char **argv)
 
   // fake reception, with fake cake
   memcpy(knAB->frame,knBA->frame,64);
-  knAB->adjust = 1;
-  knBA->adjust = 1;
-//  fail_unless(tmesh_knocked(netA,knAB)); // the rx
+  knAB->done = 1;
+  knBA->done = 1;
+  
+  dev->knock = knAB; // manually swapping
+  next = tmesh_process(netA,1);
   fail_unless(mAB->pong);
   fail_unless(memcmp(mAB->nonce,mBA->nonce,8) == 0);
-//  fail_unless(tmesh_knocked(netB,knBA)); // the tx
+
+  dev->knock = knBA; // manually swapping
+  next = tmesh_process(netB,1);
 
   // back to the future
   while(knAB->mote != mAB) fail_unless(tmesh_process(netA,mAB->at+1));
@@ -220,14 +224,19 @@ int main(int argc, char **argv)
   
   // dance
   memcpy(knBA->frame,knAB->frame,64);
-  knAB->adjust = 1;
-  knBA->adjust = 1;
-//  fail_unless(tmesh_knocked(netB,knBA)); // the rx
+  knAB->done = 1;
+  knBA->done = 1;
+
+  dev->knock = knBA; // manually swapping
+  next = tmesh_process(netB,1);
+
   // in sync!
   fail_unless(!mBA->pong);
   fail_unless(!mBA->ping);
   
-//  fail_unless(tmesh_knocked(netA,knAB)); // the tx
+  dev->knock = knAB; // manually swapping
+  next = tmesh_process(netA,1);
+
   // in sync!
   fail_unless(!mAB->pong);
   fail_unless(!mAB->ping);

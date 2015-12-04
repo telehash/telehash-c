@@ -297,6 +297,7 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
     // random fill rest
     e3x_rand(k->frame+8+8+32,64-(8+8+32));
 
+    LOG("hn out %s",tm->mesh->id->hashname);
     LOG("sekrit %s",util_hex(k->mote->secret,32,NULL));
     LOG("pre %s",util_hex(k->frame+8,64-8,NULL));
      // ciphertext frame after nonce
@@ -391,6 +392,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     {
       LOG("public %s, checking link mote",pong?"pong":"ping");
       
+      if(memcmp(k->frame+8+8,tm->mesh->id->bin,32) == 0) return LOG("identity crisis");
       hashname_t hn = hashname_new(k->frame+8+8);
       if(!hn) return LOG("OOM");
       mote_t lmote = tmesh_link(tm, k->mote->com, link_get(tm->mesh, hn->hashname));
