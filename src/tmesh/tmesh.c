@@ -721,7 +721,7 @@ mote_t mote_synced(mote_t m)
     }
 
     // TODO intelligent sleepy mode, not just skip some
-//    m->at += 1000*1000*5; // 5s
+    m->at += 1000*1000*5; // 5s
 
     return m;
   }
