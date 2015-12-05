@@ -282,8 +282,6 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
 {
   if(!tm || !k) return LOG("bad args");
 
-  LOG("mote %s nonce %s",k->mote->public?"public beacon":k->mote->link->id->hashname,util_hex(k->mote->nonce,8,NULL));
-
   // construct ping tx frame data, same for all the things
   if(k->mote->ping)
   {
@@ -305,6 +303,7 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
     LOG("post %s",util_hex(k->frame+8,64-8,NULL));
 
     LOG("TX %s %s %s",k->mote->public?"public":"link",k->mote->pong?"pong":"ping",util_hex(k->frame,8,NULL));
+    k->mote->priority++;
 
     return tm;
   }
@@ -343,6 +342,9 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     return tm;
   }
   
+  // clear any priority now
+  k->mote->priority = 0;
+
   // tx just changes flags here
   if(k->tx)
   {
@@ -367,58 +369,51 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     LOG("PING RX %s",util_hex(k->frame,8,NULL));
 
     // first decipher frame using given nonce
-    LOG("sekrit %s",util_hex(k->mote->secret,32,NULL));
-    LOG("pre %s",util_hex(k->frame+8,64-8,NULL));
     chacha20(k->mote->secret,k->frame,k->frame+8,64-8);
-    LOG("post %s",util_hex(k->frame+8,64-8,NULL));
-    // if this is a link ping, first verify hashname match
-    if(k->mote->link && memcmp(k->frame+8+8,k->mote->link->id->bin,32) != 0) return LOG("ping hashname mismatch");
 
-    // cache flag if this was a pong by having the correct nonce we were expecting
-    uint8_t pong = (memcmp(k->mote->nonce,k->frame,8) == 0) ? 1 : 0;
+    // if there is a link
+    if(k->mote->link)
+    {
+      // verify hashname match
+      if(memcmp(k->frame+8+8,k->mote->link->id->bin,32) != 0) return LOG("ping hashname mismatch");
+    }else{
+      // create link if public
+      if(!k->mote->public) return LOG("internal error, link ping and no link");
+      if(memcmp(k->frame+8+8,tm->mesh->id->bin,32) == 0) return LOG("identity crisis");
+      k->mote->link = link_get32(tm->mesh, k->frame+8+8);
+      mote_t lmote = tmesh_link(tm, k->mote->com, k->mote->link);
+      if(!lmote) return LOG("mote link failed");
+      if(lmote->at == 0) LOG("new mote to %s",lmote->link->id->hashname);
+      // for safety force idle till after next public tx
+      lmote->at = k->mote->at + k->mote->com->medium->max;
+    }
+
+    // apply any external adjustments
+    k->mote->at = (k->adjust + k->mote->at < 0) ? 0 : k->adjust + k->mote->at;
+
+    // an incoming pong is sync, yay
+    if(memcmp(k->mote->nonce,k->frame,8) == 0)
+    {
+      LOG("incoming pong verified");
+      mote_synced(k->mote);
+      return tm;
+    }
+
+    // now handle new incoming ping
+    LOG("incoming ping, preparing to send pong");
+    k->mote->pong = 1;
+    k->mote->priority += 2;
 
     // always sync wait to the bundled nonce for the next pong
-    k->mote->at += k->adjust;
     memcpy(k->mote->nonce,k->frame,8);
 
     // since there's no ordering w/ public pings, make sure we're inverted to the sender for the pong
     if(k->mote->public) k->mote->order = mote_tx(k->mote,NULL) ? 0 : 1;
 
+    // fast forward to the ping's wait nonce
     mote_wait(k->mote,k->mote->com->medium->min+k->mote->com->medium->max,1,k->frame+8);
-    k->mote->pong = 1;
 
-    // if it's a public mote, get/create the link mote for the included hashname
-    if(k->mote->public)
-    {
-      LOG("public %s, checking link mote",pong?"pong":"ping");
-      
-      if(memcmp(k->frame+8+8,tm->mesh->id->bin,32) == 0) return LOG("identity crisis");
-      hashname_t hn = hashname_new(k->frame+8+8);
-      if(!hn) return LOG("OOM");
-      mote_t lmote = tmesh_link(tm, k->mote->com, link_get(tm->mesh, hn->hashname));
-      hashname_free(hn);
-      if(!lmote) return LOG("mote link failed");
-      
-      // set up the relevant link mote to sync if it's not yet
-      if(lmote->ping)
-      {
-        LOG("new mote to %s",lmote->link->id->hashname);
-
-        // sync time now only on a pong, else cache on public
-        if(pong)
-        {
-          lmote->at = k->mote->at;
-        }else{
-          k->mote->link = lmote->link;
-        }
-      }
-
-    }else{
-      LOG("private %s received",pong?"pong":"ping");
-    }
-
-    // any received pong here means this mote is synced
-    if(pong) mote_synced(k->mote);
+    LOG("looking for pong at %d with %s",k->mote->at,util_hex(k->mote->nonce,8,NULL));
 
     return tm;
   }
@@ -428,8 +423,8 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   
   // TODO check and validate frame[0] now
 
-  // self-correcting sync based on exact rx time
-  k->mote->at += k->adjust;
+  // apply any external adjustments
+  k->mote->at = (k->adjust + k->mote->at < 0) ? 0 : k->adjust + k->mote->at;
 
   // received stats only after minimal validation
   k->mote->received++;
@@ -515,7 +510,7 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
 
     // signal this knock is ready to roll
     knock->ready = 1;
-    LOG("new knock ready");
+    LOG("new %s knock to mote %s nonce %s",knock->tx?"TX":"RX",knock->mote->public?"anyone":knock->mote->link->id->hashname,util_hex(knock->mote->nonce,8,NULL));
 
     // do the work to fill in the tx frame only once here
     if(knock->tx) tmesh_knock(tm, knock);
@@ -634,7 +629,7 @@ mote_t mote_wait(mote_t m, uint32_t after, uint8_t tx, uint8_t *set)
   memcpy(nonce,m->nonce,8);
   at = m->at;
   atx = mote_tx(m,nonce);
-  while(at < after || atx != tx)
+  while(LOG("WAIT at %d after %d atx %d tx %d nonce %s",at,after,atx,tx,util_hex(nonce,8,NULL)) || at < after || atx != tx)
   {
     // see if any given nonce matches to stop at early
     if(set && at >= after && atx == tx && memcmp(set,nonce,8) == 0) break;
@@ -724,7 +719,7 @@ mote_t mote_synced(mote_t m)
     if(m->link)
     {
       mote_t lmote = tmesh_link(m->com->tm, m->com, m->link);
-      lmote->at = m->at;
+      lmote->at = m->at; // first link ping will trump next public ping
       m->link = NULL;
     }
 
@@ -756,6 +751,9 @@ knock_t knock_sooner(knock_t a, knock_t b)
   // any that finish before another starts
   if(a->stop < b->start) return a;
   if(b->stop < a->start) return b;
+  // any higher priority state
+  if(a->mote->priority > b->mote->priority) return a;
+  if(b->mote->priority > a->mote->priority) return b;
   // any with link over without
   if(a->mote->link && !b->mote->link) return a;
   if(b->mote->link && !a->mote->link) return b;
