@@ -349,7 +349,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   if(k->tx)
   {
     // use actual tx time to auto-correct for drift
-    k->mote->at += k->adjust;
+    k->mote->at = (k->adjust + (int16_t)k->mote->at < 0) ? 0 : k->adjust + k->mote->at;
 
     k->mote->sent++;
     LOG("tx done, total %d",k->mote->sent);
@@ -389,7 +389,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     }
 
     // apply any external adjustments
-    k->mote->at = (k->adjust + k->mote->at < 0) ? 0 : k->adjust + k->mote->at;
+    k->mote->at = (k->adjust + (int16_t)k->mote->at < 0) ? 0 : k->adjust + k->mote->at;
 
     // an incoming pong is sync, yay
     if(memcmp(k->mote->nonce,k->frame,8) == 0)
@@ -424,7 +424,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   // TODO check and validate frame[0] now
 
   // apply any external adjustments
-  k->mote->at = (k->adjust + k->mote->at < 0) ? 0 : k->adjust + k->mote->at;
+  k->mote->at = (k->adjust + (int16_t)k->mote->at < 0) ? 0 : k->adjust + k->mote->at;
 
   // received stats only after minimal validation
   k->mote->received++;

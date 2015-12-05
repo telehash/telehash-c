@@ -139,7 +139,7 @@ int main(int argc, char **argv)
   next = tmesh_process(netA,553648170);
   fail_unless(!knock->done);
   LOG("next %lu",next);
-  fail_unless(next == 1572874);
+  fail_unless(next == 6422538);
 
   // leave public community
   fail_unless(tmesh_leave(netA,c));
@@ -195,7 +195,7 @@ int main(int argc, char **argv)
   memset(knBA,0,sizeof(struct knock_struct));
   dev->knock = knBA; // manually swapping
   memset(mBA->nonce,0,8);
-  fail_unless(tmesh_process(netB,1));
+  fail_unless(tmesh_process(netB,21102591));
   fail_unless(knBA->mote == mBA);
   LOG("BA tx is %d chan %d at %lu",knBA->tx,knBA->chan,knAB->start);
   fail_unless(knBA->chan == 35);
