@@ -295,12 +295,8 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
     // random fill rest
     e3x_rand(k->frame+8+8+32,64-(8+8+32));
 
-    LOG("hn out %s",tm->mesh->id->hashname);
-    LOG("sekrit %s",util_hex(k->mote->secret,32,NULL));
-    LOG("pre %s",util_hex(k->frame+8,64-8,NULL));
      // ciphertext frame after nonce
     chacha20(k->mote->secret,k->frame,k->frame+8,64-8);
-    LOG("post %s",util_hex(k->frame+8,64-8,NULL));
 
     LOG("TX %s %s %s",k->mote->public?"public":"link",k->mote->pong?"pong":"ping",util_hex(k->frame,8,NULL));
     k->mote->priority++;
@@ -348,11 +344,11 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   // tx just changes flags here
   if(k->tx)
   {
-    // use actual tx time to auto-correct for drift
-    k->mote->at = (k->adjust + (int16_t)k->mote->at < 0) ? 0 : k->adjust + k->mote->at;
+    // use actual tx time to auto-correct for drift, don't underflow
+    k->mote->at = (k->adjust < 0 && (k->adjust*-1) > k->mote->at) ? 0 : k->adjust + k->mote->at;
 
     k->mote->sent++;
-    LOG("tx done, total %d",k->mote->sent);
+    LOG("tx done, total %d next at %lu",k->mote->sent,k->mote->at);
 
     // a sent pong sets this mote free
     if(k->mote->pong) mote_synced(k->mote);
@@ -408,7 +404,9 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     memcpy(k->mote->nonce,k->frame,8);
 
     // since there's no ordering w/ public pings, make sure we're inverted to the sender for the pong
-    if(k->mote->public) k->mote->order = mote_tx(k->mote,NULL) ? 0 : 1;
+    LOG("order is %d tx is %d",k->mote->order,mote_tx(k->mote,NULL));
+    if(k->mote->public) k->mote->order = mote_tx(k->mote,NULL) ? 1 : 0;
+    LOG("order is %d tx is %d",k->mote->order,mote_tx(k->mote,NULL));
 
     // fast forward to the ping's wait nonce
     mote_wait(k->mote,k->mote->com->medium->min+k->mote->com->medium->max,1,k->frame+8);
@@ -629,7 +627,7 @@ mote_t mote_wait(mote_t m, uint32_t after, uint8_t tx, uint8_t *set)
   memcpy(nonce,m->nonce,8);
   at = m->at;
   atx = mote_tx(m,nonce);
-  while(LOG("WAIT at %d after %d atx %d tx %d nonce %s",at,after,atx,tx,util_hex(nonce,8,NULL)) || at < after || atx != tx)
+  while(LOG("WAIT %d at %d after %d atx %d tx %d nonce %s",m->order,at,after,atx,tx,util_hex(nonce,8,NULL)) || at < after || atx != tx)
   {
     // see if any given nonce matches to stop at early
     if(set && at >= after && atx == tx && memcmp(set,nonce,8) == 0) break;
@@ -654,7 +652,7 @@ mote_t mote_bttf(mote_t m, uint32_t us)
 {
   if(!m || !us) return LOG("bad args");
 
-  while(us > m->at)
+  while(LOG("bttf us %lu > at %lu",us,m->at) || us > m->at)
   {
     // trim relative
     us -= m->at;
