@@ -22,6 +22,7 @@ struct link_struct
 
 // these all create or return existing one from the mesh
 link_t link_get(mesh_t mesh, char *hashname);
+link_t link_get32(mesh_t mesh, uint8_t *bin32);
 link_t link_keys(mesh_t mesh, lob_t keys); // adds in the right key
 link_t link_key(mesh_t mesh, lob_t key, uint8_t csid); // adds in from the body
 
