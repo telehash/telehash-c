@@ -435,7 +435,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   // TODO check and validate frame[0] now
 
   // trust actual rx time to auto-correct for drift
-  k->mote->at += k->adjust;
+  k->mote->at += k->late + k->drift;
 
   // received stats only after minimal validation
   k->mote->received++;

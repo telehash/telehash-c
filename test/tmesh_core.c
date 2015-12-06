@@ -91,7 +91,6 @@ int main(int argc, char **argv)
   fail_unless(knock->start == 8);
   fail_unless(knock->stop == 8+1000);
   fail_unless(knock->chan == 30);
-  knock->adjust = 1;
 //  fail_unless(tmesh_knocked(netA,knock));
   
   fail_unless(mote_wait(m,42424242,1,NULL));
