@@ -112,7 +112,7 @@ int main(int argc, char **argv)
   fail_unless(knock->mote == m);
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
   fail_unless(knock->tx);
-  fail_unless(knock->start == 8585213);
+  fail_unless(knock->start == 8585713);
   fail_unless(knock->stop == 8585213+1000);
   fail_unless(knock->chan == 14);
 
@@ -127,7 +127,7 @@ int main(int argc, char **argv)
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
   fail_unless(knock->ready);
   fail_unless(knock->tx);
-  fail_unless(knock->start == 2949172);
+  fail_unless(knock->start == 2949672);
   fail_unless(knock->chan == 14);
   // frame would be random ciphered, but we fixed it to test
   LOG("frame %s",util_hex(knock->frame,32+8,hex)); // just the stable part
