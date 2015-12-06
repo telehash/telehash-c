@@ -286,7 +286,7 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
   if(k->mote->ping)
   {
     // copy in ping nonce
-    memcpy(k->frame,k->mote->nonce,8);
+    memcpy(k->frame,k->nonce,8);
     // wait for the next future rx nonce
     mote_wait(k->mote,k->mote->com->medium->min+k->mote->com->medium->max,0,NULL);
     memcpy(k->frame+8,k->mote->nonce,8);
@@ -315,7 +315,7 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
   k->frame[1] = (uint8_t)size; // max 63
   memcpy(k->frame+2,util_chunks_frame(k->mote->chunks),size);
   // ciphertext full frame
-  chacha20(k->mote->secret,k->mote->nonce,k->frame,64);
+  chacha20(k->mote->secret,k->nonce,k->frame,64);
 
   return tm;
 }
@@ -341,14 +341,11 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   // clear any priority now
   k->mote->priority = 0;
   
-  // if the adjustment is too far back, trim it
-  if((unsigned)abs(k->adjust) > k->mote->at) k->adjust = -k->mote->at;
-
   // tx just changes flags here
   if(k->tx)
   {
     // trust actual tx time to auto-correct for drift
-    k->mote->at += k->adjust;
+    k->mote->at += k->late + k->drift;
 
     k->mote->sent++;
     LOG("tx done, total %d next at %lu",k->mote->sent,k->mote->at);
@@ -370,14 +367,25 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     // first decipher frame using given nonce
     chacha20(k->mote->secret,k->frame,k->frame+8,64-8);
 
-    // if there is a link
+    // if there is a link, validate
     if(k->mote->link)
     {
       // verify hashname match
-      if(memcmp(k->frame+8+8,k->mote->link->id->bin,32) != 0) return LOG("ping hashname mismatch");
-    }else{
-      // create link if public
-      if(!k->mote->public) return LOG("internal error, link ping and no link");
+      if(memcmp(k->frame+8+8,k->mote->link->id->bin,32) != 0)
+      {
+        if(k->mote->public)
+        {
+          LOG("removing (and currently leaking) stale cached link on public mote");
+          k->mote->link = NULL;
+        }else{
+          return LOG("link ping hashname mismatch");
+        }
+      }
+    }
+
+    // create a link if none (public)
+    if(k->mote->public && !k->mote->link)
+    {
       if(memcmp(k->frame+8+8,tm->mesh->id->bin,32) == 0) return LOG("identity crisis");
       k->mote->link = link_get32(tm->mesh, k->frame+8+8);
       mote_t lmote = tmesh_link(tm, k->mote->com, k->mote->link);
@@ -388,10 +396,10 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     }
 
     // trust actual rx time to auto-correct for drift
-    k->mote->at += k->adjust;
+    k->mote->at += k->late + k->drift;
 
     // an incoming pong is sync, yay
-    if(memcmp(k->mote->nonce,k->frame,8) == 0)
+    if(memcmp(k->nonce,k->frame,8) == 0)
     {
       LOG("incoming pong verified");
       mote_synced(k->mote);
@@ -405,12 +413,16 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 
     // always sync wait to the bundled nonce for the next pong
     memcpy(k->mote->nonce,k->frame,8);
-
+    
     // since there's no ordering w/ public pings, make sure we're inverted to the sender for the pong
     if(k->mote->public) k->mote->order = mote_tx(k->mote,NULL) ? 1 : 0;
 
     // fast forward to the ping's wait nonce
+    k->mote->at = 0;
     mote_wait(k->mote,k->mote->com->medium->min+k->mote->com->medium->max,1,k->frame+8);
+
+    // we have to subtract one transmit and drift to be relative to sender
+    k->mote->at -= k->mote->com->medium->max + k->drift;
 
     LOG("looking for pong at %d with %s",k->mote->at,util_hex(k->mote->nonce,8,NULL));
 
@@ -418,7 +430,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   }
   
   // received knock handling now, decipher frame
-  chacha20(k->mote->secret,k->mote->nonce,k->frame,64);
+  chacha20(k->mote->secret,k->nonce,k->frame,64);
   
   // TODO check and validate frame[0] now
 
@@ -458,11 +470,14 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
       // if it's not done
       if(!knock->done)
       {
+        // track how late since estimated stop time
+        if(knock->stop < us) knock->late += us - knock->stop;
         // update active knock
         knock->start -= (knock->start < us) ? knock->start : us;
         knock->stop -= (knock->stop < us) ? knock->stop : us;
         LOG("active knock start %lu stop %lu busy %d",knock->start,knock->stop,knock->busy);
       }else{
+        // NOTE: when driver sets done=true, it should += drift the difference between the last process(us) and the done
         // ready and done, process it
         tmesh_knocked(tm, knock); // mote->at isn't updated yet
         memset(knock,0,sizeof(struct knock_struct));
@@ -502,7 +517,7 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
 
     // signal this knock is ready to roll
     knock->ready = 1;
-    LOG("new %s knock to mote %s nonce %s",knock->tx?"TX":"RX",knock->mote->public?"anyone":knock->mote->link->id->hashname,util_hex(knock->mote->nonce,8,NULL));
+    LOG("new %s knock to mote %s nonce %s",knock->tx?"TX":"RX",knock->mote->public?"anyone":knock->mote->link->id->hashname,util_hex(knock->nonce,8,NULL));
 
     // do the work to fill in the tx frame only once here
     if(knock->tx)
@@ -626,8 +641,8 @@ mote_t mote_wait(mote_t m, uint32_t after, uint8_t tx, uint8_t *set)
   memcpy(nonce,m->nonce,8);
   at = m->at;
   atx = mote_tx(m,nonce);
-//  while(LOG("WAIT %d at %d after %d atx %d tx %d nonce %s",m->order,at,after,atx,tx,util_hex(nonce,8,NULL)) || at < after || atx != tx)
-  while(at < after || atx != tx)
+  while(LOG("WAIT %d at %d after %d atx %d tx %d nonce %s",m->order,at,after,atx,tx,util_hex(nonce,8,NULL)) || at < after || atx != tx)
+//  while(at < after || atx != tx)
   {
     // see if any given nonce matches to stop at early
     if(set && at >= after && atx == tx && memcmp(set,nonce,8) == 0) break;
@@ -699,6 +714,9 @@ mote_t mote_knock(mote_t m, knock_t k)
 
   // direction
   k->tx = mote_tx(m,NULL);
+
+  // cache nonce
+  memcpy(k->nonce,m->nonce,8);
 
   return m;
 }
