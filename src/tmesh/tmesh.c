@@ -129,7 +129,7 @@ mote_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link)
   if(!tm || !c || !link) return LOG("bad args");
 
   // check list of motes, add if not there
-  for(m=c->motes;m;m = m->next) if(m->link == link) return m;
+  for(m=c->motes;m;m = m->next) if(m->link == link && !m->public) return m;
 
   if(!(m = mote_new(link))) return LOG("OOM");
   m->next = c->motes;
@@ -461,10 +461,20 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
 
   for(com=tm->coms;com;com=com->next)
   {
-    radio_t device = radio_devices[com->medium->radio];
-    knock_t knock = device->knock;
+    // first walk the motes to process packets and advance time
+    for(mote=com->motes;mote;mote=mote->next)
+    {
+      // process any packets on this mote
+      while((packet = util_chunks_receive(mote->chunks)))
+        mesh_receive(tm->mesh, packet, com->pipe); // TODO associate mote for neighborhood
+
+      // inform every mote of the time change
+      mote_bttf(mote,us);
+    }
 
     // check in on a ready knock
+    radio_t device = radio_devices[com->medium->radio];
+    knock_t knock = device->knock;
     if(knock->ready)
     {
       LOG("a knock is %s",knock->done?"done":"active yet");
@@ -477,28 +487,21 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
         knock->start -= (knock->start < us) ? knock->start : us;
         knock->stop -= (knock->stop < us) ? knock->stop : us;
         LOG("active knock start %lu stop %lu busy %d",knock->start,knock->stop,knock->busy);
+        // continue on this knock yet
+        if(knock->start) return knock->start;
+        return knock->stop;
       }else{
         // NOTE: when driver sets done=true, it should += drift the difference between the last process(us) and the done
         // ready and done, process it
-        tmesh_knocked(tm, knock); // mote->at isn't updated yet
+        tmesh_knocked(tm, knock);
         memset(knock,0,sizeof(struct knock_struct));
       }
     }
-
-    // walk the motes
+    
+    // walk the motes for another knock
     memset(&ktmp,0,sizeof(struct knock_struct));
     for(mote=com->motes;mote;mote=mote->next)
     {
-      // process any packets on this mote
-      while((packet = util_chunks_receive(mote->chunks)))
-        mesh_receive(tm->mesh, packet, com->pipe); // TODO associate mote for neighborhood
-
-      // inform every mote of the time change
-      mote_bttf(mote,us);
-      
-      // a knock is already active
-      if(knock->ready) continue;
-
       // TODO, optimize skipping tx knocks if nothing to send
       mote_knock(mote,&ktmp);
 
