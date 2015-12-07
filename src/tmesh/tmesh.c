@@ -320,13 +320,6 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
   return tm;
 }
 
-// least significant nonce bit sets direction
-uint8_t mote_tx(mote_t m, uint8_t *nonce)
-{
-  if(!nonce) nonce = m->nonce;
-  return ((nonce[7] & 0b00000001) == m->order) ? 0 : 1;
-}
-
 // signal once a knock has been sent/received for this mote
 tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 {
@@ -461,7 +454,35 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
 
   for(com=tm->coms;com;com=com->next)
   {
-    // first walk the motes to process packets and advance time
+    // block on any active knocks
+    radio_t device = radio_devices[com->medium->radio];
+    knock_t knock = device->knock;
+    if(knock->ready)
+    {
+      LOG("a knock is %s",knock->done?"done":"active yet");
+
+      // if it's not done
+      if(!knock->done)
+      {
+        knock->waiting += us;
+        // update active knock
+        knock->start -= (knock->start < us) ? knock->start : us;
+        knock->stop -= (knock->stop < us) ? knock->stop : us;
+        LOG("active knock start %lu stop %lu busy %d",knock->start,knock->stop,knock->busy);
+        // continue on this knock yet
+        if(knock->start) return knock->start;
+        return knock->stop;
+      }
+
+      // NOTE: when driver sets done=true, it should set drift past the stop
+      // ready and done, process it
+      us += knock->waiting; // add time we've been waiting
+      tmesh_knocked(tm, knock);
+      memset(knock,0,sizeof(struct knock_struct));
+    }
+
+    // walk the motes for processing and to find another knock
+    memset(&ktmp,0,sizeof(struct knock_struct));
     for(mote=com->motes;mote;mote=mote->next)
     {
       // process any packets on this mote
@@ -470,38 +491,7 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
 
       // inform every mote of the time change
       mote_bttf(mote,us);
-    }
 
-    // check in on a ready knock
-    radio_t device = radio_devices[com->medium->radio];
-    knock_t knock = device->knock;
-    if(knock->ready)
-    {
-      LOG("a knock is %s",knock->done?"done":"active yet");
-      // if it's not done
-      if(!knock->done)
-      {
-        // track how late since estimated stop time
-        if(knock->stop < us) knock->late += us - knock->stop;
-        // update active knock
-        knock->start -= (knock->start < us) ? knock->start : us;
-        knock->stop -= (knock->stop < us) ? knock->stop : us;
-        LOG("active knock start %lu stop %lu busy %d",knock->start,knock->stop,knock->busy);
-        // continue on this knock yet
-        if(knock->start) return knock->start;
-        return knock->stop;
-      }else{
-        // NOTE: when driver sets done=true, it should += drift the difference between the last process(us) and the done
-        // ready and done, process it
-        tmesh_knocked(tm, knock);
-        memset(knock,0,sizeof(struct knock_struct));
-      }
-    }
-    
-    // walk the motes for another knock
-    memset(&ktmp,0,sizeof(struct knock_struct));
-    for(mote=com->motes;mote;mote=mote->next)
-    {
       // TODO, optimize skipping tx knocks if nothing to send
       mote_knock(mote,&ktmp);
 
@@ -624,61 +614,32 @@ mote_t mote_reset(mote_t m)
   return m;
 }
 
-// internal util
-uint32_t mote_next(mote_t m, uint8_t *nonce)
+// how big is the next window
+uint32_t mote_next(mote_t m)
 {
   uint32_t next;
-  if(!nonce) nonce = m->nonce;
-  next = util_sys_long((unsigned long)*nonce);
+  next = util_sys_long((unsigned long)*(m->nonce));
   // smaller for high z, using only high 4 bits of z
   next >>= (m->z >> 4);
-  return next;
+  return next + m->com->medium->min + m->com->medium->max;
 }
 
-// set mote forward to the first nonce that occurs after this future time of this type, stop at set nonce if given
-mote_t mote_wait(mote_t m, uint32_t after, uint8_t tx, uint8_t *set)
+// least significant nonce bit sets direction
+uint8_t mote_tx(mote_t m)
 {
-  uint8_t nonce[8], atx;
-  uint32_t at;
-  if(!m || !after) return LOG("bad args");
-  
-  memcpy(nonce,m->nonce,8);
-  at = m->at;
-  atx = mote_tx(m,nonce);
-  while(LOG("WAIT %d at %d after %d atx %d tx %d nonce %s",m->order,at,after,atx,tx,util_hex(nonce,8,NULL)) || at < after || atx != tx)
-//  while(at < after || atx != tx)
-  {
-    // see if any given nonce matches to stop at early
-    if(set && at >= after && atx == tx && memcmp(set,nonce,8) == 0) break;
-
-    // step forward
-    chacha20(m->secret,nonce,nonce,8);
-    at += mote_next(m,nonce);
-    atx = mote_tx(m,nonce);
-  }
-
-  if(set && memcmp(set,nonce,8) != 0) return LOG("warning, set wait nonce was not found in window sequence");
-
-  LOG("waited from %lu to %lu nonce %s",m->at,at,util_hex(nonce,8,NULL));
-  // set into the future
-  memcpy(m->nonce,nonce,8);
-  m->at = at;
-
-  return m;
+  return ((m->nonce[7] & 0b00000001) == m->order) ? 0 : 1;
 }
 
 // advance window by relative time
-mote_t mote_bttf(mote_t m, uint32_t us)
+mote_t mote_advance(mote_t m, uint32_t us)
 {
   if(!m || !us) return LOG("bad args");
 
-  while(LOG("bttf us %lu > at %lu",us,m->at) || us > m->at)
+  while(LOG("bttf us %lu > at %lu",us,m->at) || m->at < us)
   {
-    // trim relative
-    us -= m->at;
     // rotate nonce by ciphering it
     chacha20(m->secret,m->nonce,m->nonce,8);
-    m->at = mote_next(m,NULL);
+    m->at += mote_next(m);
   }
   
   // move relative forward

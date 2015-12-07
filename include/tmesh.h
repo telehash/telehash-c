@@ -79,7 +79,8 @@ struct knock_struct
 {
   mote_t mote;
   uint32_t start, stop;
-  uint16_t late, drift; // late is us, drift is driver
+  uint16_t waiting; // time spent waiting for a knock to finish
+  uint16_t drift; // drift is offset from stop set by driver
   uint8_t frame[64];
   uint8_t nonce[8]; // nonce for this knock
   uint8_t chan; // current channel (< med->chans)
@@ -118,16 +119,19 @@ mote_t mote_free(mote_t m);
 mote_t mote_reset(mote_t m);
 
 // advance window by relative time
-mote_t mote_bttf(mote_t m, uint32_t us);
+mote_t mote_advance(mote_t m, uint32_t us);
+
+// least significant nonce bit sets direction
+uint8_t mote_tx(mote_t m);
+
+// how big is the next window
+uint32_t mote_next(mote_t m);
 
 // next knock init
 mote_t mote_knock(mote_t m, knock_t k);
 
 // initiates handshake over this synchronized mote
 mote_t mote_synced(mote_t m);
-
-// find the first nonce that occurs after this future time of this type
-mote_t mote_wait(mote_t m, uint32_t after, uint8_t tx, uint8_t *set);
 
 // for tmesh sorting
 knock_t knock_sooner(knock_t a, knock_t b);
