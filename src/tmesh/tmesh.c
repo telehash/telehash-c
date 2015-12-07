@@ -419,12 +419,13 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 
     // fast forward to the ping's wait nonce
     k->mote->at = 0;
-    mote_wait(k->mote,k->mote->com->medium->min+k->mote->com->medium->max,1,k->frame+8);
+    if(mote_wait(k->mote,k->mote->com->medium->min+k->mote->com->medium->max,1,k->frame+8))
+    {
+      // we have to subtract one transmit and drift to be relative to sender
+      k->mote->at -= k->mote->com->medium->max + k->drift;
 
-    // we have to subtract one transmit and drift to be relative to sender
-    k->mote->at -= k->mote->com->medium->max + k->drift;
-
-    LOG("looking for pong at %d with %s",k->mote->at,util_hex(k->mote->nonce,8,NULL));
+      LOG("looking for pong at %d with %s",k->mote->at,util_hex(k->mote->nonce,8,NULL));
+    }
 
     return tm;
   }
