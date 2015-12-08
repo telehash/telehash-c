@@ -66,13 +66,13 @@ int main(int argc, char **argv)
   fail_unless(mote_reset(m));
   memset(m->nonce,0,8); // nonce is random, force stable for fixture testing
   knock_t knock = dev->knock;
-  fail_unless(mote_bttf(m,4200000));
+  fail_unless(mote_advance(m,4200000));
   LOG("next is %lld",m->at);
-  fail_unless(m->at == 11332032);
+  fail_unless(m->at == 11334052);
   fail_unless(mote_knock(m,knock));
   fail_unless(knock->tx);
-  fail_unless(mote_bttf(m,11332032));
-  fail_unless(mote_bttf(m,11332032));
+  fail_unless(mote_advance(m,11334052));
+  fail_unless(mote_advance(m,11334052));
   fail_unless(mote_knock(m,knock));
   fail_unless(!knock->tx);
   LOG("next is %lld",knock->start);
@@ -93,12 +93,12 @@ int main(int argc, char **argv)
   fail_unless(knock->chan == 30);
 //  fail_unless(tmesh_knocked(netA,knock));
   
-  fail_unless(mote_wait(m,42424242,1,NULL));
+  fail_unless(mote_advance(m,mote_next(m)));
   LOG("seek %s",util_hex(m->nonce,8,hex));
-  fail_unless(util_cmp(hex,"6d57cd1be3010439") == 0);
-  fail_unless(mote_bttf(m,42424243));
+  fail_unless(util_cmp(hex,"f16d6a2a93a608b1") == 0);
+  fail_unless(mote_advance(m,42424243));
   LOG("at is %lu",m->at);
-  fail_unless(m->at >= 5941333);
+  fail_unless(m->at >= 5816321);
 
   // public ping now
   m->at = 0xffffff00;
@@ -107,38 +107,38 @@ int main(int argc, char **argv)
   LOG("public at is now %lu",m->at);
   next = tmesh_process(netA,2);
   LOG("next %lu",next);
-  fail_unless(next == 8585213);
+  fail_unless(next == 8586723);
   fail_unless(knock->mote == m);
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
   fail_unless(knock->tx);
-  fail_unless(knock->start == 8585713);
-  fail_unless(knock->stop == 8585213+1000);
+  fail_unless(knock->start == 8586723);
+  fail_unless(knock->stop == 8586723+500);
   fail_unless(knock->chan == 14);
 
   // public ping tx
   memset(m->nonce,42,8); // fixture for testing
   m->order = 1;
   memset(knock,0,sizeof(struct knock_struct));
-  next = tmesh_process(netA,646119369);
+  next = tmesh_process(netA,64611936);
   LOG("next %lu",next);
-  fail_unless(next == 2949172);
+  fail_unless(next == 5782305);
   fail_unless(knock->mote == m);
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
   fail_unless(knock->ready);
   fail_unless(knock->tx);
-  fail_unless(knock->start == 2949672);
+  fail_unless(knock->start == 5782305);
   fail_unless(knock->chan == 14);
   // frame would be random ciphered, but we fixed it to test
   LOG("frame %s",util_hex(knock->frame,32+8,hex)); // just the stable part
-  fail_unless(util_cmp(hex,"65172e9c3ba1be1465172e9c3ba1be149f12d63cc6c908dc829a757077eb606fb9b65a839e8bc8ed") == 0);
+  fail_unless(util_cmp(hex,"a5291565b7af6e62dd1300f02d88e665cf0d9a8d8186a11e9fe144003c4664b8af2ccd12bbf09603") == 0);
   // let's preted it's an rx now
   knock->tx = 0;
-  knock->done = 1; // fake rx good
+  knock->done = knock->stop; // fake rx good
   LOG("faking rx in");
   next = tmesh_process(netA,553648170);
   fail_unless(!knock->done);
   LOG("next %lu",next);
-  fail_unless(next == 6422538);
+  fail_unless(next == 13588741);
 
   // leave public community
   fail_unless(tmesh_leave(netA,c));
@@ -202,17 +202,17 @@ int main(int argc, char **argv)
 
   // fake reception, with fake cake
   memcpy(knAB->frame,knBA->frame,64);
-  knAB->done = 1;
-  knBA->done = 1;
+  knAB->done = knAB->stop;
+  knBA->done = knBA->stop;
   
   LOG("process netA");
   dev->knock = knAB; // manually swapping
-  next = tmesh_process(netA,1);
+  next = tmesh_process(netA,knAB->done+1);
   fail_unless(mAB->pong);
 
   LOG("process netB");
   dev->knock = knBA; // manually swapping
-  next = tmesh_process(netB,1);
+  next = tmesh_process(netB,knBA->done+1);
 
   // back to the future
   dev->knock = knAB; // manually swapping
@@ -227,8 +227,8 @@ int main(int argc, char **argv)
   // dance
   LOG("transceive");
   memcpy(knBA->frame,knAB->frame,64);
-  knAB->done = 1;
-  knBA->done = 1;
+  knAB->done = knAB->stop;
+  knBA->done = knBA->stop;
 
   LOG("BA ping %d pong %d",mBA->ping,mBA->pong);
   LOG("AB ping %d pong %d",mAB->ping,mAB->pong);

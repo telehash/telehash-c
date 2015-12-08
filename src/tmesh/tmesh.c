@@ -288,7 +288,7 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
     // copy in ping nonce
     memcpy(k->frame,k->nonce,8);
     // advance to the next future rx window
-    while(!mote_tx(k->mote)) mote_advance(m,mote_next(m));
+    while(!mote_tx(k->mote)) mote_advance(k->mote,mote_next(k->mote));
     memcpy(k->frame+8,k->mote->nonce,8);
     // copy in hashname
     memcpy(k->frame+8+8,tm->mesh->id->bin,32);
@@ -415,12 +415,12 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
     // fast forward to the ping's wait nonce
     k->mote->at = 0;
     uint8_t max = 100;
-    while(max-- && memcmp(k->frame+8, k->mote->nonce) != 0) mote_advance(m,mote_next(m));
+    while(max-- && memcmp(k->frame+8, k->mote->nonce, 8) != 0) mote_advance(k->mote,mote_next(k->mote));
     // be safe
     if(!max || k->mote->at < ago)
     {
       LOG("failed to find wait nonce in time");
-      k->mote->at = mote_next(m);
+      k->mote->at = mote_next(k->mote);
     }else{
       k->mote->at -= ago;
       LOG("looking for pong at %d with %s",k->mote->at,util_hex(k->mote->nonce,8,NULL));
@@ -492,7 +492,7 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
         mesh_receive(tm->mesh, packet, com->pipe); // TODO associate mote for neighborhood
 
       // inform every mote of the time change
-      mote_bttf(mote,us);
+      mote_advance(mote,us);
 
       // TODO, optimize skipping tx knocks if nothing to send
       mote_knock(mote,&ktmp);
@@ -521,6 +521,7 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
   }
   
   uint32_t best = 0xffffffff;
+  int i;
   for(i=0;i<RADIOS_MAX;i++)
   {
     if(!radio_devices[i]) continue;
