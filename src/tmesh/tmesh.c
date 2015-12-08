@@ -323,7 +323,7 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
 // signal once a knock has been sent/received for this mote
 tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
 {
-  int16_t drift;
+  uint32_t drift;
   mote_t mlink = NULL;
   if(!tm || !k) return LOG("bad args");
   
@@ -411,11 +411,11 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
     // fast forward to the ping's wait nonce
     k->mote->at = 0;
     uint8_t max = 100;
-    while(max-- && memcmp(k->frame+8, k->mote->nonce, 8) != 0) mote_advance(k->mote,mote_next(k->mote));
+    while(--max && memcmp(k->frame+8, k->mote->nonce, 8) != 0) mote_advance(k->mote,mote_next(k->mote));
     // be safe
     if(!max || k->mote->at < ago)
     {
-      LOG("failed to find wait nonce in time");
+      LOG("failed to find wait nonce in time: %s",util_hex(k->frame+8,8,NULL));
       k->mote->at = mote_next(k->mote);
     }else{
       k->mote->at -= ago;
@@ -476,7 +476,7 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
         continue;
       }
 
-      LOG("processing done knock %lu ago",us - knock->done);
+      LOG("processing done knock %lu ago waited %lu",us - knock->done,knock->waiting);
       tmesh_knocked(tm, knock, us - knock->done);
 
       // add time we've been waiting for the unblocked motes below now
@@ -630,14 +630,14 @@ mote_t mote_reset(mote_t m)
   return m;
 }
 
-// how big is the next window
+// when is the next window start for this mote
 uint32_t mote_next(mote_t m)
 {
   uint32_t next;
   next = util_sys_long((unsigned long)*(m->nonce));
   // smaller for high z, using only high 4 bits of z
   next >>= (m->z >> 4);
-  return next + m->com->medium->min + m->com->medium->max;
+  return next + m->com->medium->min + m->com->medium->max + m->at;
 }
 
 // least significant nonce bit sets direction
@@ -651,11 +651,11 @@ mote_t mote_advance(mote_t m, uint32_t us)
 {
   if(!m || !us) return LOG("bad args");
 
-  while(LOG("bttf us %lu > at %lu",us,m->at) || m->at < us)
+  while(LOG("bttf us %lu > at %lu nonce %s",us,m->at,util_hex(m->nonce,8,NULL)) || m->at < us)
   {
     // rotate nonce by ciphering it
     chacha20(m->secret,m->nonce,m->nonce,8);
-    m->at += mote_next(m);
+    m->at = mote_next(m);
   }
   
   // move relative forward
