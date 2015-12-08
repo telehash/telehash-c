@@ -323,7 +323,6 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
 // signal once a knock has been sent/received for this mote
 tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
 {
-  uint32_t drift;
   mote_t mlink = NULL;
   if(!tm || !k) return LOG("bad args");
   
@@ -333,19 +332,12 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
     return tm;
   }
   
-  // calculate drift, difference between stop and done
-  drift = k->done - k->stop;
-  if(drift) LOG("drifted %lu",drift);
-  
   // clear any priority now
   k->mote->priority = 0;
   
   // tx just changes flags here
   if(k->tx)
   {
-    // trust actual tx time to auto-correct for drift
-    k->mote->at += drift;
-
     k->mote->sent++;
     LOG("tx done, total %d next at %lu",k->mote->sent,k->mote->at);
 
@@ -400,7 +392,6 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
     if(memcmp(k->nonce,k->frame,8) == 0)
     {
       LOG("incoming pong verified");
-      k->mote->at += drift;
       mote_synced(k->mote);
       return tm;
     }
@@ -436,9 +427,6 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
   chacha20(k->mote->secret,k->nonce,k->frame,64);
   
   // TODO check and validate frame[0] now
-
-  // trust actual rx time to auto-correct for drift
-  k->mote->at += drift;
 
   // received stats only after minimal validation
   k->mote->received++;
@@ -478,13 +466,23 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
         continue;
       }
 
+      // reference for the start time from now (done is stop)
       uint32_t ago = us - knock->done;
-      ago += knock->mote->com->medium->max; // for the start time from now, not stop
-      LOG("processing done knock %lu ago waited %lu",ago,knock->waiting);
-      tmesh_knocked(tm, knock, ago);
+      ago += knock->mote->com->medium->max;
 
       // add time we've been waiting for the unblocked motes below now
       us += knock->waiting;
+
+      LOG("processing done knock %lu ago waited %lu",ago,knock->waiting);
+      if(tmesh_knocked(tm, knock, ago) && !knock->mote->pong)
+      {
+        int16_t drift = knock->done - knock->stop;
+        LOG("adjusting for drift by %d",drift);
+        // be safe for edge cases since at isn't updated yet
+        if(abs(drift) > knock->mote->at) knock->mote->at = 0;
+        else knock->mote->at += drift;
+      }
+
       memset(knock,0,sizeof(struct knock_struct));
     }
 
@@ -704,7 +702,7 @@ mote_t mote_synced(mote_t m)
 {
   if(!m) return LOG("bad args");
 
-  LOG("mote synchronized!");
+  LOG("mote synchronized! %s",m->public?"public":m->link->id->hashname);
 
   m->pong = 0;
 
