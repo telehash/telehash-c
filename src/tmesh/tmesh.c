@@ -288,7 +288,7 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
     // copy in ping nonce
     memcpy(k->frame,k->nonce,8);
     // advance to the next future rx window
-    while(mote_tx(k->mote)) mote_advance(k->mote,mote_next(k->mote));
+    while(mote_tx(k->mote)) mote_advance(k->mote);
     memcpy(k->frame+8,k->mote->nonce,8);
     // copy in hashname
     memcpy(k->frame+8+8,tm->mesh->id->bin,32);
@@ -335,6 +335,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
   
   // calculate drift, difference between stop and done
   drift = k->done - k->stop;
+  if(drift) LOG("drifted %lu",drift);
   
   // clear any priority now
   k->mote->priority = 0;
@@ -388,7 +389,11 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
       k->mote->link = link_get32(tm->mesh, k->frame+8+8);
       mlink = tmesh_link(tm, k->mote->com, k->mote->link);
       if(!mlink) return LOG("mote link failed");
-      if(mlink->at == 0) LOG("new mote to %s",mlink->link->id->hashname);
+      if(mlink->at == 0)
+      {
+        LOG("new mote to %s",mlink->link->id->hashname);
+        mlink->at = 0xffffffff; // disabled, as mote_synced of public will free it
+      }
     }
 
     // an incoming pong is sync, yay
@@ -411,21 +416,18 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
     // fast forward to the ping's wait nonce
     k->mote->at = 0;
     uint8_t max = 100;
-    while(--max && memcmp(k->frame+8, k->mote->nonce, 8) != 0) mote_advance(k->mote,mote_next(k->mote));
+    while(--max && memcmp(k->frame+8, k->mote->nonce, 8) != 0) mote_advance(k->mote);
     // be safe
     if(!max || k->mote->at < ago)
     {
       LOG("failed to find wait nonce in time: %s",util_hex(k->frame+8,8,NULL));
-      k->mote->at = mote_next(k->mote);
+      k->mote->at = 0;
     }else{
       k->mote->at -= ago;
       k->mote->pong = 1;
       k->mote->priority += 2;
       LOG("looking for pong at %d with %s",k->mote->at,util_hex(k->mote->nonce,8,NULL));
     }
-
-    // for safety force any referenced mote to wait till after next public window
-    if(mlink) mlink->at = k->mote->at + k->mote->com->medium->max;
 
     return tm;
   }
@@ -476,8 +478,10 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
         continue;
       }
 
-      LOG("processing done knock %lu ago waited %lu",us - knock->done,knock->waiting);
-      tmesh_knocked(tm, knock, us - knock->done);
+      uint32_t ago = us - knock->done;
+      ago += knock->mote->com->medium->max; // for the start time from now, not stop
+      LOG("processing done knock %lu ago waited %lu",ago,knock->waiting);
+      tmesh_knocked(tm, knock, ago);
 
       // add time we've been waiting for the unblocked motes below now
       us += knock->waiting;
@@ -492,8 +496,12 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
       while((packet = util_chunks_receive(mote->chunks)))
         mesh_receive(tm->mesh, packet, com->pipe); // TODO associate mote for neighborhood
 
-      // inform every mote of the time change, except ones already set to pong
-      if(!mote->pong) mote_advance(mote,us);
+      // adjust relative local time, except ones already set to pong
+      if(!mote->pong)
+      {
+        while(LOG("bttf us %lu > at %lu nonce %s",us,mote->at,util_hex(mote->nonce,8,NULL)) || mote->at < us) mote_advance(mote);
+        mote->at -= us;
+      }
 
       // TODO, optimize skipping tx knocks if nothing to send
       mote_knock(mote,&ktmp);
@@ -630,38 +638,27 @@ mote_t mote_reset(mote_t m)
   return m;
 }
 
-// when is the next window start for this mote
-uint32_t mote_next(mote_t m)
-{
-  uint32_t next;
-  next = util_sys_long((unsigned long)*(m->nonce));
-  // smaller for high z, using only high 4 bits of z
-  next >>= (m->z >> 4);
-  return next + m->com->medium->min + m->com->medium->max + m->at;
-}
-
 // least significant nonce bit sets direction
 uint8_t mote_tx(mote_t m)
 {
   return ((m->nonce[7] & 0b00000001) == m->order) ? 0 : 1;
 }
 
-// advance window by relative time
-mote_t mote_advance(mote_t m, uint32_t us)
+// advance window by one
+mote_t mote_advance(mote_t m)
 {
-  if(!m || !us) return LOG("bad args");
+  // rotate nonce by ciphering it
+  chacha20(m->secret,m->nonce,m->nonce,8);
 
-  while(LOG("bttf us %lu > at %lu nonce %s",us,m->at,util_hex(m->nonce,8,NULL)) || m->at < us)
-  {
-    // rotate nonce by ciphering it
-    chacha20(m->secret,m->nonce,m->nonce,8);
-    m->at = mote_next(m);
-  }
+  uint32_t next = util_sys_long((unsigned long)*(m->nonce));
+
+  // smaller for high z, using only high 4 bits of z
+  next >>= (m->z >> 4);
+
+  m->at += next + m->com->medium->min + m->com->medium->max;
   
-  // move relative forward
-  m->at -= us;
-  
-  LOG("bttf done w/ at %lu",m->at);
+  LOG("advanced to nonce %s at %lu next %lu",util_hex(m->nonce,8,NULL),m->at,next);
+
   return m;
 }
 
@@ -718,7 +715,8 @@ mote_t mote_synced(mote_t m)
     if(m->link)
     {
       mote_t lmote = tmesh_link(m->com->tm, m->com, m->link);
-      lmote->at = m->at; // first link ping will trump next public ping
+      lmote->at = m->at;
+      mote_advance(lmote); // step forward a window
       m->link = NULL;
     }
 

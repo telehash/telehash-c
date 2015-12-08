@@ -66,17 +66,17 @@ int main(int argc, char **argv)
   fail_unless(mote_reset(m));
   memset(m->nonce,0,8); // nonce is random, force stable for fixture testing
   knock_t knock = dev->knock;
-  fail_unless(mote_advance(m,4200000));
+  fail_unless(mote_advance(m));
   LOG("next is %lld",m->at);
-  fail_unless(m->at == 11334052);
-  fail_unless(mote_knock(m,knock));
-  fail_unless(knock->tx);
-  fail_unless(mote_advance(m,11334052));
-  fail_unless(mote_advance(m,11334052));
+  fail_unless(m->at == 263154);
   fail_unless(mote_knock(m,knock));
   fail_unless(!knock->tx);
+  fail_unless(mote_advance(m));
+  fail_unless(mote_advance(m));
+  fail_unless(mote_knock(m,knock));
+  fail_unless(knock->tx);
   LOG("next is %lld",knock->start);
-  fail_unless(knock->start == 10294848);
+  fail_unless(knock->start == 21302230);
 
   uint32_t next;
   mote_reset(m);
@@ -93,10 +93,10 @@ int main(int argc, char **argv)
   fail_unless(knock->chan == 30);
 //  fail_unless(tmesh_knocked(netA,knock));
   
-  fail_unless(mote_advance(m,mote_next(m)));
+  fail_unless(mote_advance(m));
   LOG("seek %s",util_hex(m->nonce,8,hex));
   fail_unless(util_cmp(hex,"f16d6a2a93a608b1") == 0);
-  fail_unless(mote_advance(m,42424243));
+  fail_unless(mote_advance(m));
   LOG("at is %lu",m->at);
   fail_unless(m->at >= 5816313);
 
@@ -121,16 +121,16 @@ int main(int argc, char **argv)
   memset(knock,0,sizeof(struct knock_struct));
   next = tmesh_process(netA,5461193);
   LOG("next %lu",next);
-  fail_unless(next == 11777295);
+  fail_unless(next == 13809918);
   fail_unless(knock->mote == m);
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
   fail_unless(knock->ready);
   fail_unless(knock->tx);
-  fail_unless(knock->start == 11777295);
+  fail_unless(knock->start == 13809918);
   fail_unless(knock->chan == 14);
   // frame would be random ciphered, but we fixed it to test
   LOG("frame %s",util_hex(knock->frame,32+8,hex)); // just the stable part
-  fail_unless(util_cmp(hex,"e7a3c0d30709d7a439218f69b7b3d5eb96a7294a958aebd025a02bd5582202335cfd213db0363eb7") == 0);
+  fail_unless(util_cmp(hex,"0404040404040404d0c8499c1f914359b57ff286af3275a61bc0894ad1eb3fec4c6aeda2ca728e25") == 0);
   // let's preted it's an rx now
   knock->tx = 0;
   knock->done = knock->stop; // fake rx good
@@ -138,7 +138,7 @@ int main(int argc, char **argv)
   next = tmesh_process(netA,553648170);
   fail_unless(!knock->done);
   LOG("next %lu",next);
-  fail_unless(next == 8460776);
+  fail_unless(next == 1492252);
 
   // leave public community
   fail_unless(tmesh_leave(netA,c));

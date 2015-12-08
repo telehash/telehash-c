@@ -117,14 +117,11 @@ mote_t mote_free(mote_t m);
 // resets secret/nonce and to ping mode
 mote_t mote_reset(mote_t m);
 
-// advance window by relative time
-mote_t mote_advance(mote_t m, uint32_t us);
+// advance mote ahead next window
+mote_t mote_advance(mote_t m);
 
 // least significant nonce bit sets direction
 uint8_t mote_tx(mote_t m);
-
-// how big is the next window
-uint32_t mote_next(mote_t m);
 
 // next knock init
 mote_t mote_knock(mote_t m, knock_t k);
