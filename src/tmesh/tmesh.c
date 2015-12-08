@@ -287,8 +287,8 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
   {
     // copy in ping nonce
     memcpy(k->frame,k->nonce,8);
-    // wait for the next future rx nonce
-    mote_wait(k->mote,k->mote->com->medium->min+k->mote->com->medium->max,0,NULL);
+    // advance to the next future rx window
+    while(!mote_tx(k->mote)) mote_advance(m,mote_next(m));
     memcpy(k->frame+8,k->mote->nonce,8);
     // copy in hashname
     memcpy(k->frame+8+8,tm->mesh->id->bin,32);
@@ -321,8 +321,9 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
 }
 
 // signal once a knock has been sent/received for this mote
-tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
+tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
 {
+  int16_t drift;
   if(!tm || !k) return LOG("bad args");
   
   if(k->err)
@@ -331,6 +332,9 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     return tm;
   }
   
+  // calculate drift, difference between stop and done
+  drift = k->done - k->stop;
+  
   // clear any priority now
   k->mote->priority = 0;
   
@@ -338,7 +342,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   if(k->tx)
   {
     // trust actual tx time to auto-correct for drift
-    k->mote->at += k->late + k->drift;
+    k->mote->at += drift;
 
     k->mote->sent++;
     LOG("tx done, total %d next at %lu",k->mote->sent,k->mote->at);
@@ -388,13 +392,11 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
       lmote->at = k->mote->at + k->mote->com->medium->max;
     }
 
-    // trust actual rx time to auto-correct for drift
-    k->mote->at += k->late + k->drift;
-
     // an incoming pong is sync, yay
     if(memcmp(k->nonce,k->frame,8) == 0)
     {
       LOG("incoming pong verified");
+      k->mote->at += drift;
       mote_synced(k->mote);
       return tm;
     }
@@ -408,15 +410,19 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     memcpy(k->mote->nonce,k->frame,8);
     
     // since there's no ordering w/ public pings, make sure we're inverted to the sender for the pong
-    if(k->mote->public) k->mote->order = mote_tx(k->mote,NULL) ? 1 : 0;
+    if(k->mote->public) k->mote->order = mote_tx(k->mote) ? 1 : 0;
 
     // fast forward to the ping's wait nonce
     k->mote->at = 0;
-    if(mote_wait(k->mote,k->mote->com->medium->min+k->mote->com->medium->max,1,k->frame+8))
+    uint8_t max = 100;
+    while(max-- && memcmp(k->frame+8, k->mote->nonce) != 0) mote_advance(m,mote_next(m));
+    // be safe
+    if(!max || k->mote->at < ago)
     {
-      // we have to subtract one transmit and drift to be relative to sender
-      k->mote->at -= k->mote->com->medium->max + k->drift;
-
+      LOG("failed to find wait nonce in time");
+      k->mote->at = mote_next(m);
+    }else{
+      k->mote->at -= ago;
       LOG("looking for pong at %d with %s",k->mote->at,util_hex(k->mote->nonce,8,NULL));
     }
 
@@ -429,7 +435,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   // TODO check and validate frame[0] now
 
   // trust actual rx time to auto-correct for drift
-  k->mote->at += k->late + k->drift;
+  k->mote->at += drift;
 
   // received stats only after minimal validation
   k->mote->received++;
@@ -448,36 +454,32 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
   cmnty_t com;
   mote_t mote;
   lob_t packet;
-  uint32_t ret = 0xffffffff;
   struct knock_struct ktmp;
-  if(!tm || !us) return ret;
+  knock_t knock;
+  if(!tm || !us) return 0;
 
   for(com=tm->coms;com;com=com->next)
   {
     // block on any active knocks
-    radio_t device = radio_devices[com->medium->radio];
-    knock_t knock = device->knock;
+    knock = radio_devices[com->medium->radio]->knock;
     if(knock->ready)
     {
-      LOG("a knock is %s",knock->done?"done":"active yet");
-
       // if it's not done
       if(!knock->done)
       {
         knock->waiting += us;
-        // update active knock
+        // update active knock reference time
         knock->start -= (knock->start < us) ? knock->start : us;
         knock->stop -= (knock->stop < us) ? knock->stop : us;
-        LOG("active knock start %lu stop %lu busy %d",knock->start,knock->stop,knock->busy);
-        // continue on this knock yet
-        if(knock->start) return knock->start;
-        return knock->stop;
+        LOG("active knock start %lu stop %lu busy %d waiting %lu",knock->start,knock->stop,knock->busy,knock->waiting);
+        continue;
       }
 
-      // NOTE: when driver sets done=true, it should set drift past the stop
-      // ready and done, process it
-      us += knock->waiting; // add time we've been waiting
-      tmesh_knocked(tm, knock);
+      LOG("processing done knock %lu ago",us - knock->done);
+      tmesh_knocked(tm, knock, us - knock->done);
+
+      // add time we've been waiting for the unblocked motes below now
+      us += knock->waiting;
       memset(knock,0,sizeof(struct knock_struct));
     }
 
@@ -505,10 +507,6 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
     // no knock available
     if(!knock->mote) continue;
 
-    if(knock->start < ret) ret = knock->start;
-    if(knock->stop < ret) ret = knock->stop;
-    if(knock->ready) continue;
-
     // signal this knock is ready to roll
     knock->ready = 1;
     LOG("new %s knock to mote %s nonce %s",knock->tx?"TX":"RX",knock->mote->public?"anyone":knock->mote->link->id->hashname,util_hex(knock->nonce,8,NULL));
@@ -522,7 +520,23 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
     }
   }
   
-  return ret;
+  uint32_t best = 0xffffffff;
+  for(i=0;i<RADIOS_MAX;i++)
+  {
+    if(!radio_devices[i]) continue;
+    knock = radio_devices[i]->knock;
+    if(!knock->ready) continue;
+    if(knock->done) continue;
+    if(knock->busy)
+    {
+      if(knock->stop < best) best = knock->stop;
+    }else{
+      if(knock->start < best) best = knock->start;
+    }
+  }
+  LOG("returning best next time of %lu",best);
+  
+  return best;
 }
 
 
@@ -678,7 +692,7 @@ mote_t mote_knock(mote_t m, knock_t k)
   k->chan = m->chan[1] % m->com->medium->chans;
 
   // direction
-  k->tx = mote_tx(m,NULL);
+  k->tx = mote_tx(m);
 
   // cache nonce
   memcpy(k->nonce,m->nonce,8);

@@ -79,8 +79,8 @@ struct knock_struct
 {
   mote_t mote;
   uint32_t start, stop;
-  uint16_t waiting; // time spent waiting for a knock to finish
-  uint16_t drift; // drift is offset from stop set by driver
+  uint32_t waiting; // time spent waiting for a knock to finish
+  uint32_t done; // is actual stop time, offset from last process()
   uint8_t frame[64];
   uint8_t nonce[8]; // nonce for this knock
   uint8_t chan; // current channel (< med->chans)
@@ -88,7 +88,6 @@ struct knock_struct
   uint8_t tx:1; // tells radio to tx or rx
   uint8_t ready:1; // is ready to transceive
   uint8_t busy:1; // is actively transceiving
-  uint8_t done:1; // is done transceiving
   uint8_t err:1; // failed
 };
 
