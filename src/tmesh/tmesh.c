@@ -288,7 +288,7 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
     // copy in ping nonce
     memcpy(k->frame,k->nonce,8);
     // advance to the next future rx window
-    while(!mote_tx(k->mote)) mote_advance(k->mote,mote_next(k->mote));
+    while(mote_tx(k->mote)) mote_advance(k->mote,mote_next(k->mote));
     memcpy(k->frame+8,k->mote->nonce,8);
     // copy in hashname
     memcpy(k->frame+8+8,tm->mesh->id->bin,32);
@@ -324,6 +324,7 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
 tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
 {
   int16_t drift;
+  mote_t mlink = NULL;
   if(!tm || !k) return LOG("bad args");
   
   if(k->err)
@@ -385,11 +386,9 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
     {
       if(memcmp(k->frame+8+8,tm->mesh->id->bin,32) == 0) return LOG("identity crisis");
       k->mote->link = link_get32(tm->mesh, k->frame+8+8);
-      mote_t lmote = tmesh_link(tm, k->mote->com, k->mote->link);
-      if(!lmote) return LOG("mote link failed");
-      if(lmote->at == 0) LOG("new mote to %s",lmote->link->id->hashname);
-      // for safety force idle till after next public tx
-      lmote->at = k->mote->at + k->mote->com->medium->max;
+      mlink = tmesh_link(tm, k->mote->com, k->mote->link);
+      if(!mlink) return LOG("mote link failed");
+      if(mlink->at == 0) LOG("new mote to %s",mlink->link->id->hashname);
     }
 
     // an incoming pong is sync, yay
@@ -401,10 +400,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
       return tm;
     }
 
-    // now handle new incoming ping
     LOG("incoming ping, preparing to send pong");
-    k->mote->pong = 1;
-    k->mote->priority += 2;
 
     // always sync wait to the bundled nonce for the next pong
     memcpy(k->mote->nonce,k->frame,8);
@@ -423,8 +419,13 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
       k->mote->at = mote_next(k->mote);
     }else{
       k->mote->at -= ago;
+      k->mote->pong = 1;
+      k->mote->priority += 2;
       LOG("looking for pong at %d with %s",k->mote->at,util_hex(k->mote->nonce,8,NULL));
     }
+
+    // for safety force any referenced mote to wait till after next public window
+    if(mlink) mlink->at = k->mote->at + k->mote->com->medium->max;
 
     return tm;
   }
@@ -491,8 +492,8 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
       while((packet = util_chunks_receive(mote->chunks)))
         mesh_receive(tm->mesh, packet, com->pipe); // TODO associate mote for neighborhood
 
-      // inform every mote of the time change
-      mote_advance(mote,us);
+      // inform every mote of the time change, except ones already set to pong
+      if(!mote->pong) mote_advance(mote,us);
 
       // TODO, optimize skipping tx knocks if nothing to send
       mote_knock(mote,&ktmp);
