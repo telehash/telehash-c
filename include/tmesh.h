@@ -15,6 +15,7 @@ struct medium_struct
 {
   void *device; // used by radio device driver
   uint32_t min, max; // microseconds to knock, set by driver
+  uint32_t avg; // average actual micros to tx for drift calc
   uint8_t bin[5];
   uint8_t chans; // number of total channels, set by driver
   uint8_t z; // default

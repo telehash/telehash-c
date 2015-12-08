@@ -340,10 +340,22 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
   {
     k->mote->sent++;
     LOG("tx done, total %d next at %lu",k->mote->sent,k->mote->at);
-
-    // a sent pong sets this mote free
-    if(k->mote->pong) mote_synced(k->mote);
-    else util_chunks_next(k->mote->chunks); // advance chunks if any
+    
+    if(k->mote->pong)
+    {
+      // a sent pong sets this mote free
+      mote_synced(k->mote);
+    }else if(k->mote->ping){
+      // sent ping will always rebase time to when tx was actually completed
+      k->mote->at = ago;
+      // restore the sent nonce
+      memcpy(k->mote->nonce,k->nonce,8);
+      // re-advance to the next future rx window from adjusted time
+      while(mote_tx(k->mote)) mote_advance(k->mote);
+    }else{
+      // advance chunks if any
+      util_chunks_next(k->mote->chunks);
+    }
 
     return tm;
   }
@@ -428,6 +440,22 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
   
   // TODO check and validate frame[0] now
 
+  // if real tx time is provided, calculate a drift based on when this rx was done
+  if(k->mote->com->medium->avg)
+  {
+    uint32_t remote = ago + k->mote->com->medium->avg; // increase to when started ago based on measured tx time
+    uint32_t local = k->waiting - k->mote->at; // at is still orig start time
+    LOG("adjusting for drift by %ld, start local %lu remote %lu at %lu",remote - local,local,remote,k->mote->at);
+    if(remote < local)
+    {
+      // be safe for edge cases since at isn't updated yet
+      if(local - remote > k->mote->at) k->mote->at = 0;
+      else k->mote->at -= (local - remote);
+    }else{
+      k->mote->at += (remote - local);
+    }
+  }
+
   // received stats only after minimal validation
   k->mote->received++;
   
@@ -455,10 +483,12 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
     knock = radio_devices[com->medium->radio]->knock;
     if(knock->ready)
     {
+      // how long have we been ready
+      knock->waiting += us;
+
       // if it's not done
       if(!knock->done)
       {
-        knock->waiting += us;
         // update active knock reference time
         knock->start -= (knock->start < us) ? knock->start : us;
         knock->stop -= (knock->stop < us) ? knock->stop : us;
@@ -466,22 +496,14 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
         continue;
       }
 
-      // reference for the start time from now (done is stop)
+      // reference for when the knock was actually done in the past from now
       uint32_t ago = us - knock->done;
-      ago += knock->mote->com->medium->max;
-
-      // add time we've been waiting for the unblocked motes below now
-      us += knock->waiting;
 
       LOG("processing done knock %lu ago waited %lu",ago,knock->waiting);
-      if(tmesh_knocked(tm, knock, ago) && !knock->mote->pong)
-      {
-        int16_t drift = knock->done - knock->stop;
-        LOG("adjusting for drift by %d",drift);
-        // be safe for edge cases since at isn't updated yet
-        if(abs(drift) > knock->mote->at) knock->mote->at = 0;
-        else knock->mote->at += drift;
-      }
+      tmesh_knocked(tm, knock, ago);
+
+      // now process all the waited micros
+      us = knock->waiting;
 
       memset(knock,0,sizeof(struct knock_struct));
     }
