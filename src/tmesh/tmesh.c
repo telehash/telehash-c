@@ -287,8 +287,14 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
   {
     // copy in ping nonce
     memcpy(k->frame,k->nonce,8);
-    // advance to the next future rx window
-    while(mote_tx(k->mote)) mote_advance(k->mote);
+    if(k->mote->pong)
+    {
+      // choose a new random nonce to use as the seed
+      e3x_rand(k->mote->nonce,8);
+    }else{
+      // advance to the next future rx window
+      while(mote_tx(k->mote)) mote_advance(k->mote);
+    }
     memcpy(k->frame+8,k->mote->nonce,8);
     // copy in hashname
     memcpy(k->frame+8+8,tm->mesh->id->bin,32);
@@ -329,6 +335,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
   if(k->err)
   {
     LOG("knock error");
+    k->mote->pong = 0; // always clear pong state
     return tm;
   }
   
@@ -352,6 +359,8 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
       memcpy(k->mote->nonce,k->nonce,8);
       // re-advance to the next future rx window from adjusted time
       while(mote_tx(k->mote)) mote_advance(k->mote);
+      k->mote->pong = 1;
+      LOG("scheduled pong rx at %d with %s",k->mote->at,util_hex(k->mote->nonce,8,NULL));
     }else{
       // advance chunks if any
       util_chunks_next(k->mote->chunks);
@@ -401,9 +410,10 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
     }
 
     // an incoming pong is sync, yay
-    if(memcmp(k->nonce,k->frame,8) == 0)
+    if(k->mote->pong && memcmp(k->nonce,k->frame,8) == 0)
     {
       LOG("incoming pong verified");
+      memcpy(k->mote->nonce,k->frame+8,8); // copy in new seed
       mote_synced(k->mote);
       return tm;
     }
@@ -425,11 +435,12 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
     {
       LOG("failed to find wait nonce in time: %s",util_hex(k->frame+8,8,NULL));
       k->mote->at = 0;
+      k->mote->pong = 0;
     }else{
       k->mote->at -= ago;
       k->mote->pong = 1;
       k->mote->priority += 2;
-      LOG("looking for pong at %d with %s",k->mote->at,util_hex(k->mote->nonce,8,NULL));
+      LOG("scheduled pong tx at %d with %s",k->mote->at,util_hex(k->mote->nonce,8,NULL));
     }
 
     return tm;
@@ -543,8 +554,8 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
     // do the work to fill in the tx frame only once here
     if(knock->tx)
     {
-      // bump tx start forward just a bit as a temp proxy for real drift calcs
-      knock->start += 500;
+      // bump tx start forward well into the rx window for maximum overlap, TODO optimize
+      knock->start += (knock->mote->com->medium->min / 3);
       tmesh_knock(tm, knock);
     }
   }
@@ -731,13 +742,15 @@ mote_t mote_synced(mote_t m)
   // handle public beacon motes special
   if(m->public)
   {
-    // sync any cached link mote
+    // sync any cached link mote to same time/nonce seed
     if(m->link)
     {
       mote_t lmote = tmesh_link(m->com->tm, m->com, m->link);
       lmote->at = m->at;
+      memcpy(lmote->nonce,m->nonce,8);
       mote_advance(lmote); // step forward a window
       m->link = NULL;
+      LOG("pre-sync'd link to %s at %lu",util_hex(lmote->nonce,8,NULL),lmote->at);
     }
 
     // TODO intelligent sleepy mode, not just skip some
