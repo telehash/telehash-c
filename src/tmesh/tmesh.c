@@ -709,6 +709,9 @@ mote_t mote_knock(mote_t m, knock_t k)
     chacha20(m->secret,m->nonce,m->chan,2);
   }
 
+  // direction
+  k->tx = mote_tx(m);
+
   // set relative start/stop times
   k->start = m->at;
   k->stop = k->start + ((k->tx) ? m->com->medium->max : m->com->medium->min);
@@ -721,9 +724,6 @@ mote_t mote_knock(mote_t m, knock_t k)
 
   // derive current channel
   k->chan = m->chan[1] % m->com->medium->chans;
-
-  // direction
-  k->tx = mote_tx(m);
 
   // cache nonce
   memcpy(k->nonce,m->nonce,8);
