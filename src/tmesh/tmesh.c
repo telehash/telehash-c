@@ -351,6 +351,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
     if(k->mote->pong)
     {
       // a sent pong sets this mote free
+      k->mote->at += k->waiting; // move into the present since there's sync
       mote_synced(k->mote);
     }else if(k->mote->ping){
       // sent ping will always rebase time to when tx was actually completed
@@ -413,6 +414,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
     {
       LOG("incoming pong verified");
       memcpy(k->mote->nonce,k->frame+8,8); // copy in new seed
+      k->mote->at += k->waiting; // move into the present since there's sync
       mote_synced(k->mote);
       return tm;
     }
