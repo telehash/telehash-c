@@ -399,14 +399,13 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
     if(k->mote->public && !k->mote->link)
     {
       if(memcmp(k->frame+8+8,tm->mesh->id->bin,32) == 0) return LOG("identity crisis");
-      k->mote->link = link_get32(tm->mesh, k->frame+8+8);
-      mlink = tmesh_link(tm, k->mote->com, k->mote->link);
+      link_t link = link_get32(tm->mesh, k->frame+8+8);
+      mlink = tmesh_link(tm, k->mote->com, link);
       if(!mlink) return LOG("mote link failed");
-      if(mlink->at == 0)
-      {
-        LOG("new mote to %s",mlink->link->id->hashname);
-        mlink->at = 0xffffffff; // disabled, as mote_synced of public will free it
-      }
+      if(!mlink->ping || mlink->pong) return LOG("ignoring public ping for an active mote");
+      LOG("new/reset mote to %s",mlink->link->id->hashname);
+      mlink->at = 0xffffffff; // disabled, as mote_synced of public will free it
+      k->mote->link = link; // cache for synced
     }
 
     // an incoming pong is sync, yay
