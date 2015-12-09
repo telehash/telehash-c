@@ -410,7 +410,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
     }
 
     // an incoming pong is sync, yay
-    if(k->mote->pong && memcmp(k->nonce,k->frame,8) == 0)
+    if(memcmp(k->nonce,k->frame,8) == 0)
     {
       LOG("incoming pong verified");
       memcpy(k->mote->nonce,k->frame+8,8); // copy in new seed
@@ -747,6 +747,7 @@ mote_t mote_synced(mote_t m)
     {
       mote_t lmote = tmesh_link(m->com->tm, m->com, m->link);
       lmote->at = m->at;
+      lmote->ping = 0;
       memcpy(lmote->nonce,m->nonce,8);
       mote_advance(lmote); // step forward a window
       m->link = NULL;
