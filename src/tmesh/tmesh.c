@@ -470,14 +470,17 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
       k->mote->at += (remote - local);
     }
   }
+  
+  uint8_t size = k->frame[1];
+  if(size > 63) return LOG("invalid chunk frame, too large: %d",size);
 
   // received stats only after minimal validation
   k->mote->received++;
   
-  LOG("rx done, total %d chunk len %d",k->mote->received,k->frame[1]);
+  LOG("rx done, total %d chunk len %d",k->mote->received,size);
 
   // process incoming chunk to link
-  util_chunks_read(k->mote->chunks,k->frame+1,k->frame[1]+1);
+  util_chunks_read(k->mote->chunks,k->frame+1,size+1);
 
   return tm;
 }

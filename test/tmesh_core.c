@@ -248,7 +248,24 @@ int main(int argc, char **argv)
   // in sync!
   fail_unless(!mAB->pong);
   fail_unless(!mAB->ping);
-  
+
+  // continue establishing link
+  uint8_t max = 10;
+  uint32_t step;
+  mBA->at = mAB->at;
+  memcpy(mBA->nonce,mAB->nonce,8);
+  memset(knBA,0,sizeof(struct knock_struct));
+  while(--max && !link_up(mBA->link) && !link_up(mAB->link))
+  {
+    step = mBA->at+1;
+    dev->knock = knBA;
+    if(tmesh_process(netA,step)) knAB->done = 1;
+    dev->knock = knAB;
+    if(tmesh_process(netB,step)) knBA->done = 1;
+  }
+  LOG("linked by %d",max);
+  // TODO, quite broken yet, faux driver logic above is way off
+//  fail_unless(max);
 
   return 0;
 }
