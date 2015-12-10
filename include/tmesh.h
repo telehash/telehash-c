@@ -72,8 +72,8 @@ struct tmesh_struct
 tmesh_t tmesh_new(mesh_t mesh, lob_t options);
 void tmesh_free(tmesh_t tm);
 
-// advance all windows forward this many microseconds, all radio knocks are relative to this call, returns when to call again
-uint32_t tmesh_process(tmesh_t tm, uint32_t us);
+// advance all windows forward this many microseconds, all radio knocks are relative to this call, returns # of knocks ready
+uint8_t tmesh_process(tmesh_t tm, uint32_t us);
 
 // a single knock request ready to go
 struct knock_struct
@@ -88,7 +88,6 @@ struct knock_struct
   // boolean flags for state tracking
   uint8_t tx:1; // tells radio to tx or rx
   uint8_t ready:1; // is ready to transceive
-  uint8_t busy:1; // is actively transceiving
   uint8_t err:1; // failed
 };
 

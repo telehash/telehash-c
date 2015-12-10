@@ -480,13 +480,14 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
 }
 
 // advance all windows forward this many microseconds, all knocks are relative to this call
-uint32_t tmesh_process(tmesh_t tm, uint32_t us)
+uint8_t tmesh_process(tmesh_t tm, uint32_t us)
 {
   cmnty_t com;
   mote_t mote;
   lob_t packet;
   struct knock_struct ktmp;
   knock_t knock;
+  uint8_t ret = 0;
   if(!tm || !us) return 0;
 
   for(com=tm->coms;com;com=com->next)
@@ -495,6 +496,7 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
     knock = radio_devices[com->medium->radio]->knock;
     if(knock->ready)
     {
+      ret++;
       // how long have we been ready
       knock->waiting += us;
 
@@ -504,7 +506,7 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
         // update active knock reference time
         knock->start -= (knock->start < us) ? knock->start : us;
         knock->stop -= (knock->stop < us) ? knock->stop : us;
-        LOG("active knock start %lu stop %lu busy %d waiting %lu",knock->start,knock->stop,knock->busy,knock->waiting);
+        LOG("active knock start %lu stop %lu %d waiting %lu",knock->start,knock->stop,knock->waiting);
         continue;
       }
 
@@ -549,6 +551,7 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
     if(!knock->mote) continue;
 
     // signal this knock is ready to roll
+    ret++;
     knock->ready = 1;
     LOG("new %s knock to mote %s nonce %s",knock->tx?"TX":"RX",knock->mote->public?"anyone":knock->mote->link->id->hashname,util_hex(knock->nonce,8,NULL));
 
@@ -556,29 +559,12 @@ uint32_t tmesh_process(tmesh_t tm, uint32_t us)
     if(knock->tx)
     {
       // bump tx start forward well into the rx window for maximum overlap, TODO optimize
-      knock->start += (knock->mote->com->medium->min / 3);
+      knock->start += (knock->mote->com->medium->min / 2);
       tmesh_knock(tm, knock);
     }
   }
   
-  uint32_t best = 0xffffffff;
-  int i;
-  for(i=0;i<RADIOS_MAX;i++)
-  {
-    if(!radio_devices[i]) continue;
-    knock = radio_devices[i]->knock;
-    if(!knock->ready) continue;
-    if(knock->done) continue;
-    if(knock->busy)
-    {
-      if(knock->stop < best) best = knock->stop;
-    }else{
-      if(knock->start < best) best = knock->start;
-    }
-  }
-  LOG("returning best next time of %lu",best);
-  
-  return best;
+  return ret;
 }
 
 

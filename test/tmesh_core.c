@@ -78,13 +78,11 @@ int main(int argc, char **argv)
   LOG("next is %lld",knock->start);
   fail_unless(knock->start == 21302230);
 
-  uint32_t next;
   mote_reset(m);
   memset(m->nonce,2,8); // nonce is random, force stable for fixture testing
   m->at = 10;
-  next = tmesh_process(netA,2);
+  fail_unless(tmesh_process(netA,2));
   fail_unless(m->at == 8);
-  fail_unless(next == 8);
   fail_unless(knock->mote == m);
   LOG("tx %d start %lld stop %lld chan %d at %lld",knock->tx,knock->start,knock->stop,knock->chan,m->at);
   fail_unless(!knock->tx);
@@ -105,13 +103,11 @@ int main(int argc, char **argv)
   memset(knock,0,sizeof(struct knock_struct));
   m = c->public;
   LOG("public at is now %lu",m->at);
-  next = tmesh_process(netA,2);
-  LOG("next %lu",next);
-  fail_unless(next == 8586226);
+  fail_unless(tmesh_process(netA,2));
   fail_unless(knock->mote == m);
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
   fail_unless(knock->tx);
-  fail_unless(knock->start == 8586226);
+  fail_unless(knock->start == 8586228);
   fail_unless(knock->stop == 8587223);
   fail_unless(knock->chan == 14);
 
@@ -119,14 +115,12 @@ int main(int argc, char **argv)
   memset(m->nonce,4,8); // fixture for testing
   m->order = 1;
   memset(knock,0,sizeof(struct knock_struct));
-  next = tmesh_process(netA,5461193);
-  LOG("next %lu",next);
-  fail_unless(next == 13809421);
+  fail_unless(tmesh_process(netA,5461193));
   fail_unless(knock->mote == m);
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
   fail_unless(knock->ready);
   fail_unless(knock->tx);
-  fail_unless(knock->start == 13809421);
+  fail_unless(knock->start == 13809423);
   fail_unless(knock->chan == 14);
   // frame would be random ciphered, but we fixed it to test
   LOG("frame %s",util_hex(knock->frame,32+8,hex)); // just the stable part
@@ -135,10 +129,10 @@ int main(int argc, char **argv)
   knock->tx = 0;
   knock->done = knock->stop; // fake rx good
   LOG("faking rx in");
-  next = tmesh_process(netA,553648170);
+  fail_unless(tmesh_process(netA,553648170));
+  LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
   fail_unless(!knock->done);
-  LOG("next %lu",next);
-  fail_unless(next == 1491755);
+  fail_unless(knock->start == 1491757);
 
   // leave public community
   fail_unless(tmesh_leave(netA,c));
@@ -207,12 +201,12 @@ int main(int argc, char **argv)
   
   LOG("process netA");
   dev->knock = knAB; // manually swapping
-  next = tmesh_process(netA,knAB->done+1);
+  fail_unless(tmesh_process(netA,knAB->done+1));
   fail_unless(mAB->pong);
 
   LOG("process netB");
   dev->knock = knBA; // manually swapping
-  next = tmesh_process(netB,knBA->done+1);
+  fail_unless(tmesh_process(netB,knBA->done+1));
 
   // back to the future
   dev->knock = knAB; // manually swapping
@@ -235,7 +229,7 @@ int main(int argc, char **argv)
 
   LOG("process netB");
   dev->knock = knBA; // manually swapping
-  next = tmesh_process(netB,1);
+  fail_unless(tmesh_process(netB,1));
 
   LOG("BA ping %d pong %d",mBA->ping,mBA->pong);
   LOG("AB ping %d pong %d",mAB->ping,mAB->pong);
@@ -246,7 +240,7 @@ int main(int argc, char **argv)
   
   LOG("process netA");
   dev->knock = knAB; // manually swapping
-  next = tmesh_process(netA,1);
+  fail_unless(tmesh_process(netA,1));
 
   LOG("BA ping %d pong %d",mBA->ping,mBA->pong);
   LOG("AB ping %d pong %d",mAB->ping,mAB->pong);
