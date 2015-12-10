@@ -311,16 +311,18 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
   }
 
   // fill in chunk tx
-  int16_t size = util_chunks_size(k->mote->chunks);
-  if(size < 0) return tm; // nothing to send, noop
+  if(util_chunks_size(k->mote->chunks) < 0) return tm; // nothing to send, noop
+  uint8_t size = util_chunks_size(k->mote->chunks);
 
   LOG("TX chunk frame size %d",size);
 
   // TODO, real header, term flag
   k->frame[0] = 0; // stub for now
-  k->frame[1] = (uint8_t)size; // max 63
+  k->frame[1] = size; // max 63
   memcpy(k->frame+2,util_chunks_frame(k->mote->chunks),size);
+
   // ciphertext full frame
+  LOG("chunk frame: %s",util_hex(k->frame,64,NULL));
   chacha20(k->mote->secret,k->nonce,k->frame,64);
 
   return tm;
@@ -449,6 +451,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
   
   // received knock handling now, decipher frame
   chacha20(k->mote->secret,k->nonce,k->frame,64);
+  LOG("chunk frame: %s",util_hex(k->frame,64,NULL));
   
   // TODO check and validate frame[0] now
 
@@ -523,7 +526,6 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
     }
 
     // walk the motes for processing and to find another knock
-    memset(&ktmp,0,sizeof(struct knock_struct));
     for(mote=com->motes;mote;mote=mote->next)
     {
       // process any packets on this mote
@@ -537,8 +539,16 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
         mote->at -= us;
       }
 
-      // TODO, optimize skipping tx knocks if nothing to send
+      // peek at the next knock details
+      memset(&ktmp,0,sizeof(struct knock_struct));
       mote_knock(mote,&ktmp);
+      
+      // skip a tx if nothing to send
+      if(!mote->ping && ktmp.tx && util_chunks_size(mote->chunks) < 0)
+      {
+        LOG("skipping tx, nothing to send to %s",mote->link->id->hashname);
+        continue;
+      }
 
       // use the new one if preferred
       if(!knock->mote || tm->sort(knock,&ktmp) != knock)
@@ -756,6 +766,7 @@ mote_t mote_synced(mote_t m)
   // if public and no keys, send discovery
   if(m->com->tm->pubim && !m->link->x)
   {
+    LOG("sending bare discovery %s",lob_json(m->com->tm->pubim));
     m->com->pipe->send(m->com->pipe, lob_copy(m->com->tm->pubim), m->link);
     return m;
   }
