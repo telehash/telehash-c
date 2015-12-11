@@ -73,10 +73,12 @@ int main(int argc, char **argv)
   fail_unless(!knock->tx);
   fail_unless(mote_advance(m));
   fail_unless(mote_advance(m));
+  fail_unless(mote_advance(m));
+  fail_unless(mote_advance(m));
   fail_unless(mote_knock(m,knock));
   fail_unless(knock->tx);
   LOG("next is %lld",knock->start);
-  fail_unless(knock->start == 21302230);
+  fail_unless(knock->start == 46470074);
 
   mote_reset(m);
   memset(m->nonce,2,8); // nonce is random, force stable for fixture testing
@@ -107,7 +109,7 @@ int main(int argc, char **argv)
   fail_unless(knock->mote == m);
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
   fail_unless(knock->tx);
-  fail_unless(knock->start == 8586228);
+  fail_unless(knock->start == 8586223);
   fail_unless(knock->stop == 8587223);
   fail_unless(knock->chan == 14);
 
@@ -120,7 +122,7 @@ int main(int argc, char **argv)
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
   fail_unless(knock->ready);
   fail_unless(knock->tx);
-  fail_unless(knock->start == 13809423);
+  fail_unless(knock->start == 13809418);
   fail_unless(knock->chan == 14);
   // frame would be random ciphered, but we fixed it to test
   LOG("frame %s",util_hex(knock->frame,32+8,hex)); // just the stable part
@@ -132,7 +134,7 @@ int main(int argc, char **argv)
   fail_unless(tmesh_process(netA,553648170));
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
   fail_unless(!knock->done);
-  fail_unless(knock->start == 1491757);
+  fail_unless(knock->start == 1491752);
 
   // leave public community
   fail_unless(tmesh_leave(netA,c));

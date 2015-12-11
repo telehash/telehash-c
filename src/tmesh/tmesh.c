@@ -353,7 +353,6 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
     if(k->mote->pong)
     {
       // a sent pong sets this mote free
-      k->mote->at += k->waiting; // move into the present since there's sync
       mote_synced(k->mote);
     }else if(k->mote->ping){
       // sent ping will always rebase time to when tx was actually completed
@@ -416,7 +415,6 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
     {
       LOG("incoming pong verified");
       memcpy(k->mote->nonce,k->frame+8,8); // copy in new seed
-      k->mote->at += k->waiting; // move into the present since there's sync
       mote_synced(k->mote);
       return tm;
     }
@@ -458,16 +456,14 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
   // if real tx time is provided, calculate a drift based on when this rx was done
   if(k->mote->com->medium->avg)
   {
-    uint32_t remote = ago + k->mote->com->medium->avg; // increase to when started ago based on measured tx time
-    uint32_t local = k->waiting - k->mote->at; // at is still orig start time
-    LOG("adjusting for drift by %ld, start local %lu remote %lu at %lu",remote - local,local,remote,k->mote->at);
-    if(remote < local)
+    LOG("adjusting for drift by %ld, start local %lu remote %lu at %lu",k->done - k->stop,k->stop,k->done,k->mote->at);
+    if(k->done < k->stop)
     {
       // be safe for edge cases since at isn't updated yet
-      if(local - remote > k->mote->at) k->mote->at = 0;
-      else k->mote->at -= (local - remote);
+      if(k->stop - k->done > k->mote->at) k->mote->at = 0;
+      else k->mote->at -= (k->stop - k->done);
     }else{
-      k->mote->at += (remote - local);
+      k->mote->at += (k->done - k->stop);
     }
   }
   
@@ -511,7 +507,7 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
       // update active knock reference time
       knock->start -= (knock->start < us) ? knock->start : us;
       knock->stop -= (knock->stop < us) ? knock->stop : us;
-      LOG("active knock start %lu stop %lu %d waiting %lu",knock->start,knock->stop,knock->waiting);
+      LOG("active knock start %lu stop %lu %d",knock->start,knock->stop);
       continue;
     }
 
@@ -716,10 +712,7 @@ mote_t mote_knock(mote_t m, knock_t k)
 
   // set relative start/stop times
   k->start = m->at;
-  k->stop = k->start + ((k->tx) ? m->com->medium->max : m->com->medium->min);
-
-  // when receiving a ping, use wide window to catch more
-  if(m->ping) k->stop = k->start + m->com->medium->max;
+  k->stop = k->start + ((m->com->medium->avg) ? m->com->medium->avg : m->com->medium->max);
 
   // very remote case of overlow (70min minus max micros), just sets to max avail, slight inefficiency?
   if(k->stop < k->start) k->stop = 0xffffffff;
