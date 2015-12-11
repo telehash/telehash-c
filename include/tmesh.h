@@ -108,7 +108,8 @@ struct mote_struct
   uint8_t ping:1; // is in ping mode
   uint8_t pong:1; // ready for pong
   uint8_t public:1; // is a special public beacon mote
-  uint8_t priority:4; // next knock priority
+  uint8_t skip:1; // internal flag to skip next advancing
+  uint8_t priority:3; // next knock priority
 };
 
 mote_t mote_new(link_t link);

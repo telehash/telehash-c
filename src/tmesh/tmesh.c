@@ -358,6 +358,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
       // re-advance to the next future rx window from adjusted time
       while(mote_tx(k->mote)) mote_advance(k->mote);
       k->mote->pong = 1;
+      k->mote->skip = 1;
       LOG("scheduled pong rx at %d with %s",k->mote->at,util_hex(k->mote->nonce,8,NULL));
     }else{
       // advance chunks if any
@@ -433,7 +434,8 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
       LOG("failed to find wait nonce in time: %s",util_hex(k->frame+8,8,NULL));
       k->mote->at = 0;
     }else{
-      k->mote->pong = 1; // freezes the at
+      k->mote->pong = 1;
+      k->mote->skip = 1;
       k->mote->priority += 2;
       LOG("scheduled pong tx at %d with %s",k->mote->at,util_hex(k->mote->nonce,8,NULL));
     }
@@ -528,9 +530,12 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
         mesh_receive(tm->mesh, packet, com->pipe); // TODO associate mote for neighborhood
 
       // adjust relative local time, except ones already hard-scheduled to pong
-      if(!mote->pong)
+      if(mote->skip)
       {
-        while(LOG("bttf us %lu > at %lu nonce %s",us,mote->at,util_hex(mote->nonce,8,NULL)) || mote->at < us) mote_advance(mote);
+        mote->skip = 0;
+        LOG("skipping this time adjustment for %s",mote->public?"public":mote->link->id->hashname);
+      }else{
+        while(LOG("advance %lu > at %lu nonce %s for %s",us,mote->at,util_hex(mote->nonce,8,NULL),mote->public?"public":mote->link->id->hashname) || mote->at < us) mote_advance(mote);
         mote->at -= us;
       }
 
@@ -746,6 +751,7 @@ mote_t mote_synced(mote_t m)
       m->link = NULL;
       LOG("public-sync'd link to %s at %lu",util_hex(lmote->nonce,8,NULL),lmote->at);
       mote_synced(lmote);
+      lmote->skip = 1; // prevent next advance
     }
 
     // TODO intelligent ping re-schedule, not just skip some and randomize
