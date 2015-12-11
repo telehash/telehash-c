@@ -220,6 +220,10 @@ int main(int argc, char **argv)
   LOG("BA tx is %d chan %d at %lu nonce %s",knBA->tx,knBA->chan,knAB->start,util_hex(mBA->nonce,8,NULL));
   fail_unless(knBA->tx == 0);
   
+  // dummy data for sync send
+  netA->pubim = hashname_im(netA->mesh->keys, hashname_id(netA->mesh->keys,netA->mesh->keys));
+  netB->pubim = hashname_im(netB->mesh->keys, hashname_id(netB->mesh->keys,netB->mesh->keys));
+  
   // dance
   LOG("transceive");
   memcpy(knBA->frame,knAB->frame,64);
@@ -253,17 +257,28 @@ int main(int argc, char **argv)
 
   // continue establishing link
   uint8_t max = 10;
-  uint32_t step;
+  uint32_t step = mBA->at;
   mBA->at = mAB->at;
   memcpy(mBA->nonce,mAB->nonce,8);
   memset(knBA,0,sizeof(struct knock_struct));
+  memset(knAB,0,sizeof(struct knock_struct));
+  dev->knock = malloc(sizeof(struct knock_struct));
+  memset(dev->knock,0,sizeof(struct knock_struct));
   while(--max && !link_up(mBA->link) && !link_up(mAB->link))
   {
-    step = mBA->at+1;
-    dev->knock = knBA;
-    if(tmesh_process(netA,step)) knAB->done = 1;
-    dev->knock = knAB;
-    if(tmesh_process(netB,step)) knBA->done = 1;
+    LOG("netA");
+    tmesh_process(netA,step+1);
+    memcpy(knAB,dev->knock,sizeof(struct knock_struct));
+    LOG("netB");
+    memset(dev->knock,0,sizeof(struct knock_struct));
+    tmesh_process(netB,step+1);
+    memcpy(knBA,dev->knock,sizeof(struct knock_struct));
+    LOG("AB %d %d/%d BA %d %d/%d",knAB->tx,knAB->start,knAB->stop,knBA->tx,knBA->start,knBA->stop);
+    if(knAB->tx) memcpy(knAB->frame,knBA->frame,64);
+    else memcpy(knBA->frame,knAB->frame,64);
+    knAB->done = knAB->stop;
+    knBA->done = knBA->stop;
+    step = knAB->done + 1;
   }
   LOG("linked by %d",max);
   // TODO, quite broken yet, faux driver logic above is way off

@@ -314,15 +314,13 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
   if(util_chunks_size(k->mote->chunks) < 0) return tm; // nothing to send, noop
   uint8_t size = util_chunks_size(k->mote->chunks);
 
-  LOG("TX chunk frame size %d",size);
-
   // TODO, real header, term flag
   k->frame[0] = 0; // stub for now
   k->frame[1] = size; // max 63
   memcpy(k->frame+2,util_chunks_frame(k->mote->chunks),size);
 
   // ciphertext full frame
-  LOG("chunk frame: %s",util_hex(k->frame,64,NULL));
+  LOG("TX chunk frame %d: %s",size,util_hex(k->frame,64,NULL));
   chacha20(k->mote->secret,k->nonce,k->frame,64);
 
   return tm;
@@ -449,7 +447,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
   
   // received knock handling now, decipher frame
   chacha20(k->mote->secret,k->nonce,k->frame,64);
-  LOG("chunk frame: %s",util_hex(k->frame,64,NULL));
+  LOG("RX chunk frame: %s",util_hex(k->frame,64,NULL));
   
   // TODO check and validate frame[0] now
 
