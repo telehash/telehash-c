@@ -80,7 +80,6 @@ struct knock_struct
 {
   mote_t mote;
   uint32_t start, stop;
-  uint32_t waiting; // time spent waiting for a knock to finish
   uint32_t done; // is actual stop time, offset from last process()
   uint8_t frame[64];
   uint8_t nonce[8]; // nonce for this knock

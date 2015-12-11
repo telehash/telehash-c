@@ -491,42 +491,43 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
   cmnty_t com;
   mote_t mote;
   lob_t packet;
-  struct knock_struct ktmp;
+  struct knock_struct k1, k2;
   knock_t knock;
   uint8_t ret = 0;
   if(!tm || !us) return 0;
 
+  // first process all active knocks
+  int i;
+  for(i=0;i<RADIOS_MAX;i++)
+  {
+    if(!radio_devices[i]) continue;
+    knock = radio_devices[i]->knock;
+    if(!knock->ready) continue;
+    ret++;
+
+    // if it's not done
+    if(!knock->done)
+    {
+      // update active knock reference time
+      knock->start -= (knock->start < us) ? knock->start : us;
+      knock->stop -= (knock->stop < us) ? knock->stop : us;
+      LOG("active knock start %lu stop %lu %d waiting %lu",knock->start,knock->stop,knock->waiting);
+      continue;
+    }
+
+    // reference for when the knock was actually done in the past from "now"
+    uint32_t ago = us - knock->done;
+
+    LOG("processing done knock %lu ago at %lu stop %lu",ago,knock->done,knock->stop);
+    tmesh_knocked(tm, knock, ago);
+    memset(knock,0,sizeof(struct knock_struct));
+
+  }
+
   for(com=tm->coms;com;com=com->next)
   {
-    // block on any active knocks
     knock = radio_devices[com->medium->radio]->knock;
-    if(knock->ready)
-    {
-      ret++;
-      // how long have we been ready
-      knock->waiting += us;
-
-      // if it's not done
-      if(!knock->done)
-      {
-        // update active knock reference time
-        knock->start -= (knock->start < us) ? knock->start : us;
-        knock->stop -= (knock->stop < us) ? knock->stop : us;
-        LOG("active knock start %lu stop %lu %d waiting %lu",knock->start,knock->stop,knock->waiting);
-        continue;
-      }
-
-      // reference for when the knock was actually done in the past from now
-      uint32_t ago = us - knock->done;
-
-      LOG("processing done knock %lu ago waited %lu",ago,knock->waiting);
-      tmesh_knocked(tm, knock, ago);
-
-      // now process all the waited micros
-      us = knock->waiting;
-
-      memset(knock,0,sizeof(struct knock_struct));
-    }
+    memset(&k1,0,sizeof(struct knock_struct));
 
     // walk the motes for processing and to find another knock
     for(mote=com->motes;mote;mote=mote->next)
@@ -542,37 +543,39 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
         mote->at -= us;
       }
 
+      // already have one active
+      if(knock->ready) continue;
+
       // peek at the next knock details
-      memset(&ktmp,0,sizeof(struct knock_struct));
-      mote_knock(mote,&ktmp);
+      memset(&k2,0,sizeof(struct knock_struct));
+      mote_knock(mote,&k2);
       
       // skip a tx if nothing to send
-      if(!mote->ping && ktmp.tx && util_chunks_size(mote->chunks) < 0)
+      if(!mote->ping && k2.tx && util_chunks_size(mote->chunks) < 0)
       {
         LOG("skipping tx, nothing to send to %s",mote->link->id->hashname);
         continue;
       }
 
       // use the new one if preferred
-      if(!knock->mote || tm->sort(knock,&ktmp) != knock)
+      if(!k1.mote || tm->sort(&k1,&k2) != &k1)
       {
-        memcpy(knock,&ktmp,sizeof(struct knock_struct));
+        memcpy(&k1,&k2,sizeof(struct knock_struct));
       }
     }
 
     // no knock available
-    if(!knock->mote) continue;
+    if(!k1.mote) continue;
 
     // signal this knock is ready to roll
     ret++;
+    memcpy(knock,&k1,sizeof(struct knock_struct));
     knock->ready = 1;
-    LOG("new %s knock to mote %s nonce %s",knock->tx?"TX":"RX",knock->mote->public?"anyone":knock->mote->link->id->hashname,util_hex(knock->nonce,8,NULL));
+    LOG("new %s knock to mote %s nonce %s start %lu stop %lu",knock->tx?"TX":"RX",knock->mote->public?"anyone":knock->mote->link->id->hashname,util_hex(knock->nonce,8,NULL),knock->start,knock->stop);
 
     // do the work to fill in the tx frame only once here
     if(knock->tx)
     {
-      // bump tx start forward well into the rx window for maximum overlap, TODO optimize
-      knock->start += (knock->mote->com->medium->min / 2);
       tmesh_knock(tm, knock);
     }
   }
@@ -747,11 +750,11 @@ mote_t mote_synced(mote_t m)
     {
       mote_t lmote = tmesh_link(m->com->tm, m->com, m->link);
       lmote->at = m->at;
-      lmote->ping = 0;
       memcpy(lmote->nonce,m->nonce,8);
       mote_advance(lmote); // step forward a window
       m->link = NULL;
-      LOG("pre-sync'd link to %s at %lu",util_hex(lmote->nonce,8,NULL),lmote->at);
+      LOG("public-sync'd link to %s at %lu",util_hex(lmote->nonce,8,NULL),lmote->at);
+      mote_synced(lmote);
     }
 
     // TODO intelligent sleepy mode, not just skip some
