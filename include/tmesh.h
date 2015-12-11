@@ -80,6 +80,7 @@ struct knock_struct
 {
   mote_t mote;
   uint32_t start, stop;
+  uint32_t avg; // used to calculate drift when avail
   uint32_t done; // is actual stop time, offset from last process()
   uint8_t frame[64];
   uint8_t nonce[8]; // nonce for this knock

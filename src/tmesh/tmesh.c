@@ -287,17 +287,14 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
   {
     // copy in ping nonce
     memcpy(k->frame,k->nonce,8);
-    if(k->mote->pong)
-    {
-      // choose a new random nonce to use as the seed
-      e3x_rand(k->mote->nonce,8);
-    }else{
-      // advance to the next future rx window
-      while(mote_tx(k->mote)) mote_advance(k->mote);
-    }
+
+    // advance to the next future rx window
+    while(mote_tx(k->mote)) mote_advance(k->mote);
     memcpy(k->frame+8,k->mote->nonce,8);
+
     // copy in hashname
     memcpy(k->frame+8+8,tm->mesh->id->bin,32);
+
     // random fill rest
     e3x_rand(k->frame+8+8+32,64-(8+8+32));
 
@@ -332,6 +329,9 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
   mote_t mlink = NULL;
   if(!tm || !k) return LOG("bad args");
   
+  // clear any priority now
+  k->mote->priority = 0;
+  
   if(k->err)
   {
     LOG("knock error");
@@ -339,10 +339,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
     return tm;
   }
   
-  // clear any priority now
-  k->mote->priority = 0;
-  
-  // tx just changes flags here
+  // tx just updates state things here
   if(k->tx)
   {
     k->mote->sent++;
@@ -352,6 +349,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
     {
       // a sent pong sets this mote free
       mote_synced(k->mote);
+      k->mote->pong = 0;
     }else if(k->mote->ping){
       // sent ping will always rebase time to when tx was actually completed
       k->mote->at = ago;
@@ -408,11 +406,11 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
       k->mote->link = link; // cache for synced
     }
 
-    // an incoming pong is sync, yay
+    // an incoming pong is sync signal, much celebration
     if(memcmp(k->nonce,k->frame,8) == 0)
     {
-      LOG("incoming pong verified");
-      memcpy(k->mote->nonce,k->frame+8,8); // copy in new seed
+      LOG("incoming pong is to legit to quit");
+      memcpy(k->mote->nonce,k->frame+8,8); // copy in the given bundled sync nonce
       mote_synced(k->mote);
       return tm;
     }
@@ -426,18 +424,16 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
     if(k->mote->public) k->mote->order = mote_tx(k->mote) ? 1 : 0;
 
     // fast forward to the ping's wait nonce
-    k->mote->at = 0;
+    k->mote->at = ago; // rebase to when received
     uint8_t max = 100;
     while(--max && memcmp(k->frame+8, k->mote->nonce, 8) != 0) mote_advance(k->mote);
     // be safe
-    if(!max || k->mote->at < ago)
+    if(!max)
     {
       LOG("failed to find wait nonce in time: %s",util_hex(k->frame+8,8,NULL));
       k->mote->at = 0;
-      k->mote->pong = 0;
     }else{
-      k->mote->at -= ago;
-      k->mote->pong = 1;
+      k->mote->pong = 1; // freezes the at
       k->mote->priority += 2;
       LOG("scheduled pong tx at %d with %s",k->mote->at,util_hex(k->mote->nonce,8,NULL));
     }
@@ -451,17 +447,17 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
   
   // TODO check and validate frame[0] now
 
-  // if real tx time is provided, calculate a drift based on when this rx was done
-  if(k->mote->com->medium->avg)
+  // if avg time is provided, calculate a drift based on when this rx was done
+  if(k->avg)
   {
-    LOG("adjusting for drift by %ld, start local %lu remote %lu at %lu",k->done - k->stop,k->stop,k->done,k->mote->at);
-    if(k->done < k->stop)
+    LOG("adjusting for drift by %ld, start local %lu remote %lu at %lu",k->done - k->avg,k->avg,k->done,k->mote->at);
+    if(k->done < k->avg)
     {
       // be safe for edge cases since at isn't updated yet
-      if(k->stop - k->done > k->mote->at) k->mote->at = 0;
+      if(k->avg - k->done > k->mote->at) k->mote->at = 0;
       else k->mote->at -= (k->stop - k->done);
     }else{
-      k->mote->at += (k->done - k->stop);
+      k->mote->at += (k->done - k->avg);
     }
   }
   
@@ -505,7 +501,8 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
       // update active knock reference time
       knock->start -= (knock->start < us) ? knock->start : us;
       knock->stop -= (knock->stop < us) ? knock->stop : us;
-      LOG("active knock start %lu stop %lu %d",knock->start,knock->stop);
+      knock->avg -= (knock->avg < us) ? knock->avg : us;
+      LOG("active knock start %lu stop %lu avg %lu",knock->start,knock->stop,knock->avg);
       continue;
     }
 
@@ -530,7 +527,7 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
       while((packet = util_chunks_receive(mote->chunks)))
         mesh_receive(tm->mesh, packet, com->pipe); // TODO associate mote for neighborhood
 
-      // adjust relative local time, except ones already set to pong
+      // adjust relative local time, except ones already hard-scheduled to pong
       if(!mote->pong)
       {
         while(LOG("bttf us %lu > at %lu nonce %s",us,mote->at,util_hex(mote->nonce,8,NULL)) || mote->at < us) mote_advance(mote);
@@ -574,6 +571,7 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
     }
   }
   
+  if(!ret) LOG("no knocks scheduled");
   return ret;
 }
 
@@ -710,7 +708,10 @@ mote_t mote_knock(mote_t m, knock_t k)
 
   // set relative start/stop times
   k->start = m->at;
-  k->stop = k->start + ((m->com->medium->avg) ? m->com->medium->avg : m->com->medium->max);
+  // stop is minimal when receiving in sync
+  k->stop = k->start + ((!k->tx && !m->ping) ? m->com->medium->min : m->com->medium->max);
+  // provide calculated avg time for drift adjustments
+  if(m->com->medium->avg) k->avg = k->start + m->com->medium->avg;
 
   // very remote case of overlow (70min minus max micros), just sets to max avail, slight inefficiency?
   if(k->stop < k->start) k->stop = 0xffffffff;
@@ -730,8 +731,7 @@ mote_t mote_synced(mote_t m)
   if(!m) return LOG("bad args");
 
   LOG("mote synchronized! %s",m->public?"public":m->link->id->hashname);
-
-  m->pong = 0;
+  m->ping = m->pong = 0;
 
   // handle public beacon motes special
   if(m->public)
@@ -748,14 +748,15 @@ mote_t mote_synced(mote_t m)
       mote_synced(lmote);
     }
 
-    // TODO intelligent sleepy mode, not just skip some
+    // TODO intelligent ping re-schedule, not just skip some and randomize
     m->at += 1000*1000*5; // 5s
+    e3x_rand(m->nonce,8);
+    m->ping = 1;
 
     return m;
   }
   
   // TODO, set up first sync timeout to reset!
-  m->ping = 0;
   util_chunks_free(m->chunks);
   m->chunks = util_chunks_new(63);
   // establish the pipe path
