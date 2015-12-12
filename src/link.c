@@ -227,16 +227,19 @@ link_t link_pipe(link_t link, pipe_t pipe)
   // see if we've seen it already
   for(seen = link->pipes; seen; seen = seen->next)
   {
-    if(seen->pipe == pipe) return link;
+    if(seen->pipe == pipe) break;
   }
 
   // add this pipe to this link
-  LOG("adding pipe %s",pipe->id);
-  if(!(seen = malloc(sizeof (struct seen_struct)))) return NULL;
-  memset(seen,0,sizeof (struct seen_struct));
-  seen->pipe = pipe;
-  seen->next = link->pipes;
-  link->pipes = seen;
+  if(!seen)
+  {
+    LOG("adding pipe %s",pipe->id);
+    if(!(seen = malloc(sizeof (struct seen_struct)))) return NULL;
+    memset(seen,0,sizeof (struct seen_struct));
+    seen->pipe = pipe;
+    seen->next = link->pipes;
+    link->pipes = seen;
+  }
   
   // make sure it gets sync'd
   lob_free(link_sync(link));

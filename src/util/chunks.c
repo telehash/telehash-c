@@ -150,6 +150,8 @@ util_chunks_t _util_chunks_append(util_chunks_t chunks, uint8_t *block, size_t l
   
   // first, determine if block is a new chunk or a remainder of a previous chunk (quota > 0)
   if(chunks->reading) quota = chunks->reading->size - chunks->readat;
+
+  LOG("chunks append %d q %d",len,quota);
   
   // no space means we're at a chunk start byte
   if(!quota)
@@ -213,6 +215,8 @@ util_chunks_t util_chunks_written(util_chunks_t chunks, size_t len)
   if(len > util_chunks_len(chunks)) return LOG("len too big %d > %d",len,util_chunks_len(chunks));
   chunks->waitat += len;
   chunks->ack = 0; // any write is an ack
+
+  LOG("chunks written %d at %d ing %d",len,chunks->waitat,chunks->waiting);
 
   // if a chunk was done, advance to next chunk
   if(chunks->waitat > chunks->waiting)
