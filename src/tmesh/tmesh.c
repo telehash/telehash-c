@@ -303,7 +303,6 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
     chacha20(k->mote->secret,k->frame,k->frame+8,64-8);
 
     LOG("TX %s %s %s",k->mote->public?"public":"link",k->mote->pong?"pong":"ping",util_hex(k->frame,8,NULL));
-    k->mote->priority++;
 
     return tm;
   }
@@ -326,7 +325,7 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
 }
 
 // signal once a knock has been sent/received for this mote
-tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
+tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 {
   mote_t mlink = NULL;
   if(!tm || !k) return LOG("bad args");
@@ -350,19 +349,19 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
     if(k->mote->pong)
     {
       // sent pong rebases time
-      k->mote->at = ago;
+      k->mote->at = k->done;
       // a sent pong sets this mote free
       mote_synced(k->mote);
       k->mote->pong = 0;
     }else if(k->mote->ping){
       // sent ping will always rebase time to when tx was actually completed
-      k->mote->at = ago;
+      k->mote->at = k->done;
       // restore the sent nonce
       memcpy(k->mote->nonce,k->nonce,8);
       // re-advance to the next future rx window from adjusted time
       while(mote_tx(k->mote)) mote_advance(k->mote);
       k->mote->pong = 1;
-      k->mote->skip = 1;
+      k->mote->priority++;
       LOG("scheduled pong rx at %d with %s",k->mote->at,util_hex(k->mote->nonce,8,NULL));
     }else{
       LOG("chunk next");
@@ -402,7 +401,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
     }
 
     // rebase all pings to when received
-    k->mote->at = ago;
+    k->mote->at = k->done;
 
     // create a link if none (public)
     if(k->mote->public && !k->mote->link)
@@ -444,7 +443,6 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k, uint32_t ago)
       k->mote->at = 0;
     }else{
       k->mote->pong = 1;
-      k->mote->skip = 1;
       k->mote->priority += 2;
       LOG("scheduled pong tx at %d with %s",k->mote->at,util_hex(k->mote->nonce,8,NULL));
     }
@@ -519,11 +517,8 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
       continue;
     }
 
-    // reference for when the knock was actually done in the past from "now"
-    uint32_t ago = us - knock->done;
-
-    LOG("processing done knock %lu ago at %lu stop %lu",ago,knock->done,knock->stop);
-    tmesh_knocked(tm, knock, ago);
+    LOG("processing knock done %lu stop %lu us %lu",knock->done,knock->stop,us);
+    tmesh_knocked(tm, knock);
     memset(knock,0,sizeof(struct knock_struct));
 
   }
@@ -551,16 +546,10 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
         mesh_receive(tm->mesh, packet, com->pipe);
       }
 
-      // adjust relative local time, except ones already hard-scheduled to pong
-      if(mote->skip)
-      {
-        mote->skip = 0;
-        LOG("skipping this time adjustment for %s",mote->public?"public":mote->link->id->hashname);
-      }else{
-        while(LOG("advance %lu > at %lu nonce %s for %s",us,mote->at,util_hex(mote->nonce,8,NULL),mote->public?"public":mote->link->id->hashname) || mote->at < us) mote_advance(mote);
-        mote->at -= us;
-        LOG("final advance to %lu",mote->at);
-      }
+      // adjust relative local time
+      while(LOG("advance %lu > at %lu nonce %s for %s",us,mote->at,util_hex(mote->nonce,8,NULL),mote->public?"public":mote->link->id->hashname) || mote->at < us) mote_advance(mote);
+      mote->at -= us;
+      LOG("final advance to %lu",mote->at);
 
       // already have one active
       if(knock->ready) continue;
@@ -569,12 +558,8 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
       memset(&k2,0,sizeof(struct knock_struct));
       mote_knock(mote,&k2);
       
-      // skip a tx if nothing to send
-      if(!mote->ping && k2.tx && util_chunks_size(mote->chunks) <= 0)
-      {
-        LOG("skipping tx %d, nothing to send to %s",mote->ping,mote->link->id->hashname);
-        continue;
-      }
+      // boost non-public
+      if(!mote->public) mote->priority++;
 
       // use the new one if preferred
       if(!k1.mote || tm->sort(&k1,&k2) != &k1)
@@ -713,6 +698,13 @@ mote_t mote_advance(mote_t m)
   
   LOG("advanced to nonce %s at %lu next %lu",util_hex(m->nonce,8,NULL),m->at,next);
 
+  // skip a tx if nothing to send
+  if(!m->ping && mote_tx(m) && util_chunks_size(m->chunks) <= 0)
+  {
+    LOG("skipping tx window, nothing to send to %s",m->link->id->hashname);
+    return mote_advance(m);
+  }
+
   return m;
 }
 
@@ -774,12 +766,10 @@ mote_t mote_synced(mote_t m)
       m->link = NULL;
       LOG("public-sync'd link to %s at %lu from public at %lu",util_hex(lmote->nonce,8,NULL),lmote->at,m->at);
       mote_synced(lmote);
-      lmote->skip = 1; // prevent next advance
     }
 
     // TODO intelligent ping re-schedule, not just skip some and randomize
-    m->at += 1000*1000*5; // 5s
-    m->skip = 1;
+    m->at += 1000*1000*15; // 15s
     e3x_rand(m->nonce,8);
     m->ping = 1;
 
