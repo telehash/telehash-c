@@ -24,10 +24,10 @@ medium_t device_free(tmesh_t tm, medium_t m)
 }
 
 static struct radio_struct test_device = {
-  0,
   device_check,
   device_get,
   device_free,
+  NULL,
+  0
 };
-
 

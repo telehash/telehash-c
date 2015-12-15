@@ -85,6 +85,24 @@ link_t link_get(mesh_t mesh, char *hashname)
   return link;
 }
 
+link_t link_get32(mesh_t mesh, uint8_t *bin32)
+{
+  link_t link;
+  hashname_t id;
+
+  if(!mesh || !bin32) return LOG("invalid args");
+  if(!(id = hashname_new(bin32))) return LOG("OOM");
+  link = xht_get(mesh->index,id->hashname);
+  if(!link)
+  {
+    link = link_new(mesh,id);
+  }else{
+    hashname_free(id);
+  }
+
+  return link;
+}
+
 // get existing channel id if any
 chan_t link_chan_get(link_t link, uint32_t id)
 {
@@ -209,16 +227,19 @@ link_t link_pipe(link_t link, pipe_t pipe)
   // see if we've seen it already
   for(seen = link->pipes; seen; seen = seen->next)
   {
-    if(seen->pipe == pipe) return link;
+    if(seen->pipe == pipe) break;
   }
 
   // add this pipe to this link
-  LOG("adding pipe %s",pipe->id);
-  if(!(seen = malloc(sizeof (struct seen_struct)))) return NULL;
-  memset(seen,0,sizeof (struct seen_struct));
-  seen->pipe = pipe;
-  seen->next = link->pipes;
-  link->pipes = seen;
+  if(!seen)
+  {
+    LOG("adding pipe %s",pipe->id);
+    if(!(seen = malloc(sizeof (struct seen_struct)))) return NULL;
+    memset(seen,0,sizeof (struct seen_struct));
+    seen->pipe = pipe;
+    seen->next = link->pipes;
+    link->pipes = seen;
+  }
   
   // make sure it gets sync'd
   lob_free(link_sync(link));
