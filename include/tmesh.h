@@ -145,12 +145,18 @@ struct radio_struct
 
   // when a medium isn't used anymore, let the radio free it
   medium_t (*free)(tmesh_t tm, medium_t m);
+
+  // called whenever a new knock is ready to be scheduled
+  tmesh_t (*ready)(tmesh_t tm, radio_t self);
   
   // shared between tmesh and driver
   knock_t knock;
 
   // guid
   uint8_t id:4;
+  
+  // for the radio driver
+  void *arg;
 };
 
 #define RADIOS_MAX 1
