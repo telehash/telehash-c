@@ -531,6 +531,7 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
     // walk the motes for processing and to find another knock
     for(mote=com->motes;mote;mote=mote->next)
     {
+      LOG("processing mote %s",mote->public?"public":mote->link->id->hashname);
       // process any packets on this mote
       while((packet = util_chunks_receive(mote->chunks)))
       {
@@ -547,9 +548,9 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
       }
 
       // adjust relative local time
-      while(LOG("advance %lu > at %lu nonce %s for %s",us,mote->at,util_hex(mote->nonce,8,NULL),mote->public?"public":mote->link->id->hashname) || mote->at < us) mote_advance(mote);
+      while(mote->at < us) mote_advance(mote);
       mote->at -= us;
-      LOG("final advance to %lu",mote->at);
+      LOG("advanced to %lu %s",mote->at,util_hex(mote->nonce,8,NULL));
 
       // already have one active
       if(knock->ready) continue;
@@ -558,7 +559,7 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
       memset(&k2,0,sizeof(struct knock_struct));
       mote_knock(mote,&k2);
       
-      // boost non-public
+      // boost non-public every round
       if(!mote->public) mote->priority++;
 
       // use the new one if preferred
@@ -575,7 +576,7 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
     ret++;
     memcpy(knock,&k1,sizeof(struct knock_struct));
     knock->ready = 1;
-    LOG("new %s knock to mote %s nonce %s start %lu stop %lu",knock->tx?"TX":"RX",knock->mote->public?"anyone":knock->mote->link->id->hashname,util_hex(knock->nonce,8,NULL),knock->start,knock->stop);
+    LOG("new %s knock at %lu nonce %s to mote %s",knock->tx?"TX":"RX",knock->start,util_hex(knock->nonce,8,NULL),knock->mote->public?"anyone":knock->mote->link->id->hashname);
 
     // do the work to fill in the tx frame only once here
     if(knock->tx)
@@ -696,12 +697,12 @@ mote_t mote_advance(mote_t m)
 
   m->at += next + m->com->medium->min + m->com->medium->max;
   
-  LOG("advanced to nonce %s at %lu next %lu",util_hex(m->nonce,8,NULL),m->at,next);
+//  LOG("advanced to nonce %s at %lu next %lu",util_hex(m->nonce,8,NULL),m->at,next);
 
   // skip a tx if nothing to send
   if(!m->ping && mote_tx(m) && util_chunks_size(m->chunks) <= 0)
   {
-    LOG("skipping tx window, nothing to send to %s",m->link->id->hashname);
+    LOG("skipping empty TX window");
     return mote_advance(m);
   }
 
