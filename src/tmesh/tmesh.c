@@ -523,34 +523,20 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
 
   }
 
+  // now we have to (only) bring all motes current looking for the next knock
   for(com=tm->coms;com;com=com->next)
   {
-    knock = radio_devices[com->medium->radio]->knock;
+    radio_t radio = radio_devices[com->medium->radio];
+    knock = radio->knock;
     memset(&k1,0,sizeof(struct knock_struct));
 
     // walk the motes for processing and to find another knock
     for(mote=com->motes;mote;mote=mote->next)
     {
-      LOG("processing mote %s",mote->public?"public":mote->link->id->hashname);
-      // process any packets on this mote
-      while((packet = util_chunks_receive(mote->chunks)))
-      {
-        // TODO make this more of a protocol, not a hack
-        if(lob_get(packet,"1a"))
-        {
-          lob_t keys = lob_new();
-          lob_set_base32(keys,"1a",packet->body,packet->body_len);
-          lob_set_raw(packet,"keys",0,(char*)keys->head,keys->head_len);
-          lob_free(keys);
-        }
-        // TODO associate mote for neighborhood
-        mesh_receive(tm->mesh, packet, com->pipe);
-      }
-
       // adjust relative local time
       while(mote->at < us) mote_advance(mote);
       mote->at -= us;
-      LOG("advanced to %lu %s",mote->at,util_hex(mote->nonce,8,NULL));
+      LOG("mote at %lu %s %s",mote->at,util_hex(mote->nonce,8,NULL),mote->public?"public":mote->link->id->hashname);
 
       // already have one active
       if(knock->ready) continue;
@@ -569,22 +555,54 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
       }
     }
 
-    // no knock available
+    // no new knock available
     if(!k1.mote) continue;
 
     // signal this knock is ready to roll
-    ret++;
     memcpy(knock,&k1,sizeof(struct knock_struct));
     knock->ready = 1;
     LOG("new %s knock at %lu nonce %s to mote %s",knock->tx?"TX":"RX",knock->start,util_hex(knock->nonce,8,NULL),knock->mote->public?"anyone":knock->mote->link->id->hashname);
 
     // do the work to fill in the tx frame only once here
-    if(knock->tx)
+    if(knock->tx) tmesh_knock(tm, knock);
+    
+    // signal driver
+    if(radio->ready && !radio->ready(tm, radio))
     {
-      tmesh_knock(tm, knock);
+      LOG("radio ready driver failed, cancelling knock");
+      memset(knock,0,sizeof(struct knock_struct));
+      continue;
+    }
+
+    ret++;
+  }
+
+  // now do any heavier processing work
+  for(com=tm->coms;com;com=com->next)
+  {
+    for(mote=com->motes;mote;mote=mote->next)
+    {
+      // process any packets on this mote
+      while((packet = util_chunks_receive(mote->chunks)))
+      {
+        LOG("mote %.6s pkt %s",mote->public?"public":mote->link->id->hashname,lob_json(packet));
+        // TODO make this more of a protocol, not a hack
+        if(lob_get(packet,"1a"))
+        {
+          lob_t keys = lob_new();
+          lob_set_base32(keys,"1a",packet->body,packet->body_len);
+          lob_set_raw(packet,"keys",0,(char*)keys->head,keys->head_len);
+          lob_free(keys);
+        }
+        // TODO associate mote for neighborhood
+        mesh_receive(tm->mesh, packet, com->pipe);
+      }
     }
   }
   
+  // overall telehash background processing now
+//  mesh_process(tm->mesh,TODO);
+
   if(!ret) LOG("no knocks scheduled");
   return ret;
 }
