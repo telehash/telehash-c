@@ -134,7 +134,7 @@ int main(int argc, char **argv)
   fail_unless(tmesh_process(netA,553648170));
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
   fail_unless(!knock->done);
-  fail_unless(knock->start == 247568);
+  fail_unless(knock->start == 1492752);
 
   // leave public community
   fail_unless(tmesh_leave(netA,c));

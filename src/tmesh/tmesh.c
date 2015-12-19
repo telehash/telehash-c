@@ -348,7 +348,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     
     if(k->mote->pong)
     {
-      // sent pong rebases time
+      // sent pong shifts start time to when actually done
       k->mote->at = k->done;
       // a sent pong sets this mote free
       mote_synced(k->mote);
@@ -400,7 +400,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
       }
     }
 
-    // rebase all pings to when received
+    // rebase all ping starts to when actually done receiving
     k->mote->at = k->done;
 
     // create a link if none (public)
@@ -457,17 +457,12 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   // TODO check and validate frame[0] now
 
   // if avg time is provided, calculate a drift based on when this rx was done
-  if(k->avg)
+  uint32_t avg = k->mote->com->medium->avg;
+  uint32_t took = k->done - k->start;
+  if(avg && took > avg)
   {
-    LOG("adjusting for drift by %ld, start local %lu remote %lu at %lu",k->done - k->avg,k->avg,k->done,k->mote->at);
-    if(k->done < k->avg)
-    {
-      // be safe for edge cases since at isn't updated yet
-      if(k->avg - k->done > k->mote->at) k->mote->at = 0;
-      else k->mote->at -= (k->stop - k->done);
-    }else{
-      k->mote->at += (k->done - k->avg);
-    }
+    LOG("adjusting for drift by %lu, took %lu avg %lu",took - avg,took,avg);
+    k->mote->at += (took - avg);
   }
   
   uint8_t size = k->frame[1];
@@ -504,20 +499,15 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
     if(!radio_devices[i]) continue;
     knock = radio_devices[i]->knock;
     if(!knock->ready) continue;
-    ret++;
 
     // if it's not done
-    if(!knock->done)
+    if(knock->done < knock->start)
     {
-      // update active knock reference time
-      knock->start -= (knock->start < us) ? knock->start : us;
-      knock->stop -= (knock->stop < us) ? knock->stop : us;
-      knock->avg -= (knock->avg < us) ? knock->avg : us;
-      LOG("active knock start %lu stop %lu avg %lu",knock->start,knock->stop,knock->avg);
+      LOG("skipping active knock");
       continue;
     }
 
-    LOG("processing knock done %lu stop %lu us %lu",knock->done,knock->stop,us);
+    LOG("processing knock s/s/d %lu/%lu/%lu",knock->start,knock->stop,knock->done);
     tmesh_knocked(tm, knock);
     memset(knock,0,sizeof(struct knock_struct));
 
@@ -749,8 +739,6 @@ mote_t mote_knock(mote_t m, knock_t k)
   k->start = m->at;
   // stop is minimal when receiving in sync
   k->stop = k->start + ((!k->tx && !m->ping) ? m->com->medium->min : m->com->medium->max);
-  // provide calculated avg time for drift adjustments
-  if(m->com->medium->avg) k->avg = k->start + m->com->medium->avg;
 
   // very remote case of overlow (70min minus max micros), just sets to max avail, slight inefficiency?
   if(k->stop < k->start) k->stop = 0xffffffff;
