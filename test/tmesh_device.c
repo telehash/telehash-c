@@ -23,11 +23,18 @@ medium_t device_free(tmesh_t tm, medium_t m)
   return NULL;
 }
 
+tmesh_t device_ready(tmesh_t tm, radio_t self)
+{
+  return tm;
+}
+
 static struct radio_struct test_device = {
   device_check,
   device_get,
   device_free,
+  device_ready,
   NULL,
-  0
+  0,
+  NULL
 };
 

@@ -80,8 +80,7 @@ struct knock_struct
 {
   mote_t mote;
   uint32_t start, stop;
-  uint32_t avg; // used to calculate drift when avail
-  uint32_t done; // is actual stop time, offset from last process()
+  uint32_t done; // actual stop time, done-start is time it took
   uint8_t frame[64];
   uint8_t nonce[8]; // nonce for this knock
   uint8_t chan; // current channel (< med->chans)
@@ -145,12 +144,18 @@ struct radio_struct
 
   // when a medium isn't used anymore, let the radio free it
   medium_t (*free)(tmesh_t tm, medium_t m);
+
+  // called whenever a new knock is ready to be scheduled
+  tmesh_t (*ready)(tmesh_t tm, radio_t self);
   
   // shared between tmesh and driver
   knock_t knock;
 
   // guid
   uint8_t id:4;
+  
+  // for the radio driver
+  void *arg;
 };
 
 #define RADIOS_MAX 1

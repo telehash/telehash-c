@@ -348,7 +348,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     
     if(k->mote->pong)
     {
-      // sent pong rebases time
+      // sent pong shifts start time to when actually done
       k->mote->at = k->done;
       // a sent pong sets this mote free
       mote_synced(k->mote);
@@ -400,7 +400,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
       }
     }
 
-    // rebase all pings to when received
+    // rebase all ping starts to when actually done receiving
     k->mote->at = k->done;
 
     // create a link if none (public)
@@ -457,17 +457,12 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   // TODO check and validate frame[0] now
 
   // if avg time is provided, calculate a drift based on when this rx was done
-  if(k->avg)
+  uint32_t avg = k->mote->com->medium->avg;
+  uint32_t took = k->done - k->start;
+  if(avg && took > avg)
   {
-    LOG("adjusting for drift by %ld, start local %lu remote %lu at %lu",k->done - k->avg,k->avg,k->done,k->mote->at);
-    if(k->done < k->avg)
-    {
-      // be safe for edge cases since at isn't updated yet
-      if(k->avg - k->done > k->mote->at) k->mote->at = 0;
-      else k->mote->at -= (k->stop - k->done);
-    }else{
-      k->mote->at += (k->done - k->avg);
-    }
+    LOG("adjusting for drift by %lu, took %lu avg %lu",took - avg,took,avg);
+    k->mote->at += (took - avg);
   }
   
   uint8_t size = k->frame[1];
@@ -504,53 +499,34 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
     if(!radio_devices[i]) continue;
     knock = radio_devices[i]->knock;
     if(!knock->ready) continue;
-    ret++;
 
     // if it's not done
-    if(!knock->done)
+    if(knock->done < knock->start)
     {
-      // update active knock reference time
-      knock->start -= (knock->start < us) ? knock->start : us;
-      knock->stop -= (knock->stop < us) ? knock->stop : us;
-      knock->avg -= (knock->avg < us) ? knock->avg : us;
-      LOG("active knock start %lu stop %lu avg %lu",knock->start,knock->stop,knock->avg);
+      LOG("skipping active knock");
       continue;
     }
 
-    LOG("processing knock done %lu stop %lu us %lu",knock->done,knock->stop,us);
+    LOG("processing knock s/s/d %lu/%lu/%lu",knock->start,knock->stop,knock->done);
     tmesh_knocked(tm, knock);
     memset(knock,0,sizeof(struct knock_struct));
 
   }
 
+  // now we have to (only) bring all motes current looking for the next knock
   for(com=tm->coms;com;com=com->next)
   {
-    knock = radio_devices[com->medium->radio]->knock;
+    radio_t radio = radio_devices[com->medium->radio];
+    knock = radio->knock;
     memset(&k1,0,sizeof(struct knock_struct));
 
     // walk the motes for processing and to find another knock
     for(mote=com->motes;mote;mote=mote->next)
     {
-      LOG("processing mote %s",mote->public?"public":mote->link->id->hashname);
-      // process any packets on this mote
-      while((packet = util_chunks_receive(mote->chunks)))
-      {
-        // TODO make this more of a protocol, not a hack
-        if(lob_get(packet,"1a"))
-        {
-          lob_t keys = lob_new();
-          lob_set_base32(keys,"1a",packet->body,packet->body_len);
-          lob_set_raw(packet,"keys",0,(char*)keys->head,keys->head_len);
-          lob_free(keys);
-        }
-        // TODO associate mote for neighborhood
-        mesh_receive(tm->mesh, packet, com->pipe);
-      }
-
       // adjust relative local time
       while(mote->at < us) mote_advance(mote);
       mote->at -= us;
-      LOG("advanced to %lu %s",mote->at,util_hex(mote->nonce,8,NULL));
+      LOG("mote at %lu %s %s",mote->at,util_hex(mote->nonce,8,NULL),mote->public?"public":mote->link->id->hashname);
 
       // already have one active
       if(knock->ready) continue;
@@ -569,22 +545,54 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
       }
     }
 
-    // no knock available
+    // no new knock available
     if(!k1.mote) continue;
 
     // signal this knock is ready to roll
-    ret++;
     memcpy(knock,&k1,sizeof(struct knock_struct));
     knock->ready = 1;
     LOG("new %s knock at %lu nonce %s to mote %s",knock->tx?"TX":"RX",knock->start,util_hex(knock->nonce,8,NULL),knock->mote->public?"anyone":knock->mote->link->id->hashname);
 
     // do the work to fill in the tx frame only once here
-    if(knock->tx)
+    if(knock->tx) tmesh_knock(tm, knock);
+    
+    // signal driver
+    if(radio->ready && !radio->ready(tm, radio))
     {
-      tmesh_knock(tm, knock);
+      LOG("radio ready driver failed, cancelling knock");
+      memset(knock,0,sizeof(struct knock_struct));
+      continue;
+    }
+
+    ret++;
+  }
+
+  // now do any heavier processing work
+  for(com=tm->coms;com;com=com->next)
+  {
+    for(mote=com->motes;mote;mote=mote->next)
+    {
+      // process any packets on this mote
+      while((packet = util_chunks_receive(mote->chunks)))
+      {
+        LOG("mote %.6s pkt %s",mote->public?"public":mote->link->id->hashname,lob_json(packet));
+        // TODO make this more of a protocol, not a hack
+        if(lob_get(packet,"1a"))
+        {
+          lob_t keys = lob_new();
+          lob_set_base32(keys,"1a",packet->body,packet->body_len);
+          lob_set_raw(packet,"keys",0,(char*)keys->head,keys->head_len);
+          lob_free(keys);
+        }
+        // TODO associate mote for neighborhood
+        mesh_receive(tm->mesh, packet, com->pipe);
+      }
     }
   }
   
+  // overall telehash background processing now
+//  mesh_process(tm->mesh,TODO);
+
   if(!ret) LOG("no knocks scheduled");
   return ret;
 }
@@ -731,8 +739,6 @@ mote_t mote_knock(mote_t m, knock_t k)
   k->start = m->at;
   // stop is minimal when receiving in sync
   k->stop = k->start + ((!k->tx && !m->ping) ? m->com->medium->min : m->com->medium->max);
-  // provide calculated avg time for drift adjustments
-  if(m->com->medium->avg) k->avg = k->start + m->com->medium->avg;
 
   // very remote case of overlow (70min minus max micros), just sets to max avail, slight inefficiency?
   if(k->stop < k->start) k->stop = 0xffffffff;
