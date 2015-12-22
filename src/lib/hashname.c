@@ -9,6 +9,11 @@
 // how many csids can be used to make a hashname
 #define MAX_CSIDS 8
 
+struct hashname_struct
+{
+  uint8_t bin[32];
+};
+
 // validate a str is a base32 hashname
 uint8_t hashname_valid(const char *str)
 {
@@ -25,11 +30,7 @@ hashname_t hashname_new(uint8_t *bin)
   hashname_t hn;
   if(!(hn = malloc(sizeof (struct hashname_struct)))) return NULL;
   memset(hn,0,sizeof (struct hashname_struct));
-  if(bin)
-  {
-    memcpy(hn->bin, bin, 32);
-    base32_encode(hn->bin,32,hn->hashname,53);
-  }
+  if(bin) memcpy(hn->bin, bin, 32);
   return hn;
 }
 
@@ -40,7 +41,6 @@ hashname_t hashname_str(const char *str)
   if(!hashname_valid(str)) return NULL;
   hn = hashname_new(NULL);
   base32_decode(str,52,hn->bin,32);
-  base32_encode(hn->bin,32,hn->hashname,53);
   return hn;
 }
 
@@ -103,6 +103,31 @@ hashname_t hashname_free(hashname_t hn)
   if(!hn) return NULL;
   free(hn);
   return NULL;
+}
+
+// accessors
+uint8_t *hashname_bin(hashname_t hn)
+{
+  if(!hn) return NULL;
+  return hn->bin;
+}
+
+static char hn_tmp[53];
+
+// 52 byte base32 string w/ \0 (TEMPORARY)
+char *hashname_char(hashname_t hn)
+{
+  if(!hn) return NULL;
+  base32_encode(hn->bin,32,hn_tmp,53);
+  return hn_tmp;
+}
+
+// 16 byte base32 string w/ \0 (TEMPORARY)
+char *hashname_short(hashname_t hn)
+{
+  if(!hn) return NULL;
+  base32_encode(hn->bin,10,hn_tmp,53);
+  return hn_tmp;
 }
 
 uint8_t hashname_id(lob_t a, lob_t b)

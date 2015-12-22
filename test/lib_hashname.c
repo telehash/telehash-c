@@ -12,7 +12,7 @@ int main(int argc, char **argv)
 
   hn = hashname_str("jvdoio6kjvf3yqnxfvck43twaibbg4pmb7y3mqnvxafb26rqllwa");
   fail_unless(hn);
-  fail_unless(strlen(hn->hashname) == 52);
+  fail_unless(strlen(hashname_char(hn)) == 52);
   hashname_free(hn);
 
   // create intermediate fixture
@@ -21,14 +21,14 @@ int main(int argc, char **argv)
   lob_set(im,"3a","bmxelsxgecormqjlnati6chxqua7wzipxliw5le35ifwxlge2zva");
   hn = hashname_key(im, 0);
   fail_unless(hn);
-  fail_unless(util_cmp(hn->hashname,"jvdoio6kjvf3yqnxfvck43twaibbg4pmb7y3mqnvxafb26rqllwa") == 0);
+  fail_unless(util_cmp(hashname_char(hn),"jvdoio6kjvf3yqnxfvck43twaibbg4pmb7y3mqnvxafb26rqllwa") == 0);
 
   lob_t keys = lob_new();
   lob_set(keys,"1a","vgjz3yjb6cevxjomdleilmzasbj6lcc7");
   lob_set(keys,"3a","hp6yglmmqwcbw5hno37uauh6fn6dx5oj7s5vtapaifrur2jv6zha");
   hn = hashname_keys(keys);
   fail_unless(hn);
-  fail_unless(util_cmp(hn->hashname,"jvdoio6kjvf3yqnxfvck43twaibbg4pmb7y3mqnvxafb26rqllwa") == 0);
+  fail_unless(util_cmp(hashname_char(hn),"jvdoio6kjvf3yqnxfvck43twaibbg4pmb7y3mqnvxafb26rqllwa") == 0);
 
   fail_unless(hashname_id(NULL,NULL) == 0);
   fail_unless(hashname_id(im,keys) == 0x3a);
