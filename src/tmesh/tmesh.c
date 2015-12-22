@@ -294,7 +294,7 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
     memcpy(k->frame+8,k->mote->nonce,8);
 
     // copy in hashname
-    memcpy(k->frame+8+8,tm->mesh->id->bin,32);
+    memcpy(k->frame+8+8,hashname_bin(tm->mesh->id),32);
 
     // random fill rest
     e3x_rand(k->frame+8+8+32,64-(8+8+32));
@@ -388,7 +388,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     if(k->mote->link)
     {
       // verify hashname match
-      if(memcmp(k->frame+8+8,k->mote->link->id->bin,32) != 0)
+      if(memcmp(k->frame+8+8,hashname_bin(k->mote->link->id),32) != 0)
       {
         if(k->mote->public)
         {
@@ -406,12 +406,12 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     // create a link if none (public)
     if(k->mote->public && !k->mote->link)
     {
-      if(memcmp(k->frame+8+8,tm->mesh->id->bin,32) == 0) return LOG("identity crisis");
+      if(memcmp(k->frame+8+8,hashname_bin(tm->mesh->id),32) == 0) return LOG("identity crisis");
       link_t link = link_get32(tm->mesh, k->frame+8+8);
       mlink = tmesh_link(tm, k->mote->com, link);
       if(!mlink) return LOG("mote link failed");
       if(!mlink->ping || mlink->pong) return LOG("ignoring public ping for an active mote");
-      LOG("new/reset mote to %s",mlink->link->id->hashname);
+      LOG("new/reset mote to %s",hashname_short(mlink->link->id));
       mlink->at = 0xffffffff; // disabled, as mote_synced of public will free it
       k->mote->link = link; // cache for synced
     }
@@ -526,7 +526,7 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
       // adjust relative local time
       while(mote->at < us) mote_advance(mote);
       mote->at -= us;
-      LOG("mote at %lu %s %s",mote->at,util_hex(mote->nonce,8,NULL),mote->public?"public":mote->link->id->hashname);
+      LOG("mote at %lu %s %s",mote->at,util_hex(mote->nonce,8,NULL),mote->public?"public":hashname_short(mote->link->id));
 
       // already have one active
       if(knock->ready) continue;
@@ -551,7 +551,7 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
     // signal this knock is ready to roll
     memcpy(knock,&k1,sizeof(struct knock_struct));
     knock->ready = 1;
-    LOG("new %s knock at %lu nonce %s to mote %s",knock->tx?"TX":"RX",knock->start,util_hex(knock->nonce,8,NULL),knock->mote->public?"anyone":knock->mote->link->id->hashname);
+    LOG("new %s knock at %lu nonce %s to mote %s",knock->tx?"TX":"RX",knock->start,util_hex(knock->nonce,8,NULL),knock->mote->public?"anyone":hashname_short(knock->mote->link->id));
 
     // do the work to fill in the tx frame only once here
     if(knock->tx) tmesh_knock(tm, knock);
@@ -575,7 +575,7 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
       // process any packets on this mote
       while((packet = util_chunks_receive(mote->chunks)))
       {
-        LOG("mote %.6s pkt %s",mote->public?"public":mote->link->id->hashname,lob_json(packet));
+        LOG("mote %.6s pkt %s",mote->public?"public":hashname_short(mote->link->id),lob_json(packet));
         // TODO make this more of a protocol, not a hack
         if(lob_get(packet,"1a"))
         {
@@ -611,10 +611,12 @@ mote_t mote_new(link_t link)
   {
     if(!(m->chunks = util_chunks_new(63))) return mote_free(m);
     m->link = link;
+    uint8_t *bin1 = hashname_bin(link->id);
+    uint8_t *bin2 = hashname_bin(link->mesh->id);
     for(i=0;i<32;i++)
     {
-      if(link->id->bin[i] == link->mesh->id->bin[i]) continue;
-      m->order = (link->id->bin[i] > link->mesh->id->bin[i]) ? 1 : 0;
+      if(bin1[i] == bin2[i]) continue;
+      m->order = (bin1[i] > bin2[i]) ? 1 : 0;
       break;
     }
   }
@@ -656,11 +658,11 @@ mote_t mote_reset(mote_t m)
     // add both hashnames in order
     if(m->order)
     {
-      a = m->link->id->bin;
-      b = m->link->mesh->id->bin;
+      a = hashname_bin(m->link->id);
+      b = hashname_bin(m->link->mesh->id);
     }else{
-      b = m->link->id->bin;
-      a = m->link->mesh->id->bin;
+      b = hashname_bin(m->link->id);
+      a = hashname_bin(m->link->mesh->id);
     }
   }
   memcpy(roll,m->secret,32);
@@ -757,7 +759,7 @@ mote_t mote_synced(mote_t m)
 {
   if(!m) return LOG("bad args");
 
-  LOG("mote synchronized! %s",m->public?"public":m->link->id->hashname);
+  LOG("mote synchronized! %s",m->public?"public":hashname_short(m->link->id));
   m->ping = m->pong = 0;
 
   // handle public beacon motes special

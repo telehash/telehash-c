@@ -27,7 +27,7 @@ static uint8_t status = 0;
 // exit as soon as the link is up
 void link_check(link_t link)
 {
-  LOG("CHECK %s",link->id->hashname);
+  LOG("CHECK %s",hashname_char(link->id));
   status = link_up(link) ? 1 : 0;
 }
 

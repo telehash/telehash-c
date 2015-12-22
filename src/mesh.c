@@ -87,7 +87,7 @@ uint8_t mesh_load(mesh_t mesh, lob_t secrets, lob_t keys)
   if(!(mesh->self = e3x_self_new(secrets, keys))) return 2;
   mesh->keys = lob_copy(keys);
   mesh->id = hashname_keys(mesh->keys);
-  LOG("mesh is %s",mesh->id->hashname);
+  LOG("mesh is %s",hashname_short(mesh->id));
   return 0;
 }
 
@@ -132,7 +132,7 @@ lob_t mesh_json(mesh_t mesh)
   if(!mesh) return LOG("bad args");
 
   json = lob_new();
-  lob_set(json,"hashname",mesh->id->hashname);
+  lob_set(json,"hashname",hashname_char(mesh->id));
   lob_set_raw(json,"keys",0,(char*)mesh->keys->head,mesh->keys->head_len);
   paths = lob_array(mesh->paths);
   lob_set_raw(json,"paths",0,(char*)paths->head,paths->head_len);
@@ -351,7 +351,7 @@ link_t mesh_receive_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe)
     }
     util_hex(outer->head, 1, hexid);
     lob_set(handshake,"csid",hexid);
-    lob_set(handshake,"hashname",from->hashname);
+    lob_set(handshake,"hashname",hashname_char(from));
     lob_body(handshake, tmp->body, tmp->body_len); // re-attach as raw key
     lob_free(tmp);
     hashname_free(from);
@@ -408,7 +408,7 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
     return 1;
   }
   
-  LOG("mesh receiving %s to %s via pipe %s",outer->head_len?"handshake":"channel",mesh->id->hashname,pipe->id);
+  LOG("mesh receiving %s to %s via pipe %s",outer->head_len?"handshake":"channel",hashname_short(mesh->id),pipe->id);
 
   // process handshakes
   if(outer->head_len == 1)
@@ -454,11 +454,11 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
     lob_free(outer);
     if(!inner)
     {
-      LOG("channel decryption fail for link %s %s",link->id->hashname,e3x_err());
+      LOG("channel decryption fail for link %s %s",hashname_short(link->id),e3x_err());
       return 7;
     }
     
-    LOG("channel packet %d bytes from %s",lob_len(inner),link->id->hashname);
+    LOG("channel packet %d bytes from %s",lob_len(inner),hashname_short(link->id));
     return link_receive(link,inner,pipe) ? 0 : 8;
     
   }
@@ -468,7 +468,7 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
   {
     if((id = hashname_keys(inner)))
     {
-      lob_set(outer,"hashname",id->hashname);
+      lob_set(outer,"hashname",hashname_char(id));
       lob_set_int(outer,"at",0);
       lob_set(outer,"type","link");
       LOG("bare incoming link json being discovered %s",lob_json(outer));

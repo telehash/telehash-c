@@ -30,7 +30,7 @@ int main(int argc, char **argv)
   lob_set(keyB,"1a",B_KEY);
   hashname_t hnB = hashname_keys(keyB);
   fail_unless(hnB);
-  link_t link = link_get(meshA,hnB->hashname);
+  link_t link = link_get(meshA,hashname_char(hnB));
   fail_unless(link);
   
   tmesh_t netA = tmesh_new(meshA, NULL);
@@ -148,7 +148,7 @@ int main(int argc, char **argv)
 
   hashname_t hnA = hashname_keys(keyA);
   fail_unless(hnA);
-  link_t linkBA = link_get(meshB,hnA->hashname);
+  link_t linkBA = link_get(meshB,hashname_char(hnA));
   fail_unless(linkBA);
   
   tmesh_t netB = tmesh_new(meshB, NULL);

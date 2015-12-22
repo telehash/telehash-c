@@ -19,8 +19,8 @@ int main(int argc, char **argv)
   net_loopback_t pairAB = net_loopback_new(meshA,meshB);
   fail_unless(pairAB);
 
-  link_t linkAB = link_get(meshA, meshB->id->hashname);
-  link_t linkBA = link_get(meshB, meshA->id->hashname);
+  link_t linkAB = link_get(meshA, hashname_char(meshB->id));
+  link_t linkBA = link_get(meshB, hashname_char(meshA->id));
   fail_unless(linkAB);
   fail_unless(linkBA);
 
@@ -31,7 +31,7 @@ int main(int argc, char **argv)
   fail_unless(peer_route(meshA));
   lob_t peerAB = lob_new();
   lob_set(peerAB,"type","peer");
-  lob_set(peerAB,"peer",meshB->id->hashname);
+  lob_set(peerAB,"peer",hashname_char(meshB->id));
   lob_set_uint(peerAB,"c",e3x_exchange_cid(linkBA->x, NULL));
   fail_unless(link_receive(linkAB, peerAB, NULL));
 
@@ -48,8 +48,8 @@ int main(int argc, char **argv)
   net_loopback_t pairBC = net_loopback_new(meshB,meshC);
   fail_unless(pairBC);
   
-  link_t linkBC = link_get(meshB, meshC->id->hashname);
-  link_t linkCB = link_get(meshC, meshB->id->hashname);
+  link_t linkBC = link_get(meshB, hashname_char(meshC->id));
+  link_t linkCB = link_get(meshC, hashname_char(meshB->id));
   fail_unless(linkBC);
   fail_unless(linkCB);
 

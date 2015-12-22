@@ -32,7 +32,7 @@ int main(int argc, char **argv)
   link_t linkAB = link_keys(meshA, meshB->keys);
   fail_unless(link_path(linkAB,netB->path));
 
-//  link_t linkBA = link_get(meshB, meshA->id->hashname);
+//  link_t linkBA = link_get(meshB, hashname_char(meshA->id));
 //  fail_unless(linkBA);
 
   state = 0;

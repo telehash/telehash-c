@@ -22,9 +22,9 @@ int main(int argc, char **argv)
   lob_t idB = e3x_generate();
   hashname_t hnB = hashname_keys(lob_linked(idB));
   fail_unless(hnB);
-  link_t link = link_get(mesh,hnB->hashname);
+  link_t link = link_get(mesh,hashname_char(hnB));
   fail_unless(link);
-  fail_unless(strlen(link->id->hashname) == 52);
+  fail_unless(strlen(hashname_char(link->id)) == 52);
   fail_unless(link->csid == 0);
   
   fail_unless(link_keys(mesh,lob_linked(idB)) == link);
