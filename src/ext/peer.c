@@ -60,7 +60,7 @@ pipe_t peer_path(link_t link, lob_t path)
   if(!link || !path) return NULL;
   if(util_cmp("peer",lob_get(path,"type"))) return NULL;
   if(!(peer = lob_get(path,"peer"))) return LOG("missing peer");
-  if(!(id = hashname_valid(peer))) return LOG("invalid peer");
+  if(!(id = hashname_vchar(peer))) return LOG("invalid peer");
   
   return peer_pipe(link->mesh, id);
 }

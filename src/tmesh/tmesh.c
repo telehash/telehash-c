@@ -406,8 +406,9 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     // create a link if none (public)
     if(k->mote->public && !k->mote->link)
     {
-      if(memcmp(k->frame+8+8,hashname_bin(tm->mesh->id),32) == 0) return LOG("identity crisis");
-      link_t link = link_get32(tm->mesh, k->frame+8+8);
+      hashname_t id = hashname_vbin(k->frame+8+8);
+      if(hashname_cmp(id,tm->mesh->id) == 0) return LOG("identity crisis");
+      link_t link = link_get(tm->mesh, id);
       mlink = tmesh_link(tm, k->mote->com, link);
       if(!mlink) return LOG("mote link failed");
       if(!mlink->ping || mlink->pong) return LOG("ignoring public ping for an active mote");

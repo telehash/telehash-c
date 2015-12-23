@@ -14,41 +14,47 @@ struct hashname_struct
   uint8_t bin[32];
 };
 
-// validate a str is a base32 hashname, returns TEMPORARY hashname
-static struct hashname_struct hn_valid;
-hashname_t hashname_valid(const char *str)
-{
-  if(!str) return NULL;
-  if(strlen(str) != 52) return NULL;
-  if(base32_decode(str,52,hn_valid.bin,32) != 32) return NULL;
-  return &hn_valid;
-}
+// v* methods return this
+static struct hashname_struct hn_vtmp;
 
-// bin must be 32 bytes
-hashname_t hashname_new(uint8_t *bin)
+hashname_t hashname_dup(hashname_t id)
 {
   hashname_t hn;
   if(!(hn = malloc(sizeof (struct hashname_struct)))) return NULL;
   memset(hn,0,sizeof (struct hashname_struct));
-  if(bin) memcpy(hn->bin, bin, 32);
+  if(id) memcpy(hn->bin, id->bin, 32);
   return hn;
 }
 
-// these all create a new hashname
-hashname_t hashname_str(const char *str)
+hashname_t hashname_free(hashname_t hn)
 {
-  hashname_t hn;
-  if(!(hn = hashname_valid(str))) return NULL;
-  return hashname_new(hn->bin);
+  if(hn == &hn_vtmp) return LOG("programmer error");
+  if(hn) free(hn);
+  return NULL;
 }
 
-// create hashname from intermediate values as hex/base32 key/value pairs
-hashname_t hashname_key(lob_t key, uint8_t csid)
+// validate a str is a base32 hashname, returns TEMPORARY hashname
+hashname_t hashname_vchar(const char *str)
+{
+  if(!str) return NULL;
+  if(strlen(str) != 52) return NULL;
+  if(base32_decode(str,52,hn_vtmp.bin,32) != 32) return NULL;
+  return &hn_vtmp;
+}
+
+hashname_t hashname_vbin(const uint8_t *bin)
+{
+  if(!bin) return NULL;
+  memcpy(&hn_vtmp,bin,32);
+  return &hn_vtmp;
+}
+
+// temp hashname from intermediate values as hex/base32 key/value pairs
+hashname_t hashname_vkey(lob_t key, uint8_t csid)
 {
   unsigned int i, start;
   uint8_t hash[64];
   char *id, *value, hexid[3];
-  hashname_t hn = NULL;
   if(!key) return LOG("invalid args");
   util_hex(&csid, 1, hexid);
 
@@ -80,27 +86,19 @@ hashname_t hashname_key(lob_t key, uint8_t csid)
   }
   if(!i || i % 2 != 0) return LOG("invalid keys %d",i);
   
-  hn = hashname_new(hash);
-  return hn;
+  return hashname_vbin(hash);
 }
 
-hashname_t hashname_keys(lob_t keys)
+hashname_t hashname_vkeys(lob_t keys)
 {
   hashname_t hn;
   lob_t im;
 
   if(!keys) return LOG("bad args");
   im = hashname_im(keys,0);
-  hn = hashname_key(im,0);
+  hn = hashname_vkey(im,0);
   lob_free(im);
   return hn;
-}
-
-hashname_t hashname_free(hashname_t hn)
-{
-  if(!hn) return NULL;
-  free(hn);
-  return NULL;
 }
 
 // accessors
@@ -111,12 +109,12 @@ uint8_t *hashname_bin(hashname_t hn)
 }
 
 // 52 byte base32 string w/ \0 (TEMPORARY)
-static char hn_tmp[53];
+static char hn_ctmp[53];
 char *hashname_char(hashname_t hn)
 {
   if(!hn) return NULL;
-  base32_encode(hn->bin,32,hn_tmp,53);
-  return hn_tmp;
+  base32_encode(hn->bin,32,hn_ctmp,53);
+  return hn_ctmp;
 }
 
 // 16 byte base32 string w/ \0 (TEMPORARY)
@@ -124,9 +122,15 @@ char *hashname_short(hashname_t hn)
 {
   static uint8_t tog = 1;
   if(!hn) return NULL;
-  tog = tog ? 0 : 26; // fit two short names in hn_tmp for easier LOG() args
-  base32_encode(hn->bin,10,hn_tmp+tog,53-tog);
-  return hn_tmp+tog;
+  tog = tog ? 0 : 26; // fit two short names in hn_ctmp for easier LOG() args
+  base32_encode(hn->bin,10,hn_ctmp+tog,53-tog);
+  return hn_ctmp+tog;
+}
+
+int hashname_cmp(hashname_t a, hashname_t b)
+{
+  if(!a || !b) return -1;
+  return memcmp(a->bin,b->bin,32);
 }
 
 uint8_t hashname_id(lob_t a, lob_t b)

@@ -14,15 +14,15 @@ struct link_struct
   lob_t handshakes;
   uint8_t csid;
   chan_t chans;
-  char token[33];
+  char token[17]; // b32 exchange routing token
+  char handle[17]; // b32 hashname_short
   
   // these are for internal link management only
   struct seen_struct *pipes;
 };
 
 // these all create or return existing one from the mesh
-link_t link_get(mesh_t mesh, char *hashname);
-link_t link_get32(mesh_t mesh, uint8_t *bin32);
+link_t link_get(mesh_t mesh, hashname_t id);
 link_t link_keys(mesh_t mesh, lob_t keys); // adds in the right key
 link_t link_key(mesh_t mesh, lob_t key, uint8_t csid); // adds in from the body
 
