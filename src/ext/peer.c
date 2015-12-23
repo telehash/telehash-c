@@ -32,17 +32,18 @@ void peer_send(pipe_t pipe, lob_t packet, link_t link)
   
 }
 
-pipe_t peer_pipe(mesh_t mesh, char *peer)
+pipe_t peer_pipe(mesh_t mesh, hashname_t peer)
 {
+  char *sn = hashname_short(peer);
   pipe_t pipe, pipes = NULL;
 
   // get existing one for this peer
   pipes = xht_get(mesh->index, "ext_peer_pipes");
-  for(pipe = pipes;pipe;pipe = pipe->next) if(util_cmp(pipe->id,peer) == 0) return pipe;
+  for(pipe = pipes;pipe;pipe = pipe->next) if(util_cmp(pipe->id,sn) == 0) return pipe;
 
   // make a new one
   if(!(pipe = pipe_new("peer"))) return NULL;
-  pipe->id = strdup(peer);
+  pipe->id = strdup(hashname_short(peer));
   pipe->send = peer_send;
   pipe->next = pipes;
   xht_set(mesh->index,"ext_peer_pipes",pipe);
@@ -53,14 +54,15 @@ pipe_t peer_pipe(mesh_t mesh, char *peer)
 pipe_t peer_path(link_t link, lob_t path)
 {
   char *peer;
+  hashname_t id;
 
   // just sanity check the path first
   if(!link || !path) return NULL;
   if(util_cmp("peer",lob_get(path,"type"))) return NULL;
   if(!(peer = lob_get(path,"peer"))) return LOG("missing peer");
-  if(!hashname_valid(peer)) return LOG("invalid peer");
+  if(!(id = hashname_valid(peer))) return LOG("invalid peer");
   
-  return peer_pipe(link->mesh, peer);
+  return peer_pipe(link->mesh, id);
 }
 
 // handle an incoming connect request
@@ -79,7 +81,7 @@ lob_t peer_open_connect(link_t link, lob_t open)
   LOG("incoming connect for %s via %s",hn,hashname_short(link->id));
   
   // get routing peer pipe
-  pipe = peer_pipe(link->mesh, hashname_char(link->id));
+  pipe = peer_pipe(link->mesh, link->id);
 
   // encrypted or not handshake
   if(hs->head_len == 1) mesh_receive(link->mesh, hs, pipe);
@@ -156,7 +158,7 @@ link_t peer_connect(link_t peer, link_t router)
   if(!peer || !router) return LOG("bad args");
 
   // get router pipe and handshakes
-  if(!(pipe = peer_pipe(peer->mesh, hashname_char(router->id))) || !(handshakes = link_handshakes(peer))) return LOG("internal error");
+  if(!(pipe = peer_pipe(peer->mesh, router->id)) || !(handshakes = link_handshakes(peer))) return LOG("internal error");
   
   // loop through and send each one in a peer request through the router
   for(hs = handshakes; hs; hs = handshakes)

@@ -14,14 +14,14 @@ struct hashname_struct
   uint8_t bin[32];
 };
 
-// validate a str is a base32 hashname
-uint8_t hashname_valid(const char *str)
+// validate a str is a base32 hashname, returns TEMPORARY hashname
+static struct hashname_struct hn_valid;
+hashname_t hashname_valid(const char *str)
 {
-  static uint8_t buf[32];
-  if(!str) return 0;
-  if(strlen(str) != 52) return 0;
-  if(base32_decode(str,52,buf,32) != 32) return 0;
-  return 1;
+  if(!str) return NULL;
+  if(strlen(str) != 52) return NULL;
+  if(base32_decode(str,52,hn_valid.bin,32) != 32) return NULL;
+  return &hn_valid;
 }
 
 // bin must be 32 bytes
@@ -38,10 +38,8 @@ hashname_t hashname_new(uint8_t *bin)
 hashname_t hashname_str(const char *str)
 {
   hashname_t hn;
-  if(!hashname_valid(str)) return NULL;
-  hn = hashname_new(NULL);
-  base32_decode(str,52,hn->bin,32);
-  return hn;
+  if(!(hn = hashname_valid(str))) return NULL;
+  return hashname_new(hn->bin);
 }
 
 // create hashname from intermediate values as hex/base32 key/value pairs
