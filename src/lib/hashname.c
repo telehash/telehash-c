@@ -110,9 +110,8 @@ uint8_t *hashname_bin(hashname_t hn)
   return hn->bin;
 }
 
-static char hn_tmp[53];
-
 // 52 byte base32 string w/ \0 (TEMPORARY)
+static char hn_tmp[53];
 char *hashname_char(hashname_t hn)
 {
   if(!hn) return NULL;
@@ -123,9 +122,11 @@ char *hashname_char(hashname_t hn)
 // 16 byte base32 string w/ \0 (TEMPORARY)
 char *hashname_short(hashname_t hn)
 {
+  static uint8_t tog = 1;
   if(!hn) return NULL;
-  base32_encode(hn->bin,10,hn_tmp,53);
-  return hn_tmp;
+  tog = tog ? 0 : 26; // fit two short names in hn_tmp for easier LOG() args
+  base32_encode(hn->bin,10,hn_tmp+tog,53-tog);
+  return hn_tmp+tog;
 }
 
 uint8_t hashname_id(lob_t a, lob_t b)
