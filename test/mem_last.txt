@@ -1,9 +1,13 @@
 8	void*
 96	mesh_t
-112	link_t
+96	link_t
 88	lob_t
 16	util_chunk_t
-85	hashname_t
 88	e3x_exchange_t
-136	e3x_channel_t
+120	chan_t
 64	pipe_t
+40	tmesh_t
+88	mote_t
+32	medium_t
+64	cmnty_t
+96	knock_t

@@ -56,7 +56,7 @@ FULL_OBJFILES = $(LIB_OBJFILES) $(E3X_OBJFILES) $(MESH_OBJFILES) $(EXT_OBJFILES)
 
 all: test
 
-test: test-slink tests test-interop test-mem
+test: test-slink tests test-mem test-interop
 
 test-slink: net_slink.o bin/test_net_slink
 
