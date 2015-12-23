@@ -79,6 +79,7 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us);
 struct knock_struct
 {
   mote_t mote;
+  medium_t medium;
   uint32_t start, stop;
   uint32_t done; // actual stop time, done-start is time it took
   uint8_t frame[64];

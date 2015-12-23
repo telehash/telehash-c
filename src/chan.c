@@ -321,7 +321,7 @@ chan_t chan_process(chan_t c, uint32_t now)
     chan_send(c,ret);
   }
   
-  LOG("sending ack %d acked %d",c->ack,c->acked);
+  if(c->ack || c->acked) LOG("sending ack %d acked %d",c->ack,c->acked);
 
   // if we need to generate an ack/miss yet, do that
   if(c->ack != c->acked) chan_send(c,chan_oob(c));

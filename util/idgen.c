@@ -32,9 +32,9 @@ int main(int argc, char *argv[])
     LOG("keygen failed: %s",e3x_err());
     return -1;
   }
-  id = hashname_keys(keys);
+  id = hashname_vkeys(keys);
   json = lob_new();
-  lob_set(json,"hashname",id->hashname);
+  lob_set(json,"hashname",hashname_char(id));
   lob_set_raw(json,"keys",0,(char*)keys->head,keys->head_len);
   lob_set_raw(json,"secrets",0,(char*)secrets->head,secrets->head_len);
   

@@ -18,7 +18,7 @@ void udp4_send(pipe_t pipe, lob_t packet, link_t link)
   pipe_udp4_t to = (pipe_udp4_t)pipe->arg;
 
   if(!to || !packet || !link) return;
-  LOG("udp4 to %s",link->id->hashname);
+  LOG("udp4 to %s",hashname_short(link->id));
   // TODO, determine MTU capacity left and add random # of rounds within that
   cloaked = lob_cloak(packet, 1);
   if(sendto(to->net->server, cloaked, lob_len(packet)+8, 0, (struct sockaddr *)&(to->sa), sizeof(struct sockaddr_in)) < 0) LOG("sendto failed: %s",strerror(errno));

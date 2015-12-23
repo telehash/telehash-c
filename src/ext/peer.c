@@ -8,7 +8,8 @@ void peer_send(pipe_t pipe, lob_t packet, link_t link)
   link_t router;
   if(!pipe || !packet || !link) return;
 
-  if(!(router = mesh_linked(link->mesh, pipe->id)))
+  // TODO xht_get here is way out of place
+  if(!(router = xht_get(link->mesh->index, pipe->id)))
   {
     LOG("router link not found");
     return;
@@ -25,24 +26,25 @@ void peer_send(pipe_t pipe, lob_t packet, link_t link)
   LOG("peering via router %s",pipe->id);
   open = lob_new();
   lob_set(open,"type","peer");
-  lob_set(open,"peer",link->id->hashname);
+  lob_set(open,"peer",hashname_char(link->id));
   lob_body(open,lob_raw(packet),lob_len(packet));
   lob_free(packet);
   link_direct(router,open,NULL);
   
 }
 
-pipe_t peer_pipe(mesh_t mesh, char *peer)
+pipe_t peer_pipe(mesh_t mesh, hashname_t peer)
 {
+  char *sn = hashname_short(peer);
   pipe_t pipe, pipes = NULL;
 
   // get existing one for this peer
   pipes = xht_get(mesh->index, "ext_peer_pipes");
-  for(pipe = pipes;pipe;pipe = pipe->next) if(util_cmp(pipe->id,peer) == 0) return pipe;
+  for(pipe = pipes;pipe;pipe = pipe->next) if(util_cmp(pipe->id,sn) == 0) return pipe;
 
   // make a new one
   if(!(pipe = pipe_new("peer"))) return NULL;
-  pipe->id = strdup(peer);
+  pipe->id = strdup(hashname_short(peer));
   pipe->send = peer_send;
   pipe->next = pipes;
   xht_set(mesh->index,"ext_peer_pipes",pipe);
@@ -53,14 +55,15 @@ pipe_t peer_pipe(mesh_t mesh, char *peer)
 pipe_t peer_path(link_t link, lob_t path)
 {
   char *peer;
+  hashname_t id;
 
   // just sanity check the path first
   if(!link || !path) return NULL;
   if(util_cmp("peer",lob_get(path,"type"))) return NULL;
   if(!(peer = lob_get(path,"peer"))) return LOG("missing peer");
-  if(!hashname_valid(peer)) return LOG("invalid peer");
+  if(!(id = hashname_vchar(peer))) return LOG("invalid peer");
   
-  return peer_pipe(link->mesh, peer);
+  return peer_pipe(link->mesh, id);
 }
 
 // handle an incoming connect request
@@ -76,10 +79,10 @@ lob_t peer_open_connect(link_t link, lob_t open)
     return lob_free(open);
   }
 
-  LOG("incoming connect for %s via %s",hn,link->id->hashname);
+  LOG("incoming connect for %s via %s",hn,hashname_short(link->id));
   
   // get routing peer pipe
-  pipe = peer_pipe(link->mesh, link->id->hashname);
+  pipe = peer_pipe(link->mesh, link->id);
 
   // encrypted or not handshake
   if(hs->head_len == 1) mesh_receive(link->mesh, hs, pipe);
@@ -97,9 +100,9 @@ lob_t peer_open_peer(link_t link, lob_t open)
 
   LOG("incoming peer route request %s",lob_json(open));
 
-  if(!(peer = mesh_linked(link->mesh,lob_get(open,"peer"))))
+  if(!(peer = mesh_linked(link->mesh,hashname_vchar(lob_get(open,"peer")))))
   {
-    LOG("no peer link found for %s from %s",lob_get(open,"peer"),link->id->hashname);
+    LOG("no peer link found for %s from %s",lob_get(open,"peer"),hashname_short(link->id));
     return open;
   }
   
@@ -107,7 +110,7 @@ lob_t peer_open_peer(link_t link, lob_t open)
   lob_set(open,"type","connect");
   link_direct(peer,open,NULL); // encrypts then sends
 
-  return LOG("connect delivered to %s",peer->id->hashname);
+  return LOG("connect delivered to %s",hashname_short(peer->id));
 }
 
 void peer_free(mesh_t mesh)
@@ -156,7 +159,7 @@ link_t peer_connect(link_t peer, link_t router)
   if(!peer || !router) return LOG("bad args");
 
   // get router pipe and handshakes
-  if(!(pipe = peer_pipe(peer->mesh, router->id->hashname)) || !(handshakes = link_handshakes(peer))) return LOG("internal error");
+  if(!(pipe = peer_pipe(peer->mesh, router->id)) || !(handshakes = link_handshakes(peer))) return LOG("internal error");
   
   // loop through and send each one in a peer request through the router
   for(hs = handshakes; hs; hs = handshakes)

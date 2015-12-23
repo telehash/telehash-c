@@ -20,17 +20,14 @@ link_t link_new(mesh_t mesh, hashname_t id)
 
   if(!mesh || !id) return LOG("invalid args");
 
-  LOG("adding link %s",id->hashname);
-  if(!(link = malloc(sizeof (struct link_struct))))
-  {
-    hashname_free(id);
-    return NULL;
-  }
+  LOG("adding link %s",hashname_short(id));
+  if(!(link = malloc(sizeof (struct link_struct)))) return LOG("OOM");
   memset(link,0,sizeof (struct link_struct));
   
-  link->id = id;
+  link->id = hashname_dup(id);
   link->mesh = mesh;
-  xht_set(mesh->index,id->hashname,link);
+  memcpy(link->handle,hashname_short(link->id),17);
+  xht_set(mesh->index,link->handle,link);
 
   return link;
 }
@@ -38,8 +35,8 @@ link_t link_new(mesh_t mesh, hashname_t id)
 void link_free(link_t link)
 {
   if(!link) return;
-  LOG("dropping link %s",link->id->hashname);
-  xht_set(link->mesh->index,link->id->hashname,NULL);
+  LOG("dropping link %s",link->handle);
+  xht_set(link->mesh->index,link->handle,NULL);
 
   // go through ->pipes
   seen_t seen, next;
@@ -68,37 +65,13 @@ void link_free(link_t link)
   free(link);
 }
 
-link_t link_get(mesh_t mesh, char *hashname)
+link_t link_get(mesh_t mesh, hashname_t id)
 {
   link_t link;
-  hashname_t id;
 
-  if(!mesh || !hashname) return LOG("invalid args");
-  link = xht_get(mesh->index,hashname);
-  if(!link)
-  {
-    id = hashname_str(hashname);
-    if(!id) return LOG("invalid hashname %s",hashname);
-    link = link_new(mesh,id);
-  }
-
-  return link;
-}
-
-link_t link_get32(mesh_t mesh, uint8_t *bin32)
-{
-  link_t link;
-  hashname_t id;
-
-  if(!mesh || !bin32) return LOG("invalid args");
-  if(!(id = hashname_new(bin32))) return LOG("OOM");
-  link = xht_get(mesh->index,id->hashname);
-  if(!link)
-  {
-    link = link_new(mesh,id);
-  }else{
-    hashname_free(id);
-  }
+  if(!mesh || !id) return LOG("invalid args");
+  link = xht_get(mesh->index,hashname_short(id));
+  if(!link) link = link_new(mesh,id);
 
   return link;
 }
@@ -120,7 +93,7 @@ lob_t link_json(link_t link)
   if(!link) return LOG("bad args");
 
   json = lob_new();
-  lob_set(json,"hashname",link->id->hashname);
+  lob_set(json,"hashname",hashname_char(link->id));
   lob_set(json,"csid",util_hex(&link->csid, 1, hex));
   lob_set_raw(json,"key",0,(char*)link->key->head,link->key->head_len);
 //  paths = lob_array(mesh->paths);
@@ -144,22 +117,13 @@ link_t link_keys(mesh_t mesh, lob_t keys)
 
 link_t link_key(mesh_t mesh, lob_t key, uint8_t csid)
 {
-  hashname_t hn;
   link_t link;
 
   if(!mesh || !key) return LOG("invalid args");
   if(hashname_id(mesh->keys,key) > csid) return LOG("invalid csid");
 
-  hn = hashname_key(key, csid);
-  if(!hn) return LOG("invalid key");
-
-  link = link_get(mesh, hn->hashname);
-  if(link)
-  {
-    hashname_free(hn);
-  }else{
-    link = link_new(mesh,hn);
-  }
+  link = link_get(mesh, hashname_vkey(key, csid));
+  if(!link) return LOG("invalid key");
 
   // load key if it's not yet
   if(!link->key) return link_load(link, csid, key);
@@ -176,7 +140,7 @@ link_t link_load(link_t link, uint8_t csid, lob_t key)
   if(!link || !csid || !key) return LOG("bad args");
   if(link->x) return link;
 
-  LOG("adding %x key to link %s",csid,link->id->hashname);
+  LOG("adding %x key to link %s",csid,link->handle);
   
   // key must be bin
   if(key->body_len)
@@ -197,10 +161,10 @@ link_t link_load(link_t link, uint8_t csid, lob_t key)
   link->key = copy;
   
   // route packets to this token
-  util_hex(e3x_exchange_token(link->x),16,link->token);
+  base32_encode(e3x_exchange_token(link->x),10,link->token,17);
   xht_set(link->mesh->index,link->token,link);
   e3x_exchange_out(link->x, util_sys_seconds());
-  LOG("new session token %s to %s",link->token,link->id->hashname);
+  LOG("new session token %s to %s",link->token,link->handle);
 
   return link;
 }
@@ -473,7 +437,7 @@ lob_t link_sync(link_t link)
   if(!link->x) return LOG("no exchange");
 
   at = e3x_exchange_out(link->x,0);
-  LOG("link sync requested at %d from %s to %s",at,link->mesh->id->hashname,link->id->hashname);
+  LOG("link sync requested at %d from %s to %s",at,hashname_short(link->mesh->id),link->handle);
   for(seen = link->pipes;seen;seen = seen->next)
   {
     if(!seen->pipe || !seen->pipe->send || seen->at == at) continue;

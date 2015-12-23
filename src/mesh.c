@@ -44,7 +44,8 @@ mesh_t mesh_new(uint32_t prime)
 static void _walkfree(xht_t h, const char *key, void *val, void *arg)
 {
   link_t link = (link_t)val;
-  if(!hashname_valid(key)) return;
+  // TODO this way of determining a link is a hack!
+  if(strlen(key) != 16 || key != link->handle) return;
   link_free(link);
 }
 
@@ -86,8 +87,8 @@ uint8_t mesh_load(mesh_t mesh, lob_t secrets, lob_t keys)
   if(!mesh || !secrets || !keys) return 1;
   if(!(mesh->self = e3x_self_new(secrets, keys))) return 2;
   mesh->keys = lob_copy(keys);
-  mesh->id = hashname_keys(mesh->keys);
-  LOG("mesh is %s",mesh->id->hashname);
+  mesh->id = hashname_dup(hashname_vkeys(mesh->keys));
+  LOG("mesh is %s",hashname_short(mesh->id));
   return 0;
 }
 
@@ -132,7 +133,7 @@ lob_t mesh_json(mesh_t mesh)
   if(!mesh) return LOG("bad args");
 
   json = lob_new();
-  lob_set(json,"hashname",mesh->id->hashname);
+  lob_set(json,"hashname",hashname_char(mesh->id));
   lob_set_raw(json,"keys",0,(char*)mesh->keys->head,mesh->keys->head_len);
   paths = lob_array(mesh->paths);
   lob_set_raw(json,"paths",0,(char*)paths->head,paths->head_len);
@@ -145,7 +146,8 @@ static void _walklink(xht_t h, const char *key, void *val, void *arg)
 {
   link_t link = (link_t)val;
   lob_t links = (lob_t)arg;
-  if(!hashname_valid(key)) return;
+  // TODO this way of determining a link is a hack!
+  if(strlen(key) != 16 || key != link->handle) return;
   lob_push(links,link_json(link));
 }
 
@@ -166,7 +168,8 @@ static void _walklinkto(xht_t h, const char *key, void *val, void *arg)
 {
   link_t link = (link_t)val;
   uint32_t* pnow = (uint32_t*)arg;
-  if(!hashname_valid(key)) return;
+  // TODO this way of determining a link is a hack!
+  if(strlen(key) != 16 || key != link->handle) return;
   link_process(link, *pnow);
 }
 
@@ -186,7 +189,7 @@ link_t mesh_add(mesh_t mesh, lob_t json, pipe_t pipe)
 
   if(!mesh || !json) return LOG("bad args");
   LOG("mesh add %s",lob_json(json));
-  link = link_get(mesh, lob_get(json,"hashname"));
+  link = link_get(mesh, hashname_vchar(lob_get(json,"hashname")));
   keys = lob_get_json(json,"keys");
   paths = lob_get_array(json,"paths");
   if(!link) link = link_keys(mesh, keys);
@@ -201,11 +204,11 @@ link_t mesh_add(mesh_t mesh, lob_t json, pipe_t pipe)
   return link;
 }
 
-link_t mesh_linked(mesh_t mesh, char *hashname)
+link_t mesh_linked(mesh_t mesh, hashname_t id)
 {
-  if(!mesh || !hashname_valid(hashname)) return NULL;
+  if(!mesh || !id) return NULL;
   
-  return xht_get(mesh->index, hashname);
+  return xht_get(mesh->index, hashname_short(id));
   
 }
 
@@ -341,7 +344,7 @@ link_t mesh_receive_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe)
   {
     // get attached hashname
     tmp = lob_parse(handshake->body, handshake->body_len);
-    from = hashname_key(tmp, outer->head[0]);
+    from = hashname_vkey(tmp, outer->head[0]);
     if(!from)
     {
       LOG("bad link handshake, no hashname: %s",lob_json(handshake));
@@ -351,14 +354,14 @@ link_t mesh_receive_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe)
     }
     util_hex(outer->head, 1, hexid);
     lob_set(handshake,"csid",hexid);
-    lob_set(handshake,"hashname",from->hashname);
+    lob_set(handshake,"hashname",hashname_char(from));
     lob_body(handshake, tmp->body, tmp->body_len); // re-attach as raw key
     lob_free(tmp);
-    hashname_free(from);
 
     // short-cut, if it's a key from an existing link, pass it on
-    if((link = mesh_linked(mesh,lob_get(handshake,"hashname")))) return link_receive_handshake(link, handshake, pipe);
-    
+    if((link = mesh_linked(mesh,from))) return link_receive_handshake(link, handshake, pipe);
+    LOG("no link found for handshake from %s",hashname_char(from));
+
     // extend the key json to make it compatible w/ normal patterns
     tmp = lob_new();
     lob_set_base32(tmp,hexid,handshake->body,handshake->body_len);
@@ -399,7 +402,7 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
 {
   lob_t inner;
   link_t link;
-  char hex[33];
+  char token[17];
   hashname_t id;
 
   if(!mesh || !outer || !pipe)
@@ -408,7 +411,7 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
     return 1;
   }
   
-  LOG("mesh receiving %s to %s via pipe %s",outer->head_len?"handshake":"channel",mesh->id->hashname,pipe->id);
+  LOG("mesh receiving %s to %s via pipe %s",outer->head_len?"handshake":"channel",hashname_short(mesh->id),pipe->id);
 
   // process handshakes
   if(outer->head_len == 1)
@@ -424,9 +427,9 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
     // couple the two together, inner->outer
     lob_link(inner,outer);
 
-    // set the unique id string based on the first 16 (routing token) bytes in the body
-    util_hex(outer->body,16,hex);
-    lob_set(inner,"id",hex);
+    // set the unique id string based on some of the first 16 (routing token) bytes in the body
+    base32_encode(outer->body,10,token,17);
+    lob_set(inner,"id",token);
 
     // process the handshake
     return mesh_receive_handshake(mesh, inner, pipe) ? 0 : 3;
@@ -441,11 +444,11 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
       lob_free(outer);
       return 5;
     }
-    util_hex(outer->body, 16, hex);
-    link = xht_get(mesh->index, hex);
+    base32_encode(outer->body,10,token,17);
+    link = xht_get(mesh->index, token);
     if(!link)
     {
-      LOG("dropping, no link for token %s",hex);
+      LOG("dropping, no link for token %s",token);
       lob_free(outer);
       return 6;
     }
@@ -454,11 +457,11 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
     lob_free(outer);
     if(!inner)
     {
-      LOG("channel decryption fail for link %s %s",link->id->hashname,e3x_err());
+      LOG("channel decryption fail for link %s %s",hashname_short(link->id),e3x_err());
       return 7;
     }
     
-    LOG("channel packet %d bytes from %s",lob_len(inner),link->id->hashname);
+    LOG("channel packet %d bytes from %s",lob_len(inner),hashname_short(link->id));
     return link_receive(link,inner,pipe) ? 0 : 8;
     
   }
@@ -466,15 +469,14 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
   // accept incoming bare link json as a handshake for discovery
   if((inner = lob_get_json(outer,"keys")))
   {
-    if((id = hashname_keys(inner)))
+    if((id = hashname_vkeys(inner)))
     {
-      lob_set(outer,"hashname",id->hashname);
+      lob_set(outer,"hashname",hashname_char(id));
       lob_set_int(outer,"at",0);
       lob_set(outer,"type","link");
       LOG("bare incoming link json being discovered %s",lob_json(outer));
       mesh_discover(mesh, outer, pipe);
     }
-    hashname_free(id);
     lob_free(inner);
     lob_free(outer);
     return 0;

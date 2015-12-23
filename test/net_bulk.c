@@ -60,8 +60,8 @@ int main(int argc, char **argv)
   net_loopback_t pair = net_loopback_new(meshA,meshB);
   fail_unless(pair);
   
-  link_t linkAB = link_get(meshA, meshB->id->hashname);
-  link_t linkBA = link_get(meshB, meshA->id->hashname);
+  link_t linkAB = link_get(meshA, meshB->id);
+  link_t linkBA = link_get(meshB, meshA->id);
   fail_unless(linkAB);
   fail_unless(linkBA);
 
