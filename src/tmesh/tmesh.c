@@ -458,7 +458,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   // TODO check and validate frame[0] now
 
   // if avg time is provided, calculate a drift based on when this rx was done
-  uint32_t avg = k->mote->com->medium->avg;
+  uint32_t avg = k->medium->avg;
   uint32_t took = k->done - k->start;
   if(avg && took > avg)
   {
@@ -726,6 +726,7 @@ mote_t mote_knock(mote_t m, knock_t k)
   if(!m || !k) return LOG("bad args");
 
   k->mote = m;
+  k->medium = m->com->medium; // shortcut
   k->start = k->stop = 0;
 
   // set current non-ping channel
@@ -741,13 +742,13 @@ mote_t mote_knock(mote_t m, knock_t k)
   // set relative start/stop times
   k->start = m->at;
   // stop is minimal when receiving in sync
-  k->stop = k->start + ((!k->tx && !m->ping) ? m->com->medium->min : m->com->medium->max);
+  k->stop = k->start + ((!k->tx && !m->ping) ? k->medium->min : k->medium->max);
 
   // very remote case of overlow (70min minus max micros), just sets to max avail, slight inefficiency?
   if(k->stop < k->start) k->stop = 0xffffffff;
 
   // derive current channel
-  k->chan = m->chan[1] % m->com->medium->chans;
+  k->chan = m->chan[1] % k->medium->chans;
 
   // cache nonce
   memcpy(k->nonce,m->nonce,8);
