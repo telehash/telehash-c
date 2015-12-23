@@ -52,7 +52,7 @@ lob_t mesh_links(mesh_t mesh);
 link_t mesh_add(mesh_t mesh, lob_t json, pipe_t pipe);
 
 // return only if this hashname is currently linked (in any state)
-link_t mesh_linked(mesh_t mesh, char *hashname);
+link_t mesh_linked(mesh_t mesh, hashname_t id);
 
 // add a custom outgoing handshake packet to all links
 mesh_t mesh_handshake(mesh_t mesh, lob_t handshake);

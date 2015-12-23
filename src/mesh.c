@@ -44,7 +44,8 @@ mesh_t mesh_new(uint32_t prime)
 static void _walkfree(xht_t h, const char *key, void *val, void *arg)
 {
   link_t link = (link_t)val;
-  if(!hashname_vchar(key)) return;
+  // TODO this way of determining a link is a hack!
+  if(strlen(key) != 16 || key != link->handle) return;
   link_free(link);
 }
 
@@ -145,7 +146,8 @@ static void _walklink(xht_t h, const char *key, void *val, void *arg)
 {
   link_t link = (link_t)val;
   lob_t links = (lob_t)arg;
-  if(!hashname_vchar(key)) return;
+  // TODO this way of determining a link is a hack!
+  if(strlen(key) != 16 || key != link->handle) return;
   lob_push(links,link_json(link));
 }
 
@@ -166,7 +168,8 @@ static void _walklinkto(xht_t h, const char *key, void *val, void *arg)
 {
   link_t link = (link_t)val;
   uint32_t* pnow = (uint32_t*)arg;
-  if(!hashname_vchar(key)) return;
+  // TODO this way of determining a link is a hack!
+  if(strlen(key) != 16 || key != link->handle) return;
   link_process(link, *pnow);
 }
 
@@ -201,11 +204,11 @@ link_t mesh_add(mesh_t mesh, lob_t json, pipe_t pipe)
   return link;
 }
 
-link_t mesh_linked(mesh_t mesh, char *hashname)
+link_t mesh_linked(mesh_t mesh, hashname_t id)
 {
-  if(!mesh || !hashname_vchar(hashname)) return NULL;
+  if(!mesh || !id) return NULL;
   
-  return xht_get(mesh->index, hashname);
+  return xht_get(mesh->index, hashname_short(id));
   
 }
 
@@ -356,8 +359,9 @@ link_t mesh_receive_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe)
     lob_free(tmp);
 
     // short-cut, if it's a key from an existing link, pass it on
-    if((link = mesh_linked(mesh,lob_get(handshake,"hashname")))) return link_receive_handshake(link, handshake, pipe);
-    
+    if((link = mesh_linked(mesh,from))) return link_receive_handshake(link, handshake, pipe);
+    LOG("no link found for handshake from %s",hashname_char(from));
+
     // extend the key json to make it compatible w/ normal patterns
     tmp = lob_new();
     lob_set_base32(tmp,hexid,handshake->body,handshake->body_len);

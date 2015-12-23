@@ -6,16 +6,17 @@
 
 struct link_struct
 {
+  char handle[17]; // b32 hashname_short
+  char token[17]; // b32 exchange routing token
+  uint8_t csid;
+
   // public link data
   hashname_t id;
   e3x_exchange_t x;
   mesh_t mesh;
   lob_t key;
   lob_t handshakes;
-  uint8_t csid;
   chan_t chans;
-  char token[17]; // b32 exchange routing token
-  char handle[17]; // b32 hashname_short
   
   // these are for internal link management only
   struct seen_struct *pipes;
