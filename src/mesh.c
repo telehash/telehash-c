@@ -23,6 +23,15 @@ typedef struct on_struct
 on_t on_get(mesh_t mesh, char *id);
 on_t on_free(on_t on);
 
+// internally handle list of forwarding routes for the mesh
+typedef struct route_struct
+{
+  uint8_t counter;
+  uint8_t token[8];
+  link_t link;
+  
+  struct route_struct *next;
+} *route_t;
 
 mesh_t mesh_new(uint32_t prime)
 {
