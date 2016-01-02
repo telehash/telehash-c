@@ -271,9 +271,6 @@ void mesh_on_link(mesh_t mesh, char *id, void (*link)(link_t link))
 
 void mesh_link(mesh_t mesh, link_t link)
 {
-  on_t on;
-  for(on = mesh->on; on; on = on->next) if(on->link) on->link(link);
-  
   // set up route for link's token
   route_t r, empty = NULL;
   
@@ -293,8 +290,14 @@ void mesh_link(mesh_t mesh, link_t link)
     mesh->routes = empty;
   }
   
+  memcpy(empty->token,e3x_exchange_token(link->x),8);
   empty->link = link;
   empty->counter = 0xff; // frozen
+
+  // event notifications
+  on_t on;
+  for(on = mesh->on; on; on = on->next) if(on->link) on->link(link);
+  
 }
 
 void mesh_on_open(mesh_t mesh, char *id, lob_t (*open)(link_t link, lob_t open))
@@ -475,15 +478,24 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
       lob_free(outer);
       return 5;
     }
-    base32_encode(outer->body,10,token,17);
-    link = xht_get(mesh->index, token);
+    
+    route_t route;
+    for(route = mesh->routes;route;route = route->next) if(memcmp(route->token,outer->body,8) == 0) break;
+    link = route ? route->link : NULL;
     if(!link)
     {
-      LOG("dropping, no link for token %s",token);
+      LOG("dropping, no link for token %s",util_hex(outer->body,16,NULL));
       lob_free(outer);
       return 6;
     }
-
+    
+    // forward packet
+    if(route->counter != 0xff)
+    {
+      link_send(link, outer);
+      return 0;
+    }
+    
     inner = e3x_exchange_receive(link->x, outer);
     lob_free(outer);
     if(!inner)
