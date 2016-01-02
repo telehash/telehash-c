@@ -35,6 +35,9 @@ link_t link_new(mesh_t mesh, hashname_t id)
 void link_free(link_t link)
 {
   if(!link) return;
+
+  LOG("TODO link down and status notification");
+
   LOG("dropping link %s",link->handle);
   xht_set(link->mesh->index,link->handle,NULL);
 

@@ -273,6 +273,28 @@ void mesh_link(mesh_t mesh, link_t link)
 {
   on_t on;
   for(on = mesh->on; on; on = on->next) if(on->link) on->link(link);
+  
+  // set up route for link's token
+  route_t r, empty = NULL;
+  
+  // clear any existing routes
+  for(r=mesh->routes;r;r=r->next)
+  {
+    if(r->link == link) r->link = NULL;
+    if(!empty && !r->link) empty = r;
+  }
+
+  // create new route
+  if(!empty)
+  {
+    empty = malloc(sizeof(struct route_struct));
+    memset(empty,0,sizeof(struct route_struct));
+    empty->next = mesh->routes;
+    mesh->routes = empty;
+  }
+  
+  empty->link = link;
+  empty->counter = 0xff; // frozen
 }
 
 void mesh_on_open(mesh_t mesh, char *id, lob_t (*open)(link_t link, lob_t open))
