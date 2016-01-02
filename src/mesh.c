@@ -4,8 +4,8 @@
 #include <stdio.h>
 #include "telehash.h"
 
-// a default prime number for the internal hashtable used to track all active hashnames/lines
-#define MAXPRIME 4211
+// a default prime number for the internal hashtable used by extensions
+#define MAXPRIME 11
 
 // internally handle list of triggers active on the mesh
 typedef struct on_struct
@@ -23,6 +23,15 @@ typedef struct on_struct
 on_t on_get(mesh_t mesh, char *id);
 on_t on_free(on_t on);
 
+// internally handle list of forwarding routes for the mesh
+typedef struct route_struct
+{
+  uint8_t flag;
+  uint8_t token[8];
+  link_t link;
+  
+  struct route_struct *next;
+} *route_t;
 
 mesh_t mesh_new(uint32_t prime)
 {
@@ -41,21 +50,18 @@ mesh_t mesh_new(uint32_t prime)
   return mesh;
 }
 
-static void _walkfree(xht_t h, const char *key, void *val, void *arg)
-{
-  link_t link = (link_t)val;
-  // TODO this way of determining a link is a hack!
-  if(strlen(key) != 16 || key != link->handle) return;
-  link_free(link);
-}
-
 mesh_t mesh_free(mesh_t mesh)
 {
   on_t on;
   if(!mesh) return NULL;
 
   // free all links first
-  xht_walk(mesh->index, _walkfree, mesh);
+  link_t link, next;
+  for(link = mesh->links;link;link = next)
+  {
+    next = link->next;
+    link_free(link);
+  }
   
   // free any triggers first
   while(mesh->on)
@@ -141,43 +147,28 @@ lob_t mesh_json(mesh_t mesh)
   return json;
 }
 
-
-static void _walklink(xht_t h, const char *key, void *val, void *arg)
-{
-  link_t link = (link_t)val;
-  lob_t links = (lob_t)arg;
-  // TODO this way of determining a link is a hack!
-  if(strlen(key) != 16 || key != link->handle) return;
-  lob_push(links,link_json(link));
-}
-
 // generate json for all links, returns lob list
 lob_t mesh_links(mesh_t mesh)
 {
-  lob_t links, list;
+  lob_t links = NULL;
+  link_t link;
 
-  // this is really inefficient
-  links = lob_new();
-  xht_walk(mesh->index, _walklink, links);
-  list = lob_next(links);
-  lob_free(links);
-  return list;
-}
-
-static void _walklinkto(xht_t h, const char *key, void *val, void *arg)
-{
-  link_t link = (link_t)val;
-  uint32_t* pnow = (uint32_t*)arg;
-  // TODO this way of determining a link is a hack!
-  if(strlen(key) != 16 || key != link->handle) return;
-  link_process(link, *pnow);
+  for(link = mesh->links;link;link = link->next)
+  {
+    links = lob_push(links,link_json(link));
+  }
+  return links;
 }
 
 // process any channel timeouts based on the current/given time
 mesh_t mesh_process(mesh_t mesh, uint32_t now)
 {
+  link_t link;
   if(!mesh || !now) return LOG("bad args");
-  xht_walk(mesh->index, _walklinkto, &now);
+  for(link = mesh->links;link;link = link->next)
+  {
+    link_process(link, now);
+  }
   return mesh;
 }
 
@@ -206,10 +197,12 @@ link_t mesh_add(mesh_t mesh, lob_t json, pipe_t pipe)
 
 link_t mesh_linked(mesh_t mesh, hashname_t id)
 {
+  link_t link;
   if(!mesh || !id) return NULL;
   
-  return xht_get(mesh->index, hashname_short(id));
+  for(link = mesh->links;link;link = link->next) if(hashname_cmp(link->id,id) == 0) return link;
   
+  return NULL;
 }
 
 // create our generic callback linked list entry
@@ -262,8 +255,48 @@ void mesh_on_link(mesh_t mesh, char *id, void (*link)(link_t link))
 
 void mesh_link(mesh_t mesh, link_t link)
 {
+  // set up token forwarding w/ flag
+  mesh_forward(mesh, e3x_exchange_token(link->x), link, 1);
+
+  // event notifications
   on_t on;
   for(on = mesh->on; on; on = on->next) if(on->link) on->link(link);
+}
+
+mesh_t mesh_forward(mesh_t mesh, uint8_t *token, link_t link, uint8_t flag)
+{
+  // set up route for link's token
+  route_t r, empty = NULL;
+  
+  // ignore any existing routes
+  uint8_t max=0;
+  for(r=mesh->routes;r;r=r->next)
+  {
+    if(memcmp(token,r->token,8) == 0) return mesh;
+    if(flag && r->link == link) r->link = NULL; // clear any existing for this link when flagged
+    if(!empty && !r->link) empty = r;
+    max++;
+  }
+
+  // create new route
+  if(!empty)
+  {
+    if(max > 32)
+    {
+      LOG("too many routes, can't add forward (TODO: add eviction)");
+      return NULL;
+    }
+    empty = malloc(sizeof(struct route_struct));
+    memset(empty,0,sizeof(struct route_struct));
+    empty->next = mesh->routes;
+    mesh->routes = empty;
+  }
+  
+  memcpy(empty->token,token,8);
+  empty->link = link;
+  empty->flag = flag;
+  
+  return mesh;
 }
 
 void mesh_on_open(mesh_t mesh, char *id, lob_t (*open)(link_t link, lob_t open))
@@ -444,15 +477,24 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
       lob_free(outer);
       return 5;
     }
-    base32_encode(outer->body,10,token,17);
-    link = xht_get(mesh->index, token);
+    
+    route_t route;
+    for(route = mesh->routes;route;route = route->next) if(memcmp(route->token,outer->body,8) == 0) break;
+    link = route ? route->link : NULL;
     if(!link)
     {
-      LOG("dropping, no link for token %s",token);
+      LOG("dropping, no link for token %s",util_hex(outer->body,16,NULL));
       lob_free(outer);
       return 6;
     }
-
+    
+    // forward packet
+    if(!route->flag)
+    {
+      link_send(link, outer);
+      return 0;
+    }
+    
     inner = e3x_exchange_receive(link->x, outer);
     lob_free(outer);
     if(!inner)
