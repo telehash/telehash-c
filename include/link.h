@@ -19,6 +19,7 @@ struct link_struct
   
   // these are for internal link management only
   struct seen_struct *pipes;
+  link_t next;
 };
 
 // these all create or return existing one from the mesh

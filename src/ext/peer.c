@@ -8,10 +8,9 @@ void peer_send(pipe_t pipe, lob_t packet, link_t link)
   link_t router;
   if(!pipe || !packet || !link) return;
 
-  // TODO xht_get here is way out of place
-  if(!(router = xht_get(link->mesh->index, pipe->id)))
+  if(!(router = mesh_linked(link->mesh, pipe->arg)))
   {
-    LOG("router link not found");
+    LOG("router link not found for %s",pipe->id);
     return;
   }
 
@@ -45,6 +44,7 @@ pipe_t peer_pipe(mesh_t mesh, hashname_t peer)
   // make a new one
   if(!(pipe = pipe_new("peer"))) return NULL;
   pipe->id = strdup(hashname_short(peer));
+  pipe->arg = hashname_dup(peer);
   pipe->send = peer_send;
   pipe->next = pipes;
   xht_set(mesh->index,"ext_peer_pipes",pipe);
@@ -121,6 +121,7 @@ void peer_free(mesh_t mesh)
   {
     pipe = pipes;
     pipes = pipe->next;
+    hashname_free(pipe->arg);
     pipe_free(pipe);
   }
 }

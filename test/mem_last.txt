@@ -1,6 +1,6 @@
 8	void*
-104	mesh_t
-80	link_t
+112	mesh_t
+88	link_t
 88	lob_t
 16	util_chunk_t
 88	e3x_exchange_t

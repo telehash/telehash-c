@@ -27,7 +27,8 @@ link_t link_new(mesh_t mesh, hashname_t id)
   link->id = hashname_dup(id);
   link->mesh = mesh;
   memcpy(link->handle,hashname_short(link->id),17);
-  xht_set(mesh->index,link->handle,link);
+  link->next = mesh->links;
+  mesh->links = link;
 
   return link;
 }
@@ -39,7 +40,17 @@ void link_free(link_t link)
   LOG("TODO link down and status notification");
 
   LOG("dropping link %s",link->handle);
-  xht_set(link->mesh->index,link->handle,NULL);
+  mesh_t mesh = link->mesh;
+  if(mesh->links == link)
+  {
+    mesh->links = link->next;
+  }else{
+    link_t li;
+    for(li = mesh->links;li;li = li->next) if(li->next == link)
+    {
+      li->next = link->next;
+    }
+  }
 
   // go through ->pipes
   seen_t seen, next;
@@ -72,10 +83,8 @@ link_t link_get(mesh_t mesh, hashname_t id)
   link_t link;
 
   if(!mesh || !id) return LOG("invalid args");
-  link = xht_get(mesh->index,hashname_short(id));
-  if(!link) link = link_new(mesh,id);
-
-  return link;
+  for(link = mesh->links;link;link = link->next) if(hashname_cmp(id,link->id) == 0) return link;
+  return link_new(mesh,id);
 }
 
 // get existing channel id if any

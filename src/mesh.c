@@ -4,8 +4,8 @@
 #include <stdio.h>
 #include "telehash.h"
 
-// a default prime number for the internal hashtable used to track all active hashnames/lines
-#define MAXPRIME 4211
+// a default prime number for the internal hashtable used by extensions
+#define MAXPRIME 11
 
 // internally handle list of triggers active on the mesh
 typedef struct on_struct
@@ -50,21 +50,18 @@ mesh_t mesh_new(uint32_t prime)
   return mesh;
 }
 
-static void _walkfree(xht_t h, const char *key, void *val, void *arg)
-{
-  link_t link = (link_t)val;
-  // TODO this way of determining a link is a hack!
-  if(strlen(key) != 16 || key != link->handle) return;
-  link_free(link);
-}
-
 mesh_t mesh_free(mesh_t mesh)
 {
   on_t on;
   if(!mesh) return NULL;
 
   // free all links first
-  xht_walk(mesh->index, _walkfree, mesh);
+  link_t link, next;
+  for(link = mesh->links;link;link = next)
+  {
+    next = link->next;
+    link_free(link);
+  }
   
   // free any triggers first
   while(mesh->on)
@@ -150,43 +147,28 @@ lob_t mesh_json(mesh_t mesh)
   return json;
 }
 
-
-static void _walklink(xht_t h, const char *key, void *val, void *arg)
-{
-  link_t link = (link_t)val;
-  lob_t links = (lob_t)arg;
-  // TODO this way of determining a link is a hack!
-  if(strlen(key) != 16 || key != link->handle) return;
-  lob_push(links,link_json(link));
-}
-
 // generate json for all links, returns lob list
 lob_t mesh_links(mesh_t mesh)
 {
-  lob_t links, list;
+  lob_t links = NULL;
+  link_t link;
 
-  // this is really inefficient
-  links = lob_new();
-  xht_walk(mesh->index, _walklink, links);
-  list = lob_next(links);
-  lob_free(links);
-  return list;
-}
-
-static void _walklinkto(xht_t h, const char *key, void *val, void *arg)
-{
-  link_t link = (link_t)val;
-  uint32_t* pnow = (uint32_t*)arg;
-  // TODO this way of determining a link is a hack!
-  if(strlen(key) != 16 || key != link->handle) return;
-  link_process(link, *pnow);
+  for(link = mesh->links;link;link = link->next)
+  {
+    links = lob_push(links,link_json(link));
+  }
+  return links;
 }
 
 // process any channel timeouts based on the current/given time
 mesh_t mesh_process(mesh_t mesh, uint32_t now)
 {
+  link_t link;
   if(!mesh || !now) return LOG("bad args");
-  xht_walk(mesh->index, _walklinkto, &now);
+  for(link = mesh->links;link;link = link->next)
+  {
+    link_process(link, now);
+  }
   return mesh;
 }
 
@@ -215,10 +197,12 @@ link_t mesh_add(mesh_t mesh, lob_t json, pipe_t pipe)
 
 link_t mesh_linked(mesh_t mesh, hashname_t id)
 {
+  link_t link;
   if(!mesh || !id) return NULL;
   
-  return xht_get(mesh->index, hashname_short(id));
+  for(link = mesh->links;link;link = link->next) if(hashname_cmp(link->id,id) == 0) return link;
   
+  return NULL;
 }
 
 // create our generic callback linked list entry

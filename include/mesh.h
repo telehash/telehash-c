@@ -21,13 +21,14 @@ struct mesh_struct
   char *uri;
   lob_t keys, paths;
   e3x_self_t self;
-  xht_t index;
+  xht_t index; // for extensions to use
   void *on; // internal list of triggers
   // shared network info
   uint16_t port_local, port_public;
   char *ipv4_local, *ipv4_public;
   lob_t handshakes, cached; // handshakes
   void *routes; // internal routing
+  link_t links;
 };
 
 // pass in a prime for the main index of hashnames+links+channels, 0 to use compiled default
