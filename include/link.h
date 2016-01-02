@@ -7,7 +7,6 @@
 struct link_struct
 {
   char handle[17]; // b32 hashname_short
-  char token[17]; // b32 exchange routing token
   uint8_t csid;
 
   // public link data

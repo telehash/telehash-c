@@ -60,7 +60,6 @@ void link_free(link_t link)
   hashname_free(link->id);
   if(link->x)
   {
-    xht_set(link->mesh->index,link->token,NULL);
     e3x_exchange_free(link->x);
   }
   lob_free(link->key);
@@ -163,11 +162,8 @@ link_t link_load(link_t link, uint8_t csid, lob_t key)
   link->csid = csid;
   link->key = copy;
   
-  // route packets to this token
-  base32_encode(e3x_exchange_token(link->x),10,link->token,17);
-  xht_set(link->mesh->index,link->token,link);
   e3x_exchange_out(link->x, util_sys_seconds());
-  LOG("new session token %s to %s",link->token,link->handle);
+  LOG("new exchange session to %s",link->handle);
 
   return link;
 }
