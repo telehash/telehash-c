@@ -71,6 +71,9 @@ link_t mesh_receive_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe);
 // process any channel timeouts based on the current/given time
 mesh_t mesh_process(mesh_t mesh, uint32_t now);
 
+// adds a forwarding route for any incoming packet w/ this token
+mesh_t mesh_forward(mesh_t m, uint8_t *token, link_t to, uint8_t flag);
+
 // callback when the mesh is free'd
 void mesh_on_free(mesh_t mesh, char *id, void (*free)(mesh_t mesh));
 

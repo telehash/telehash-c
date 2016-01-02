@@ -26,7 +26,7 @@ on_t on_free(on_t on);
 // internally handle list of forwarding routes for the mesh
 typedef struct route_struct
 {
-  uint8_t counter;
+  uint8_t flag;
   uint8_t token[8];
   link_t link;
   
@@ -255,33 +255,48 @@ void mesh_on_link(mesh_t mesh, char *id, void (*link)(link_t link))
 
 void mesh_link(mesh_t mesh, link_t link)
 {
+  // set up token forwarding w/ flag
+  mesh_forward(mesh, e3x_exchange_token(link->x), link, 1);
+
+  // event notifications
+  on_t on;
+  for(on = mesh->on; on; on = on->next) if(on->link) on->link(link);
+}
+
+mesh_t mesh_forward(mesh_t mesh, uint8_t *token, link_t link, uint8_t flag)
+{
   // set up route for link's token
   route_t r, empty = NULL;
   
-  // clear any existing routes
+  // ignore any existing routes
+  uint8_t max=0;
   for(r=mesh->routes;r;r=r->next)
   {
-    if(r->link == link) r->link = NULL;
+    if(memcmp(token,r->token,8) == 0) return mesh;
+    if(flag && r->link == link) r->link = NULL; // clear any existing for this link when flagged
     if(!empty && !r->link) empty = r;
+    max++;
   }
 
   // create new route
   if(!empty)
   {
+    if(max > 32)
+    {
+      LOG("too many routes, can't add forward (TODO: add eviction)");
+      return NULL;
+    }
     empty = malloc(sizeof(struct route_struct));
     memset(empty,0,sizeof(struct route_struct));
     empty->next = mesh->routes;
     mesh->routes = empty;
   }
   
-  memcpy(empty->token,e3x_exchange_token(link->x),8);
+  memcpy(empty->token,token,8);
   empty->link = link;
-  empty->counter = 0xff; // frozen
-
-  // event notifications
-  on_t on;
-  for(on = mesh->on; on; on = on->next) if(on->link) on->link(link);
+  empty->flag = flag;
   
+  return mesh;
 }
 
 void mesh_on_open(mesh_t mesh, char *id, lob_t (*open)(link_t link, lob_t open))
@@ -474,7 +489,7 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
     }
     
     // forward packet
-    if(route->counter != 0xff)
+    if(!route->flag)
     {
       link_send(link, outer);
       return 0;

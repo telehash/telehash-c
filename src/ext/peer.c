@@ -27,8 +27,11 @@ void peer_send(pipe_t pipe, lob_t packet, link_t link)
   lob_set(open,"type","peer");
   lob_set(open,"peer",hashname_char(link->id));
   lob_body(open,lob_raw(packet),lob_len(packet));
-  lob_free(packet);
   link_direct(router,open,NULL);
+
+  // store a direct route back based on the token in this open
+  mesh_forward(link->mesh, packet->body, link, 0);
+  lob_free(packet);
   
 }
 
