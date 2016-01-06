@@ -7,7 +7,7 @@
 // load secrets/keys to create a new local endpoint
 e3x_self_t e3x_self_new(lob_t secrets, lob_t keys)
 {
-  uint8_t i, csids = 0, hash[32];
+  uint8_t i, csids = 0;
   e3x_self_t self;
   if(!keys) keys = lob_linked(secrets); // convenience
   if(!keys) return NULL;
@@ -21,12 +21,8 @@ e3x_self_t e3x_self_new(lob_t secrets, lob_t keys)
     if(!e3x_cipher_sets[i] || !e3x_cipher_sets[i]->local_new) continue;
     self->locals[i] = e3x_cipher_sets[i]->local_new(keys, secrets);
     if(!self->locals[i]) continue;
-    // make a copy of the binary and encoded keys
+    // make a copy of the binary keys for comparison logic
     self->keys[i] = lob_get_base32(keys, e3x_cipher_sets[i]->hex);
-    lob_set(self->keys[i],"key",lob_get(keys,e3x_cipher_sets[i]->hex));
-    // make a hash for the intermediate form for hashnames
-    e3x_hash(self->keys[i]->body,self->keys[i]->body_len,hash);
-    lob_set_base32(self->keys[i],"hash",hash,32);
     csids++;
   }
 

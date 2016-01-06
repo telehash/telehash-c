@@ -169,7 +169,9 @@ lob_t e3x_exchange_handshake(e3x_exchange_t x, lob_t inner)
       {
         lob_body(inner,tmp->body,tmp->body_len);
       }else{
-        lob_set(inner,e3x_cipher_sets[i]->hex,lob_get(tmp,"hash"));
+        uint8_t hash[32];
+        e3x_hash(tmp->body,tmp->body_len,hash);
+        lob_set_base32(inner,e3x_cipher_sets[i]->hex,hash,32);
       }
     }
   }
