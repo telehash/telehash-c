@@ -8,7 +8,7 @@
 88	e3x_exchange_t
 120	chan_t
 64	pipe_t
-40	tmesh_t
+48	tmesh_t
 88	mote_t
 32	medium_t
 64	cmnty_t

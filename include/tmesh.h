@@ -63,9 +63,9 @@ struct tmesh_struct
   mesh_t mesh;
   cmnty_t coms;
   lob_t pubim;
-  uint8_t z; // our preferred z-index
+  uint32_t us, epoch; // for relative time into mesh_process
   knock_t (*sort)(knock_t a, knock_t b);
-  
+  uint8_t z; // our preferred z-index
 };
 
 // create a new tmesh radio network bound to this mesh

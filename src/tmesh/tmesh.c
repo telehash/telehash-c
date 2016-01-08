@@ -592,7 +592,13 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
   }
   
   // overall telehash background processing now
-//  mesh_process(tm->mesh,TODO);
+  tm->us += us;
+  while(tm->us > 1000000)
+  {
+    tm->epoch++;
+    tm->us -= 1000000;
+  } 
+  mesh_process(tm->mesh,tm->epoch);
 
   if(!ret) LOG("no knocks scheduled");
   return ret;
