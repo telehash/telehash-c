@@ -20,9 +20,6 @@ int main(int argc, char **argv)
     fail_unless(self->locals[i]);
     fail_unless(self->keys[i]);
     fail_unless(self->keys[i]->body_len);
-    fail_unless(lob_get(self->keys[i],"key"));
-    fail_unless(lob_get(self->keys[i],"hash"));
-    fail_unless(strlen(lob_get(self->keys[i],"hash")) == 52);
   }
 
   fail_unless(count);
