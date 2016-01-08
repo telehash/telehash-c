@@ -121,6 +121,21 @@ uint32_t e3x_exchange_in(e3x_exchange_t x, uint32_t at)
   return x->in;
 }
 
+// drops ephemeral state, out=0
+e3x_exchange_t e3x_exchange_down(e3x_exchange_t x)
+{
+  if(!x) return NULL;
+  x->out = 0;
+  if(x->ephem)
+  {
+    x->cs->ephemeral_free(x->ephem);
+    x->ephem = NULL;
+    memset(x->eid,0,16);
+    x->last = 0;
+  }
+  return x;
+}
+
 // synchronize to incoming ephemeral key and set out at = in at, returns x if success, NULL if not
 e3x_exchange_t e3x_exchange_sync(e3x_exchange_t x, lob_t outer)
 {
