@@ -18,7 +18,9 @@ pipe_t pipe_new(char *type)
 pipe_t pipe_free(pipe_t p)
 {
   if(!p) return NULL;
-  pipe_notify(p, 1);
+  p->send = NULL;
+  pipe_changed(p);
+  if(p->links) LOG("leaking link notifications");
   free(p->type);
   if(p->id) free(p->id);
   if(p->path) lob_free(p->path);
@@ -26,19 +28,29 @@ pipe_t pipe_free(pipe_t p)
   return NULL;
 }
 
-pipe_t pipe_notify(pipe_t p, uint8_t down)
+pipe_t pipe_changed(pipe_t p)
 {
   if(!p) return NULL;
   lob_t list;
   for(list=p->links;list;list = lob_next(list))
   {
     link_t link = list->arg;
-    if(!down)
-    {
-      link_resync(link);
-      continue;
-    }
-    // TODO remove pipe from link, if no pipes mark link down
+    link_pipe(link, p); // will remove pipe if it's down
+    link_resync(link);
   }
   return p;
+}
+
+// safe wrapper around ->send
+pipe_t pipe_send(pipe_t pipe, lob_t packet, link_t link)
+{
+  if(!pipe || !packet) return NULL;
+  if(!pipe->send)
+  {
+    LOG("dropping packet to down pipe %s: %s",pipe->id, lob_json(packet));
+    lob_free(packet);
+    return pipe;
+  }
+  pipe->send(pipe, packet, link);
+  return pipe;
 }

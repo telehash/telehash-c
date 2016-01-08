@@ -806,7 +806,7 @@ mote_t mote_synced(mote_t m)
   if(m->com->tm->pubim && !m->link->x)
   {
     LOG("sending bare discovery %s",lob_json(m->com->tm->pubim));
-    m->com->pipe->send(m->com->pipe, lob_copy(m->com->tm->pubim), m->link);
+    pipe_send(m->com->pipe, lob_copy(m->com->tm->pubim), m->link);
     return m;
   }
   // trigger a new handshake over it
