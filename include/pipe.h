@@ -7,15 +7,17 @@
 
 struct pipe_struct
 {
-  char *type;
-  char *id;
-  uint8_t cloaked, local;
   lob_t path;
   lob_t links; // who to signal for pipe events
   void *arg; // for use by app/network transport
   pipe_t next; // for transport use
-  // deliver this packet via this pipe, pipe is down if NULL
-  void (*send)(pipe_t pipe, lob_t packet, link_t link);
+  void (*send)(pipe_t pipe, lob_t packet, link_t link); // deliver this packet via this pipe
+
+  char *type;
+  char *id;
+  uint8_t down:1;
+  uint8_t cloaked:1;
+  uint8_t local:1;
 };
 
 pipe_t pipe_new(char *type);

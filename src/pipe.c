@@ -31,9 +31,10 @@ pipe_t pipe_free(pipe_t p)
 pipe_t pipe_changed(pipe_t p)
 {
   if(!p) return NULL;
-  lob_t list;
-  for(list=p->links;list;list = lob_next(list))
+  lob_t list, next;
+  for(list=p->links;list;list = next)
   {
+    next = lob_next(list);
     link_t link = list->arg;
     link_pipe(link, p); // will remove pipe if it's down
     link_resync(link);
@@ -45,7 +46,7 @@ pipe_t pipe_changed(pipe_t p)
 pipe_t pipe_send(pipe_t pipe, lob_t packet, link_t link)
 {
   if(!pipe || !packet) return NULL;
-  if(!pipe->send)
+  if(!pipe->send || pipe->down)
   {
     LOG("dropping packet to down pipe %s: %s",pipe->id, lob_json(packet));
     lob_free(packet);

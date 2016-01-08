@@ -191,7 +191,7 @@ pipe_t link_path(link_t link, lob_t path)
   return pipe;
 }
 
-// just manage a pipe directly, removes if !pipe->send, else adds
+// just manage a pipe directly, removes if pipe down, else adds
 link_t link_pipe(link_t link, pipe_t pipe)
 {
   seen_t seen;
@@ -205,7 +205,7 @@ link_t link_pipe(link_t link, pipe_t pipe)
   }
   
   // if pipe is down, remove seen
-  if(!pipe->send)
+  if(pipe->down)
   {
     if(!seen) return LOG("pipe never seen by this link");
     LOG("un-seeing pipe");
@@ -483,7 +483,7 @@ lob_t link_sync(link_t link)
   LOG("link sync requested at %d from %s to %s",at,hashname_short(link->mesh->id),link->handle);
   for(seen = link->pipes;seen;seen = seen->next)
   {
-    if(!seen->pipe || !seen->pipe->send || seen->at == at) continue;
+    if(!seen->pipe || seen->at == at) continue;
 
     // only create if we have to
     if(!handshakes) handshakes = link_handshakes(link);
