@@ -24,6 +24,12 @@ int main(int argc, char **argv)
   fail_unless(link_resync(linkAB));
   fail_unless(link_up(linkAB));
   fail_unless(link_up(linkBA));
+  
+  fail_unless(mesh_process(meshA,1));
+  fail_unless(mesh_linked(meshA, meshB->id));
+  fail_unless(mesh_unlink(linkAB));
+  fail_unless(mesh_process(meshA,1));
+  fail_unless(!mesh_linked(meshA, meshB->id));
 
   return 0;
 }
