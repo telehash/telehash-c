@@ -25,10 +25,10 @@ int main(int argc, char **argv)
   link_t link = link_get(mesh,hnB);
   fail_unless(link);
   fail_unless(strlen(hashname_char(link->id)) == 52);
-  fail_unless(link->csid == 0);
+  fail_unless(link->csid == 0x01);
   
   fail_unless(link_keys(mesh,lob_linked(idB)) == link);
-  fail_unless(link->csid);
+  fail_unless(link->csid > 0x01);
   fail_unless(link->x);
   lob_free(idB);
   

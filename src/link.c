@@ -25,6 +25,7 @@ link_t link_new(mesh_t mesh, hashname_t id)
   memset(link,0,sizeof (struct link_struct));
   
   link->id = hashname_dup(id);
+  link->csid = 0x01; // default state
   link->mesh = mesh;
   memcpy(link->handle,hashname_short(link->id),17);
   link->next = mesh->links;

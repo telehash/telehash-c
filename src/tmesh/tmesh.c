@@ -210,6 +210,7 @@ tmesh_t tmesh_new(mesh_t mesh, lob_t options)
   mesh_on_path(mesh, "tmesh", tmesh_on_path);
   mesh_on_open(mesh, "tmesh_open", tmesh_on_open);
   tm->sort = knock_sooner;
+  tm->epoch = 1;
   
   return tm;
 }
@@ -597,7 +598,8 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
   {
     tm->epoch++;
     tm->us -= 1000000;
-  } 
+  }
+  LOG("mesh process epoch %lu",tm->epoch);
   mesh_process(tm->mesh,tm->epoch);
 
   if(!ret) LOG("no knocks scheduled");
