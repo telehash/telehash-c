@@ -1,11 +1,17 @@
 #include "mesh.h"
 #include "unit_test.h"
 
+void net_send(pipe_t pipe, lob_t packet, link_t link)
+{
+  
+}
+
 pipe_t net_test(link_t link, lob_t path)
 {
   fail_unless(path);
   pipe_t pipe = pipe_new("test");
   pipe->path = lob_copy(path);
+  pipe->send = &net_send;
   return pipe;
 }
 
