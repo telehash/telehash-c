@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <stdint.h>
 #include "telehash.h"
-#include "telehash.h"
 
 pipe_t pipe_new(char *type)
 {
@@ -18,11 +17,28 @@ pipe_t pipe_new(char *type)
 
 pipe_t pipe_free(pipe_t p)
 {
+  if(!p) return NULL;
+  pipe_notify(p, 1);
   free(p->type);
   if(p->id) free(p->id);
   if(p->path) lob_free(p->path);
-  if(p->notify) LOG("pipe free'd leaking notifications");
   free(p);
   return NULL;
 }
 
+pipe_t pipe_notify(pipe_t p, uint8_t down)
+{
+  if(!p) return NULL;
+  lob_t list;
+  for(list=p->links;list;list = lob_next(list))
+  {
+    link_t link = list->arg;
+    if(!down)
+    {
+      link_resync(link);
+      continue;
+    }
+    // TODO remove pipe from link, if no pipes mark link down
+  }
+  return p;
+}

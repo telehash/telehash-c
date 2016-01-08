@@ -210,6 +210,10 @@ link_t link_pipe(link_t link, pipe_t pipe)
     seen->pipe = pipe;
     seen->next = link->pipes;
     link->pipes = seen;
+    // so pipes can let link know about changes
+    lob_t notif = lob_new();
+    notif->arg = link;
+    pipe->links = lob_push(pipe->links, notif);
   }
   
   // make sure it gets sync'd
