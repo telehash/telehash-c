@@ -69,6 +69,9 @@ lob_t link_resync(link_t link);
 // is the other endpoint connected and the link available, NULL if not
 link_t link_up(link_t link);
 
+// force link down, ends channels and generates events
+link_t link_down(link_t link);
+
 // create/track a new channel for this open
 chan_t link_chan(link_t link, lob_t open);
 

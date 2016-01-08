@@ -37,8 +37,6 @@ void link_free(link_t link)
 {
   if(!link) return;
 
-  LOG("TODO link down and status notification");
-
   LOG("dropping link %s",link->handle);
   mesh_t mesh = link->mesh;
   if(mesh->links == link)
@@ -506,11 +504,45 @@ link_t link_direct(link_t link, lob_t inner, pipe_t pipe)
   return link;
 }
 
+// force link down, end channels and generate all events
+link_t link_down(link_t link)
+{
+  if(!link) return NULL;
+
+  LOG("forcing link down for %s",hashname_short(link->id));
+
+  // generate down event if up
+  if(link_up(link))
+  {
+    e3x_exchange_down(link->x);
+    mesh_link(link->mesh, link);
+  }
+
+  // end all channels
+  lob_t err = lob_new();
+  lob_set(err, "err", "timeout");
+  chan_t c;
+  for(c = link->chans;c;c = chan_next(c))
+  {
+    lob_set_uint(err,"c",c->id);
+    c->in = lob_push(c->in, lob_copy(err));
+    chan_process(c, 0);
+  }
+  lob_free(err);
+
+  return link;
+}
+
 // process any channel timeouts based on the current/given time
 link_t link_process(link_t link, uint32_t now)
 {
   chan_t c;
   if(!link || !now) return LOG("bad args");
   for(c = link->chans;c;c = chan_next(c)) chan_process(c, now);
-  return link;
+  if(link->csid) return link;
+  
+  // flagged to remove, do that now
+  link_down(link);
+  link_free(link);
+  return NULL;
 }
