@@ -1,11 +1,17 @@
 #include "mesh.h"
 #include "unit_test.h"
 
+void net_send(pipe_t pipe, lob_t packet, link_t link)
+{
+  
+}
+
 pipe_t net_test(link_t link, lob_t path)
 {
   fail_unless(path);
   pipe_t pipe = pipe_new("test");
   pipe->path = lob_copy(path);
+  pipe->send = &net_send;
   return pipe;
 }
 
@@ -25,10 +31,10 @@ int main(int argc, char **argv)
   link_t link = link_get(mesh,hnB);
   fail_unless(link);
   fail_unless(strlen(hashname_char(link->id)) == 52);
-  fail_unless(link->csid == 0);
+  fail_unless(link->csid == 0x01);
   
   fail_unless(link_keys(mesh,lob_linked(idB)) == link);
-  fail_unless(link->csid);
+  fail_unless(link->csid > 0x01);
   fail_unless(link->x);
   lob_free(idB);
   

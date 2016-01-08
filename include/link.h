@@ -39,7 +39,7 @@ link_t link_load(link_t link, uint8_t csid, lob_t key);
 // try to turn a path into a pipe and add it to the link
 pipe_t link_path(link_t link, lob_t path);
 
-// just add a pipe directly
+// just manage a pipe directly, removes if !pipe->send, else adds
 link_t link_pipe(link_t link, pipe_t pipe);
 
 // iterate through existing pipes for a link
@@ -68,6 +68,9 @@ lob_t link_resync(link_t link);
 
 // is the other endpoint connected and the link available, NULL if not
 link_t link_up(link_t link);
+
+// force link down, ends channels and generates events
+link_t link_down(link_t link);
 
 // create/track a new channel for this open
 chan_t link_chan(link_t link, lob_t open);

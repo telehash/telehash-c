@@ -210,6 +210,7 @@ tmesh_t tmesh_new(mesh_t mesh, lob_t options)
   mesh_on_path(mesh, "tmesh", tmesh_on_path);
   mesh_on_open(mesh, "tmesh_open", tmesh_on_open);
   tm->sort = knock_sooner;
+  tm->epoch = 1;
   
   return tm;
 }
@@ -592,7 +593,14 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
   }
   
   // overall telehash background processing now
-//  mesh_process(tm->mesh,TODO);
+  tm->us += us;
+  while(tm->us > 1000000)
+  {
+    tm->epoch++;
+    tm->us -= 1000000;
+  }
+  LOG("mesh process epoch %lu",tm->epoch);
+  mesh_process(tm->mesh,tm->epoch);
 
   if(!ret) LOG("no knocks scheduled");
   return ret;
@@ -620,6 +628,7 @@ mote_t mote_new(link_t link)
       m->order = (bin1[i] > bin2[i]) ? 1 : 0;
       break;
     }
+    // TODO set up link down event handler to remove this mote
   }
 
   return m;
@@ -797,7 +806,7 @@ mote_t mote_synced(mote_t m)
   if(m->com->tm->pubim && !m->link->x)
   {
     LOG("sending bare discovery %s",lob_json(m->com->tm->pubim));
-    m->com->pipe->send(m->com->pipe, lob_copy(m->com->tm->pubim), m->link);
+    pipe_send(m->com->pipe, lob_copy(m->com->tm->pubim), m->link);
     return m;
   }
   // trigger a new handshake over it

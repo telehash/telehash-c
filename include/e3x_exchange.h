@@ -38,6 +38,9 @@ uint32_t e3x_exchange_out(e3x_exchange_t x, uint32_t at);
 // synchronize to incoming ephemeral key and set out at = in at, returns x if success, NULL if not
 e3x_exchange_t e3x_exchange_sync(e3x_exchange_t x, lob_t outer);
 
+// drops ephemeral state, out=0
+e3x_exchange_t e3x_exchange_down(e3x_exchange_t x);
+
 // generates handshake w/ current e3x_exchange_out value and ephemeral key
 lob_t e3x_exchange_handshake(e3x_exchange_t x, lob_t inner);
 

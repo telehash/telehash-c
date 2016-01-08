@@ -12,6 +12,7 @@ typedef struct seen_struct
   pipe_t pipe;
   uint32_t at;
   struct seen_struct *next;
+  lob_t notif;
 } *seen_t;
 
 link_t link_new(mesh_t mesh, hashname_t id)
@@ -25,6 +26,7 @@ link_t link_new(mesh_t mesh, hashname_t id)
   memset(link,0,sizeof (struct link_struct));
   
   link->id = hashname_dup(id);
+  link->csid = 0x01; // default state
   link->mesh = mesh;
   memcpy(link->handle,hashname_short(link->id),17);
   link->next = mesh->links;
@@ -36,8 +38,6 @@ link_t link_new(mesh_t mesh, hashname_t id)
 void link_free(link_t link)
 {
   if(!link) return;
-
-  LOG("TODO link down and status notification");
 
   LOG("dropping link %s",link->handle);
   mesh_t mesh = link->mesh;
@@ -57,6 +57,8 @@ void link_free(link_t link)
   for(seen = link->pipes; seen; seen = next)
   {
     next = seen->next;
+    seen->pipe->links = lob_splice(seen->pipe->links, seen->notif);
+    lob_free(seen->notif);
     free(seen);
   }
 
@@ -189,7 +191,7 @@ pipe_t link_path(link_t link, lob_t path)
   return pipe;
 }
 
-// add a pipe to this link if not yet
+// just manage a pipe directly, removes if !pipe->send, else adds
 link_t link_pipe(link_t link, pipe_t pipe)
 {
   seen_t seen;
@@ -201,7 +203,36 @@ link_t link_pipe(link_t link, pipe_t pipe)
   {
     if(seen->pipe == pipe) break;
   }
+  
+  // if pipe is down, remove seen
+  if(!pipe->send)
+  {
+    if(!seen) return LOG("pipe never seen by this link");
+    LOG("un-seeing pipe");
+    if(link->pipes == seen)
+    {
+      link->pipes = seen->next;
+    }else{
+      seen_t iter;
+      for(iter = link->pipes; iter; iter = iter->next)
+      {
+        if(iter->next == seen)
+        {
+          iter->next = seen->next;
+          break;
+        }
+      }
+    }
+    pipe->links = lob_splice(pipe->links, seen->notif);
+    lob_free(seen->notif);
+    free(seen);
+    
+    // no pipes, force down
+    if(!link->pipes) link_down(link);
 
+    return link;
+  }
+  
   // add this pipe to this link
   if(!seen)
   {
@@ -211,6 +242,10 @@ link_t link_pipe(link_t link, pipe_t pipe)
     seen->pipe = pipe;
     seen->next = link->pipes;
     link->pipes = seen;
+    // so pipes can let link know about changes
+    seen->notif = lob_new();
+    seen->notif->arg = link;
+    pipe->links = lob_push(pipe->links, seen->notif);
   }
   
   // make sure it gets sync'd
@@ -386,7 +421,7 @@ link_t link_send(link_t link, lob_t outer)
     return LOG("no network");
   }
 
-  pipe->send(pipe, outer, link);
+  pipe_send(pipe, outer, link);
   return link;
 }
 
@@ -454,7 +489,7 @@ lob_t link_sync(link_t link)
     if(!handshakes) handshakes = link_handshakes(link);
 
     seen->at = at;
-    for(hs = handshakes; hs; hs = lob_linked(hs)) seen->pipe->send(seen->pipe, lob_copy(hs), link);
+    for(hs = handshakes; hs; hs = lob_linked(hs)) pipe_send(seen->pipe, lob_copy(hs), link);
   }
 
   // caller can re-use and must free
@@ -500,9 +535,38 @@ link_t link_direct(link_t link, lob_t inner, pipe_t pipe)
   // add an outgoing cid if none set
   if(!lob_get_int(inner,"c")) lob_set_uint(inner,"c",e3x_exchange_cid(link->x, NULL));
 
-  pipe->send(pipe, e3x_exchange_send(link->x, inner), link);
+  pipe_send(pipe, e3x_exchange_send(link->x, inner), link);
   lob_free(inner);
   
+  return link;
+}
+
+// force link down, end channels and generate all events
+link_t link_down(link_t link)
+{
+  if(!link) return NULL;
+
+  LOG("forcing link down for %s",hashname_short(link->id));
+
+  // generate down event if up
+  if(link_up(link))
+  {
+    e3x_exchange_down(link->x);
+    mesh_link(link->mesh, link);
+  }
+
+  // end all channels
+  lob_t err = lob_new();
+  lob_set(err, "err", "timeout");
+  chan_t c;
+  for(c = link->chans;c;c = chan_next(c))
+  {
+    lob_set_uint(err,"c",c->id);
+    c->in = lob_push(c->in, lob_copy(err));
+    chan_process(c, 0);
+  }
+  lob_free(err);
+
   return link;
 }
 
@@ -512,5 +576,10 @@ link_t link_process(link_t link, uint32_t now)
   chan_t c;
   if(!link || !now) return LOG("bad args");
   for(c = link->chans;c;c = chan_next(c)) chan_process(c, now);
-  return link;
+  if(link->csid) return link;
+  
+  // flagged to remove, do that now
+  link_down(link);
+  link_free(link);
+  return NULL;
 }

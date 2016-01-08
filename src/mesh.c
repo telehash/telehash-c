@@ -163,10 +163,11 @@ lob_t mesh_links(mesh_t mesh)
 // process any channel timeouts based on the current/given time
 mesh_t mesh_process(mesh_t mesh, uint32_t now)
 {
-  link_t link;
+  link_t link, next;
   if(!mesh || !now) return LOG("bad args");
-  for(link = mesh->links;link;link = link->next)
+  for(link = mesh->links;link;link = next)
   {
+    next = link->next;
     link_process(link, now);
   }
   return mesh;
@@ -203,6 +204,14 @@ link_t mesh_linked(mesh_t mesh, hashname_t id)
   for(link = mesh->links;link;link = link->next) if(hashname_cmp(link->id,id) == 0) return link;
   
   return NULL;
+}
+
+// remove this link, will event it down and clean up during next process()
+mesh_t mesh_unlink(link_t link)
+{
+  if(!link) return NULL;
+  link->csid = 0; // removal indicator
+  return link->mesh;
 }
 
 // create our generic callback linked list entry
