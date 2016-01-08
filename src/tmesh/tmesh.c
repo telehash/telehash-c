@@ -628,6 +628,7 @@ mote_t mote_new(link_t link)
       m->order = (bin1[i] > bin2[i]) ? 1 : 0;
       break;
     }
+    // TODO set up link down event handler to remove this mote
   }
 
   return m;
