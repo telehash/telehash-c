@@ -56,6 +56,9 @@ link_t mesh_add(mesh_t mesh, lob_t json, pipe_t pipe);
 // return only if this hashname is currently linked (in any state)
 link_t mesh_linked(mesh_t mesh, hashname_t id);
 
+// remove this link, will event it down and clean up during next process()
+mesh_t mesh_unlink(link_t link);
+
 // add a custom outgoing handshake packet to all links
 mesh_t mesh_handshake(mesh_t mesh, lob_t handshake);
 
