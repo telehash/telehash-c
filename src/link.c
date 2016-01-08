@@ -226,6 +226,10 @@ link_t link_pipe(link_t link, pipe_t pipe)
     pipe->links = lob_splice(pipe->links, seen->notif);
     lob_free(seen->notif);
     free(seen);
+    
+    // no pipes, force down
+    if(!link->pipes) link_down(link);
+
     return link;
   }
   
