@@ -227,8 +227,9 @@ link_t link_pipe(link_t link, pipe_t pipe)
     lob_free(seen->notif);
     free(seen);
     
-    // no pipes, force down
+    // no pipes, force down, else re-validate
     if(!link->pipes) link_down(link);
+    else lob_free(link_resync(link));
 
     return link;
   }

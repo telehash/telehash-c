@@ -64,6 +64,7 @@ lob_t lob_linked(lob_t parent)
 lob_t lob_free(lob_t p)
 {
   if(!p) return NULL;
+  if(p->next) LOG("possible mem leak, lob is in a list");
 //  LOG("LOB-- %p",p);
   if(p->chain) lob_free(p->chain);
   if(p->cache) free(p->cache);

@@ -185,13 +185,17 @@ link_t mesh_add(mesh_t mesh, lob_t json, pipe_t pipe)
   keys = lob_get_json(json,"keys");
   paths = lob_get_array(json,"paths");
   if(!link) link = link_keys(mesh, keys);
-  if(!link) return LOG("no hashname");
+  if(!link) LOG("no hashname");
   
+  LOG("loading keys/paths");
   if(keys && (csid = hashname_id(mesh->keys,keys))) link_load(link, csid, keys);
 
   // handle any pipe/paths
   if(pipe) link_pipe(link, pipe);
   for(;paths;paths = paths->next) link_path(link,paths);
+  
+  lob_free(keys);
+  lob_freeall(paths);
 
   return link;
 }
@@ -332,6 +336,7 @@ void mesh_discover(mesh_t mesh, lob_t discovered, pipe_t pipe)
   on_t on;
   LOG("running mesh discover with %s",lob_json(discovered));
   for(on = mesh->on; on; on = on->next) if(on->discover) on->discover(mesh, discovered, pipe);
+  lob_free(discovered);
 }
 
 // add a custom outgoing handshake packet to all links

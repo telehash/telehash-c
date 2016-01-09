@@ -146,6 +146,8 @@ chan_t chan_receive(chan_t c, lob_t inner)
     {
       // set resend flag timestamp on them
       // update window
+      LOG("TODO miss handling");
+      lob_free(miss);
     }
 
   }
