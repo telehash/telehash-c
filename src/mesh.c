@@ -523,8 +523,8 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
     return link_receive(link,inner,pipe) ? 0 : 8;
     
   }
-  
-  // accept incoming bare link json as a handshake for discovery
+
+  // transform incoming bare link json format into handshake for discovery
   if((inner = lob_get_json(outer,"keys")))
   {
     if((id = hashname_vkeys(inner)))
@@ -533,14 +533,12 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
       lob_set_int(outer,"at",0);
       lob_set(outer,"type","link");
       LOG("bare incoming link json being discovered %s",lob_json(outer));
-      mesh_discover(mesh, outer, pipe);
     }
     lob_free(inner);
-    lob_free(outer);
-    return 0;
   }
-
-  LOG("dropping unknown outer packet with header %d %s",outer->head_len,lob_json(outer));
+  
+  // run everything else through discovery, usually plain handshakes
+  mesh_discover(mesh, outer, pipe);
   lob_free(outer);
 
   return 10;
