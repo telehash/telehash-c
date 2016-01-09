@@ -19,7 +19,7 @@ pipe_t pipe_free(pipe_t p)
 {
   if(!p) return NULL;
   p->send = NULL;
-  pipe_changed(p);
+  pipe_sync(p,1);
   if(p->links) LOG("leaking link notifications");
   free(p->type);
   if(p->id) free(p->id);
@@ -28,16 +28,16 @@ pipe_t pipe_free(pipe_t p)
   return NULL;
 }
 
-pipe_t pipe_changed(pipe_t p)
+pipe_t pipe_sync(pipe_t p, uint8_t down)
 {
   if(!p) return NULL;
+  p->down = down;
   lob_t list, next;
   for(list=p->links;list;list = next)
   {
     next = lob_next(list);
     link_t link = list->arg;
     link_pipe(link, p); // will remove pipe if it's down
-    link_resync(link);
   }
   return p;
 }

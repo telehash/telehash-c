@@ -24,7 +24,7 @@ pipe_t pipe_new(char *type);
 pipe_t pipe_free(pipe_t p);
 
 // generates notifications to any links using it
-pipe_t pipe_changed(pipe_t p);
+pipe_t pipe_sync(pipe_t p, uint8_t down);
 
 // safe wrapper around ->send
 pipe_t pipe_send(pipe_t pipe, lob_t packet, link_t link);
