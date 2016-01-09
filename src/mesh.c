@@ -176,13 +176,11 @@ mesh_t mesh_process(mesh_t mesh, uint32_t now)
   while(iter)
   {
     lob_t tmp = iter;
-    iter = iter->next;
+    iter = lob_next(iter);
     if(tmp->id >= (now-5)) continue; // 5 seconds
-    LOG("flushing cached handshake");
     mesh->cached = lob_splice(mesh->cached, tmp);
     lob_free(tmp);
   }
-
   
   return mesh;
 }
@@ -206,7 +204,8 @@ link_t mesh_add(mesh_t mesh, lob_t json, pipe_t pipe)
 
   // handle any pipe/paths
   if(pipe) link_pipe(link, pipe);
-  for(;paths;paths = paths->next) link_path(link,paths);
+  lob_t path;
+  for(path=paths;path;path = lob_next(path)) link_path(link,path);
   
   lob_free(keys);
   lob_freeall(paths);
@@ -398,6 +397,7 @@ link_t mesh_receive_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe)
   handshake->id = now; // save when we cached it
   if(!lob_get(handshake,"type")) lob_set(handshake,"type","link"); // default to link type
   if(!lob_get_uint(handshake,"at")) lob_set_uint(handshake,"at",now); // require an at
+  LOG("handshake at %d id %s",now,lob_get(handshake,"id"));
   
   // validate/extend link handshakes immediately
   if(util_cmp(lob_get(handshake,"type"),"link") == 0 && (outer = lob_linked(handshake)))
