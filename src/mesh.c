@@ -170,6 +170,20 @@ mesh_t mesh_process(mesh_t mesh, uint32_t now)
     next = link->next;
     link_process(link, now);
   }
+  
+  // cull/gc the cache for anything older than 5 seconds
+  lob_t iter = mesh->cached;
+  while(iter)
+  {
+    lob_t tmp = iter;
+    iter = iter->next;
+    if(tmp->id >= (now-5)) continue; // 5 seconds
+    LOG("flushing cached handshake");
+    mesh->cached = lob_splice(mesh->cached, tmp);
+    lob_free(tmp);
+  }
+
+  
   return mesh;
 }
 
@@ -336,7 +350,6 @@ void mesh_discover(mesh_t mesh, lob_t discovered, pipe_t pipe)
   on_t on;
   LOG("running mesh discover with %s",lob_json(discovered));
   for(on = mesh->on; on; on = on->next) if(on->discover) on->discover(mesh, discovered, pipe);
-  lob_free(discovered);
 }
 
 // add a custom outgoing handshake packet to all links
@@ -368,7 +381,7 @@ lob_t mesh_handshakes(mesh_t mesh, lob_t handshake, char *type)
 link_t mesh_receive_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe)
 {
   uint32_t now;
-  lob_t iter, tmp, outer;
+  lob_t outer;
   hashname_t from;
   char hexid[3], *paths;
   link_t link;
@@ -390,7 +403,7 @@ link_t mesh_receive_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe)
   if(util_cmp(lob_get(handshake,"type"),"link") == 0 && (outer = lob_linked(handshake)))
   {
     // get attached hashname
-    tmp = lob_parse(handshake->body, handshake->body_len);
+    lob_t tmp = lob_parse(handshake->body, handshake->body_len);
     from = hashname_vkey(tmp, outer->head[0]);
     if(!from)
     {
@@ -430,17 +443,6 @@ link_t mesh_receive_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe)
   // tell anyone listening about the newly discovered handshake
   mesh_discover(mesh, handshake, pipe);
   
-  // cull/gc the cache for anything older than 5 seconds
-  iter = mesh->cached;
-  while(iter)
-  {
-    tmp = iter;
-    iter = iter->next;
-    if(tmp->id >= (now-5)) continue; // 5 seconds
-    mesh->cached = lob_splice(mesh->cached, tmp);
-    lob_free(tmp);
-  }
-
   return NULL;
 }
 
