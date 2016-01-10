@@ -38,13 +38,20 @@ chan_t chan_new(lob_t open)
 chan_t chan_free(chan_t c)
 {
   if(!c) return NULL;
+
+  // gotta tell handler
+  if(c->state != CHAN_ENDED && c->handle)
+  {
+    chan_err(c, "closed");
+    c->handle(c, c->arg);
+  }
+
   // free cached packet
   lob_free(c->open);
   // free any other queued packets
   lob_freeall(c->in);
   lob_freeall(c->sent);
-  // TODO signal handler
-  // TODO remove from link->chans
+  LOG("TODO remove from link->chans");
   free(c);
   return NULL;
 }
@@ -179,6 +186,8 @@ lob_t chan_receiving(chan_t c)
   ret = lob_shift(c->in);
   c->in = ret->next;
   c->ack = ret->id; // track highest processed
+
+  if(lob_get(ret,"end")) c->state = CHAN_ENDED;
 
   return ret;
 }
@@ -338,7 +347,7 @@ chan_t chan_process(chan_t c, uint32_t now)
   // if we need to generate an ack/miss yet, do that
   if(c->ack != c->acked) chan_send(c,chan_oob(c));
   
-  LOG("TODO if channel is now ended, free it");
+  if(c->state == CHAN_ENDED) LOG("TODO channel is now ended, free it");
   
   return c;
 }
