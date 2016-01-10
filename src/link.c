@@ -557,16 +557,13 @@ link_t link_down(link_t link)
   }
 
   // end all channels
-  lob_t err = lob_new();
-  lob_set(err, "err", "timeout");
-  chan_t c;
-  for(c = link->chans;c;c = chan_next(c))
+  chan_t c, cnext;
+  for(c = link->chans;c;c = cnext)
   {
-    lob_set_uint(err,"c",c->id);
-    c->in = lob_push(c->in, lob_copy(err));
+    cnext = chan_next(c);
+    chan_err(c, "disconnected");
     chan_process(c, 0);
   }
-  lob_free(err);
 
   return link;
 }

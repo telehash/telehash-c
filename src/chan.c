@@ -283,6 +283,19 @@ chan_t chan_send(chan_t c, lob_t inner)
   return c;
 }
 
+// generates local-only error packet for next chan_process()
+chan_t chan_err(chan_t c, char *msg)
+{
+  if(!c) return NULL;
+  if(!msg) msg = "unknown";
+  lob_t err = lob_new();
+  lob_set_uint(err,"c",c->id);
+  lob_set_raw(err, "end", 3, "true", 4);
+  lob_set(err, "err", msg);
+  c->in = lob_push(c->in, err); // top of the queue
+  return c;
+}
+
 // must be called after every send or receive, processes resends/timeouts, fires handlers
 chan_t chan_process(chan_t c, uint32_t now)
 {
@@ -298,10 +311,7 @@ chan_t chan_process(chan_t c, uint32_t now)
       if(now > c->timeout)
       {
         c->timeout = 0;
-        lob_t err = lob_new();
-        lob_set_uint(err,"c",c->id);
-        lob_set(err, "err", "timeout");
-        c->in = lob_push(c->in, err);
+        chan_err(c, "timeout");
       }else if(c->trecv){
         // kick forward when we have a time difference
         c->timeout += (now - c->trecv);
@@ -328,7 +338,7 @@ chan_t chan_process(chan_t c, uint32_t now)
   // if we need to generate an ack/miss yet, do that
   if(c->ack != c->acked) chan_send(c,chan_oob(c));
   
-  // TODO if channel is now ended, free it
+  LOG("TODO if channel is now ended, free it");
   
   return c;
 }

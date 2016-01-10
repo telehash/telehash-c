@@ -51,6 +51,7 @@ lob_t chan_receiving(chan_t c); // get next avail packet in order, null if nothi
 lob_t chan_oob(chan_t c); // id/ack/miss only headers base packet
 lob_t chan_packet(chan_t c);  // creates a sequenced packet w/ all necessary headers, just a convenience
 chan_t chan_send(chan_t c, lob_t inner); // encrypts and sends packet out link
+chan_t chan_err(chan_t c, char *err); // generates local-only error packet for next chan_process()
 
 // must be called after every send or receive, processes resends/timeouts, fires handlers
 chan_t chan_process(chan_t c, uint32_t now);
