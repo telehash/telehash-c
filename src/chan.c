@@ -39,8 +39,8 @@ chan_t chan_free(chan_t c)
 {
   if(!c) return NULL;
 
-  // gotta tell handler
-  if(c->state != CHAN_ENDED && c->handle)
+  // gotta tell handler (TODO, still buggy)
+  if(0 && c->state != CHAN_ENDED && c->handle)
   {
     chan_err(c, "closed");
     c->handle(c, c->arg);
