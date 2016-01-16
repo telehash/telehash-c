@@ -64,7 +64,9 @@ struct tmesh_struct
   mesh_t mesh;
   cmnty_t coms;
   lob_t pubim;
-  uint32_t us, epoch; // for relative time into mesh_process
+  uint32_t last; // last seen cycles for rebasing
+  uint32_t epoch; // for relative time into mesh_process
+  uint32_t cycles; // remainder for epoch
   knock_t (*sort)(knock_t a, knock_t b);
   uint8_t z; // our preferred z-index
 };
@@ -73,8 +75,11 @@ struct tmesh_struct
 tmesh_t tmesh_new(mesh_t mesh, lob_t options);
 void tmesh_free(tmesh_t tm);
 
-// advance all windows forward this many microseconds, all radio knocks are relative to this call, returns # of knocks ready
-uint8_t tmesh_process(tmesh_t tm, uint32_t us);
+// process everything based on current cycle count, returns # of knocks ready
+uint8_t tmesh_process(tmesh_t tm, uint32_t count);
+
+// rebase all cycle counters based on the last count
+tmesh_t tmesh_rebase(tmesh_t tm);
 
 // a single knock request ready to go
 struct knock_struct
@@ -101,7 +106,7 @@ struct mote_struct
   uint8_t secret[32];
   uint8_t nonce[8];
   uint8_t chan[2];
-  uint32_t at; // microseconds until next knock
+  uint32_t at; // cycles until next knock
   util_chunks_t chunks; // actual chunk encoding for r/w frame buffers
   uint16_t sent, received;
   uint8_t z;

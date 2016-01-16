@@ -483,8 +483,8 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   return tm;
 }
 
-// advance all windows forward this many microseconds, all knocks are relative to this call
-uint8_t tmesh_process(tmesh_t tm, uint32_t us)
+// process everything based on current cycle count, returns # of knocks ready
+uint8_t tmesh_process(tmesh_t tm, uint32_t cycles)
 {
   cmnty_t com;
   mote_t mote;
@@ -492,7 +492,7 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
   struct knock_struct k1, k2;
   knock_t knock;
   uint8_t ret = 0;
-  if(!tm || !us) return 0;
+  if(!tm || !cycles) return 0;
 
   // first process all active knocks
   int i;
@@ -526,8 +526,8 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
     for(mote=com->motes;mote;mote=mote->next)
     {
       // adjust relative local time
-      while(mote->at < us) mote_advance(mote);
-      mote->at -= us;
+      while(mote->at < cycles) mote_advance(mote);
+      mote->at -= cycles;
       LOG("mote at %lu %s %s",mote->at,util_hex(mote->nonce,8,NULL),mote->public?"public":hashname_short(mote->link->id));
 
       // already have one active
@@ -593,17 +593,29 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
   }
   
   // overall telehash background processing now
-  tm->us += us;
-  while(tm->us > 1000000)
+  tm->cycles += (cycles - tm->last);
+  tm->last = cycles;
+  if(tm->cycles > 32768)
   {
-    tm->epoch++;
-    tm->us -= 1000000;
+    while(tm->cycles > 32768)
+    {
+      tm->epoch++;
+      tm->cycles -= 32768;
+    }
+    LOG("mesh process epoch %lu",tm->epoch);
+    mesh_process(tm->mesh,tm->epoch);
   }
-  LOG("mesh process epoch %lu",tm->epoch);
-  mesh_process(tm->mesh,tm->epoch);
 
   if(!ret) LOG("no knocks scheduled");
   return ret;
+}
+
+// rebase all cycle counters based on the last count
+tmesh_t tmesh_rebase(tmesh_t tm)
+{
+  if(!tm || !tm->last) return LOG("no cycles to rebase");
+  
+  return tm;
 }
 
 
