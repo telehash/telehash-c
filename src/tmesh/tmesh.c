@@ -713,7 +713,7 @@ mote_t mote_advance(mote_t m)
   uint32_t next = util_sys_long((unsigned long)*(m->nonce));
 
   // smaller for high z, using only high 4 bits of z
-  next >>= (m->z >> 4);
+  next >>= (m->z >> 4) + m->com->medium->zshift;
 
   m->at += next + m->com->medium->min + m->com->medium->max;
   

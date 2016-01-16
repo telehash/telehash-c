@@ -14,12 +14,13 @@ typedef struct knock_struct *knock_t; // single action
 struct medium_struct
 {
   void *device; // used by radio device driver
-  uint32_t min, max; // microseconds to knock, set by driver
-  uint32_t avg; // average actual micros to tx for drift calc
+  uint32_t min, max; // cycles to knock, set by driver
+  uint32_t avg; // average actual cycles to tx for drift calc
   uint8_t bin[5];
   uint8_t chans; // number of total channels, set by driver
   uint8_t z; // default
   uint8_t radio:4; // radio device id based on radio_devices[]
+  uint8_t zshift:4; // exponent offset for this medium
 };
 
 // validate medium by checking energy
