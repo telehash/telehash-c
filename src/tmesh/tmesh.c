@@ -330,6 +330,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 {
   mote_t mlink = NULL;
   if(!tm || !k) return LOG("bad args");
+  if(!k->ready) return LOG("knock wasn't ready");
   
   // clear some flags straight away
   k->mote->priority = 0;
@@ -778,7 +779,7 @@ mote_t mote_synced(mote_t m)
     }
 
     // TODO intelligent ping re-schedule, not just skip some and randomize
-    m->at += 1000*1000*15; // 15s
+    m->at += 32768*15; // 15s
     e3x_rand(m->nonce,8);
     m->ping = 1;
 
