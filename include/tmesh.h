@@ -75,11 +75,11 @@ struct tmesh_struct
 tmesh_t tmesh_new(mesh_t mesh, lob_t options);
 void tmesh_free(tmesh_t tm);
 
-// process everything based on current cycle count, returns # of knocks ready
-uint8_t tmesh_process(tmesh_t tm, uint32_t count);
+// process any knock that has been completed by a driver
+tmesh_t tmesh_knocked(tmesh_t tm, knock_t k);
 
-// rebase all cycle counters based on the last count
-tmesh_t tmesh_rebase(tmesh_t tm);
+// process everything based on current cycle count, optional rebase cycles, returns # of knocks ready
+uint8_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase);
 
 // a single knock request ready to go
 struct knock_struct

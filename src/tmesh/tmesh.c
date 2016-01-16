@@ -331,8 +331,9 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   mote_t mlink = NULL;
   if(!tm || !k) return LOG("bad args");
   
-  // clear any priority now
+  // clear some flags straight away
   k->mote->priority = 0;
+  k->ready = 0;
   
   if(k->err)
   {
@@ -484,7 +485,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 }
 
 // process everything based on current cycle count, returns # of knocks ready
-uint8_t tmesh_process(tmesh_t tm, uint32_t cycles)
+uint8_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
 {
   cmnty_t com;
   mote_t mote;
@@ -492,42 +493,26 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t cycles)
   struct knock_struct k1, k2;
   knock_t knock;
   uint8_t ret = 0;
-  if(!tm || !cycles) return 0;
+  if(!tm || !at) return 0;
 
-  // first process all active knocks
-  int i;
-  for(i=0;i<RADIOS_MAX;i++)
-  {
-    if(!radio_devices[i]) continue;
-    knock = radio_devices[i]->knock;
-    if(!knock->ready) continue;
-
-    // if it's not done
-    if(knock->done < knock->start)
-    {
-      LOG("skipping active knock");
-      continue;
-    }
-
-    LOG("processing knock s/s/d %lu/%lu/%lu",knock->start,knock->stop,knock->done);
-    tmesh_knocked(tm, knock);
-    memset(knock,0,sizeof(struct knock_struct));
-
-  }
-
-  // now we have to (only) bring all motes current looking for the next knock
+  // we are looking for the next knock anywhere
   for(com=tm->coms;com;com=com->next)
   {
     radio_t radio = radio_devices[com->medium->radio];
     knock = radio->knock;
+    
+    // clean slate
     memset(&k1,0,sizeof(struct knock_struct));
+    if(!knock->ready) memset(knock,0,sizeof(struct knock_struct));
 
-    // walk the motes for processing and to find another knock
+    // walk the local motes
     for(mote=com->motes;mote;mote=mote->next)
     {
-      // adjust relative local time
-      while(mote->at < cycles) mote_advance(mote);
-      mote->at -= cycles;
+      // first rebase cycle count if requested
+      if(rebase) mote->at -= rebase;
+
+      // move ahead window(s)
+      while(mote->at < at) mote_advance(mote);
       LOG("mote at %lu %s %s",mote->at,util_hex(mote->nonce,8,NULL),mote->public?"public":hashname_short(mote->link->id));
 
       // already have one active
@@ -569,7 +554,7 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t cycles)
     ret++;
   }
 
-  // now do any heavier processing work
+  // now do any heavier processing work decoupled
   for(com=tm->coms;com;com=com->next)
   {
     for(mote=com->motes;mote;mote=mote->next)
@@ -592,9 +577,10 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t cycles)
     }
   }
   
-  // overall telehash background processing now
-  tm->cycles += (cycles - tm->last);
-  tm->last = cycles;
+  // overall telehash background processing now based on seconds
+  if(rebase) tm->last -= rebase;
+  tm->cycles += (at - tm->last);
+  tm->last = at;
   if(tm->cycles > 32768)
   {
     while(tm->cycles > 32768)
@@ -609,15 +595,6 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t cycles)
   if(!ret) LOG("no knocks scheduled");
   return ret;
 }
-
-// rebase all cycle counters based on the last count
-tmesh_t tmesh_rebase(tmesh_t tm)
-{
-  if(!tm || !tm->last) return LOG("no cycles to rebase");
-  
-  return tm;
-}
-
 
 mote_t mote_new(link_t link)
 {
