@@ -486,7 +486,7 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
   knock_t knock;
   if(!tm || !at) return NULL;
   
-  LOG("processing for %s",hashname_short(tm->mesh->id));
+  LOG("processing for %s at %lu",hashname_short(tm->mesh->id),at);
 
   // we are looking for the next knock anywhere
   for(com=tm->coms;com;com=com->next)
@@ -572,16 +572,13 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
   if(rebase) tm->last -= rebase;
   tm->cycles += (at - tm->last);
   tm->last = at;
-  if(tm->cycles > 32768)
+  while(tm->cycles > 32768)
   {
-    while(tm->cycles > 32768)
-    {
-      tm->epoch++;
-      tm->cycles -= 32768;
-    }
-    LOG("mesh process epoch %lu",tm->epoch);
-    mesh_process(tm->mesh,tm->epoch);
+    tm->epoch++;
+    tm->cycles -= 32768;
   }
+  LOG("mesh process epoch %lu",tm->epoch);
+  mesh_process(tm->mesh,tm->epoch);
 
   return tm;
 }
@@ -696,7 +693,7 @@ mote_t mote_advance(mote_t m)
 
   m->at += next + m->com->medium->min + m->com->medium->max;
   
-//  LOG("advanced to nonce %s at %lu next %lu",util_hex(m->nonce,8,NULL),m->at,next);
+  LOG("advanced to nonce %s at %lu next %lu",util_hex(m->nonce,8,NULL),m->at,next);
 
   // skip a tx if nothing to send
   if(!m->ping && mote_tx(m) && util_chunks_size(m->chunks) <= 0)

@@ -10,6 +10,7 @@
 #define B_SEC "ge4i7h3jln4kltngwftg2yqtjjvemerw"
 
 tmesh_t netA = NULL, netB = NULL;
+#define RXTX(a,b) (a->tx)?memcpy(b->frame,a->frame,64):memcpy(a->frame,b->frame,64)
 
 #include "./tmesh_device.c"
 
@@ -27,6 +28,7 @@ int main(int argc, char **argv)
   lob_t secA = lob_new();
   lob_set(secA,"1a",A_SEC);
   fail_unless(!mesh_load(meshA,secA,keyA));
+  mesh_on_discover(meshA,"auto",mesh_add);
 
   lob_t keyB = lob_new();
   lob_set(keyB,"1a",B_KEY);
@@ -155,6 +157,7 @@ int main(int argc, char **argv)
   lob_t secB = lob_new();
   lob_set(secB,"1a",B_SEC);
   fail_unless(!mesh_load(meshB,secB,keyB));
+  mesh_on_discover(meshB,"auto",mesh_add);
 
   hashname_t hnA = hashname_vkeys(keyA);
   fail_unless(hnA);
@@ -207,11 +210,13 @@ int main(int argc, char **argv)
 
   // fake reception, with fake cake
   LOG("process netA");
+  RXTX(knAB,knBA);
   fail_unless(tmesh_knocked(netA,knAB));
   fail_unless(tmesh_process(netA,knAB->done+1,0));
   fail_unless(mAB->pong);
 
   LOG("process netB");
+  RXTX(knAB,knBA);
   fail_unless(tmesh_knocked(netA,knBA));
   fail_unless(tmesh_process(netB,knBA->done+1,0));
 
@@ -220,11 +225,15 @@ int main(int argc, char **argv)
   netB->pubim = hashname_im(netB->mesh->keys, hashname_id(netB->mesh->keys,netB->mesh->keys));
 
   // back to the future
-  fail_unless(tmesh_knocked(netA,knAB));
+  RXTX(knAB,knBA);
+  LOG("mAB %lu mBA %lu",mAB->at,mBA->at);
+  fail_unless(tmesh_knocked(netB,knBA));
   while(knAB->mote != mAB) fail_unless(tmesh_process(netA,mAB->at+1,0));
   LOG("AB tx is %d chan %d at %lu nonce %s",knAB->tx,knAB->chan,knAB->start,util_hex(mAB->nonce,8,NULL));
   fail_unless(knAB->tx == 1);
-  fail_unless(tmesh_knocked(netA,knBA));
+  RXTX(knAB,knBA);
+  fail_unless(tmesh_knocked(netA,knAB));
+  LOG("mAB %lu mBA %lu",mAB->at,mBA->at);
   while(knBA->mote != mBA) fail_unless(tmesh_process(netB,mBA->at+1,0));
   LOG("BA tx is %d chan %d at %lu nonce %s",knBA->tx,knBA->chan,knAB->start,util_hex(mBA->nonce,8,NULL));
   fail_unless(knBA->tx == 0);
@@ -234,26 +243,34 @@ int main(int argc, char **argv)
   fail_unless(!mBA->ping);
   fail_unless(!mAB->pong);
   fail_unless(!mAB->ping);
+  mAB->at = mBA->at;
+  LOG("mAB %lu mBA %lu",mAB->at,mBA->at);
+  fail_unless(mAB->at == mBA->at);
   
   // continue establishing link
   uint8_t max = 20;
-  uint32_t step = mAB->at+1;
+  uint32_t step = mAB->at;
   while(--max && !link_up(mBA->link) && !link_up(mAB->link))
   {
-    printf("\n\n%d %u\n",max,step);
+//    printf("\n\n%d %u\n",max,step);
 
     tmesh_process(netA,step,0);
     tmesh_process(netB,step,0);
 
     LOG("AB %d %d/%d BA %d %d/%d",knAB->tx,knAB->start,knAB->stop,knBA->tx,knBA->start,knBA->stop);
+    step = (knAB->stop < knBA->stop)?knAB->stop:knBA->stop;
 
-    tmesh_knocked(netA,knAB);
-    tmesh_knocked(netB,knBA);
+    if(knAB->chan == knBA->chan)
+    {
+      RXTX(knAB,knBA);
+      step = knAB->stop = knBA->stop; // must be same
+    }
 
-    step = mAB->at+1;
+    if(step == knAB->stop) tmesh_knocked(netA,knAB);
+    if(step == knBA->stop) tmesh_knocked(netB,knBA);
+
   }
   LOG("linked by %d",max);
-  // TODO, quite broken yet, faux driver logic above is way off
   fail_unless(max);
 
   return 0;

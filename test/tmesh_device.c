@@ -25,39 +25,11 @@ medium_t device_free(radio_t self, tmesh_t tm, medium_t m)
   return NULL;
 }
 
-uint8_t com_chan = 0;
-uint8_t com_frame[64];
-tmesh_t com_from = NULL;
 tmesh_t device_ready(radio_t self, tmesh_t tm, knock_t knock)
 {
-  LOG("RADIO %s %s",(tm == netA) ? "netA" : "netB",knock->tx?"TX":"RX");
-  LOG("start %lu stop %lu on %d last %d",knock->start,knock->stop,knock->chan,com_chan);
-
-  if(knock->tx)
-  {
-    knock->done = knock->stop;
-    memcpy(com_frame,knock->frame,64);
-    com_chan = knock->chan;
-    com_from = tm;
-    return tm;
-  }
-
-  if(com_from == tm || !com_from) {
-    LOG("must rx from others");
-    knock->err = 1;
-    return tm;
-  }
-  
-  // fake rx must start before tx and same channel
-  if(com_chan != knock->chan) {
-    LOG("rx channel %d != %d",com_chan,knock->chan);
-    knock->err = 1;
-    return tm;
-  }
-
-  knock->done = knock->stop;
-  memcpy(knock->frame,com_frame,64);
-  com_from = NULL;
+  LOG("RADIO READY %s %s",(tm == netA) ? "netA" : "netB",knock->tx?"TX":"RX");
+  LOG("start %lu stop %lu on %d",knock->start,knock->stop,knock->chan);
+  knock->done = knock->stop; // flag done here for testing
   return tm;
 }
 
