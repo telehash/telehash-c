@@ -73,7 +73,7 @@ int main(int argc, char **argv)
   knock_t knock = devA->knock;
   fail_unless(mote_advance(m));
   LOG("next is %lld",m->at);
-  fail_unless(m->at == 263154);
+  fail_unless(m->at == 1138);
   fail_unless(mote_knock(m,knock));
   fail_unless(!knock->tx);
   fail_unless(mote_advance(m));
@@ -83,7 +83,7 @@ int main(int argc, char **argv)
   fail_unless(mote_knock(m,knock));
   fail_unless(knock->tx);
   LOG("next is %lld",knock->start);
-  fail_unless(knock->start == 46470074);
+  fail_unless(knock->start == 27738);
   LOG("public at is now %lu",c->public->at);
   fail_unless(c->public->at == 1);
   c->public->at = 5;
@@ -107,7 +107,7 @@ int main(int argc, char **argv)
   fail_unless(util_cmp(hex,"f16d6a2a93a608b1") == 0);
   fail_unless(mote_advance(m));
   LOG("at is %lu",m->at);
-  fail_unless(m->at >= 5816313);
+  fail_unless(m->at >= 14828);
 
   // public ping now
 //  m->at = 0xffffffff;
@@ -122,17 +122,16 @@ int main(int argc, char **argv)
   fail_unless(knock->stop == 1003);
   fail_unless(knock->chan == 14);
 
-  /*
   // public ping tx
   memset(m->nonce,4,8); // fixture for testing
   m->order = 1;
   memset(knock,0,sizeof(struct knock_struct));
-  fail_unless(tmesh_process(netA,5461193,0));
+  fail_unless(tmesh_process(netA,4242,0));
   fail_unless(knock->mote == m);
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
   fail_unless(knock->ready);
   fail_unless(knock->tx);
-  fail_unless(knock->start == 15139829);
+  fail_unless(knock->start == 8405);
   fail_unless(knock->chan == 14);
   // frame would be random ciphered, but we fixed it to test
   LOG("frame %s",util_hex(knock->frame,32+8,hex)); // just the stable part
@@ -142,14 +141,13 @@ int main(int argc, char **argv)
   knock->done = knock->stop; // fake rx good
   LOG("faking rx in");
   fail_unless(!tmesh_knocked(netA,knock)); // identity crisis
-  fail_unless(tmesh_process(netA,553648170,0));
+  fail_unless(tmesh_process(netA,42424,0));
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
-  fail_unless(!knock->done);
-  fail_unless(knock->start == 555035616);
+  fail_unless(knock->done);
+  fail_unless(knock->start == 43392);
 
   // leave public community
   fail_unless(tmesh_leave(netA,c));
-*/
   
   // two motes meshing
   mesh_t meshB = mesh_new(3);
@@ -192,7 +190,7 @@ int main(int argc, char **argv)
   knock_t knBA = devB->knock;
   knBA->ready = 0;
   memset(mBA->nonce,0,8);
-  fail_unless(tmesh_process(netB,15860721,0));
+  fail_unless(tmesh_process(netB,10,0));
   fail_unless(knBA->mote == mBA);
   LOG("BA tx is %d chan %d at %lu",knBA->tx,knBA->chan,knBA->start);
   fail_unless(knBA->chan == 35);
@@ -234,23 +232,25 @@ int main(int argc, char **argv)
   // in sync!
   fail_unless(!mBA->pong);
   fail_unless(!mBA->ping);
+  fail_unless(!mAB->pong);
+  fail_unless(!mAB->ping);
   
   // continue establishing link
-  uint8_t max = 10;
-  uint32_t step = mBA->at;
+  uint8_t max = 20;
+  uint32_t step = mAB->at+1;
   while(--max && !link_up(mBA->link) && !link_up(mAB->link))
   {
-    LOG("\nnetB");
-    tmesh_knocked(netB,knBA);
-    tmesh_process(netB,step+1,0);
+    printf("\n\n%d %u\n",max,step);
 
-    LOG("\nnetA");
-    tmesh_knocked(netA,knAB);
-    tmesh_process(netA,step+1,0);
+    tmesh_process(netA,step,0);
+    tmesh_process(netB,step,0);
 
     LOG("AB %d %d/%d BA %d %d/%d",knAB->tx,knAB->start,knAB->stop,knBA->tx,knBA->start,knBA->stop);
-    
-    step = knAB->done + 1;
+
+    tmesh_knocked(netA,knAB);
+    tmesh_knocked(netB,knBA);
+
+    step = mAB->at+1;
   }
   LOG("linked by %d",max);
   // TODO, quite broken yet, faux driver logic above is way off

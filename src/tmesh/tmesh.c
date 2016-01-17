@@ -485,6 +485,8 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
   struct knock_struct k1, k2;
   knock_t knock;
   if(!tm || !at) return NULL;
+  
+  LOG("processing for %s",hashname_short(tm->mesh->id));
 
   // we are looking for the next knock anywhere
   for(com=tm->coms;com;com=com->next)
