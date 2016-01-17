@@ -189,6 +189,15 @@ int main(int argc, char **argv)
   LOG("mAB %s secret %s",hashname_short(mAB->link->id),util_hex(mAB->secret,32,hex));
   fail_unless(util_cmp(hex,"9a972d28dcc211d43eafdca7877bed1bbeaec30fd3740f4b787355d10423ad12") == 0);
   
+  knock_t knBA = devB->knock;
+  knBA->ready = 0;
+  memset(mBA->nonce,0,8);
+  fail_unless(tmesh_process(netB,15860721,0));
+  fail_unless(knBA->mote == mBA);
+  LOG("BA tx is %d chan %d at %lu",knBA->tx,knBA->chan,knBA->start);
+  fail_unless(knBA->chan == 35);
+  fail_unless(knBA->tx == 1);
+
   knock_t knAB = devA->knock;
   knAB->ready = 0;
   memset(mAB->nonce,11,8);
@@ -197,15 +206,6 @@ int main(int argc, char **argv)
   LOG("AB tx is %d chan %d at %lu nonce %s",knAB->tx,knAB->chan,knAB->start,util_hex(mAB->nonce,8,NULL));
   fail_unless(knAB->chan == 35);
   fail_unless(knAB->tx == 0);
-
-  knock_t knBA = devB->knock;
-  knBA->ready = 0;
-  memset(mBA->nonce,0,8);
-  fail_unless(tmesh_process(netB,15860721,0));
-  fail_unless(knBA->mote == mBA);
-  LOG("BA tx is %d chan %d at %lu",knBA->tx,knBA->chan,knAB->start);
-  fail_unless(knBA->chan == 35);
-  fail_unless(knBA->tx == 1);
 
   // fake reception, with fake cake
   LOG("process netA");
@@ -217,67 +217,39 @@ int main(int argc, char **argv)
   fail_unless(tmesh_knocked(netA,knBA));
   fail_unless(tmesh_process(netB,knBA->done+1,0));
 
-  // back to the future
-  fail_unless(!tmesh_knocked(netA,knAB));
-  while(knAB->mote != mAB) fail_unless(tmesh_process(netA,mAB->at+1,0));
-  LOG("AB tx is %d chan %d at %lu nonce %s",knAB->tx,knAB->chan,knAB->start,util_hex(mAB->nonce,8,NULL));
-  fail_unless(knAB->tx == 0);
-  fail_unless(!tmesh_knocked(netA,knBA));
-  while(knBA->mote != mBA) fail_unless(tmesh_process(netB,mBA->at+1,0));
-  LOG("BA tx is %d chan %d at %lu nonce %s",knBA->tx,knBA->chan,knAB->start,util_hex(mBA->nonce,8,NULL));
-  fail_unless(knBA->tx == 0);
-  
   // dummy data for sync send
   netA->pubim = hashname_im(netA->mesh->keys, hashname_id(netA->mesh->keys,netA->mesh->keys));
   netB->pubim = hashname_im(netB->mesh->keys, hashname_id(netB->mesh->keys,netB->mesh->keys));
-  
-  // dance
-  LOG("transceive");
-  memcpy(knBA->frame,knAB->frame,64);
-  knAB->done = knAB->stop;
-  knBA->done = knBA->stop;
 
-  LOG("BA ping %d pong %d",mBA->ping,mBA->pong);
-  LOG("AB ping %d pong %d",mAB->ping,mAB->pong);
-
-  LOG("process netB");
-  fail_unless(!tmesh_knocked(netA,knBA));
-  fail_unless(tmesh_process(netB,1,0));
-
-  LOG("BA ping %d pong %d",mBA->ping,mBA->pong);
-  LOG("AB ping %d pong %d",mAB->ping,mAB->pong);
+  // back to the future
+  fail_unless(tmesh_knocked(netA,knAB));
+  while(knAB->mote != mAB) fail_unless(tmesh_process(netA,mAB->at+1,0));
+  LOG("AB tx is %d chan %d at %lu nonce %s",knAB->tx,knAB->chan,knAB->start,util_hex(mAB->nonce,8,NULL));
+  fail_unless(knAB->tx == 1);
+  fail_unless(tmesh_knocked(netA,knBA));
+  while(knBA->mote != mBA) fail_unless(tmesh_process(netB,mBA->at+1,0));
+  LOG("BA tx is %d chan %d at %lu nonce %s",knBA->tx,knBA->chan,knAB->start,util_hex(mBA->nonce,8,NULL));
+  fail_unless(knBA->tx == 0);
 
   // in sync!
-  fail_unless(mBA->pong);
-  fail_unless(mBA->ping);
+  fail_unless(!mBA->pong);
+  fail_unless(!mBA->ping);
   
-  LOG("process netA");
-  fail_unless(!tmesh_knocked(netA,knAB));
-  fail_unless(!tmesh_process(netA,1,0));
-
-  LOG("BA ping %d pong %d",mBA->ping,mBA->pong);
-  LOG("AB ping %d pong %d",mAB->ping,mAB->pong);
-
-  // in sync!
-  fail_unless(mAB->pong);
-  fail_unless(mAB->ping);
-
   // continue establishing link
   uint8_t max = 10;
   uint32_t step = mBA->at;
-  mBA->at = mAB->at;
-  memcpy(mBA->nonce,mAB->nonce,8);
-  memset(knBA,0,sizeof(struct knock_struct));
-  memset(knAB,0,sizeof(struct knock_struct));
   while(--max && !link_up(mBA->link) && !link_up(mAB->link))
   {
-    LOG("netA");
-    tmesh_process(netA,step+1,0);
-
-    LOG("netB");
+    LOG("\nnetB");
+    tmesh_knocked(netB,knBA);
     tmesh_process(netB,step+1,0);
 
+    LOG("\nnetA");
+    tmesh_knocked(netA,knAB);
+    tmesh_process(netA,step+1,0);
+
     LOG("AB %d %d/%d BA %d %d/%d",knAB->tx,knAB->start,knAB->stop,knBA->tx,knBA->start,knBA->stop);
+    
     step = knAB->done + 1;
   }
   LOG("linked by %d",max);

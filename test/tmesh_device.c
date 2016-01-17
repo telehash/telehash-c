@@ -5,6 +5,8 @@ medium_t device_get(radio_t self, tmesh_t tm, uint8_t medium[5])
   // each device only takes one mesh
   if(self == &radioA && tm != netA) return LOG("skip A");
   if(self == &radioB && tm != netB) return LOG("skip B");
+  
+  LOG("RADIO new medium for %s",(tm == netA) ? "netA" : "netB");
 
   medium_t m;
   if(!(m = malloc(sizeof(struct medium_struct)))) return LOG("OOM");
@@ -30,7 +32,12 @@ tmesh_t device_ready(radio_t self, tmesh_t tm, knock_t knock)
   {
     memcpy(com_frame,knock->frame,64);
     com_chan = knock->chan;
+    LOG("RADIO %s TX on %d",(tm == netA) ? "netA" : "netB",com_chan);
   }else if(com_chan == knock->chan) {
+    LOG("RADIO %s RX on %d",(tm == netA) ? "netA" : "netB",com_chan);
+    memcpy(knock->frame,com_frame,64);
+  }else{
+    LOG("RADIO %s FAIL %d != %d",(tm == netA) ? "netA" : "netB",com_chan,knock->chan);
     memcpy(knock->frame,com_frame,64);
   }
   knock->done = knock->stop;
