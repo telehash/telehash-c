@@ -49,7 +49,6 @@ static cmnty_t cmnty_new(tmesh_t tm, char *medium, char *name)
   uint8_t bin[5];
   if(!tm || !name || !medium || strlen(medium) != 8) return LOG("bad args");
   if(base32_decode(medium,0,bin,5) != 5) return LOG("bad medium encoding: %s",medium);
-  if(!medium_check(tm,bin)) return LOG("unknown medium %s",medium);
 
   if(!(c = malloc(sizeof (struct cmnty_struct)))) return LOG("OOM");
   memset(c,0,sizeof (struct cmnty_struct));
@@ -232,18 +231,6 @@ void tmesh_free(tmesh_t tm)
 // all devices
 radio_t radio_devices[RADIOS_MAX] = {0};
 
-// validate medium by checking energy
-uint32_t medium_check(tmesh_t tm, uint8_t medium[5])
-{
-  int i;
-  uint32_t energy;
-  for(i=0;i<RADIOS_MAX && radio_devices[i];i++)
-  {
-    if((energy = radio_devices[i]->energy(tm, medium))) return energy;
-  }
-  return 0;
-}
-
 // get the full medium
 medium_t medium_get(tmesh_t tm, uint8_t medium[5])
 {
@@ -252,7 +239,11 @@ medium_t medium_get(tmesh_t tm, uint8_t medium[5])
   // get the medium from a device
   for(i=0;i<RADIOS_MAX && radio_devices[i];i++)
   {
-    if((m = radio_devices[i]->get(tm,medium))) return m;
+    if((m = radio_devices[i]->get(radio_devices[i],tm,medium)))
+    {
+      m->radio = i;
+      return m;
+    }
   }
   return NULL;
 }
@@ -485,16 +476,15 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   return tm;
 }
 
-// process everything based on current cycle count, returns # of knocks ready
-uint8_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
+// process everything based on current cycle count, returns success
+tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
 {
   cmnty_t com;
   mote_t mote;
   lob_t packet;
   struct knock_struct k1, k2;
   knock_t knock;
-  uint8_t ret = 0;
-  if(!tm || !at) return 0;
+  if(!tm || !at) return NULL;
 
   // we are looking for the next knock anywhere
   for(com=tm->coms;com;com=com->next)
@@ -545,14 +535,12 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
     if(knock->tx) tmesh_knock(tm, knock);
     
     // signal driver
-    if(radio->ready && !radio->ready(tm, radio))
+    if(radio->ready && !radio->ready(radio, tm, knock))
     {
       LOG("radio ready driver failed, cancelling knock");
       memset(knock,0,sizeof(struct knock_struct));
       continue;
     }
-
-    ret++;
   }
 
   // now do any heavier processing work decoupled
@@ -593,8 +581,7 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
     mesh_process(tm->mesh,tm->epoch);
   }
 
-  if(!ret) LOG("no knocks scheduled");
-  return ret;
+  return tm;
 }
 
 mote_t mote_new(link_t link)

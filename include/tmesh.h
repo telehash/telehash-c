@@ -13,7 +13,7 @@ typedef struct knock_struct *knock_t; // single action
 // medium management w/ device driver
 struct medium_struct
 {
-  void *device; // used by radio device driver
+  void *arg; // for use by radio device driver
   uint32_t min, max; // cycles to knock, set by driver
   uint32_t avg; // average actual cycles to tx for drift calc
   uint8_t bin[5];
@@ -22,9 +22,6 @@ struct medium_struct
   uint8_t radio:4; // radio device id based on radio_devices[]
   uint8_t zshift:4; // exponent offset for this medium
 };
-
-// validate medium by checking energy
-uint32_t medium_check(tmesh_t tm, uint8_t medium[5]);
 
 // get the full medium
 medium_t medium_get(tmesh_t tm, uint8_t medium[5]);
@@ -78,8 +75,8 @@ void tmesh_free(tmesh_t tm);
 // process any knock that has been completed by a driver
 tmesh_t tmesh_knocked(tmesh_t tm, knock_t k);
 
-// process everything based on current cycle count, optional rebase cycles, returns # of knocks ready
-uint8_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase);
+// process everything based on current cycle count, optional rebase cycles
+tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase);
 
 // a single knock request ready to go
 struct knock_struct
@@ -143,32 +140,31 @@ knock_t knock_sooner(knock_t a, knock_t b);
 // radio devices are responsible for all mediums
 struct radio_struct
 {
-  // return energy cost, or 0 if unknown medium, use for pre-validation/estimation
-  uint32_t (*energy)(tmesh_t tm, uint8_t medium[5]);
-
   // initialize/get any medium scheduling time/cost and channels
-  medium_t (*get)(tmesh_t tm, uint8_t medium[5]);
+  medium_t (*get)(radio_t self, tmesh_t tm, uint8_t medium[5]);
 
   // when a medium isn't used anymore, let the radio free it
-  medium_t (*free)(tmesh_t tm, medium_t m);
+  medium_t (*free)(radio_t self, tmesh_t tm, medium_t m);
 
   // called whenever a new knock is ready to be scheduled
-  tmesh_t (*ready)(tmesh_t tm, radio_t self);
+  tmesh_t (*ready)(radio_t self, tmesh_t tm, knock_t knock);
   
-  // shared between tmesh and driver
+  // shared knock between tmesh and driver
   knock_t knock;
+
+  // for use by the radio driver
+  void *arg;
 
   // guid
   uint8_t id:4;
-  
-  // for the radio driver
-  void *arg;
 };
 
+#ifndef RADIOS_MAX
 #define RADIOS_MAX 1
+#endif
 extern radio_t radio_devices[]; // all of em
 
-// add/set a new device
+// globally add/set a new device
 radio_t radio_device(radio_t device);
 
 
