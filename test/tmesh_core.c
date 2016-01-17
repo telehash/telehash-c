@@ -9,14 +9,16 @@
 #define B_KEY "amhofcnwgmolf3owg2kipr5vus7uifydsy"
 #define B_SEC "ge4i7h3jln4kltngwftg2yqtjjvemerw"
 
+tmesh_t netA = NULL, netB = NULL;
+
 #include "./tmesh_device.c"
-extern struct radio_struct test_device;
 
 int main(int argc, char **argv)
 {
-  radio_t dev;
+  radio_t devA, devB;
   fail_unless(!e3x_init(NULL)); // random seed
-  fail_unless((dev = radio_device(&test_device)));
+  fail_unless((devA = radio_device(&radioA)));
+  fail_unless((devB = radio_device(&radioB)));
   
   mesh_t meshA = mesh_new(3);
   fail_unless(meshA);
@@ -33,11 +35,12 @@ int main(int argc, char **argv)
   link_t link = link_get(meshA,hnB);
   fail_unless(link);
   
-  tmesh_t netA = tmesh_new(meshA, NULL);
+  netA = tmesh_new(meshA, NULL);
   fail_unless(netA);
   cmnty_t c = tmesh_join(netA,"qzjb5f4t","foo");
   fail_unless(c);
   fail_unless(c->medium->bin[0] == 134);
+  fail_unless(c->medium->radio == devA->id);
   fail_unless(c->public == NULL);
   fail_unless(c->pipe->path);
   LOG("netA %.*s",c->pipe->path->head_len,c->pipe->path->head);
@@ -67,7 +70,7 @@ int main(int argc, char **argv)
   
   fail_unless(mote_reset(m));
   memset(m->nonce,0,8); // nonce is random, force stable for fixture testing
-  knock_t knock = dev->knock;
+  knock_t knock = devA->knock;
   fail_unless(mote_advance(m));
   LOG("next is %lld",m->at);
   fail_unless(m->at == 263154);
@@ -119,6 +122,7 @@ int main(int argc, char **argv)
   fail_unless(knock->stop == 1003);
   fail_unless(knock->chan == 14);
 
+  /*
   // public ping tx
   memset(m->nonce,4,8); // fixture for testing
   m->order = 1;
@@ -145,7 +149,8 @@ int main(int argc, char **argv)
 
   // leave public community
   fail_unless(tmesh_leave(netA,c));
-
+*/
+  
   // two motes meshing
   mesh_t meshB = mesh_new(3);
   fail_unless(meshB);
@@ -158,7 +163,7 @@ int main(int argc, char **argv)
   link_t linkBA = link_get(meshB,hnA);
   fail_unless(linkBA);
   
-  tmesh_t netB = tmesh_new(meshB, NULL);
+  netB = tmesh_new(meshB, NULL);
   fail_unless(netB);
   cmnty_t cB = tmesh_join(netB,"qzjb5f4t","test");
   fail_unless(cB);
@@ -174,43 +179,38 @@ int main(int argc, char **argv)
   fail_unless(mBA);
   fail_unless(mBA->ping);
   fail_unless(mBA->order == 1);
-  LOG("secret %s",util_hex(mBA->secret,32,hex));
+  LOG("mBA %s secret %s",hashname_short(mBA->link->id),util_hex(mBA->secret,32,hex));
   fail_unless(util_cmp(hex,"9a972d28dcc211d43eafdca7877bed1bbeaec30fd3740f4b787355d10423ad12") == 0);
 
   mote_t mAB = tmesh_link(netA, cA, link);
   fail_unless(mAB);
   fail_unless(mAB->ping);
   fail_unless(mAB->order == 0);
-  LOG("secret %s",util_hex(mAB->secret,32,hex));
+  LOG("mAB %s secret %s",hashname_short(mAB->link->id),util_hex(mAB->secret,32,hex));
   fail_unless(util_cmp(hex,"9a972d28dcc211d43eafdca7877bed1bbeaec30fd3740f4b787355d10423ad12") == 0);
   
-  knock_t knAB = dev->knock;
-  memset(knAB,0,sizeof(struct knock_struct));
-  memset(mAB->nonce,12,8);
+  knock_t knAB = devA->knock;
+  knAB->ready = 0;
+  memset(mAB->nonce,11,8);
   fail_unless(tmesh_process(netA,1,0));
   fail_unless(knAB->mote == mAB);
   LOG("AB tx is %d chan %d at %lu nonce %s",knAB->tx,knAB->chan,knAB->start,util_hex(mAB->nonce,8,NULL));
   fail_unless(knAB->chan == 35);
   fail_unless(knAB->tx == 0);
 
-  knock_t knBA = malloc(sizeof(struct knock_struct));
-  memset(knBA,0,sizeof(struct knock_struct));
-  dev->knock = knBA; // manually swapping
+  knock_t knBA = devB->knock;
+  knBA->ready = 0;
   memset(mBA->nonce,0,8);
-  fail_unless(tmesh_process(netB,21102591,0));
+  fail_unless(tmesh_process(netB,15860721,0));
   fail_unless(knBA->mote == mBA);
   LOG("BA tx is %d chan %d at %lu",knBA->tx,knBA->chan,knAB->start);
   fail_unless(knBA->chan == 35);
   fail_unless(knBA->tx == 1);
 
   // fake reception, with fake cake
-  memcpy(knAB->frame,knBA->frame,64);
-  knAB->done = knAB->stop;
-  knBA->done = knBA->stop;
-  
   LOG("process netA");
   fail_unless(tmesh_knocked(netA,knAB));
-  fail_unless(!tmesh_process(netA,knAB->done+1,0));
+  fail_unless(tmesh_process(netA,knAB->done+1,0));
   fail_unless(mAB->pong);
 
   LOG("process netB");
@@ -269,24 +269,15 @@ int main(int argc, char **argv)
   memcpy(mBA->nonce,mAB->nonce,8);
   memset(knBA,0,sizeof(struct knock_struct));
   memset(knAB,0,sizeof(struct knock_struct));
-  dev->knock = malloc(sizeof(struct knock_struct));
-  memset(dev->knock,0,sizeof(struct knock_struct));
   while(--max && !link_up(mBA->link) && !link_up(mAB->link))
   {
     LOG("netA");
-    tmesh_knocked(netA,knAB);
     tmesh_process(netA,step+1,0);
-    memcpy(knAB,dev->knock,sizeof(struct knock_struct));
 
     LOG("netB");
-    tmesh_knocked(netB,knBA);
     tmesh_process(netB,step+1,0);
-    memcpy(knBA,dev->knock,sizeof(struct knock_struct));
+
     LOG("AB %d %d/%d BA %d %d/%d",knAB->tx,knAB->start,knAB->stop,knBA->tx,knBA->start,knBA->stop);
-    if(knAB->tx) memcpy(knAB->frame,knBA->frame,64);
-    else memcpy(knBA->frame,knAB->frame,64);
-    knAB->done = knAB->stop;
-    knBA->done = knBA->stop;
     step = knAB->done + 1;
   }
   LOG("linked by %d",max);

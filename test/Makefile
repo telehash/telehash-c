@@ -5,7 +5,7 @@ TESTS = lib_base32 lib_lob lib_hashname lib_murmur lib_chunks lib_util lib_xht \
 		ext_path ext_peer net_serial tmesh_core chan_core net_bulk 
 
 CC=gcc
-CFLAGS+=-O3 -g -Wall -Wextra -Wno-unused-parameter -DDEBUG
+CFLAGS+=-O3 -g -Wall -Wextra -Wno-unused-parameter -DDEBUG -DRADIOS_MAX=2
 INCLUDE+=-I../unix -I../include -I../include/lib
 
 
