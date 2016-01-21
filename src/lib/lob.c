@@ -609,12 +609,12 @@ int lob_cmp(lob_t a, lob_t b)
 
 lob_t lob_set_json(lob_t p, lob_t json)
 {
-  char *part;
+  char *key;
   uint32_t i = 0;
 
-  while((part = lob_get_index(json,i)))
+  while((key = lob_get_index(json,i)))
   {
-    lob_set(p,part,lob_get_index(json,i+1));
+    lob_set_raw(p,key,0,lob_get_raw(json,key),lob_get_len(json,key));
     i += 2;
   }
   return p;
