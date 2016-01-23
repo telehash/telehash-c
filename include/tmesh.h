@@ -106,9 +106,9 @@ struct mote_struct
   uint8_t chan[2];
   uint32_t at; // cycles until next knock
   util_chunks_t chunks; // actual chunk encoding for r/w frame buffers
-  uint16_t sent, received;
+  uint16_t txz, rxz; // empty tx/rx counts
+  uint8_t last, best, worst; // rssi
   uint8_t z;
-  uint8_t rssi[3]; // last, best, worst
   uint8_t order:1; // is hashname compare
   uint8_t ping:1; // is in ping mode
   uint8_t pong:1; // ready for pong

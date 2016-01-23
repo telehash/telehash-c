@@ -300,7 +300,13 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
   }
 
   // fill in chunk tx
-  if(util_chunks_size(k->mote->chunks) <= 0) return tm; // nothing to send, noop
+  if(util_chunks_size(k->mote->chunks) <= 0)
+  {
+    // nothing to send, noop
+    k->mote->txz++;
+    return tm;
+  }
+
   uint8_t size = util_chunks_size(k->mote->chunks);
   if(size == 62 && util_chunks_peek(k->mote->chunks) == 0) size++; // flag is terminated even tho full
 
@@ -329,6 +335,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   
   if(k->err)
   {
+    if(!k->tx) k->mote->rxz++; // count missed rx knocks
     LOG("knock error");
     k->mote->pong = 0; // always clear pong state
     return tm;
@@ -337,8 +344,8 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   // tx just updates state things here
   if(k->tx)
   {
-    k->mote->sent++;
-    LOG("tx done, total %d next at %lu",k->mote->sent,k->mote->at);
+    k->mote->txz = 0;
+    LOG("tx done, next at %lu",k->mote->at);
     
     if(k->mote->pong)
     {
@@ -371,7 +378,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   // rx knock handling now
   
   // update last seen rssi for all
-  k->mote->rssi[0] = k->rssi;
+  k->mote->last = k->rssi;
 
   // ooh, got a ping eh?
   if(k->mote->ping)
@@ -465,11 +472,11 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   if(size > 63) return LOG("invalid chunk frame, too large: %d",size);
 
   // received stats only after minimal validation
-  k->mote->received++;
-  if(k->rssi < k->mote->rssi[1]) k->mote->rssi[1] = k->rssi;
-  if(k->rssi > k->mote->rssi[2]) k->mote->rssi[2] = k->rssi;
+  k->mote->rxz = 0;
+  if(k->rssi < k->mote->best) k->mote->best = k->rssi;
+  if(k->rssi > k->mote->worst) k->mote->worst = k->rssi;
   
-  LOG("rx done, total %d chunk len %d rssi %d/%d/%d", k->mote->received,size,k->mote->rssi[0],k->mote->rssi[1],k->mote->rssi[2]);
+  LOG("rx done, chunk len %d rssi %d/%d/%d",size,k->mote->last,k->mote->best,k->mote->worst);
 
   // process incoming chunk to link
   util_chunks_chunk(k->mote->chunks,k->frame+2,size);
@@ -630,8 +637,8 @@ mote_t mote_reset(mote_t m)
   LOG("resetting mote");
 
   // reset stats
-  m->sent = m->received = 0;
-  m->rssi[0] = m->rssi[1] = m->rssi[2] = 0;
+  m->txz = m->rxz = 0;
+  m->last = m->best = m->worst = 0;
 
   // generate mote-specific secret, roll up community first
   e3x_hash(m->com->medium->bin,5,roll);
@@ -754,7 +761,7 @@ mote_t mote_synced(mote_t m)
     {
       mote_t lmote = tmesh_link(m->com->tm, m->com, m->link);
       lmote->at = m->at;
-      lmote->rssi[0] = m->rssi[0];
+      lmote->last = m->last;
       memcpy(lmote->nonce,m->nonce,8);
       mote_advance(lmote); // step forward a window
       m->link = NULL;
