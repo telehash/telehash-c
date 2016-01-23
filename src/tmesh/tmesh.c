@@ -83,7 +83,7 @@ cmnty_t tmesh_join(tmesh_t tm, char *medium, char *name)
     c->public = c->motes = mote_new(NULL);
     c->public->com = c;
     mote_reset(c->public);
-    c->public->at = 1; // enabled by default, TODO make recent to avoid window catchup
+    c->public->at = tm->last;
     c->public->public = 1;
 
     // generate public intermediate keys packet
@@ -431,14 +431,12 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     // since there's no ordering w/ public pings, make sure we're inverted to the sender for the pong
     if(k->mote->public) k->mote->order = mote_tx(k->mote) ? 1 : 0;
 
-    // fast forward to the ping's wait nonce
-    uint8_t max = 100;
-    while(--max && memcmp(k->frame+8, k->mote->nonce, 8) != 0) mote_advance(k->mote);
-    // be safe
-    if(!max)
+    // fast forward to next tx
+    while(!mote_tx(k->mote)) mote_advance(k->mote);
+
+    if(memcmp(k->frame+8, k->mote->nonce, 8) != 0)
     {
-      LOG("failed to find wait nonce in time: %s",util_hex(k->frame+8,8,NULL));
-      k->mote->at = 0;
+      LOG("invalid nonce received: %s",util_hex(k->frame+8,8,NULL));
     }else{
       k->mote->pong = 1;
       k->mote->priority += 2;

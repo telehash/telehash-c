@@ -50,6 +50,7 @@ int main(int argc, char **argv)
 
   char hex[256];
   mote_t m;
+  netA->last = 1;
   fail_unless(!tmesh_join(netA, "azdhpa5r", NULL));
   fail_unless((c = tmesh_join(netA, "azdhpa5n", "")));
   fail_unless(c->public);
