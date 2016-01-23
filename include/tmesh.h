@@ -88,6 +88,7 @@ struct knock_struct
   uint8_t frame[64];
   uint8_t nonce[8]; // nonce for this knock
   uint8_t chan; // current channel (< med->chans)
+  uint8_t rssi; // set by driver only after rx
   // boolean flags for state tracking
   uint8_t tx:1; // tells radio to tx or rx
   uint8_t ready:1; // is ready to transceive
@@ -107,6 +108,7 @@ struct mote_struct
   util_chunks_t chunks; // actual chunk encoding for r/w frame buffers
   uint16_t sent, received;
   uint8_t z;
+  uint8_t rssi[3]; // last, best, worst
   uint8_t order:1; // is hashname compare
   uint8_t ping:1; // is in ping mode
   uint8_t pong:1; // ready for pong

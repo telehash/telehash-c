@@ -370,10 +370,13 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 
   // rx knock handling now
   
+  // update last seen rssi for all
+  k->mote->rssi[0] = k->rssi;
+
   // ooh, got a ping eh?
   if(k->mote->ping)
   {
-    LOG("PING RX %s",util_hex(k->frame,8,NULL));
+    LOG("PING RX %s RSSI %d",util_hex(k->frame,8,NULL),k->rssi);
 
     // first decipher frame using given nonce
     chacha20(k->mote->secret,k->frame,k->frame+8,64-8);
@@ -465,8 +468,10 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 
   // received stats only after minimal validation
   k->mote->received++;
+  if(k->rssi < k->mote->rssi[1]) k->mote->rssi[1] = k->rssi;
+  if(k->rssi > k->mote->rssi[2]) k->mote->rssi[2] = k->rssi;
   
-  LOG("rx done, total %d chunk len %d",k->mote->received,size);
+  LOG("rx done, total %d chunk len %d rssi %d/%d/%d", k->mote->received,size,k->mote->rssi[0],k->mote->rssi[1],k->mote->rssi[2]);
 
   // process incoming chunk to link
   util_chunks_chunk(k->mote->chunks,k->frame+2,size);
@@ -628,6 +633,7 @@ mote_t mote_reset(mote_t m)
 
   // reset stats
   m->sent = m->received = 0;
+  m->rssi[0] = m->rssi[1] = m->rssi[2] = 0;
 
   // generate mote-specific secret, roll up community first
   e3x_hash(m->com->medium->bin,5,roll);
@@ -757,6 +763,7 @@ mote_t mote_synced(mote_t m)
     {
       mote_t lmote = tmesh_link(m->com->tm, m->com, m->link);
       lmote->at = m->at;
+      lmote->rssi[0] = m->rssi[0];
       memcpy(lmote->nonce,m->nonce,8);
       mote_advance(lmote); // step forward a window
       m->link = NULL;

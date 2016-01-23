@@ -9,7 +9,7 @@
 120	chan_t
 64	pipe_t
 56	tmesh_t
-88	mote_t
+96	mote_t
 32	medium_t
 64	cmnty_t
 104	knock_t
