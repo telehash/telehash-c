@@ -701,13 +701,6 @@ mote_t mote_advance(mote_t m)
   
   LOG("advanced to nonce %s at %lu next %lu",util_hex(m->nonce,8,NULL),m->at,next);
 
-  // skip a tx if nothing to send
-  if(!m->ping && mote_tx(m) && util_chunks_size(m->chunks) <= 0)
-  {
-    LOG("skipping empty TX window");
-    return mote_advance(m);
-  }
-
   return m;
 }
 
@@ -735,14 +728,14 @@ mote_t mote_knock(mote_t m, knock_t k)
   // stop is minimal when receiving in sync
   k->stop = k->start + ((!k->tx && !m->ping) ? k->medium->min : k->medium->max);
 
-  // very remote case of overlow (70min minus max micros), just sets to max avail, slight inefficiency?
-  if(k->stop < k->start) k->stop = 0xffffffff;
-
   // derive current channel
   k->chan = m->chan[1] % k->medium->chans;
 
   // cache nonce
   memcpy(k->nonce,m->nonce,8);
+
+  // deprioritize if nothing to tx
+  if(!m->ping && k->tx && util_chunks_size(m->chunks) <= 0) m->priority = 0;
 
   return m;
 }
