@@ -210,6 +210,7 @@ tmesh_t tmesh_new(mesh_t mesh, lob_t options)
   mesh_on_open(mesh, "tmesh_open", tmesh_on_open);
   tm->sort = knock_sooner;
   tm->epoch = 1;
+  e3x_rand(tm->seed,4);
   
   return tm;
 }
@@ -288,8 +289,11 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
     // copy in hashname
     memcpy(k->frame+8+8,hashname_bin(tm->mesh->id),32);
 
+    // copy in our reset seed
+    memcpy(k->frame+8+8+32,tm->seed,4);
+
     // random fill rest
-    e3x_rand(k->frame+8+8+32,64-(8+8+32));
+    e3x_rand(k->frame+8+8+32+4,64-(8+8+32+4));
 
      // ciphertext frame after nonce
     chacha20(k->mote->secret,k->frame,k->frame+8,64-8);
@@ -415,9 +419,9 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
       link_t link = link_get(tm->mesh, id);
       mlink = tmesh_link(tm, k->mote->com, link);
       if(!mlink) return LOG("mote link failed");
-      if(!mlink->ping || mlink->pong) return LOG("ignoring public ping for an active mote");
+      if(memcmp(mlink->seed,k->frame+8+8+32,4) == 0) return LOG("ignoring public ping for an active mote");
       LOG("new/reset mote to %s",hashname_short(mlink->link->id));
-      mlink->at = 0xffffffff; // disabled, as mote_synced of public will free it
+      mlink->at = 0xffffffff; // disabled, as mote_synced of public will update it
       k->mote->link = link; // cache for synced
     }
 
@@ -425,15 +429,18 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     if(memcmp(k->nonce,k->frame,8) == 0)
     {
       LOG("incoming pong is to legit to quit");
-      memcpy(k->mote->nonce,k->frame+8,8); // copy in the given bundled sync nonce
+      // copy in the given bundled sync nonce and reset seed
+      memcpy(k->mote->nonce,k->frame+8,8);
+      memcpy(k->mote->seed,k->frame+8+8+32,4);
       mote_synced(k->mote);
       return tm;
     }
 
     LOG("incoming ping, preparing to send pong");
 
-    // always sync wait to the bundled nonce for the next pong
+    // always sync seed and wait to the bundled nonce for the next pong
     memcpy(k->mote->nonce,k->frame,8);
+    memcpy(k->mote->seed,k->frame+8+8+32,4);
     
     // since there's no ordering w/ public pings, make sure we're inverted to the sender for the pong
     if(k->mote->public) k->mote->order = mote_tx(k->mote) ? 1 : 0;
@@ -639,6 +646,7 @@ mote_t mote_reset(mote_t m)
   // reset stats
   m->txz = m->rxz = 0;
   m->last = m->best = m->worst = 0;
+  memset(m->seed,0,4);
 
   // generate mote-specific secret, roll up community first
   e3x_hash(m->com->medium->bin,5,roll);

@@ -65,6 +65,7 @@ struct tmesh_struct
   uint32_t epoch; // for relative time into mesh_process
   uint32_t cycles; // remainder for epoch
   knock_t (*sort)(knock_t a, knock_t b);
+  uint8_t seed[4]; // random seed for restart detection
   uint8_t z; // our preferred z-index
 };
 
@@ -101,12 +102,13 @@ struct mote_struct
   cmnty_t com;
   link_t link; // when known
   mote_t next; // for lists
+  util_chunks_t chunks; // actual chunk encoding for r/w frame buffers
+  uint32_t at; // cycles until next knock
+  uint16_t txz, rxz; // empty tx/rx counts
   uint8_t secret[32];
   uint8_t nonce[8];
+  uint8_t seed[4]; // last seen seed to detect resets
   uint8_t chan[2];
-  uint32_t at; // cycles until next knock
-  util_chunks_t chunks; // actual chunk encoding for r/w frame buffers
-  uint16_t txz, rxz; // empty tx/rx counts
   uint8_t last, best, worst; // rssi
   uint8_t z;
   uint8_t order:1; // is hashname compare
