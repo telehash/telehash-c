@@ -10,8 +10,9 @@ every mote is part of one community
 public communities start w/ "Public"
 private include hashname in secret
 every community has one or more mediums
-each community medium has one beacon mote and 1+ detection motes
-each mote has only one active medium
+each community medium has "passive" motes: one beacon and 1+ detection
+all known links in a community are "active" motes
+an active mote is bound to just one medium
 
 */
 
@@ -43,8 +44,8 @@ struct cmnty_struct
   tmesh_t tm;
   char *name;
   medium_t medium;
-  mote_t beacon;
-  mote_t motes; 
+  mote_t passive; // beacon and detection
+  mote_t active; // active links
   pipe_t pipe; // one pipe per community as it's shared performance
   struct cmnty_struct *next;
   uint8_t public:1;
@@ -124,7 +125,7 @@ struct mote_struct
 
 // these are primarily for internal use
 
-mote_t mote_new(link_t link);
+mote_t mote_new(medium_t medium, link_t link);
 mote_t mote_free(mote_t m);
 
 // resets secret/nonce and to ping mode

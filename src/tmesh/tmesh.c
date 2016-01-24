@@ -21,7 +21,7 @@ static void cmnty_send(pipe_t pipe, lob_t packet, link_t link)
   c = (cmnty_t)pipe->arg;
 
   // find link in this community
-  for(m=c->motes;m;m=m->next) if(m->link == link)
+  for(m=c->active;m;m=m->next) if(m->link == link)
   {
     util_chunks_send(m->chunks, packet);
     LOG("delivering %d to mote, %d",lob_len(packet),util_chunks_size(m->chunks));
@@ -32,13 +32,18 @@ static void cmnty_send(pipe_t pipe, lob_t packet, link_t link)
   lob_free(packet);
 }
 
-static cmnty_t cmnty_free(cmnty_t c)
+static cmnty_t cmnty_free(cmnty_t com)
 {
-  if(!c) return NULL;
+  if(!com) return NULL;
+  radio_t radio = radio_devices[com->medium->radio];
+  if(radio->free) radio->free(radio, com->medium);
+  free(com->medium);
+  
   // do not free c->name, it's part of c->pipe
   // TODO free motes
 //  pipe_free(c->pipe); path may be in mesh->paths 
-  free(c);
+
+  free(com);
   return NULL;
 }
 
@@ -53,7 +58,9 @@ static cmnty_t cmnty_new(tmesh_t tm, char *medium, char *name)
   if(!(c = malloc(sizeof (struct cmnty_struct)))) return LOG("OOM");
   memset(c,0,sizeof (struct cmnty_struct));
 
-  if(!(c->medium = medium_get(tm,bin))) return cmnty_free(c);
+  if(!(c->medium = malloc(sizeof (struct medium_struct)))) return cmnty_free(c);
+  memset(c->medium,0,sizeof (struct medium_struct));
+
   if(!(c->pipe = pipe_new("tmesh"))) return cmnty_free(c);
   c->tm = tm;
   c->next = tm->coms;
@@ -77,15 +84,14 @@ cmnty_t tmesh_join(tmesh_t tm, char *medium, char *name)
   cmnty_t c = cmnty_new(tm,medium,name);
   if(!c) return LOG("bad args");
 
-  if(medium_public(c->medium))
-  {
-    // generate the public shared ping mote
-    c->public = c->motes = mote_new(NULL);
-    c->public->com = c;
-    mote_reset(c->public);
-    c->public->at = tm->last;
-    c->public->public = 1;
+  // generate a beacon and detection mote
+  if(!(c->passive = mote_new(c->medium, NULL))) return cmnty_free(c);
+  c->passive->beacon = 1;
+  if(!(c->passive->next = mote_new(c->medium, NULL))) return cmnty_free(c);
+  c->passive->next->detection = 1;
 
+  if(c->public)
+  {
     // generate public intermediate keys packet
     if(!tm->pubim) tm->pubim = hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys));
     
@@ -123,18 +129,17 @@ tmesh_t tmesh_leave(tmesh_t tm, cmnty_t c)
 }
 
 // add a link known to be in this community to look for
-mote_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link)
+mote_t tmesh_link(tmesh_t tm, cmnty_t com, link_t link)
 {
   mote_t m;
-  if(!tm || !c || !link) return LOG("bad args");
+  if(!tm || !com || !link) return LOG("bad args");
 
   // check list of motes, add if not there
-  for(m=c->motes;m;m = m->next) if(m->link == link && !m->public) return m;
+  for(m=com->active;m;m = m->next) if(m->link == link) return m;
 
-  if(!(m = mote_new(link))) return LOG("OOM");
-  m->next = c->motes;
-  c->motes = m;
-  m->com = c;
+  if(!(m = mote_new(com->medium, link))) return LOG("OOM");
+  m->next = com->active;
+  com->active = m;
   
   return mote_reset(m);
 }
@@ -600,11 +605,15 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
   return tm;
 }
 
-mote_t mote_new(link_t link)
+mote_t mote_new(medium_t medium, link_t link)
 {
   uint8_t i;
+  tmesh_t tm;
   mote_t m;
   
+  if(!medium || !medium->com || !medium->com->tm) return LOG("internal error");
+  tm = medium->com->tm;
+
   if(!(m = malloc(sizeof(struct mote_struct)))) return LOG("OOM");
   memset(m,0,sizeof (struct mote_struct));
 
@@ -623,8 +632,11 @@ mote_t mote_new(link_t link)
     }
     // TODO set up link down event handler to remove this mote
   }
+  
+  m->at = tm->last;
+  m->medium = medium;
 
-  return m;
+  return mote_reset(m);
 }
 
 mote_t mote_free(mote_t m)
@@ -643,7 +655,8 @@ mote_t mote_reset(mote_t m)
   
   LOG("resetting mote");
 
-  // reset stats
+  // reset to defaults
+  m->z = m->medium->z;
   m->txz = m->rxz = 0;
   m->last = m->best = m->worst = 0;
   memset(m->seed,0,4);
@@ -685,11 +698,6 @@ mote_t mote_reset(mote_t m)
   // randomize nonce
   e3x_rand(m->nonce,8);
   
-  // always in ping mode after reset and default z
-  m->ping = 1;
-  m->z = m->com->medium->z;
-  m->pong = 0;
-
   return m;
 }
 
