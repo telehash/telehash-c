@@ -3,6 +3,18 @@
 
 #include "mesh.h"
 
+/*
+
+one mote per link
+every mote is part of one community
+public communities start w/ "Public"
+every community has multiple mediums
+each mote has only one active medium
+other mediums are sent community pings based on map
+each medium has a neighborhood
+
+*/
+
 typedef struct tmesh_struct *tmesh_t;
 typedef struct cmnty_struct *cmnty_t; // list of motes
 typedef struct mote_struct *mote_t; // secret, nonce, time, knock
