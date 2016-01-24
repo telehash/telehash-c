@@ -8,12 +8,12 @@
 one mote per link
 every mote is part of one community
 public communities start w/ "Public"
-private include hashname in secret
+private include hashname in secret, new motes must be invited by active ones
 every community has one or more mediums
-each community medium has "passive" motes: one beacon and 1+ detection
-beacon is fixed channel, detection always follows any beacon tx or rx for handshakes
-all known links in a community are "active" motes
-an active mote is bound to just one medium
+each community medium has 1+ beacon motes
+beacon tx/rx is always fixed channel, public community has dedicated beacon hashname \0\0\0\0...
+one beacon mote per known hashname for signal detection and handshakes, cloned for new links
+all known links in a community have motes bound to just one medium
 
 */
 
@@ -45,8 +45,8 @@ struct cmnty_struct
   tmesh_t tm;
   char *name;
   medium_t medium;
-  mote_t passive; // beacon and detection
-  mote_t active; // active links
+  mote_t beacons;
+  mote_t links;
   pipe_t pipe; // one pipe per community as it's shared performance
   struct cmnty_struct *next;
   uint8_t public:1;
@@ -99,15 +99,16 @@ struct knock_struct
   uint8_t tx:1; // tells radio to tx or rx
   uint8_t ready:1; // is ready to transceive
   uint8_t err:1; // failed
-  uint8_t ping:1; // is a ping knock (passive)
-  uint8_t pong:1; // is a pong knock (passive)
+  uint8_t ping:1;
+  uint8_t pong:1;
 };
 
 // mote state tracking
 struct mote_struct
 {
   medium_t medium;
-  link_t link; // when known
+  link_t link; // only on link motes
+  hashname_t beacon; // only on beacon motes
   mote_t next; // for lists
   util_chunks_t chunks; // actual chunk encoding for r/w frame buffers
   uint32_t at; // cycles until next knock
@@ -119,9 +120,6 @@ struct mote_struct
   uint8_t last, best, worst; // rssi
   uint8_t z;
   uint8_t order:1; // is hashname compare
-  uint8_t beacon:1; // is the passive beacon mote (sends pings, listens for pongs)
-  uint8_t detection:1; // is a passive detection mote (listens for pings, sends pongs, has link)
-  uint8_t active:1; // is an active mote, has link
   uint8_t priority:3; // next knock priority
 };
 
