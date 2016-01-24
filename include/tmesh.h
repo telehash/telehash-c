@@ -11,6 +11,7 @@ public communities start w/ "Public"
 private include hashname in secret
 every community has one or more mediums
 each community medium has "passive" motes: one beacon and 1+ detection
+beacon is fixed channel, detection always follows any beacon tx or rx for handshakes
 all known links in a community are "active" motes
 an active mote is bound to just one medium
 
@@ -98,8 +99,8 @@ struct knock_struct
   uint8_t tx:1; // tells radio to tx or rx
   uint8_t ready:1; // is ready to transceive
   uint8_t err:1; // failed
-  uint8_t ping:1; // is a ping knock
-  uint8_t pong:1; // is a pong knock
+  uint8_t ping:1; // is a ping knock (passive)
+  uint8_t pong:1; // is a pong knock (passive)
 };
 
 // mote state tracking
@@ -118,8 +119,9 @@ struct mote_struct
   uint8_t last, best, worst; // rssi
   uint8_t z;
   uint8_t order:1; // is hashname compare
-  uint8_t beacon:1; // is the beacon mote (sends pings, listens for pongs)
-  uint8_t detection:1; // is a detection mote (listens for pings, sends pongs)
+  uint8_t beacon:1; // is the passive beacon mote (sends pings, listens for pongs)
+  uint8_t detection:1; // is a passive detection mote (listens for pings, sends pongs, has link)
+  uint8_t active:1; // is an active mote, has link
   uint8_t priority:3; // next knock priority
 };
 

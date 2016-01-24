@@ -57,19 +57,32 @@ static cmnty_t cmnty_new(tmesh_t tm, char *medium, char *name)
 
   if(!(c = malloc(sizeof (struct cmnty_struct)))) return LOG("OOM");
   memset(c,0,sizeof (struct cmnty_struct));
+  c->tm = tm;
 
   if(!(c->medium = malloc(sizeof (struct medium_struct)))) return cmnty_free(c);
   memset(c->medium,0,sizeof (struct medium_struct));
 
-  if(!(c->pipe = pipe_new("tmesh"))) return cmnty_free(c);
-  c->tm = tm;
-  c->next = tm->coms;
-  tm->coms = c;
+  // try to init the medium
+  for(uint8_t i=0;i<RADIOS_MAX && radio_devices[i];i++)
+  {
+    if(radio_devices[i]->init(radio_devices[i],c->medium))
+    {
+      c->medium->radio = i;
+      break;
+    }
+  }
+  if(!c->medium->radio) LOG("unsupported medium %s",medium);
+  if(!c->medium->radio) return cmnty_free(c);
 
   // set up pipe
+  if(!(c->pipe = pipe_new("tmesh"))) return cmnty_free(c);
   c->pipe->arg = c;
   c->name = c->pipe->id = strdup(name);
   c->pipe->send = cmnty_send;
+
+  // make official
+  c->next = tm->coms;
+  tm->coms = c;
 
   return c;
 }
@@ -237,30 +250,6 @@ void tmesh_free(tmesh_t tm)
 // all devices
 radio_t radio_devices[RADIOS_MAX] = {0};
 
-// get the full medium
-medium_t medium_get(tmesh_t tm, uint8_t medium[5])
-{
-  int i;
-  medium_t m;
-  // get the medium from a device
-  for(i=0;i<RADIOS_MAX && radio_devices[i];i++)
-  {
-    if((m = radio_devices[i]->get(radio_devices[i],tm,medium)))
-    {
-      m->radio = i;
-      return m;
-    }
-  }
-  return NULL;
-}
-
-uint8_t medium_public(medium_t m)
-{
-  if(m && m->bin[0] > 128) return 0;
-  return 1;
-}
-
-
 radio_t radio_device(radio_t device)
 {
   int i;
@@ -282,7 +271,7 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
   if(!tm || !k) return LOG("bad args");
 
   // construct ping tx frame data, same for all the things
-  if(k->mote->ping)
+  if(k->ping)
   {
     // copy in ping nonce
     memcpy(k->frame,k->nonce,8);
@@ -363,7 +352,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
       // a sent pong sets this mote free
       mote_synced(k->mote);
       k->mote->pong = 0;
-    }else if(k->mote->ping){
+    }else if(k->ping){
       // sent ping will always rebase time to when tx was actually completed
       k->mote->at = k->done;
       // restore the sent nonce
@@ -390,7 +379,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   k->mote->last = k->rssi;
 
   // ooh, got a ping eh?
-  if(k->mote->ping)
+  if(k->ping)
   {
     LOG("PING RX %s RSSI %d",util_hex(k->frame,8,NULL),k->rssi);
 
@@ -733,9 +722,10 @@ mote_t mote_knock(mote_t m, knock_t k)
   k->mote = m;
   k->medium = m->com->medium; // shortcut
   k->start = k->stop = 0;
+  k->ping = k->pong = 0;
 
-  // set current non-ping channel
-  if(!m->ping)
+  // set current active channel
+  if(m->link)
   {
     memset(m->chan,0,2);
     chacha20(m->secret,m->nonce,m->chan,2);
@@ -744,10 +734,20 @@ mote_t mote_knock(mote_t m, knock_t k)
   // direction
   k->tx = mote_tx(m);
 
+  // set ping/pong mode flags if passive
+  if(m->beacon)
+  {
+    k->ping = k->tx;
+    k->pong = !k->tx
+  }else if(m->detection){
+    k->ping = !k->tx;
+    k->pong = k->tx
+  }
+
   // set relative start/stop times
   k->start = m->at;
-  // stop is minimal when receiving in sync
-  k->stop = k->start + ((!k->tx && !m->ping) ? k->medium->min : k->medium->max);
+  // listen window is larger for a beacon
+  k->stop = k->start + (k->tx && m->beacon) ? k->medium->max : k->medium->min);
 
   // derive current channel
   k->chan = m->chan[1] % k->medium->chans;
@@ -755,8 +755,8 @@ mote_t mote_knock(mote_t m, knock_t k)
   // cache nonce
   memcpy(k->nonce,m->nonce,8);
 
-  // deprioritize if nothing to tx
-  if(!m->ping && k->tx && util_chunks_size(m->chunks) <= 0) m->priority = 0;
+  // deprioritize mote if nothing to tx (TODO, inverse and prioritize?)
+  if(m->link && k->tx && util_chunks_size(m->chunks) <= 0) m->priority = 0;
 
   return m;
 }
