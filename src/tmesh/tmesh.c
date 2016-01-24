@@ -21,7 +21,7 @@ static void cmnty_send(pipe_t pipe, lob_t packet, link_t link)
   c = (cmnty_t)pipe->arg;
 
   // find link in this community
-  for(m=c->active;m;m=m->next) if(m->link == link)
+  for(m=c->links;m;m=m->next) if(m->link == link)
   {
     util_chunks_send(m->chunks, packet);
     LOG("delivering %d to mote, %d",lob_len(packet),util_chunks_size(m->chunks));
@@ -95,17 +95,20 @@ static cmnty_t cmnty_new(tmesh_t tm, char *medium, char *name)
 cmnty_t tmesh_join(tmesh_t tm, char *medium, char *name)
 {
   cmnty_t c = cmnty_new(tm,medium,name);
-  if(!c) return LOG("bad args");
+  if(!c || !name) return LOG("bad args");
 
-  // generate a beacon and detection mote
-  if(!(c->passive = mote_new(c->medium, NULL))) return cmnty_free(c);
-  c->passive->beacon = 1;
-  if(!(c->passive->next = mote_new(c->medium, NULL))) return cmnty_free(c);
-  c->passive->next->detection = 1;
-
-  if(c->public)
+  if(strncmp(name,"Public",6) == 0)
   {
-    // generate public intermediate keys packet
+    LOG("joining public community %s on medium %s",name,medium);
+    // add a public beacon mote using generated shared hashname
+    uint8_t hash[32];
+    e3x_hash((uint8_t*)name,strlen(name),hash);
+    hashname_t public = hashname_dup(hashname_vbin(hash));
+    if(!(c->beacons = mote_new(c->medium, public))) return cmnty_free(c);
+    c->beacons->beacon = public;
+    c->beacons->public = 1; // convenience flag for altered logic
+
+    // one-time generate public intermediate keys packet
     if(!tm->pubim) tm->pubim = hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys));
     
   }else{
@@ -117,7 +120,6 @@ cmnty_t tmesh_join(tmesh_t tm, char *medium, char *name)
     
   }
   
-
   return c;
 }
 
@@ -141,20 +143,31 @@ tmesh_t tmesh_leave(tmesh_t tm, cmnty_t c)
   return tm;
 }
 
-// add a link known to be in this community to look for
+// add a link known to be in this community
 mote_t tmesh_link(tmesh_t tm, cmnty_t com, link_t link)
 {
   mote_t m;
   if(!tm || !com || !link) return LOG("bad args");
 
   // check list of motes, add if not there
-  for(m=com->active;m;m = m->next) if(m->link == link) return m;
+  for(m=com->links;m;m = m->next) if(m->link == link) return m;
 
-  if(!(m = mote_new(com->medium, link))) return LOG("OOM");
-  m->next = com->active;
-  com->active = m;
+  if(!(m = mote_new(com->medium, link->id))) return LOG("OOM");
+  m->next = com->links;
+  com->links = m;
+
+  // TODO set up link down event handler to remove this mote
   
   return mote_reset(m);
+}
+
+// start looking for this hashname in this community, will link once found
+mote_t tmesh_seek(tmesh_t tm, cmnty_t com, hashname_t id)
+{
+  mote_t m = NULL;
+  if(!tm || !com || !id) return LOG("bad args");
+  LOG("TODO");
+  return m;
 }
 
 pipe_t tmesh_on_path(link_t link, lob_t path)
@@ -411,7 +424,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
       hashname_t id = hashname_vbin(k->frame+8+8);
       if(hashname_cmp(id,tm->mesh->id) == 0) return LOG("identity crisis");
       link_t link = link_get(tm->mesh, id);
-      mlink = tmesh_link(tm, k->mote->com, link);
+      mlink = tmesh_link(tm, k->mote->medium->com, link);
       if(!mlink) return LOG("mote link failed");
       if(memcmp(mlink->seed,k->frame+8+8+32,4) == 0) return LOG("ignoring public ping for an active mote");
       LOG("new/reset mote to %s",hashname_short(mlink->link->id));
@@ -461,7 +474,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   // TODO check and validate frame[0] now
 
   // if avg time is provided, calculate a drift based on when this rx was done
-  uint32_t avg = k->medium->avg;
+  uint32_t avg = k->mote->medium->avg;
   uint32_t took = k->done - k->start;
   if(avg && took > avg)
   {
@@ -510,7 +523,8 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
     if(!knock->ready) memset(knock,0,sizeof(struct knock_struct));
 
     // walk the local motes
-    for(mote=com->motes;mote;mote=mote->next)
+    // TODO walk beacons also!
+    for(mote=com->links;mote;mote=mote->next)
     {
       // first rebase cycle count if requested
       if(rebase) mote->at -= rebase;
@@ -548,7 +562,7 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
     if(knock->tx) tmesh_knock(tm, knock);
     
     // signal driver
-    if(radio->ready && !radio->ready(radio, tm, knock))
+    if(radio->ready && !radio->ready(radio, knock->mote->medium, knock))
     {
       LOG("radio ready driver failed, cancelling knock");
       memset(knock,0,sizeof(struct knock_struct));
@@ -559,7 +573,8 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
   // now do any heavier processing work decoupled
   for(com=tm->coms;com;com=com->next)
   {
-    for(mote=com->motes;mote;mote=mote->next)
+    // TODO split out beacon motes!
+    for(mote=com->links;mote;mote=mote->next)
     {
       // process any packets on this mote
       while((packet = util_chunks_receive(mote->chunks)))
@@ -594,43 +609,37 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
   return tm;
 }
 
-mote_t mote_new(medium_t medium, link_t link)
+mote_t mote_new(medium_t medium, hashname_t id)
 {
   uint8_t i;
   tmesh_t tm;
   mote_t m;
   
-  if(!medium || !medium->com || !medium->com->tm) return LOG("internal error");
+  if(!medium || !medium->com || !medium->com->tm || !id) return LOG("internal error");
   tm = medium->com->tm;
 
   if(!(m = malloc(sizeof(struct mote_struct)))) return LOG("OOM");
   memset(m,0,sizeof (struct mote_struct));
-
-  // determine ordering based on hashname compare
-  if(link)
-  {
-    if(!(m->chunks = util_chunks_new(63))) return mote_free(m);
-    m->link = link;
-    uint8_t *bin1 = hashname_bin(link->id);
-    uint8_t *bin2 = hashname_bin(link->mesh->id);
-    for(i=0;i<32;i++)
-    {
-      if(bin1[i] == bin2[i]) continue;
-      m->order = (bin1[i] > bin2[i]) ? 1 : 0;
-      break;
-    }
-    // TODO set up link down event handler to remove this mote
-  }
-  
   m->at = tm->last;
   m->medium = medium;
 
+  // determine ordering based on hashname compare
+  uint8_t *bin1 = hashname_bin(id);
+  uint8_t *bin2 = hashname_bin(tm->mesh->id);
+  for(i=0;i<32;i++)
+  {
+    if(bin1[i] == bin2[i]) continue;
+    m->order = (bin1[i] > bin2[i]) ? 1 : 0;
+    break;
+  }
+  
   return mote_reset(m);
 }
 
 mote_t mote_free(mote_t m)
 {
   if(!m) return NULL;
+  hashname_free(m->beacon);
   util_chunks_free(m->chunks);
   free(m);
   return NULL;
@@ -639,8 +648,8 @@ mote_t mote_free(mote_t m)
 mote_t mote_reset(mote_t m)
 {
   uint8_t *a, *b, roll[64];
-  uint8_t zeros[32] = {0};
-  if(!m) return LOG("bad args");
+  if(!m || !m->medium) return LOG("bad args");
+  tmesh_t tm = m->medium->com->tm;
   
   LOG("resetting mote");
 
@@ -649,27 +658,29 @@ mote_t mote_reset(mote_t m)
   m->txz = m->rxz = 0;
   m->last = m->best = m->worst = 0;
   memset(m->seed,0,4);
+  m->chunks = util_chunks_free(m->chunks);
+
+  // TODO detach pipe from link?
 
   // generate mote-specific secret, roll up community first
-  e3x_hash(m->com->medium->bin,5,roll);
-  e3x_hash((uint8_t*)(m->com->name),strlen(m->com->name),roll+32);
+  e3x_hash(m->medium->bin,5,roll);
+  e3x_hash((uint8_t*)(m->medium->com->name),strlen(m->medium->com->name),roll+32);
   e3x_hash(roll,64,m->secret);
 
-  // no link, uses zeros
-  if(!m->link)
+  if(m->public)
   {
-    a = b = zeros;
+    // public uses single shared hashname
+    a = b = hashname_bin(m->beacon);
   }else{
-    m->chunks = util_chunks_free(m->chunks);
-    // TODO detach pipe from link
     // add both hashnames in order
+    hashname_t id = (m->beacon) ? m->beacon : m->link->id;
     if(m->order)
     {
-      a = hashname_bin(m->link->id);
-      b = hashname_bin(m->link->mesh->id);
+      a = hashname_bin(id);
+      b = hashname_bin(tm->mesh->id);
     }else{
-      b = hashname_bin(m->link->id);
-      a = hashname_bin(m->link->mesh->id);
+      b = hashname_bin(id);
+      a = hashname_bin(tm->mesh->id);
     }
   }
   memcpy(roll,m->secret,32);
@@ -705,9 +716,9 @@ mote_t mote_advance(mote_t m)
   uint32_t next = util_sys_long((unsigned long)*(m->nonce));
 
   // smaller for high z, using only high 4 bits of z
-  next >>= (m->z >> 4) + m->com->medium->zshift;
+  next >>= (m->z >> 4) + m->medium->zshift;
 
-  m->at += next + m->com->medium->min + m->com->medium->max;
+  m->at += next + m->medium->min + m->medium->max;
   
   LOG("advanced to nonce %s at %lu next %lu",util_hex(m->nonce,8,NULL),m->at,next);
 
@@ -720,7 +731,6 @@ mote_t mote_knock(mote_t m, knock_t k)
   if(!m || !k) return LOG("bad args");
 
   k->mote = m;
-  k->medium = m->com->medium; // shortcut
   k->start = k->stop = 0;
   k->ping = k->pong = 0;
 
@@ -738,19 +748,19 @@ mote_t mote_knock(mote_t m, knock_t k)
   if(m->beacon)
   {
     k->ping = k->tx;
-    k->pong = !k->tx
+    k->pong = !k->tx;
   }else if(m->detection){
     k->ping = !k->tx;
-    k->pong = k->tx
+    k->pong = k->tx;
   }
 
   // set relative start/stop times
   k->start = m->at;
   // listen window is larger for a beacon
-  k->stop = k->start + (k->tx && m->beacon) ? k->medium->max : k->medium->min);
+  k->stop = k->start + ((k->tx && m->beacon) ? m->medium->max : m->medium->min);
 
   // derive current channel
-  k->chan = m->chan[1] % k->medium->chans;
+  k->chan = m->chan[1] % m->medium->chans;
 
   // cache nonce
   memcpy(k->nonce,m->nonce,8);
@@ -775,7 +785,7 @@ mote_t mote_synced(mote_t m)
     // sync any cached link mote to same time/nonce seed
     if(m->link)
     {
-      mote_t lmote = tmesh_link(m->com->tm, m->com, m->link);
+      mote_t lmote = tmesh_link(m->medium->com->tm, m->medium->com, m->link);
       lmote->at = m->at;
       lmote->last = m->last;
       memcpy(lmote->nonce,m->nonce,8);
@@ -798,12 +808,12 @@ mote_t mote_synced(mote_t m)
   m->chunks = util_chunks_new(63);
   m->chunks->blocking = 0;
   // establish the pipe path
-  link_pipe(m->link,m->com->pipe);
+  link_pipe(m->link,m->medium->com->pipe);
   // if public and no keys, send discovery
-  if(m->com->tm->pubim && !m->link->x)
+  if(m->medium->com->tm->pubim && !m->link->x)
   {
-    LOG("sending bare discovery %s",lob_json(m->com->tm->pubim));
-    pipe_send(m->com->pipe, lob_copy(m->com->tm->pubim), m->link);
+    LOG("sending bare discovery %s",lob_json(m->medium->com->tm->pubim));
+    pipe_send(m->medium->com->pipe, lob_copy(m->medium->com->tm->pubim), m->link);
     return m;
   }
   // trigger a new handshake over it

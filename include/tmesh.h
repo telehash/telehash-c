@@ -44,12 +44,11 @@ struct cmnty_struct
 {
   tmesh_t tm;
   char *name;
-  medium_t medium;
+  medium_t medium; // TODO, support multiple per community
   mote_t beacons;
   mote_t links;
   pipe_t pipe; // one pipe per community as it's shared performance
   struct cmnty_struct *next;
-  uint8_t public:1;
 };
 
 // join a new private/public community
@@ -58,8 +57,11 @@ cmnty_t tmesh_join(tmesh_t tm, char *medium, char *name);
 // leave any community
 tmesh_t tmesh_leave(tmesh_t tm, cmnty_t c);
 
-// add a link known to be in this community to look for
+// add a link already known to be in this community
 mote_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link);
+
+// start looking for this hashname in this community, will link once found
+mote_t tmesh_seek(tmesh_t tm, cmnty_t c, hashname_t id);
 
 // overall tmesh manager
 struct tmesh_struct
@@ -120,12 +122,13 @@ struct mote_struct
   uint8_t last, best, worst; // rssi
   uint8_t z;
   uint8_t order:1; // is hashname compare
+  uint8_t public:1; // special public beacon mote
   uint8_t priority:3; // next knock priority
 };
 
 // these are primarily for internal use
 
-mote_t mote_new(medium_t medium, link_t link);
+mote_t mote_new(medium_t medium, hashname_t id);
 mote_t mote_free(mote_t m);
 
 // resets secret/nonce and to ping mode
