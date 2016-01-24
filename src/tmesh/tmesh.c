@@ -49,7 +49,6 @@ static cmnty_t cmnty_new(tmesh_t tm, char *medium, char *name)
   uint8_t bin[5];
   if(!tm || !name || !medium || strlen(medium) != 8) return LOG("bad args");
   if(base32_decode(medium,0,bin,5) != 5) return LOG("bad medium encoding: %s",medium);
-  if(!medium_check(tm,bin)) return LOG("unknown medium %s",medium);
 
   if(!(c = malloc(sizeof (struct cmnty_struct)))) return LOG("OOM");
   memset(c,0,sizeof (struct cmnty_struct));
@@ -84,7 +83,7 @@ cmnty_t tmesh_join(tmesh_t tm, char *medium, char *name)
     c->public = c->motes = mote_new(NULL);
     c->public->com = c;
     mote_reset(c->public);
-    c->public->at = 1; // enabled by default, TODO make recent to avoid window catchup
+    c->public->at = tm->last;
     c->public->public = 1;
 
     // generate public intermediate keys packet
@@ -211,6 +210,7 @@ tmesh_t tmesh_new(mesh_t mesh, lob_t options)
   mesh_on_open(mesh, "tmesh_open", tmesh_on_open);
   tm->sort = knock_sooner;
   tm->epoch = 1;
+  e3x_rand(tm->seed,4);
   
   return tm;
 }
@@ -232,18 +232,6 @@ void tmesh_free(tmesh_t tm)
 // all devices
 radio_t radio_devices[RADIOS_MAX] = {0};
 
-// validate medium by checking energy
-uint32_t medium_check(tmesh_t tm, uint8_t medium[5])
-{
-  int i;
-  uint32_t energy;
-  for(i=0;i<RADIOS_MAX && radio_devices[i];i++)
-  {
-    if((energy = radio_devices[i]->energy(tm, medium))) return energy;
-  }
-  return 0;
-}
-
 // get the full medium
 medium_t medium_get(tmesh_t tm, uint8_t medium[5])
 {
@@ -252,7 +240,11 @@ medium_t medium_get(tmesh_t tm, uint8_t medium[5])
   // get the medium from a device
   for(i=0;i<RADIOS_MAX && radio_devices[i];i++)
   {
-    if((m = radio_devices[i]->get(tm,medium))) return m;
+    if((m = radio_devices[i]->get(radio_devices[i],tm,medium)))
+    {
+      m->radio = i;
+      return m;
+    }
   }
   return NULL;
 }
@@ -297,8 +289,11 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
     // copy in hashname
     memcpy(k->frame+8+8,hashname_bin(tm->mesh->id),32);
 
+    // copy in our reset seed
+    memcpy(k->frame+8+8+32,tm->seed,4);
+
     // random fill rest
-    e3x_rand(k->frame+8+8+32,64-(8+8+32));
+    e3x_rand(k->frame+8+8+32+4,64-(8+8+32+4));
 
      // ciphertext frame after nonce
     chacha20(k->mote->secret,k->frame,k->frame+8,64-8);
@@ -309,7 +304,13 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
   }
 
   // fill in chunk tx
-  if(util_chunks_size(k->mote->chunks) <= 0) return tm; // nothing to send, noop
+  if(util_chunks_size(k->mote->chunks) <= 0)
+  {
+    // nothing to send, noop
+    k->mote->txz++;
+    return tm;
+  }
+
   uint8_t size = util_chunks_size(k->mote->chunks);
   if(size == 62 && util_chunks_peek(k->mote->chunks) == 0) size++; // flag is terminated even tho full
 
@@ -330,12 +331,15 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 {
   mote_t mlink = NULL;
   if(!tm || !k) return LOG("bad args");
+  if(!k->ready) return LOG("knock wasn't ready");
   
-  // clear any priority now
+  // clear some flags straight away
   k->mote->priority = 0;
+  k->ready = 0;
   
   if(k->err)
   {
+    if(!k->tx) k->mote->rxz++; // count missed rx knocks
     LOG("knock error");
     k->mote->pong = 0; // always clear pong state
     return tm;
@@ -344,8 +348,8 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   // tx just updates state things here
   if(k->tx)
   {
-    k->mote->sent++;
-    LOG("tx done, total %d next at %lu",k->mote->sent,k->mote->at);
+    k->mote->txz = 0;
+    LOG("tx done, next at %lu",k->mote->at);
     
     if(k->mote->pong)
     {
@@ -377,10 +381,13 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 
   // rx knock handling now
   
+  // update last seen rssi for all
+  k->mote->last = k->rssi;
+
   // ooh, got a ping eh?
   if(k->mote->ping)
   {
-    LOG("PING RX %s",util_hex(k->frame,8,NULL));
+    LOG("PING RX %s RSSI %d",util_hex(k->frame,8,NULL),k->rssi);
 
     // first decipher frame using given nonce
     chacha20(k->mote->secret,k->frame,k->frame+8,64-8);
@@ -412,9 +419,9 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
       link_t link = link_get(tm->mesh, id);
       mlink = tmesh_link(tm, k->mote->com, link);
       if(!mlink) return LOG("mote link failed");
-      if(!mlink->ping || mlink->pong) return LOG("ignoring public ping for an active mote");
+      if(memcmp(mlink->seed,k->frame+8+8+32,4) == 0) return LOG("ignoring public ping for an active mote");
       LOG("new/reset mote to %s",hashname_short(mlink->link->id));
-      mlink->at = 0xffffffff; // disabled, as mote_synced of public will free it
+      mlink->at = 0xffffffff; // disabled, as mote_synced of public will update it
       k->mote->link = link; // cache for synced
     }
 
@@ -422,27 +429,28 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     if(memcmp(k->nonce,k->frame,8) == 0)
     {
       LOG("incoming pong is to legit to quit");
-      memcpy(k->mote->nonce,k->frame+8,8); // copy in the given bundled sync nonce
+      // copy in the given bundled sync nonce and reset seed
+      memcpy(k->mote->nonce,k->frame+8,8);
+      memcpy(k->mote->seed,k->frame+8+8+32,4);
       mote_synced(k->mote);
       return tm;
     }
 
     LOG("incoming ping, preparing to send pong");
 
-    // always sync wait to the bundled nonce for the next pong
+    // always sync seed and wait to the bundled nonce for the next pong
     memcpy(k->mote->nonce,k->frame,8);
+    memcpy(k->mote->seed,k->frame+8+8+32,4);
     
     // since there's no ordering w/ public pings, make sure we're inverted to the sender for the pong
     if(k->mote->public) k->mote->order = mote_tx(k->mote) ? 1 : 0;
 
-    // fast forward to the ping's wait nonce
-    uint8_t max = 100;
-    while(--max && memcmp(k->frame+8, k->mote->nonce, 8) != 0) mote_advance(k->mote);
-    // be safe
-    if(!max)
+    // fast forward to next tx
+    while(!mote_tx(k->mote)) mote_advance(k->mote);
+
+    if(memcmp(k->frame+8, k->mote->nonce, 8) != 0)
     {
-      LOG("failed to find wait nonce in time: %s",util_hex(k->frame+8,8,NULL));
-      k->mote->at = 0;
+      LOG("invalid nonce received: %s",util_hex(k->frame+8,8,NULL));
     }else{
       k->mote->pong = 1;
       k->mote->priority += 2;
@@ -471,9 +479,11 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   if(size > 63) return LOG("invalid chunk frame, too large: %d",size);
 
   // received stats only after minimal validation
-  k->mote->received++;
+  k->mote->rxz = 0;
+  if(k->rssi < k->mote->best) k->mote->best = k->rssi;
+  if(k->rssi > k->mote->worst) k->mote->worst = k->rssi;
   
-  LOG("rx done, total %d chunk len %d",k->mote->received,size);
+  LOG("rx done, chunk len %d rssi %d/%d/%d",size,k->mote->last,k->mote->best,k->mote->worst);
 
   // process incoming chunk to link
   util_chunks_chunk(k->mote->chunks,k->frame+2,size);
@@ -483,51 +493,36 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   return tm;
 }
 
-// advance all windows forward this many microseconds, all knocks are relative to this call
-uint8_t tmesh_process(tmesh_t tm, uint32_t us)
+// process everything based on current cycle count, returns success
+tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
 {
   cmnty_t com;
   mote_t mote;
   lob_t packet;
   struct knock_struct k1, k2;
   knock_t knock;
-  uint8_t ret = 0;
-  if(!tm || !us) return 0;
+  if(!tm || !at) return NULL;
+  
+  LOG("processing for %s at %lu",hashname_short(tm->mesh->id),at);
 
-  // first process all active knocks
-  int i;
-  for(i=0;i<RADIOS_MAX;i++)
-  {
-    if(!radio_devices[i]) continue;
-    knock = radio_devices[i]->knock;
-    if(!knock->ready) continue;
-
-    // if it's not done
-    if(knock->done < knock->start)
-    {
-      LOG("skipping active knock");
-      continue;
-    }
-
-    LOG("processing knock s/s/d %lu/%lu/%lu",knock->start,knock->stop,knock->done);
-    tmesh_knocked(tm, knock);
-    memset(knock,0,sizeof(struct knock_struct));
-
-  }
-
-  // now we have to (only) bring all motes current looking for the next knock
+  // we are looking for the next knock anywhere
   for(com=tm->coms;com;com=com->next)
   {
     radio_t radio = radio_devices[com->medium->radio];
     knock = radio->knock;
+    
+    // clean slate
     memset(&k1,0,sizeof(struct knock_struct));
+    if(!knock->ready) memset(knock,0,sizeof(struct knock_struct));
 
-    // walk the motes for processing and to find another knock
+    // walk the local motes
     for(mote=com->motes;mote;mote=mote->next)
     {
-      // adjust relative local time
-      while(mote->at < us) mote_advance(mote);
-      mote->at -= us;
+      // first rebase cycle count if requested
+      if(rebase) mote->at -= rebase;
+
+      // move ahead window(s)
+      while(mote->at < at) mote_advance(mote);
       LOG("mote at %lu %s %s",mote->at,util_hex(mote->nonce,8,NULL),mote->public?"public":hashname_short(mote->link->id));
 
       // already have one active
@@ -559,17 +554,15 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
     if(knock->tx) tmesh_knock(tm, knock);
     
     // signal driver
-    if(radio->ready && !radio->ready(tm, radio))
+    if(radio->ready && !radio->ready(radio, tm, knock))
     {
       LOG("radio ready driver failed, cancelling knock");
       memset(knock,0,sizeof(struct knock_struct));
       continue;
     }
-
-    ret++;
   }
 
-  // now do any heavier processing work
+  // now do any heavier processing work decoupled
   for(com=tm->coms;com;com=com->next)
   {
     for(mote=com->motes;mote;mote=mote->next)
@@ -592,20 +585,20 @@ uint8_t tmesh_process(tmesh_t tm, uint32_t us)
     }
   }
   
-  // overall telehash background processing now
-  tm->us += us;
-  while(tm->us > 1000000)
+  // overall telehash background processing now based on seconds
+  if(rebase) tm->last -= rebase;
+  tm->cycles += (at - tm->last);
+  tm->last = at;
+  while(tm->cycles > 32768)
   {
     tm->epoch++;
-    tm->us -= 1000000;
+    tm->cycles -= 32768;
   }
   LOG("mesh process epoch %lu",tm->epoch);
   mesh_process(tm->mesh,tm->epoch);
 
-  if(!ret) LOG("no knocks scheduled");
-  return ret;
+  return tm;
 }
-
 
 mote_t mote_new(link_t link)
 {
@@ -651,7 +644,9 @@ mote_t mote_reset(mote_t m)
   LOG("resetting mote");
 
   // reset stats
-  m->sent = m->received = 0;
+  m->txz = m->rxz = 0;
+  m->last = m->best = m->worst = 0;
+  memset(m->seed,0,4);
 
   // generate mote-specific secret, roll up community first
   e3x_hash(m->com->medium->bin,5,roll);
@@ -713,18 +708,11 @@ mote_t mote_advance(mote_t m)
   uint32_t next = util_sys_long((unsigned long)*(m->nonce));
 
   // smaller for high z, using only high 4 bits of z
-  next >>= (m->z >> 4);
+  next >>= (m->z >> 4) + m->com->medium->zshift;
 
   m->at += next + m->com->medium->min + m->com->medium->max;
   
-//  LOG("advanced to nonce %s at %lu next %lu",util_hex(m->nonce,8,NULL),m->at,next);
-
-  // skip a tx if nothing to send
-  if(!m->ping && mote_tx(m) && util_chunks_size(m->chunks) <= 0)
-  {
-    LOG("skipping empty TX window");
-    return mote_advance(m);
-  }
+  LOG("advanced to nonce %s at %lu next %lu",util_hex(m->nonce,8,NULL),m->at,next);
 
   return m;
 }
@@ -753,14 +741,14 @@ mote_t mote_knock(mote_t m, knock_t k)
   // stop is minimal when receiving in sync
   k->stop = k->start + ((!k->tx && !m->ping) ? k->medium->min : k->medium->max);
 
-  // very remote case of overlow (70min minus max micros), just sets to max avail, slight inefficiency?
-  if(k->stop < k->start) k->stop = 0xffffffff;
-
   // derive current channel
   k->chan = m->chan[1] % k->medium->chans;
 
   // cache nonce
   memcpy(k->nonce,m->nonce,8);
+
+  // deprioritize if nothing to tx
+  if(!m->ping && k->tx && util_chunks_size(m->chunks) <= 0) m->priority = 0;
 
   return m;
 }
@@ -781,6 +769,7 @@ mote_t mote_synced(mote_t m)
     {
       mote_t lmote = tmesh_link(m->com->tm, m->com, m->link);
       lmote->at = m->at;
+      lmote->last = m->last;
       memcpy(lmote->nonce,m->nonce,8);
       mote_advance(lmote); // step forward a window
       m->link = NULL;
@@ -789,7 +778,7 @@ mote_t mote_synced(mote_t m)
     }
 
     // TODO intelligent ping re-schedule, not just skip some and randomize
-    m->at += 1000*1000*15; // 15s
+    m->at += 32768*15; // 15s
     e3x_rand(m->nonce,8);
     m->ping = 1;
 

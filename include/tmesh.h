@@ -13,17 +13,15 @@ typedef struct knock_struct *knock_t; // single action
 // medium management w/ device driver
 struct medium_struct
 {
-  void *device; // used by radio device driver
-  uint32_t min, max; // microseconds to knock, set by driver
-  uint32_t avg; // average actual micros to tx for drift calc
+  void *arg; // for use by radio device driver
+  uint32_t min, max; // cycles to knock, set by driver
+  uint32_t avg; // average actual cycles to tx for drift calc
   uint8_t bin[5];
   uint8_t chans; // number of total channels, set by driver
   uint8_t z; // default
   uint8_t radio:4; // radio device id based on radio_devices[]
+  uint8_t zshift:4; // exponent offset for this medium
 };
-
-// validate medium by checking energy
-uint32_t medium_check(tmesh_t tm, uint8_t medium[5]);
 
 // get the full medium
 medium_t medium_get(tmesh_t tm, uint8_t medium[5]);
@@ -63,8 +61,11 @@ struct tmesh_struct
   mesh_t mesh;
   cmnty_t coms;
   lob_t pubim;
-  uint32_t us, epoch; // for relative time into mesh_process
+  uint32_t last; // last seen cycles for rebasing
+  uint32_t epoch; // for relative time into mesh_process
+  uint32_t cycles; // remainder for epoch
   knock_t (*sort)(knock_t a, knock_t b);
+  uint8_t seed[4]; // random seed for restart detection
   uint8_t z; // our preferred z-index
 };
 
@@ -72,8 +73,11 @@ struct tmesh_struct
 tmesh_t tmesh_new(mesh_t mesh, lob_t options);
 void tmesh_free(tmesh_t tm);
 
-// advance all windows forward this many microseconds, all radio knocks are relative to this call, returns # of knocks ready
-uint8_t tmesh_process(tmesh_t tm, uint32_t us);
+// process any knock that has been completed by a driver
+tmesh_t tmesh_knocked(tmesh_t tm, knock_t k);
+
+// process everything based on current cycle count, optional rebase cycles
+tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase);
 
 // a single knock request ready to go
 struct knock_struct
@@ -85,6 +89,7 @@ struct knock_struct
   uint8_t frame[64];
   uint8_t nonce[8]; // nonce for this knock
   uint8_t chan; // current channel (< med->chans)
+  uint8_t rssi; // set by driver only after rx
   // boolean flags for state tracking
   uint8_t tx:1; // tells radio to tx or rx
   uint8_t ready:1; // is ready to transceive
@@ -97,12 +102,14 @@ struct mote_struct
   cmnty_t com;
   link_t link; // when known
   mote_t next; // for lists
+  util_chunks_t chunks; // actual chunk encoding for r/w frame buffers
+  uint32_t at; // cycles until next knock
+  uint16_t txz, rxz; // empty tx/rx counts
   uint8_t secret[32];
   uint8_t nonce[8];
+  uint8_t seed[4]; // last seen seed to detect resets
   uint8_t chan[2];
-  uint32_t at; // microseconds until next knock
-  util_chunks_t chunks; // actual chunk encoding for r/w frame buffers
-  uint16_t sent, received;
+  uint8_t last, best, worst; // rssi
   uint8_t z;
   uint8_t order:1; // is hashname compare
   uint8_t ping:1; // is in ping mode
@@ -137,32 +144,31 @@ knock_t knock_sooner(knock_t a, knock_t b);
 // radio devices are responsible for all mediums
 struct radio_struct
 {
-  // return energy cost, or 0 if unknown medium, use for pre-validation/estimation
-  uint32_t (*energy)(tmesh_t tm, uint8_t medium[5]);
-
   // initialize/get any medium scheduling time/cost and channels
-  medium_t (*get)(tmesh_t tm, uint8_t medium[5]);
+  medium_t (*get)(radio_t self, tmesh_t tm, uint8_t medium[5]);
 
   // when a medium isn't used anymore, let the radio free it
-  medium_t (*free)(tmesh_t tm, medium_t m);
+  medium_t (*free)(radio_t self, tmesh_t tm, medium_t m);
 
   // called whenever a new knock is ready to be scheduled
-  tmesh_t (*ready)(tmesh_t tm, radio_t self);
+  tmesh_t (*ready)(radio_t self, tmesh_t tm, knock_t knock);
   
-  // shared between tmesh and driver
+  // shared knock between tmesh and driver
   knock_t knock;
+
+  // for use by the radio driver
+  void *arg;
 
   // guid
   uint8_t id:4;
-  
-  // for the radio driver
-  void *arg;
 };
 
+#ifndef RADIOS_MAX
 #define RADIOS_MAX 1
+#endif
 extern radio_t radio_devices[]; // all of em
 
-// add/set a new device
+// globally add/set a new device
 radio_t radio_device(radio_t device);
 
 
