@@ -8,16 +8,16 @@
 one mote per link
 every mote is part of one community
 public communities start w/ "Public"
-every community has multiple mediums
+private include hashname in secret
+every community has one or more mediums
+each community medium has one beacon mote and 1+ detection motes
 each mote has only one active medium
-other mediums are sent community pings based on map
-each medium has a neighborhood
 
 */
 
 typedef struct tmesh_struct *tmesh_t;
-typedef struct cmnty_struct *cmnty_t; // list of motes
-typedef struct mote_struct *mote_t; // secret, nonce, time, knock
+typedef struct cmnty_struct *cmnty_t; // list of mediums and beacon mote
+typedef struct mote_struct *mote_t; // secret, nonce, time, knock, link
 typedef struct medium_struct *medium_t; // channels, energy
 typedef struct radio_struct *radio_t; // driver utils
 typedef struct knock_struct *knock_t; // single action
@@ -25,6 +25,8 @@ typedef struct knock_struct *knock_t; // single action
 // medium management w/ device driver
 struct medium_struct
 {
+  cmnty_t com; // mediums belong to one community
+  medium_t next; // for lists
   void *arg; // for use by radio device driver
   uint32_t min, max; // cycles to knock, set by driver
   uint32_t avg; // average actual cycles to tx for drift calc
@@ -32,15 +34,8 @@ struct medium_struct
   uint8_t chans; // number of total channels, set by driver
   uint8_t z; // default
   uint8_t radio:4; // radio device id based on radio_devices[]
-  uint8_t zshift:4; // exponent offset for this medium
+  uint8_t zshift:4; // window time exponent offset for this medium
 };
-
-// get the full medium
-medium_t medium_get(tmesh_t tm, uint8_t medium[5]);
-
-// just convenience util
-uint8_t medium_public(medium_t m);
-
 
 // community management
 struct cmnty_struct
@@ -48,15 +43,12 @@ struct cmnty_struct
   tmesh_t tm;
   char *name;
   medium_t medium;
-  mote_t public; // ping mote
+  mote_t beacon;
   mote_t motes; 
   pipe_t pipe; // one pipe per community as it's shared performance
   struct cmnty_struct *next;
-  uint8_t max;
+  uint8_t public:1;
 };
-
-// maximum neighbors tracked per community
-#define NEIGHBORS_MAX 8
 
 // join a new private/public community
 cmnty_t tmesh_join(tmesh_t tm, char *medium, char *name);
@@ -78,7 +70,7 @@ struct tmesh_struct
   uint32_t cycles; // remainder for epoch
   knock_t (*sort)(knock_t a, knock_t b);
   uint8_t seed[4]; // random seed for restart detection
-  uint8_t z; // our preferred z-index
+  uint8_t z; // our current z-index
 };
 
 // create a new tmesh radio network bound to this mesh
@@ -95,23 +87,24 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase);
 struct knock_struct
 {
   mote_t mote;
-  medium_t medium;
   uint32_t start, stop;
   uint32_t done; // actual stop time, done-start is time it took
   uint8_t frame[64];
   uint8_t nonce[8]; // nonce for this knock
   uint8_t chan; // current channel (< med->chans)
   uint8_t rssi; // set by driver only after rx
-  // boolean flags for state tracking
+  // boolean flags for state tracking, etc
   uint8_t tx:1; // tells radio to tx or rx
   uint8_t ready:1; // is ready to transceive
   uint8_t err:1; // failed
+  uint8_t ping:1; // is a ping knock
+  uint8_t pong:1; // is a pong knock
 };
 
 // mote state tracking
 struct mote_struct
 {
-  cmnty_t com;
+  medium_t medium;
   link_t link; // when known
   mote_t next; // for lists
   util_chunks_t chunks; // actual chunk encoding for r/w frame buffers
@@ -124,12 +117,12 @@ struct mote_struct
   uint8_t last, best, worst; // rssi
   uint8_t z;
   uint8_t order:1; // is hashname compare
-  uint8_t ping:1; // is in ping mode
-  uint8_t pong:1; // ready for pong
-  uint8_t public:1; // is a special public beacon mote
-  uint8_t skip:1; // internal flag to skip next advancing
+  uint8_t beacon:1; // is the beacon mote (sends pings, listens for pongs)
+  uint8_t detection:1; // is a detection mote (listens for pings, sends pongs)
   uint8_t priority:3; // next knock priority
 };
+
+// these are primarily for internal use
 
 mote_t mote_new(link_t link);
 mote_t mote_free(mote_t m);
@@ -153,17 +146,17 @@ mote_t mote_synced(mote_t m);
 knock_t knock_sooner(knock_t a, knock_t b);
 
 ///////////////////
-// radio devices are responsible for all mediums
+// radio devices must process all mediums
 struct radio_struct
 {
-  // initialize/get any medium scheduling time/cost and channels
-  medium_t (*get)(radio_t self, tmesh_t tm, uint8_t medium[5]);
+  // initialize any medium scheduling time/cost and channels
+  medium_t (*init)(radio_t self, medium_t m);
 
-  // when a medium isn't used anymore, let the radio free it
-  medium_t (*free)(radio_t self, tmesh_t tm, medium_t m);
+  // when a medium isn't used anymore, let the radio free any associated resources
+  medium_t (*free)(radio_t self, medium_t m);
 
   // called whenever a new knock is ready to be scheduled
-  tmesh_t (*ready)(radio_t self, tmesh_t tm, knock_t knock);
+  tmesh_t (*ready)(radio_t self, medium_t m, knock_t knock);
   
   // shared knock between tmesh and driver
   knock_t knock;
