@@ -378,7 +378,6 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   MORTY(k->mote);
 
   // clear some flags straight away
-  k->mote->priority = 0;
   k->ready = 0;
   
   if(k->err)
@@ -424,7 +423,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     // re-advance to the next future rx window from adjusted time
     while(mote_tx(k->mote)) mote_advance(k->mote);
     k->mote->ack = 1;
-    k->mote->priority++;
+    k->mote->priority = 2;
     LOG("scheduled beacon rx ack at %d with %s",k->mote->at,util_hex(k->mote->nonce,8,NULL));
 
     return tm;
@@ -573,7 +572,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   if(memcmp(k->frame+8, k->mote->nonce, 8) != 0) return LOG("invalid nonce received: %s",util_hex(k->frame+8,8,NULL));
 
   k->mote->ack = 1;
-  k->mote->priority += 2;
+  k->mote->priority = 3;
   LOG("scheduled beacon ack tx at %d with %s",k->mote->at,util_hex(k->mote->nonce,8,NULL));
 
   return tm;
@@ -623,8 +622,12 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
       memset(&k2,0,sizeof(struct knock_struct));
       mote_knock(mote,&k2);
       
-      // boost data motes every round
-      if(util_chunks_size(mote->chunks) > 0) mote->priority++;
+      // set priority when there's data to send
+      if(k2.tx && mote->chunks)
+      {
+        if(util_chunks_size(mote->chunks) > 0) mote->priority++;
+        else mote->priority = 0;
+      }
 
       // use the new one if preferred
       if(!k1.mote || tm->sort(&k1,&k2) != &k1)
@@ -750,6 +753,9 @@ mote_t mote_reset(mote_t m)
   {
     m->chunks = util_chunks_new(63);
     if(m->chunks) m->chunks->blocking = 0;
+    m->priority = 0; // not until data
+  }else{
+    m->priority = 1; // beacon defaults higher
   }
 
   // TODO detach pipe from link?
@@ -845,9 +851,6 @@ mote_t mote_knock(mote_t m, knock_t k)
 
   // cache nonce
   memcpy(k->nonce,m->nonce,8);
-
-  // deprioritize mote if nothing to tx (TODO, inverse and prioritize?)
-  if(m->link && k->tx && util_chunks_size(m->chunks) <= 0) m->priority = 0;
 
   return m;
 }

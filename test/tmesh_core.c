@@ -272,26 +272,31 @@ int main(int argc, char **argv)
   fail_unless(mAB->at == mBA->at);
   
   // continue establishing link
-  int max = 20;
+  printf("\n\n");
+  int max = 40;
   uint32_t step = mAB->at;
   while(--max > 0 && !link_up(mBA->link) && !link_up(mAB->link))
   {
-//    printf("\n\n%d %u\n",max,step);
+    printf("\n\n%d %u\n",max,step);
 
     tmesh_process(netA,step,0);
     tmesh_process(netB,step,0);
 
     LOG("AB %d %d/%d BA %d %d/%d",knAB->tx,knAB->start,knAB->stop,knBA->tx,knBA->start,knBA->stop);
-    step = (knAB->stop < knBA->stop)?knAB->stop:knBA->stop;
+    step = (knAB->stop > knBA->stop)?knAB->stop:knBA->stop;
 
     if(knAB->chan == knBA->chan)
     {
+      printf("~~~~RXTX %u\n",step);
       RXTX(knAB,knBA);
-      step = knAB->stop = knBA->stop; // must be same
+      knAB->done = knAB->stop;
+      knBA->done = knBA->stop;
+    }else{
+      knAB->err = knBA->err = 1;
     }
 
-    if(step == knAB->stop) tmesh_knocked(netA,knAB);
-    if(step == knBA->stop) tmesh_knocked(netB,knBA);
+    tmesh_knocked(netA,knAB);
+    tmesh_knocked(netB,knBA);
 
   }
   LOG("linked by %d",max);
