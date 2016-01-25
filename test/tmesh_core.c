@@ -148,7 +148,7 @@ int main(int argc, char **argv)
   fail_unless(tmesh_process(netA,42424,0));
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
   fail_unless(knock->done);
-  fail_unless(knock->start == 43392);
+  fail_unless(knock->start == 43452);
 
   // leave public community
   fail_unless(tmesh_leave(netA,c));
@@ -178,10 +178,22 @@ int main(int argc, char **argv)
   fail_unless(cA->pipe->path);
   LOG("netA %s",lob_json(cA->pipe->path));
   
+  mote_t bmBA = tmesh_seek(netB, cB, linkBA->id);
+  fail_unless(bmBA);
+  fail_unless(bmBA->order == 1);
+  LOG("bmBA %s secret %s",hashname_short(bmBA->beacon),util_hex(bmBA->secret,32,hex));
+  fail_unless(util_cmp(hex,"9a972d28dcc211d43eafdca7877bed1bbeaec30fd3740f4b787355d10423ad12") == 0);
+
   mote_t mBA = tmesh_link(netB, cB, linkBA);
   fail_unless(mBA);
   fail_unless(mBA->order == 1);
   LOG("mBA %s secret %s",hashname_short(mBA->link->id),util_hex(mBA->secret,32,hex));
+  fail_unless(util_cmp(hex,"9a972d28dcc211d43eafdca7877bed1bbeaec30fd3740f4b787355d10423ad12") == 0);
+
+  mote_t bmAB = tmesh_seek(netA, cA, link->id);
+  fail_unless(bmAB);
+  fail_unless(bmAB->order == 0);
+  LOG("bmBA %s secret %s",hashname_short(bmAB->beacon),util_hex(bmAB->secret,32,hex));
   fail_unless(util_cmp(hex,"9a972d28dcc211d43eafdca7877bed1bbeaec30fd3740f4b787355d10423ad12") == 0);
 
   mote_t mAB = tmesh_link(netA, cA, link);
@@ -193,31 +205,33 @@ int main(int argc, char **argv)
   knock_t knBA = devB->knock;
   knBA->ready = 0;
   memset(mBA->nonce,0,8);
+  memset(bmBA->nonce,2,8);
   fail_unless(tmesh_process(netB,10,0));
-  fail_unless(knBA->mote == mBA);
+  fail_unless(knBA->mote == bmBA);
   LOG("BA tx is %d chan %d at %lu",knBA->tx,knBA->chan,knBA->start);
   fail_unless(knBA->chan == 35);
-  fail_unless(knBA->tx == 1);
+  fail_unless(knBA->tx == 0);
 
   knock_t knAB = devA->knock;
   knAB->ready = 0;
-  memset(mAB->nonce,11,8);
-  fail_unless(tmesh_process(netA,1,0));
-  fail_unless(knAB->mote == mAB);
+  memset(mAB->nonce,10,8);
+  memset(bmAB->nonce,15,8);
+  fail_unless(tmesh_process(netA,44444,0));
+  fail_unless(knAB->mote == bmAB);
   LOG("AB tx is %d chan %d at %lu nonce %s",knAB->tx,knAB->chan,knAB->start,util_hex(mAB->nonce,8,NULL));
   fail_unless(knAB->chan == 35);
-  fail_unless(knAB->tx == 0);
+  fail_unless(knAB->tx == 1);
 
   // fake reception, with fake cake
   LOG("process netA");
   RXTX(knAB,knBA);
   fail_unless(tmesh_knocked(netA,knAB));
   fail_unless(tmesh_process(netA,knAB->done+1,0));
-  fail_unless(mAB->ack);
+  fail_unless(bmAB->ack);
 
   LOG("process netB");
   RXTX(knAB,knBA);
-  fail_unless(tmesh_knocked(netA,knBA));
+  fail_unless(tmesh_knocked(netB,knBA));
   fail_unless(tmesh_process(netB,knBA->done+1,0));
 
   // dummy data for sync send
@@ -226,17 +240,19 @@ int main(int argc, char **argv)
 
   // back to the future
   RXTX(knAB,knBA);
+  fail_unless(tmesh_knocked(netA,knAB));
+  LOG("mAB %lu mBA %lu",mAB->at,mBA->at);
+  fail_unless(0);
+  while(knBA->mote != mBA) fail_unless(tmesh_process(netB,mBA->at+1,0));
+  LOG("BA tx is %d chan %d at %lu nonce %s",knBA->tx,knBA->chan,knAB->start,util_hex(mBA->nonce,8,NULL));
+  fail_unless(knBA->tx == 0);
+
+  RXTX(knAB,knBA);
   LOG("mAB %lu mBA %lu",mAB->at,mBA->at);
   fail_unless(tmesh_knocked(netB,knBA));
   while(knAB->mote != mAB) fail_unless(tmesh_process(netA,mAB->at+1,0));
   LOG("AB tx is %d chan %d at %lu nonce %s",knAB->tx,knAB->chan,knAB->start,util_hex(mAB->nonce,8,NULL));
   fail_unless(knAB->tx == 1);
-  RXTX(knAB,knBA);
-  fail_unless(tmesh_knocked(netA,knAB));
-  LOG("mAB %lu mBA %lu",mAB->at,mBA->at);
-  while(knBA->mote != mBA) fail_unless(tmesh_process(netB,mBA->at+1,0));
-  LOG("BA tx is %d chan %d at %lu nonce %s",knBA->tx,knBA->chan,knAB->start,util_hex(mBA->nonce,8,NULL));
-  fail_unless(knBA->tx == 0);
 
   // in sync!
   fail_unless(!mBA->ack);
@@ -246,9 +262,9 @@ int main(int argc, char **argv)
   fail_unless(mAB->at == mBA->at);
   
   // continue establishing link
-  uint8_t max = 20;
+  int max = 20;
   uint32_t step = mAB->at;
-  while(--max && !link_up(mBA->link) && !link_up(mAB->link))
+  while(--max > 0 && !link_up(mBA->link) && !link_up(mAB->link))
   {
 //    printf("\n\n%d %u\n",max,step);
 

@@ -513,6 +513,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   // get the private beacon to this hashname
   hashname_t id = hashname_vbin(k->frame+8+8);
   if(!id) return LOG("OOM");
+  if(hashname_cmp(id,tm->mesh->id) == 0) return LOG("identity crisis");
 
   // public beacon mote will spawn/sync private beacons
   if(k->mote->public)
@@ -622,6 +623,7 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
       // use the new one if preferred
       if(!k1.mote || tm->sort(&k1,&k2) != &k1)
       {
+        LOG("electing");MORTY(k2.mote);
         memcpy(&k1,&k2,sizeof(struct knock_struct));
       }
     }
@@ -880,9 +882,6 @@ knock_t knock_sooner(knock_t a, knock_t b)
   // any higher priority state
   if(a->mote->priority > b->mote->priority) return a;
   if(b->mote->priority > a->mote->priority) return b;
-  // any with link over without
-  if(a->mote->link && !b->mote->link) return a;
-  if(b->mote->link && !a->mote->link) return b;
   // firstie
   return (a->start < b->start) ? a : b;
 }
