@@ -168,7 +168,7 @@ struct radio_struct
   medium_t (*free)(radio_t self, medium_t m);
 
   // called whenever a new knock is ready to be scheduled
-  tmesh_t (*ready)(radio_t self, medium_t m, knock_t knock);
+  medium_t (*ready)(radio_t self, medium_t m, knock_t knock);
   
   // shared knock between tmesh and driver
   knock_t knock;
