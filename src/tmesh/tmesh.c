@@ -4,6 +4,8 @@
 #include "telehash.h"
 #include "tmesh.h"
 
+#define MORTY(mote) LOG("%s %s mote %s nonce %s at %u",mote->public?"pub":"pri",mote->beacon?"bekn":"link",hashname_short(mote->link?mote->link->id:mote->beacon),util_hex(mote->nonce,8,NULL),mote->at);
+
 //////////////////
 // private community management methods
 
@@ -315,13 +317,15 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
 {
   if(!tm || !k) return LOG("bad args");
 
-  uint8_t size = util_chunks_size(k->mote->chunks);
+  MORTY(k->mote);
 
   // send data frames if any
   if(k->mote->chunks)
   {
+    uint8_t size = util_chunks_size(k->mote->chunks);
+
       // nothing to send, noop
-    if(util_chunks_size(k->mote->chunks) <= 0)
+    if(!size)
     {
       k->mote->txz++;
       return tm;
@@ -362,7 +366,7 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
    // ciphertext frame after nonce
   chacha20(k->mote->secret,k->frame,k->frame+8,64-8);
 
-  LOG("TX %s %s %s",k->mote->public?"public":"beacon",k->mote->ack?"ack":"seek",util_hex(k->frame,8,NULL));
+  LOG("TX %s %s",k->mote->ack?"ack":"seek",util_hex(k->frame,8,NULL));
 
   return tm;
 }
@@ -373,6 +377,8 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   if(!tm || !k) return LOG("bad args");
   if(!k->ready) return LOG("knock wasn't ready");
   
+  MORTY(k->mote);
+
   // clear some flags straight away
   k->mote->priority = 0;
   k->ready = 0;
@@ -602,7 +608,7 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
 
       // move ahead window(s)
       while(mote->at < at) mote_advance(mote);
-      LOG("mote at %lu %s %s",mote->at,util_hex(mote->nonce,8,NULL),mote->public?"public":hashname_short(mote->link->id));
+      MORTY(mote);
 
       // already have one active
       if(knock->ready) continue;
@@ -627,7 +633,8 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
     // signal this knock is ready to roll
     memcpy(knock,&k1,sizeof(struct knock_struct));
     knock->ready = 1;
-    LOG("new %s knock at %lu nonce %s to mote %s",knock->tx?"TX":"RX",knock->start,util_hex(knock->nonce,8,NULL),knock->mote->public?"anyone":hashname_short(knock->mote->link->id));
+    LOG("new %s knock at %lu nonce %s",knock->tx?"TX":"RX",knock->start,util_hex(knock->nonce,8,NULL));
+    MORTY(knock->mote);
 
     // do the work to fill in the tx frame only once here
     if(knock->tx) tmesh_knock(tm, knock);
@@ -650,7 +657,8 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
       // process any packets on this mote
       while((packet = util_chunks_receive(mote->chunks)))
       {
-        LOG("mote %.6s pkt %s",mote->public?"public":hashname_short(mote->link->id),lob_json(packet));
+        MORTY(mote);
+        LOG("pkt %s",lob_json(packet));
         // TODO make this more of a protocol, not a hack
         if(lob_get(packet,"1a"))
         {
@@ -722,7 +730,7 @@ mote_t mote_reset(mote_t m)
   if(!m || !m->medium) return LOG("bad args");
   tmesh_t tm = m->medium->com->tm;
   
-  LOG("resetting %s%s mote",m->public?"public ":"",m->beacon?"beacon":"link");
+  MORTY(m);
 
   // reset to defaults
   m->z = m->medium->z;
@@ -792,7 +800,7 @@ mote_t mote_advance(mote_t m)
 
   m->at += next + m->medium->min + m->medium->max;
   
-  LOG("advanced to nonce %s at %lu next %lu",util_hex(m->nonce,8,NULL),m->at,next);
+  LOG("advanced to nonce %s at %u next %u",util_hex(m->nonce,8,NULL),m->at,next);
 
   return m;
 }
@@ -846,7 +854,7 @@ mote_t mote_handshake(mote_t m)
 {
   if(!m) return LOG("bad args");
 
-  LOG("mote synchronized! %s",m->public?"public":hashname_short(m->link->id));
+  MORTY(m);
 
   // TODO, set up first sync timeout to reset!
   util_chunks_free(m->chunks);

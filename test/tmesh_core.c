@@ -120,25 +120,26 @@ int main(int argc, char **argv)
   fail_unless(tmesh_process(netA,4,0));
   fail_unless(knock->mote == m);
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
-  fail_unless(!knock->tx);
-  fail_unless(knock->start == 3);
-  fail_unless(knock->stop == 1003);
-  fail_unless(knock->chan == 14);
+  fail_unless(knock->tx);
+  fail_unless(knock->start == 2229);
+  fail_unless(knock->stop == 2229+1000);
+  fail_unless(knock->chan == 57);
 
   // public ping tx
   memset(m->nonce,4,8); // fixture for testing
   m->order = 1;
   memset(knock,0,sizeof(struct knock_struct));
-  fail_unless(tmesh_process(netA,4242,0));
+  LOG("public at is now %lu",m->at);
+  fail_unless(tmesh_process(netA,17578,0));
   fail_unless(knock->mote == m);
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
   fail_unless(knock->ready);
   fail_unless(knock->tx);
-  fail_unless(knock->start == 8405);
-  fail_unless(knock->chan == 14);
+  fail_unless(knock->start == 17579);
+  fail_unless(knock->chan == 57);
   // frame would be random ciphered, but we fixed it to test
   LOG("frame %s",util_hex(knock->frame,32+8,hex)); // just the stable part
-  fail_unless(util_cmp(hex,"e7a3c0d30709d7a4d4585b53a37cc19b96a7294a958aebd025a02bd5582202335cfd213db0363eb7") == 0);
+  fail_unless(util_cmp(hex,"0404040404040404318baa89603255effb54bdbdc5f3e6eeae90428fa94f4bb07dffb958ba02e4e4") == 0);
   // let's preted it's an rx now
   knock->tx = 0;
   knock->done = knock->stop; // fake rx good
