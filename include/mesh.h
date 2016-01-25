@@ -65,8 +65,8 @@ mesh_t mesh_handshake(mesh_t mesh, lob_t handshake);
 // query the cache of handshakes for a matching one with a specific type
 lob_t mesh_handshakes(mesh_t mesh, lob_t handshake, char *type);
 
-// processes incoming packet, it will take ownership of packet
-uint8_t mesh_receive(mesh_t mesh, lob_t packet, pipe_t pipe);
+// processes incoming packet, it will take ownership of packet, returns link delivered to if success
+link_t mesh_receive(mesh_t mesh, lob_t packet, pipe_t pipe);
 
 // process any unencrypted handshake packet, cache if needed
 link_t mesh_receive_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe);
