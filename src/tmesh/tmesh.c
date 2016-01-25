@@ -61,6 +61,7 @@ static cmnty_t cmnty_new(tmesh_t tm, char *medium, char *name)
 
   if(!(c->medium = malloc(sizeof (struct medium_struct)))) return cmnty_free(c);
   memset(c->medium,0,sizeof (struct medium_struct));
+  memcpy(c->medium->bin,medium,5);
 
   // try to init the medium
   for(uint8_t i=0;i<RADIOS_MAX && radio_devices[i];i++)
@@ -278,57 +279,60 @@ radio_t radio_device(radio_t device)
   return NULL;
 }
 
-// fills in next knock for this device only
+// fills in next tx knock
 tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
 {
   if(!tm || !k) return LOG("bad args");
 
-  // construct ping tx frame data, same for all the things
-  if(k->ping)
+  uint8_t size = util_chunks_size(k->mote->chunks);
+
+  // send data frames if any
+  if(util_chunks_size(k->mote->chunks) > 0)
   {
-    // copy in ping nonce
-    memcpy(k->frame,k->nonce,8);
+    // flag is terminated even tho full
+    if(size == 62 && util_chunks_peek(k->mote->chunks) == 0) size++;
 
-    // advance to the next future rx window
-    while(mote_tx(k->mote)) mote_advance(k->mote);
-    memcpy(k->frame+8,k->mote->nonce,8);
+    // TODO, real header, term flag
+    k->frame[0] = 0; // stub for now
+    k->frame[1] = size; // max 63
+    memcpy(k->frame+2,util_chunks_frame(k->mote->chunks),size);
 
-    // copy in hashname
-    memcpy(k->frame+8+8,hashname_bin(tm->mesh->id),32);
-
-    // copy in our reset seed
-    memcpy(k->frame+8+8+32,tm->seed,4);
-
-    // random fill rest
-    e3x_rand(k->frame+8+8+32+4,64-(8+8+32+4));
-
-     // ciphertext frame after nonce
-    chacha20(k->mote->secret,k->frame,k->frame+8,64-8);
-
-    LOG("TX %s %s %s",k->mote->public?"public":"link",k->mote->pong?"pong":"ping",util_hex(k->frame,8,NULL));
-
+    // ciphertext full frame
+    LOG("TX chunk frame %d: %s",size,util_hex(k->frame,64,NULL));
+    chacha20(k->mote->secret,k->nonce,k->frame,64);
     return tm;
   }
 
-  // fill in chunk tx
-  if(util_chunks_size(k->mote->chunks) <= 0)
+  // if no data and not a beacon
+  if(!k->mote->beacon)
   {
     // nothing to send, noop
     k->mote->txz++;
     return tm;
   }
 
-  uint8_t size = util_chunks_size(k->mote->chunks);
-  if(size == 62 && util_chunks_peek(k->mote->chunks) == 0) size++; // flag is terminated even tho full
+  // construct ping tx frame data, same for all the things
 
-  // TODO, real header, term flag
-  k->frame[0] = 0; // stub for now
-  k->frame[1] = size; // max 63
-  memcpy(k->frame+2,util_chunks_frame(k->mote->chunks),size);
+  // copy in ping nonce
+  memcpy(k->frame,k->nonce,8);
 
-  // ciphertext full frame
-  LOG("TX chunk frame %d: %s",size,util_hex(k->frame,64,NULL));
-  chacha20(k->mote->secret,k->nonce,k->frame,64);
+  // advance to the next future rx window to get that nonce
+  while(mote_tx(k->mote)) mote_advance(k->mote);
+  memcpy(k->frame+8,k->mote->nonce,8);
+
+  // copy in hashname
+  memcpy(k->frame+8+8,hashname_bin(tm->mesh->id),32);
+
+  // copy in our reset seed
+  memcpy(k->frame+8+8+32,tm->seed,4);
+
+  // random fill rest
+  e3x_rand(k->frame+8+8+32+4,64-(8+8+32+4));
+
+   // ciphertext frame after nonce
+  chacha20(k->mote->secret,k->frame,k->frame+8,64-8);
+
+  LOG("TX %s %s",k->mote->public?"public":"beacon",util_hex(k->frame,8,NULL));
 
   return tm;
 }
@@ -348,7 +352,6 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   {
     if(!k->tx) k->mote->rxz++; // count missed rx knocks
     LOG("knock error");
-    k->mote->pong = 0; // always clear pong state
     return tm;
   }
   
@@ -365,7 +368,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
       // a sent pong sets this mote free
       mote_synced(k->mote);
       k->mote->pong = 0;
-    }else if(k->ping){
+    }else if(k->mote->ping){
       // sent ping will always rebase time to when tx was actually completed
       k->mote->at = k->done;
       // restore the sent nonce
@@ -392,7 +395,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   k->mote->last = k->rssi;
 
   // ooh, got a ping eh?
-  if(k->ping)
+  if(k->mote->ping)
   {
     LOG("PING RX %s RSSI %d",util_hex(k->frame,8,NULL),k->rssi);
 
@@ -732,7 +735,6 @@ mote_t mote_knock(mote_t m, knock_t k)
 
   k->mote = m;
   k->start = k->stop = 0;
-  k->ping = k->pong = 0;
 
   // set current active channel
   if(m->link)
@@ -743,16 +745,6 @@ mote_t mote_knock(mote_t m, knock_t k)
 
   // direction
   k->tx = mote_tx(m);
-
-  // set ping/pong mode flags if passive
-  if(m->beacon)
-  {
-    k->ping = k->tx;
-    k->pong = !k->tx;
-  }else if(m->detection){
-    k->ping = !k->tx;
-    k->pong = k->tx;
-  }
 
   // set relative start/stop times
   k->start = m->at;
@@ -771,7 +763,17 @@ mote_t mote_knock(mote_t m, knock_t k)
   return m;
 }
 
-// change mote to synchronized state (post-pong), initiates handshake over link mote
+// synchronizes two motes
+mote_t mote_sync(mote_t source, mote_t target)
+{
+  if(!source || !target) return LOG("bad args");
+  target->at = source->at;
+  memcpy(target->nonce,source->nonce,8);
+  memcpy(target->secret,source->secret,8);
+  return target;
+}
+
+// initiates handshake over beacon mote
 mote_t mote_synced(mote_t m)
 {
   if(!m) return LOG("bad args");

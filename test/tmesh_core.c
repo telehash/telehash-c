@@ -43,33 +43,33 @@ int main(int argc, char **argv)
   fail_unless(c);
   fail_unless(c->medium->bin[0] == 134);
   fail_unless(c->medium->radio == devA->id);
-  fail_unless(c->public == NULL);
+  fail_unless(c->beacons == NULL);
   fail_unless(c->pipe->path);
   LOG("netA %.*s",c->pipe->path->head_len,c->pipe->path->head);
   fail_unless(tmesh_leave(netA,c));
 
   char hex[256];
-  mote_t m;
   netA->last = 1;
   fail_unless(!tmesh_join(netA, "azdhpa5r", NULL));
   fail_unless((c = tmesh_join(netA, "azdhpa5n", "")));
-  fail_unless(c->public);
-  m = c->public;
+  fail_unless(c->beacons);
+  fail_unless(c->beacons->public);
+  mote_t m = c->beacons;
+  mote_t mpub = m;
   memset(m->nonce,42,8); // nonce is random, force stable for fixture testing
   LOG("nonce %s",util_hex(m->nonce,8,hex));
   fail_unless(util_cmp(hex,"2a2a2a2a2a2a2a2a") == 0);
-  LOG("public at is now %lu",c->public->at);
+  LOG("public at is now %lu",c->beacons->at);
 
   m = tmesh_link(netA, c, link);
   fail_unless(m);
   fail_unless(m->link == link);
   fail_unless(m == tmesh_link(netA, c, link));
-  fail_unless(m->ping);
   fail_unless(m->order == 0);
   memset(m->nonce,3,8); // nonce is random, force stable for fixture testing
   LOG("secret %s",util_hex(m->secret,32,hex));
   fail_unless(util_cmp(hex,"e5667e86ecb564f4f04e2b665348381c06765e6f9fa8161d114d5d8046948532") == 0);
-  LOG("public at is now %lu",c->public->at);
+  LOG("public at is now %lu",mpub->at);
   
   fail_unless(mote_reset(m));
   memset(m->nonce,0,8); // nonce is random, force stable for fixture testing
@@ -87,9 +87,9 @@ int main(int argc, char **argv)
   fail_unless(knock->tx);
   LOG("next is %lld",knock->start);
   fail_unless(knock->start == 27738);
-  LOG("public at is now %lu",c->public->at);
-  fail_unless(c->public->at == 1);
-  c->public->at = 5;
+  LOG("public at is now %lu",mpub->at);
+  fail_unless(mpub->at == 1);
+  mpub->at = 5;
 
   mote_reset(m);
   memset(m->nonce,2,8); // nonce is random, force stable for fixture testing
@@ -103,7 +103,7 @@ int main(int argc, char **argv)
   fail_unless(knock->stop == 8+1000);
   fail_unless(knock->chan == 30);
 //  fail_unless(tmesh_knocked(netA,knock));
-  LOG("public at is now %lu",c->public->at);
+  LOG("public at is now %lu",c->beacons->at);
   
   fail_unless(mote_advance(m));
   LOG("seek %s",util_hex(m->nonce,8,hex));
@@ -115,8 +115,8 @@ int main(int argc, char **argv)
   // public ping now
 //  m->at = 0xffffffff;
   memset(knock,0,sizeof(struct knock_struct));
-  m = c->public;
-  LOG("public at is now %lu",c->public->at);
+  m = mpub;
+  LOG("public at is now %lu",m->at);
   fail_unless(tmesh_process(netA,2,0));
   fail_unless(knock->mote == m);
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
@@ -179,14 +179,12 @@ int main(int argc, char **argv)
   
   mote_t mBA = tmesh_link(netB, cB, linkBA);
   fail_unless(mBA);
-  fail_unless(mBA->ping);
   fail_unless(mBA->order == 1);
   LOG("mBA %s secret %s",hashname_short(mBA->link->id),util_hex(mBA->secret,32,hex));
   fail_unless(util_cmp(hex,"9a972d28dcc211d43eafdca7877bed1bbeaec30fd3740f4b787355d10423ad12") == 0);
 
   mote_t mAB = tmesh_link(netA, cA, link);
   fail_unless(mAB);
-  fail_unless(mAB->ping);
   fail_unless(mAB->order == 0);
   LOG("mAB %s secret %s",hashname_short(mAB->link->id),util_hex(mAB->secret,32,hex));
   fail_unless(util_cmp(hex,"9a972d28dcc211d43eafdca7877bed1bbeaec30fd3740f4b787355d10423ad12") == 0);
@@ -240,10 +238,7 @@ int main(int argc, char **argv)
   fail_unless(knBA->tx == 0);
 
   // in sync!
-  fail_unless(!mBA->pong);
-  fail_unless(!mBA->ping);
-  fail_unless(!mAB->pong);
-  fail_unless(!mAB->ping);
+  fail_unless(0); // TODO
   mAB->at = mBA->at;
   LOG("mAB %lu mBA %lu",mAB->at,mBA->at);
   fail_unless(mAB->at == mBA->at);

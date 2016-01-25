@@ -15,6 +15,9 @@ beacon tx/rx is always fixed channel, public community has dedicated beacon hash
 one beacon mote per known hashname for signal detection and handshakes, cloned for new links
 all known links in a community have motes bound to just one medium
 
+mote_sync(a, b) - clones state from a to b
+  - use this on any incoming public beacon rx to private beacon tx
+  - use to transition from beacon to link mote
 */
 
 typedef struct tmesh_struct *tmesh_t;
@@ -101,8 +104,6 @@ struct knock_struct
   uint8_t tx:1; // tells radio to tx or rx
   uint8_t ready:1; // is ready to transceive
   uint8_t err:1; // failed
-  uint8_t ping:1;
-  uint8_t pong:1;
 };
 
 // mote state tracking
@@ -123,6 +124,8 @@ struct mote_struct
   uint8_t z;
   uint8_t order:1; // is hashname compare
   uint8_t public:1; // special public beacon mote
+  uint8_t ping:1; // unknown beacon state
+  uint8_t pong:1; // responding beacon state
   uint8_t priority:3; // next knock priority
 };
 
@@ -143,7 +146,10 @@ uint8_t mote_tx(mote_t m);
 // next knock init
 mote_t mote_knock(mote_t m, knock_t k);
 
-// initiates handshake over this synchronized mote
+// synchronizes two motes
+mote_t mote_sync(mote_t source, mote_t target);
+
+// initiates handshake over beacon mote
 mote_t mote_synced(mote_t m);
 
 // for tmesh sorting
