@@ -64,7 +64,7 @@ lob_t lob_linked(lob_t parent)
 lob_t lob_free(lob_t p)
 {
   if(!p) return NULL;
-  if(p->next) LOG("possible mem leak, lob is in a list");
+  if(p->next) LOG("possible mem leak, lob is in a list: %s->%s",lob_json(p),lob_json(p->next));
 //  LOG("LOB-- %p",p);
   if(p->chain) lob_free(p->chain);
   if(p->cache) free(p->cache);
@@ -724,9 +724,9 @@ lob_t lob_insert(lob_t list, lob_t after, lob_t p)
 
 lob_t lob_freeall(lob_t list)
 {
-  lob_t next;
   if(!list) return NULL;
-  next = list->next;
+  lob_t next = list->next;
+  list->next = NULL;
   lob_free(list);
   return lob_freeall(next);
 }
