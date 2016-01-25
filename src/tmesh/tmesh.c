@@ -318,8 +318,15 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
   uint8_t size = util_chunks_size(k->mote->chunks);
 
   // send data frames if any
-  if(util_chunks_size(k->mote->chunks) > 0)
+  if(k->mote->chunks)
   {
+      // nothing to send, noop
+    if(util_chunks_size(k->mote->chunks) <= 0)
+    {
+      k->mote->txz++;
+      return tm;
+    }
+
     // flag is terminated even tho full
     if(size == 62 && util_chunks_peek(k->mote->chunks) == 0) size++;
 
@@ -334,15 +341,7 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
     return tm;
   }
 
-  // if no data and not a beacon
-  if(!k->mote->beacon)
-  {
-    // nothing to send, noop
-    k->mote->txz++;
-    return tm;
-  }
-
-  // construct ping tx frame data, same for all the things
+  // construct beacon tx frame data, same for ping or pong
 
   // copy in ping nonce
   memcpy(k->frame,k->nonce,8);
@@ -363,7 +362,7 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
    // ciphertext frame after nonce
   chacha20(k->mote->secret,k->frame,k->frame+8,64-8);
 
-  LOG("TX %s %s",k->mote->public?"public":"beacon",util_hex(k->frame,8,NULL));
+  LOG("TX %s %s %s",k->mote->public?"public":"beacon",util_hex(k->frame,8,NULL));
 
   return tm;
 }
@@ -371,7 +370,6 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
 // signal once a knock has been sent/received for this mote
 tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 {
-  mote_t mlink = NULL;
   if(!tm || !k) return LOG("bad args");
   if(!k->ready) return LOG("knock wasn't ready");
   
@@ -382,7 +380,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   if(k->err)
   {
     if(!k->tx) k->mote->rxz++; // count missed rx knocks
-    k->mote->pong = 0; // always clear pong state
+    k->mote->ack = 0; // always clear ack state
     LOG("knock error");
     return tm;
   }
@@ -390,72 +388,86 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   // tx just updates state things here
   if(k->tx)
   {
-    k->mote->txz = 0;
+    k->mote->txz = 0; // clear skipped tx's
     LOG("tx done, next at %lu",k->mote->at);
     
-    if(k->mote->pong)
+    // did we send a data frame?
+    if(k->mote->chunks)
     {
-      // sent pong shifts start time to when actually done
-      k->mote->at = k->done;
-      // a sent pong sets this mote free
-      mote_synced(k->mote);
-      k->mote->pong = 0;
-    }else if(k->mote->ping){
-      // sent ping will always rebase time to when tx was actually completed
-      k->mote->at = k->done;
-      // restore the sent nonce
-      memcpy(k->mote->nonce,k->nonce,8);
-      // re-advance to the next future rx window from adjusted time
-      while(mote_tx(k->mote)) mote_advance(k->mote);
-      k->mote->pong = 1;
-      k->mote->priority++;
-      LOG("scheduled pong rx at %d with %s",k->mote->at,util_hex(k->mote->nonce,8,NULL));
-    }else{
-      LOG("chunk next");
-      // advance chunks if any
+      LOG("chunk sent %d next %d",util_chunks_size(k->mote->chunks),util_chunks_peek(k->mote->chunks));
+      // advance chunks
       util_chunks_next(k->mote->chunks);
-      // we don't use zeros so dump em
+      // we don't use flush zeros so dump em
       if(util_chunks_size(k->mote->chunks) == 0) util_chunks_next(k->mote->chunks);
+      return tm;
     }
+    
+    // beacons always shift start time to when actually done for sync
+    k->mote->at = k->done;
+
+    // a sent ack starts the handshake
+    if(k->mote->ack)
+    {
+      mote_handshake(k->mote);
+      k->mote->ack = 0;
+      return tm;
+    }
+    
+    // a sent beacon waits for an ack
+
+    // restore the sent nonce
+    memcpy(k->mote->nonce,k->nonce,8);
+    // re-advance to the next future rx window from adjusted time
+    while(mote_tx(k->mote)) mote_advance(k->mote);
+    k->mote->ack = 1;
+    k->mote->priority++;
+    LOG("scheduled beacon rx ack at %d with %s",k->mote->at,util_hex(k->mote->nonce,8,NULL));
 
     return tm;
   }
-
-  // rx knock handling now
   
-  // update last seen rssi for all
+  // rx handling, update last seen rssi for all
   k->mote->last = k->rssi;
 
-  // ooh, got a ping eh?
-  if(k->mote->ping)
+  // rx data frame
+  if(k->mote->chunks)
   {
-    LOG("PING RX %s RSSI %d",util_hex(k->frame,8,NULL),k->rssi);
+    chacha20(k->mote->secret,k->nonce,k->frame,64);
+    LOG("RX data frame: %s",util_hex(k->frame,64,NULL));
+  
+    // TODO check and validate frame[0] now
 
-    // first decipher frame using given nonce
-    chacha20(k->mote->secret,k->frame,k->frame+8,64-8);
-
-    // if there is a link, validate
-    if(k->mote->link)
+    // if avg time is provided, calculate a drift based on when this rx was done
+    /* TODO
+    uint32_t avg = k->mote->medium->avg;
+    uint32_t took = k->done - k->start;
+    if(avg && took > avg)
     {
-      // verify hashname match
-      if(memcmp(k->frame+8+8,hashname_bin(k->mote->link->id),32) != 0)
-      {
-        if(k->mote->public)
-        {
-          LOG("removing (and currently leaking) stale cached link on public mote");
-          k->mote->link = NULL;
-        }else{
-          return LOG("link ping hashname mismatch");
-        }
-      }
+      LOG("adjusting for drift by %lu, took %lu avg %lu",took - avg,took,avg);
+      k->mote->at += (took - avg);
     }
+    */
 
-    // rebase all ping starts to when actually done receiving
-    k->mote->at = k->done;
+    uint8_t size = k->frame[1];
+    if(size > 63) return LOG("invalid chunk frame, too large: %d",size);
 
-    // create a link if none (public)
-    if(k->mote->public && !k->mote->link)
+    // received stats only after minimal validation
+    k->mote->rxz = 0;
+    if(k->rssi < k->mote->best) k->mote->best = k->rssi;
+    if(k->rssi > k->mote->worst) k->mote->worst = k->rssi;
+  
+    LOG("rx data received, chunk len %d rssi %d/%d/%d",size,k->mote->last,k->mote->best,k->mote->worst);
+
+    // process incoming chunk to link
+    util_chunks_chunk(k->mote->chunks,k->frame+2,size);
+
+    // if terminated
+    if(size < 62 || size == 63) util_chunks_chunk(k->mote->chunks,NULL,0);
+    
+    // TODO, if beacon we process only handshake here and create/sync link if good
+    if(k->mote->beacon)
     {
+      /*
       hashname_t id = hashname_vbin(k->frame+8+8);
       if(hashname_cmp(id,tm->mesh->id) == 0) return LOG("identity crisis");
       link_t link = link_get(tm->mesh, id);
@@ -465,72 +477,92 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
       LOG("new/reset mote to %s",hashname_short(mlink->link->id));
       mlink->at = 0xffffffff; // disabled, as mote_synced of public will update it
       k->mote->link = link; // cache for synced
-    }
-
-    // an incoming pong is sync signal, much celebration
-    if(memcmp(k->nonce,k->frame,8) == 0)
-    {
-      LOG("incoming pong is to legit to quit");
-      // copy in the given bundled sync nonce and reset seed
-      memcpy(k->mote->nonce,k->frame+8,8);
-      memcpy(k->mote->seed,k->frame+8+8+32,4);
-      mote_synced(k->mote);
-      return tm;
-    }
-
-    LOG("incoming ping, preparing to send pong");
-
-    // always sync seed and wait to the bundled nonce for the next pong
-    memcpy(k->mote->nonce,k->frame,8);
-    memcpy(k->mote->seed,k->frame+8+8+32,4);
-    
-    // since there's no ordering w/ public pings, make sure we're inverted to the sender for the pong
-    if(k->mote->public) k->mote->order = mote_tx(k->mote) ? 1 : 0;
-
-    // fast forward to next tx
-    while(!mote_tx(k->mote)) mote_advance(k->mote);
-
-    if(memcmp(k->frame+8, k->mote->nonce, 8) != 0)
-    {
-      LOG("invalid nonce received: %s",util_hex(k->frame+8,8,NULL));
-    }else{
-      k->mote->pong = 1;
-      k->mote->priority += 2;
-      LOG("scheduled pong tx at %d with %s",k->mote->at,util_hex(k->mote->nonce,8,NULL));
+      mote_t lmote = tmesh_link(m->medium->com->tm, m->medium->com, m->link);
+      lmote->at = m->at;
+      lmote->last = m->last;
+      memcpy(lmote->nonce,m->nonce,8);
+      mote_advance(lmote); // step forward a window
+      m->link = NULL;
+      LOG("public-sync'd link to %s at %lu from public at %lu",util_hex(lmote->nonce,8,NULL),lmote->at,m->at);
+      mote_synced(lmote);
+      // trigger a new handshake over it
+      // establish the pipe path
+      link_pipe(m->link,m->medium->com->pipe);
+      lob_free(link_resync(m->link));
+      */
     }
 
     return tm;
   }
-  
-  // received knock handling now, decipher frame
-  chacha20(k->mote->secret,k->nonce,k->frame,64);
-  LOG("RX chunk frame: %s",util_hex(k->frame,64,NULL));
-  
-  // TODO check and validate frame[0] now
 
-  // if avg time is provided, calculate a drift based on when this rx was done
-  uint32_t avg = k->mote->medium->avg;
-  uint32_t took = k->done - k->start;
-  if(avg && took > avg)
+  // rx beacon handling now
+  
+  LOG("RX beacon rssi %d frame %s",k->rssi,util_hex(k->frame,64,NULL));
+
+  // first decipher the frame using the bundled nonce
+  chacha20(k->mote->secret,k->frame,k->frame+8,64-8);
+
+  // rebase all beacon starts to when actually done receiving for sync
+  k->mote->at = k->done;
+  
+  // get the private beacon to this hashname
+  hashname_t id = hashname_vbin(k->frame+8+8);
+  if(!id) return LOG("OOM");
+
+  // public beacon mote will spawn/sync private beacons
+  if(k->mote->public)
   {
-    LOG("adjusting for drift by %lu, took %lu avg %lu",took - avg,took,avg);
-    k->mote->at += (took - avg);
+    mote_t beacon = tmesh_seek(tm, k->mote->medium->com, id);
+    if(!beacon) return LOG("OOM");
+
+    // check the seed to see if there was a reset
+    if(memcmp(beacon->seed,k->frame+8+8+32,4) == 0) return LOG("skipping public beacon for an active mote");
+    
+    LOG("new incoming public beacon from %s",hashname_short(id));
+
+    // since there's no ordering w/ public beacons, make sure we're inverted to the sender for the ack
+    k->mote->order = mote_tx(k->mote) ? 1 : 0;
+
+    // sync and fast forward to the ack
+    memcpy(k->mote->nonce,k->frame,8);
+    while(!mote_tx(k->mote)) mote_advance(k->mote);
+
+    // reset/sync the private beacon to start after that
+    mote_reset(beacon);
+    mote_sync(k->mote,beacon);
+    
+    return tm;
   }
-  
-  uint8_t size = k->frame[1];
-  if(size > 63) return LOG("invalid chunk frame, too large: %d",size);
 
-  // received stats only after minimal validation
-  k->mote->rxz = 0;
-  if(k->rssi < k->mote->best) k->mote->best = k->rssi;
-  if(k->rssi > k->mote->worst) k->mote->worst = k->rssi;
+  // given hashname must match this private beacon
+  if(hashname_cmp(k->mote->beacon,id) != 0) return LOG("private beacon id mismatch: %s",hashname_char(id));
   
-  LOG("rx done, chunk len %d rssi %d/%d/%d",size,k->mote->last,k->mote->best,k->mote->worst);
+  // check the seed to see if there was a reset
+  if(memcmp(k->mote->seed,k->frame+8+8+32,4) == 0) return LOG("skipping private beacon for a known mote");
 
-  // process incoming chunk to link
-  util_chunks_chunk(k->mote->chunks,k->frame+2,size);
-  // if terminated
-  if(size < 62 || size == 63) util_chunks_chunk(k->mote->chunks,NULL,0);
+  // an incoming matching nonce is sync signal, much celebration
+  if(memcmp(k->nonce,k->frame,8) == 0)
+  {
+    LOG("incoming private beacon is to legit to quit");
+    // copy in the given bundled sync nonce and cache seed
+    memcpy(k->mote->nonce,k->frame+8,8);
+    memcpy(k->mote->seed,k->frame+8+8+32,4);
+    mote_handshake(k->mote);
+    return tm;
+  }
+
+  LOG("new incoming private beacon, sync and ack");
+
+  // sync to the beacon nonce and fast forward to the next tx
+  memcpy(k->mote->nonce,k->frame,8);
+  while(!mote_tx(k->mote)) mote_advance(k->mote);
+  
+  // they must match for validation
+  if(memcmp(k->frame+8, k->mote->nonce, 8) != 0) return LOG("invalid nonce received: %s",util_hex(k->frame+8,8,NULL));
+
+  k->mote->ack = 1;
+  k->mote->priority += 2;
+  LOG("scheduled beacon ack tx at %d with %s",k->mote->at,util_hex(k->mote->nonce,8,NULL));
 
   return tm;
 }
@@ -608,7 +640,7 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
   // now do any heavier processing work decoupled
   for(com=tm->coms;com;com=com->next)
   {
-    // TODO split out beacon motes!
+    // TODO split out beacon motes for timeouts!
     for(mote=com->links;mote;mote=mote->next)
     {
       // process any packets on this mote
@@ -690,8 +722,7 @@ mote_t mote_reset(mote_t m)
 
   // reset to defaults
   m->z = m->medium->z;
-  m->pong = 0;
-  m->ping = (m->beacon) ? 1 : 0; // default ping mode only for beacons
+  m->ack = 0;
   m->txz = m->rxz = 0;
   m->last = m->best = m->worst = 0;
   memset(m->seed,0,4);
@@ -803,57 +834,30 @@ mote_t mote_sync(mote_t source, mote_t target)
   if(!source || !target) return LOG("bad args");
   target->at = source->at;
   memcpy(target->nonce,source->nonce,8);
-  memcpy(target->secret,source->secret,8);
   return target;
 }
 
 // initiates handshake over beacon mote
-mote_t mote_synced(mote_t m)
+mote_t mote_handshake(mote_t m)
 {
   if(!m) return LOG("bad args");
 
   LOG("mote synchronized! %s",m->public?"public":hashname_short(m->link->id));
-  m->ping = m->pong = 0;
 
-  // handle public beacon motes special
-  if(m->public)
-  {
-    // sync any cached link mote to same time/nonce seed
-    if(m->link)
-    {
-      mote_t lmote = tmesh_link(m->medium->com->tm, m->medium->com, m->link);
-      lmote->at = m->at;
-      lmote->last = m->last;
-      memcpy(lmote->nonce,m->nonce,8);
-      mote_advance(lmote); // step forward a window
-      m->link = NULL;
-      LOG("public-sync'd link to %s at %lu from public at %lu",util_hex(lmote->nonce,8,NULL),lmote->at,m->at);
-      mote_synced(lmote);
-    }
-
-    // TODO intelligent ping re-schedule, not just skip some and randomize
-    m->at += 32768*15; // 15s
-    e3x_rand(m->nonce,8);
-    m->ping = 1;
-
-    return m;
-  }
-  
   // TODO, set up first sync timeout to reset!
   util_chunks_free(m->chunks);
   m->chunks = util_chunks_new(63);
   m->chunks->blocking = 0;
-  // establish the pipe path
-  link_pipe(m->link,m->medium->com->pipe);
   // if public and no keys, send discovery
   if(m->medium->com->tm->pubim && !m->link->x)
   {
     LOG("sending bare discovery %s",lob_json(m->medium->com->tm->pubim));
     pipe_send(m->medium->com->pipe, lob_copy(m->medium->com->tm->pubim), m->link);
     return m;
+  }else{
+    // TODO send handshake
   }
-  // trigger a new handshake over it
-  lob_free(link_resync(m->link));
+
   return m;
 }
 
