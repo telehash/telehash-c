@@ -120,10 +120,10 @@ int main(int argc, char **argv)
   fail_unless(tmesh_process(netA,4,0));
   fail_unless(knock->mote == m);
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
-  fail_unless(knock->tx);
-  fail_unless(knock->start == 2229);
-  fail_unless(knock->stop == 2229+1000);
-  fail_unless(knock->chan == 57);
+  fail_unless(!knock->tx);
+  fail_unless(knock->start == 6037);
+  fail_unless(knock->stop == 6037+1000);
+  fail_unless(knock->chan == 78);
 
   // public ping tx
   memset(m->nonce,4,8); // fixture for testing
@@ -135,11 +135,11 @@ int main(int argc, char **argv)
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
   fail_unless(knock->ready);
   fail_unless(knock->tx);
-  fail_unless(knock->start == 17579);
-  fail_unless(knock->chan == 57);
+  fail_unless(knock->start == 17867);
+  fail_unless(knock->chan == 78);
   // frame would be random ciphered, but we fixed it to test
   LOG("frame %s",util_hex(knock->frame,32+8,hex)); // just the stable part
-  fail_unless(util_cmp(hex,"0404040404040404318baa89603255effb54bdbdc5f3e6eeae90428fa94f4bb07dffb958ba02e4e4") == 0);
+  fail_unless(util_cmp(hex,"294ed667149fde0e294ed667149fde0e482a038f545760b5316aed8ada241664a70f3c4ff044ff5c") == 0);
   // let's preted it's an rx now
   knock->tx = 0;
   knock->done = knock->stop; // fake rx good

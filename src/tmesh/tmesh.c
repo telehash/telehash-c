@@ -106,11 +106,10 @@ cmnty_t tmesh_join(tmesh_t tm, char *medium, char *name)
   {
     LOG("joining public community %s on medium %s",name,medium);
 
-    // add a public beacon mote using generated shared hashname
-    uint8_t hash[32];
-    e3x_hash((uint8_t*)name,strlen(name),hash);
-    if(!(c->beacons = mote_new(c->medium, hashname_vbin(hash)))) return cmnty_free(c);
-    c->beacons->beacon = hashname_dup(hashname_vbin(hash));;
+    // add a public beacon mote using zeros hashname
+    uint8_t zeros[32] = {0};
+    if(!(c->beacons = mote_new(c->medium, hashname_vbin(zeros)))) return cmnty_free(c);
+    c->beacons->beacon = hashname_dup(hashname_vbin(zeros));;
     c->beacons->public = 1; // convenience flag for altered logic
     mote_reset(c->beacons);
 
@@ -826,7 +825,7 @@ mote_t mote_knock(mote_t m, knock_t k)
   // set relative start/stop times
   k->start = m->at;
   // listen window is larger for a beacon
-  k->stop = k->start + ((k->tx && m->beacon) ? m->medium->max : m->medium->min);
+  k->stop = k->start + ((!k->tx && m->beacon) ? m->medium->max : m->medium->min);
 
   // derive current channel
   k->chan = m->chan[1] % m->medium->chans;
