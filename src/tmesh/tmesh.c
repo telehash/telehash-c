@@ -61,10 +61,12 @@ static cmnty_t cmnty_new(tmesh_t tm, char *medium, char *name)
 
   if(!(c->medium = malloc(sizeof (struct medium_struct)))) return cmnty_free(c);
   memset(c->medium,0,sizeof (struct medium_struct));
-  memcpy(c->medium->bin,medium,5);
+  memcpy(c->medium->bin,bin,5);
+  c->medium->com = c;
 
   // try to init the medium
-  for(uint8_t i=0;i<RADIOS_MAX && radio_devices[i];i++)
+  uint8_t i=0;
+  for(;i<RADIOS_MAX && radio_devices[i];i++)
   {
     if(radio_devices[i]->init(radio_devices[i],c->medium))
     {
@@ -72,8 +74,8 @@ static cmnty_t cmnty_new(tmesh_t tm, char *medium, char *name)
       break;
     }
   }
-  if(!c->medium->radio) LOG("unsupported medium %s",medium);
-  if(!c->medium->radio) return cmnty_free(c);
+  if(i == RADIOS_MAX) LOG("unsupported medium %s",medium);
+  if(i == RADIOS_MAX) return cmnty_free(c);
 
   // set up pipe
   if(!(c->pipe = pipe_new("tmesh"))) return cmnty_free(c);
@@ -108,6 +110,7 @@ cmnty_t tmesh_join(tmesh_t tm, char *medium, char *name)
     if(!(c->beacons = mote_new(c->medium, public))) return cmnty_free(c);
     c->beacons->beacon = public;
     c->beacons->public = 1; // convenience flag for altered logic
+    mote_reset(c->beacons);
 
     // one-time generate public intermediate keys packet
     if(!tm->pubim) tm->pubim = hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys));
@@ -154,6 +157,7 @@ mote_t tmesh_link(tmesh_t tm, cmnty_t com, link_t link)
   for(m=com->links;m;m = m->next) if(m->link == link) return m;
 
   if(!(m = mote_new(com->medium, link->id))) return LOG("OOM");
+  m->link = link;
   m->next = com->links;
   com->links = m;
 
@@ -351,6 +355,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   if(k->err)
   {
     if(!k->tx) k->mote->rxz++; // count missed rx knocks
+    k->mote->pong = 0; // always clear pong state
     LOG("knock error");
     return tm;
   }
@@ -636,7 +641,7 @@ mote_t mote_new(medium_t medium, hashname_t id)
     break;
   }
   
-  return mote_reset(m);
+  return m;
 }
 
 mote_t mote_free(mote_t m)
@@ -654,10 +659,12 @@ mote_t mote_reset(mote_t m)
   if(!m || !m->medium) return LOG("bad args");
   tmesh_t tm = m->medium->com->tm;
   
-  LOG("resetting mote");
+  LOG("resetting %s%s mote",m->public?"public ":"",m->beacon?"beacon":"link");
 
   // reset to defaults
   m->z = m->medium->z;
+  m->pong = 0;
+  m->ping = (m->beacon) ? 1 : 0; // default ping mode only for beacons
   m->txz = m->rxz = 0;
   m->last = m->best = m->worst = 0;
   memset(m->seed,0,4);
@@ -676,7 +683,7 @@ mote_t mote_reset(mote_t m)
     a = b = hashname_bin(m->beacon);
   }else{
     // add both hashnames in order
-    hashname_t id = (m->beacon) ? m->beacon : m->link->id;
+    hashname_t id = (m->link) ? m->link->id : m->beacon;
     if(m->order)
     {
       a = hashname_bin(id);

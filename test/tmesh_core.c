@@ -51,7 +51,7 @@ int main(int argc, char **argv)
   char hex[256];
   netA->last = 1;
   fail_unless(!tmesh_join(netA, "azdhpa5r", NULL));
-  fail_unless((c = tmesh_join(netA, "azdhpa5n", "")));
+  fail_unless((c = tmesh_join(netA, "azdhpa5n", "Public")));
   fail_unless(c->beacons);
   fail_unless(c->beacons->public);
   mote_t m = c->beacons;
@@ -68,7 +68,7 @@ int main(int argc, char **argv)
   fail_unless(m->order == 0);
   memset(m->nonce,3,8); // nonce is random, force stable for fixture testing
   LOG("secret %s",util_hex(m->secret,32,hex));
-  fail_unless(util_cmp(hex,"e5667e86ecb564f4f04e2b665348381c06765e6f9fa8161d114d5d8046948532") == 0);
+  fail_unless(util_cmp(hex,"b7bc9e4f1f128f49a3bcef321450b996600987b129723cc7ae752d6500883c65") == 0);
   LOG("public at is now %lu",mpub->at);
   
   fail_unless(mote_reset(m));
@@ -76,7 +76,7 @@ int main(int argc, char **argv)
   knock_t knock = devA->knock;
   fail_unless(mote_advance(m));
   LOG("next is %lld",m->at);
-  fail_unless(m->at == 1138);
+  fail_unless(m->at == 7379);
   fail_unless(mote_knock(m,knock));
   fail_unless(!knock->tx);
   fail_unless(mote_advance(m));
@@ -86,7 +86,7 @@ int main(int argc, char **argv)
   fail_unless(mote_knock(m,knock));
   fail_unless(knock->tx);
   LOG("next is %lld",knock->start);
-  fail_unless(knock->start == 27738);
+  fail_unless(knock->start == 24955);
   LOG("public at is now %lu",mpub->at);
   fail_unless(mpub->at == 1);
   mpub->at = 5;
@@ -238,7 +238,10 @@ int main(int argc, char **argv)
   fail_unless(knBA->tx == 0);
 
   // in sync!
-  fail_unless(0); // TODO
+  fail_unless(!mBA->pong);
+  fail_unless(!mBA->ping);
+  fail_unless(!mAB->pong);
+  fail_unless(!mAB->ping);
   mAB->at = mBA->at;
   LOG("mAB %lu mBA %lu",mAB->at,mBA->at);
   fail_unless(mAB->at == mBA->at);
