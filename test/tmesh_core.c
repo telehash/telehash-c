@@ -100,24 +100,24 @@ int main(int argc, char **argv)
   LOG("tx %d start %lld stop %lld chan %d at %lld",knock->tx,knock->start,knock->stop,knock->chan,m->at);
   fail_unless(!knock->tx);
   fail_unless(knock->start == 8);
-  fail_unless(knock->stop == 8+1000);
-  fail_unless(knock->chan == 30);
+  fail_unless(knock->stop == 8+10);
+  fail_unless(knock->chan == 11);
 //  fail_unless(tmesh_knocked(netA,knock));
   LOG("public at is now %lu",c->beacons->at);
   
   fail_unless(mote_advance(m));
   LOG("seek %s",util_hex(m->nonce,8,hex));
-  fail_unless(util_cmp(hex,"f16d6a2a93a608b1") == 0);
+  fail_unless(util_cmp(hex,"dc09a8ca7f5cb75e") == 0);
   fail_unless(mote_advance(m));
   LOG("at is %lu",m->at);
-  fail_unless(m->at >= 14828);
+  fail_unless(m->at >= 11852);
 
   // public ping now
 //  m->at = 0xffffffff;
   memset(knock,0,sizeof(struct knock_struct));
   m = mpub;
   LOG("public at is now %lu",m->at);
-  fail_unless(tmesh_process(netA,2,0));
+  fail_unless(tmesh_process(netA,4,0));
   fail_unless(knock->mote == m);
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
   fail_unless(!knock->tx);
@@ -212,7 +212,7 @@ int main(int argc, char **argv)
   RXTX(knAB,knBA);
   fail_unless(tmesh_knocked(netA,knAB));
   fail_unless(tmesh_process(netA,knAB->done+1,0));
-  fail_unless(mAB->pong);
+  fail_unless(mAB->ack);
 
   LOG("process netB");
   RXTX(knAB,knBA);
@@ -238,10 +238,8 @@ int main(int argc, char **argv)
   fail_unless(knBA->tx == 0);
 
   // in sync!
-  fail_unless(!mBA->pong);
-  fail_unless(!mBA->ping);
-  fail_unless(!mAB->pong);
-  fail_unless(!mAB->ping);
+  fail_unless(!mBA->ack);
+  fail_unless(!mAB->ack);
   mAB->at = mBA->at;
   LOG("mAB %lu mBA %lu",mAB->at,mBA->at);
   fail_unless(mAB->at == mBA->at);

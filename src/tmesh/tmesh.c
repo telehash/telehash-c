@@ -362,7 +362,7 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
    // ciphertext frame after nonce
   chacha20(k->mote->secret,k->frame,k->frame+8,64-8);
 
-  LOG("TX %s %s %s",k->mote->public?"public":"beacon",util_hex(k->frame,8,NULL));
+  LOG("TX %s %s %s",k->mote->public?"public":"beacon",k->mote->ack?"ack":"seek",util_hex(k->frame,8,NULL));
 
   return tm;
 }
