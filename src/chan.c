@@ -185,6 +185,7 @@ lob_t chan_receiving(chan_t c)
 
   ret = lob_shift(c->in);
   c->in = ret->next;
+  ret->next = NULL;
   c->ack = ret->id; // track highest processed
 
   if(lob_get(ret,"end")) c->state = CHAN_ENDED;

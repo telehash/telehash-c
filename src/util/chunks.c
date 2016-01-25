@@ -229,11 +229,12 @@ util_chunks_t util_chunks_written(util_chunks_t chunks, size_t len)
     if(chunks->waiting == chunks->cap) chunks->blocked = chunks->blocking;
 
     // only advance packet after we wrote a flushing 0
-    if(len == 1 && chunks->writeat == lob_len(chunks->writing))
+    if(len == 1 && chunks->writing && chunks->writeat == lob_len(chunks->writing))
     {
-      lob_t next = lob_next(chunks->writing);
-      lob_free(chunks->writing);
-      chunks->writing = next;
+      lob_t old = lob_shift(chunks->writing);
+      chunks->writing = old->next;
+      old->next = NULL;
+      lob_free(old);
       chunks->writeat = 0;
       // always block after a full packet
       chunks->blocked = chunks->blocking;
