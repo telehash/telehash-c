@@ -468,32 +468,39 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     // if terminated
     if(size < 62 || size == 63) util_chunks_chunk(k->mote->chunks,NULL,0);
     
-    // TODO, if beacon we process only handshake here and create/sync link if good
-    if(k->mote->beacon)
+    // if link mote, done
+    if(k->mote->link) return tm;
+
+    // for beacon motes we process only handshakes here and create/sync link if good
+    lob_t packet;
+    while((packet = util_chunks_receive(k->mote->chunks)))
     {
-      /*
-      hashname_t id = hashname_vbin(k->frame+8+8);
-      if(hashname_cmp(id,tm->mesh->id) == 0) return LOG("identity crisis");
-      link_t link = link_get(tm->mesh, id);
-      mlink = tmesh_link(tm, k->mote->medium->com, link);
-      if(!mlink) return LOG("mote link failed");
-      if(memcmp(mlink->seed,k->frame+8+8+32,4) == 0) return LOG("ignoring public ping for an active mote");
-      LOG("new/reset mote to %s",hashname_short(mlink->link->id));
-      mlink->at = 0xffffffff; // disabled, as mote_synced of public will update it
-      k->mote->link = link; // cache for synced
-      mote_t lmote = tmesh_link(m->medium->com->tm, m->medium->com, m->link);
-      lmote->at = m->at;
-      lmote->last = m->last;
-      memcpy(lmote->nonce,m->nonce,8);
-      mote_advance(lmote); // step forward a window
-      m->link = NULL;
-      LOG("public-sync'd link to %s at %lu from public at %lu",util_hex(lmote->nonce,8,NULL),lmote->at,m->at);
-      mote_synced(lmote);
-      // trigger a new handshake over it
-      // establish the pipe path
-      link_pipe(m->link,m->medium->com->pipe);
-      lob_free(link_resync(m->link));
-      */
+      link_t link = NULL;
+      MORTY(k->mote);
+      LOG("beacon packet %s",lob_json(packet));
+      
+      // only receive raw handshakes
+      if(packet->head_len == 1) link = mesh_receive(tm->mesh, packet, NULL);
+      else if(tm->pubim && lob_get(packet,"1a"))
+      {
+        // if public, try new link
+        lob_t keys = lob_new();
+        lob_set_base32(keys,"1a",packet->body,packet->body_len);
+        link = link_keys(tm->mesh, keys);
+        lob_free(keys);
+        lob_free(packet);
+      }
+      
+      if(link)
+      {
+        LOG("established link");
+        mote_t linked = tmesh_link(tm, k->mote->medium->com, link);
+        mote_sync(k->mote,linked);
+        link_pipe(link,k->mote->medium->com->pipe); // establish default pipe for it
+        lob_free(link_resync(link));
+      }else{
+        LOG("no link found");
+      }
     }
 
     return tm;
@@ -739,7 +746,11 @@ mote_t mote_reset(mote_t m)
   m->last = m->best = m->worst = 0;
   memset(m->seed,0,4);
   m->chunks = util_chunks_free(m->chunks);
-  if(m->link) m->chunks = util_chunks_new(63);
+  if(m->link)
+  {
+    m->chunks = util_chunks_new(63);
+    if(m->chunks) m->chunks->blocking = 0;
+  }
 
   // TODO detach pipe from link?
 
@@ -859,16 +870,17 @@ mote_t mote_handshake(mote_t m)
 
   // TODO, set up first sync timeout to reset!
   util_chunks_free(m->chunks);
-  m->chunks = util_chunks_new(63);
+  if(!(m->chunks = util_chunks_new(63))) return LOG("OOM");
   m->chunks->blocking = 0;
   // if public and no keys, send discovery
-  if(m->medium->com->tm->pubim && !m->link->x)
+  if(m->medium->com->tm->pubim && (!m->link || !m->link->x))
   {
     LOG("sending bare discovery %s",lob_json(m->medium->com->tm->pubim));
-    pipe_send(m->medium->com->pipe, lob_copy(m->medium->com->tm->pubim), m->link);
+    util_chunks_send(m->chunks, lob_copy(m->medium->com->tm->pubim));
     return m;
   }else{
-    // TODO send handshake
+    // send handshake
+    util_chunks_send(m->chunks, link_resync(m->link));
   }
 
   return m;
