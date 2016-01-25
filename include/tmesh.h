@@ -66,6 +66,9 @@ mote_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link);
 // start looking for this hashname in this community, will link once found
 mote_t tmesh_seek(tmesh_t tm, cmnty_t c, hashname_t id);
 
+// if there's a mote for this link, return it
+mote_t tmesh_mote(tmesh_t tm, link_t link);
+
 // overall tmesh manager
 struct tmesh_struct
 {

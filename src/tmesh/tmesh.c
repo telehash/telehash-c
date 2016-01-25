@@ -103,12 +103,12 @@ cmnty_t tmesh_join(tmesh_t tm, char *medium, char *name)
   if(strncmp(name,"Public",6) == 0)
   {
     LOG("joining public community %s on medium %s",name,medium);
+
     // add a public beacon mote using generated shared hashname
     uint8_t hash[32];
     e3x_hash((uint8_t*)name,strlen(name),hash);
-    hashname_t public = hashname_dup(hashname_vbin(hash));
-    if(!(c->beacons = mote_new(c->medium, public))) return cmnty_free(c);
-    c->beacons->beacon = public;
+    if(!(c->beacons = mote_new(c->medium, hashname_vbin(hash)))) return cmnty_free(c);
+    c->beacons->beacon = hashname_dup(hashname_vbin(hash));;
     c->beacons->public = 1; // convenience flag for altered logic
     mote_reset(c->beacons);
 
@@ -116,6 +116,7 @@ cmnty_t tmesh_join(tmesh_t tm, char *medium, char *name)
     if(!tm->pubim) tm->pubim = hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys));
     
   }else{
+    LOG("joining private community %s on medium %s",name,medium);
     c->pipe->path = lob_new();
     lob_set(c->pipe->path,"type","tmesh");
     lob_set(c->pipe->path,"medium",medium);
@@ -156,6 +157,9 @@ mote_t tmesh_link(tmesh_t tm, cmnty_t com, link_t link)
   // check list of motes, add if not there
   for(m=com->links;m;m = m->next) if(m->link == link) return m;
 
+  // make sure there's a beacon mote also for syncing
+  if(!(tmesh_seek(tm, com, link->id))) return LOG("OOM");
+
   if(!(m = mote_new(com->medium, link->id))) return LOG("OOM");
   m->link = link;
   m->next = com->links;
@@ -171,8 +175,31 @@ mote_t tmesh_seek(tmesh_t tm, cmnty_t com, hashname_t id)
 {
   mote_t m = NULL;
   if(!tm || !com || !id) return LOG("bad args");
-  LOG("TODO");
-  return m;
+
+  // check list of beacons, add if not there
+  for(m=com->beacons;m;m = m->next) if(hashname_cmp(m->beacon,id) == 0) return m;
+
+  if(!(m = mote_new(com->medium, id))) return LOG("OOM");
+  m->beacon = hashname_dup(id);
+  m->next = com->beacons;
+  com->beacons = m;
+  
+  // TODO gc unused beacons
+
+  return mote_reset(m);
+}
+
+// if there's a mote for this link, return it
+mote_t tmesh_mote(tmesh_t tm, link_t link)
+{
+  if(!tm || !link) return LOG("bad args");
+  cmnty_t c;
+  for(c=tm->coms;c;c=c->next)
+  {
+    mote_t m;
+    for(m=c->links;m;m = m->next) if(m->link == link) return m;
+  }
+  return LOG("no mote found for link %s",hashname_short(link->id));
 }
 
 pipe_t tmesh_on_path(link_t link, lob_t path)
