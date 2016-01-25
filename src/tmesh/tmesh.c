@@ -4,7 +4,7 @@
 #include "telehash.h"
 #include "tmesh.h"
 
-#define MORTY(mote) LOG("%s %s mote %s nonce %s at %u",mote->public?"pub":"pri",mote->beacon?"bekn":"link",hashname_short(mote->link?mote->link->id:mote->beacon),util_hex(mote->nonce,8,NULL),mote->at);
+#define MORTY(mote) LOG("%s %s mote %u %s nonce %s at %u",mote->public?"pub":"pri",mote->beacon?"bekn":"link",mote->priority,hashname_short(mote->link?mote->link->id:mote->beacon),util_hex(mote->nonce,8,NULL),mote->at);
 
 //////////////////
 // private community management methods
@@ -321,10 +321,9 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
   // send data frames if any
   if(k->mote->chunks)
   {
-    uint8_t size = util_chunks_size(k->mote->chunks);
-
+    int16_t size = util_chunks_size(k->mote->chunks);
       // nothing to send, noop
-    if(!size)
+    if(size <= 0)
     {
       k->mote->txz++;
       return tm;
@@ -617,8 +616,8 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
       memset(&k2,0,sizeof(struct knock_struct));
       mote_knock(mote,&k2);
       
-      // boost link motes every round
-      if(mote->link) mote->priority++;
+      // boost data motes every round
+      if(util_chunks_size(mote->chunks) > 0) mote->priority++;
 
       // use the new one if preferred
       if(!k1.mote || tm->sort(&k1,&k2) != &k1)
@@ -740,6 +739,7 @@ mote_t mote_reset(mote_t m)
   m->last = m->best = m->worst = 0;
   memset(m->seed,0,4);
   m->chunks = util_chunks_free(m->chunks);
+  if(m->link) m->chunks = util_chunks_new(63);
 
   // TODO detach pipe from link?
 
@@ -876,6 +876,7 @@ mote_t mote_handshake(mote_t m)
 
 knock_t knock_sooner(knock_t a, knock_t b)
 {
+  LOG("sort a%u %u/%u b%u %u/%u",a->mote->priority,a->start,a->stop,b->mote->priority,b->start,b->stop);
   // any that finish before another starts
   if(a->stop < b->start) return a;
   if(b->stop < a->start) return b;
