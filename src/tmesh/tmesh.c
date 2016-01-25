@@ -589,10 +589,14 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
     memset(&k1,0,sizeof(struct knock_struct));
     if(!knock->ready) memset(knock,0,sizeof(struct knock_struct));
 
-    // walk the local motes
-    // TODO walk beacons also!
-    for(mote=com->links;mote;mote=mote->next)
+    // walk all the motes for next best knock
+    mote_t next = NULL;
+    for(mote=com->links;mote;mote=next)
     {
+      // switch to beacon list after links
+      next = mote->next;
+      if(!next && !mote->beacon) next = com->beacons;
+
       // first rebase cycle count if requested
       if(rebase) mote->at -= rebase;
 
@@ -607,8 +611,8 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
       memset(&k2,0,sizeof(struct knock_struct));
       mote_knock(mote,&k2);
       
-      // boost non-public every round
-      if(!mote->public) mote->priority++;
+      // boost link motes every round
+      if(mote->link) mote->priority++;
 
       // use the new one if preferred
       if(!k1.mote || tm->sort(&k1,&k2) != &k1)
