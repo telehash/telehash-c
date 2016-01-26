@@ -127,7 +127,6 @@ struct mote_struct
   uint8_t z;
   uint8_t order:1; // is hashname compare
   uint8_t public:1; // special public beacon mote
-  uint8_t ack:1; // responding beacon state
   uint8_t priority:3; // next knock priority
 };
 
@@ -147,9 +146,6 @@ uint8_t mote_tx(mote_t m);
 
 // next knock init
 mote_t mote_knock(mote_t m, knock_t k);
-
-// synchronizes two motes
-mote_t mote_sync(mote_t source, mote_t target);
 
 // initiates handshake over beacon mote
 mote_t mote_handshake(mote_t m);
