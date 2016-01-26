@@ -406,16 +406,29 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     if(k->mote->chunks)
     {
       LOG("tx chunk done %d next %d",util_chunks_size(k->mote->chunks),util_chunks_peek(k->mote->chunks));
+
       // advance chunks
       util_chunks_next(k->mote->chunks);
+
       // we don't use flush zeros so dump em
       if(util_chunks_size(k->mote->chunks) == 0) util_chunks_next(k->mote->chunks);
+
+      // if beacon mote see if there's a link yet
+      if(k->mote->beacon) mote_link(k->mote);
+
       return tm;
     }
 
     // beacons always sync next at time to when actually done
     k->mote->at = k->done;
     LOG("beacon tx done");
+    
+      // since there's no ordering w/ public beacons, advance one and make sure we're rx
+    if(k->mote->public)
+    {
+      mote_advance(k->mote);
+      if(mote_tx(k->mote)) k->mote->order ^= 1; 
+    }
     
     return tm;
   }
@@ -449,8 +462,9 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
       k->mote->at = k->done;
       memcpy(k->mote->nonce,k->frame,8);
 
-      // since there's no ordering w/ public beacons, make sure we're inverted to the sender
-      if(mote_tx(k->mote)) k->mote->order ^= 1; 
+      // since there's no ordering w/ public beacons, advance one and make sure we're tx
+      mote_advance(k->mote);
+      if(!mote_tx(k->mote)) k->mote->order ^= 1; 
 
       // make sure a private beacon exists
       tmesh_seek(tm, k->mote->medium->com, id);
@@ -514,41 +528,8 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   // if terminated
   if(size < 62 || size == 63) util_chunks_chunk(k->mote->chunks,NULL,0);
   
-  // if link mote, done
-  if(k->mote->link) return tm;
-
-  // for beacon motes we process only handshakes here and create/sync link if good
-  lob_t packet;
-  while((packet = util_chunks_receive(k->mote->chunks)))
-  {
-    link_t link = NULL;
-    MORTY(k->mote);
-    LOG("beacon packet %s",lob_json(packet));
-    
-    // only receive raw handshakes
-    if(packet->head_len == 1) link = mesh_receive(tm->mesh, packet, NULL);
-    else if(tm->pubim && lob_get(packet,"1a"))
-    {
-      // if public, try new link
-      lob_t keys = lob_new();
-      lob_set_base32(keys,"1a",packet->body,packet->body_len);
-      link = link_keys(tm->mesh, keys);
-      lob_free(keys);
-      lob_free(packet);
-    }
-    
-    if(link)
-    {
-      LOG("established link");
-      mote_t linked = tmesh_link(tm, k->mote->medium->com, link);
-      linked->at = k->mote->at;
-      memcpy(linked->nonce,k->mote->nonce,8);
-      link_pipe(link,linked->medium->com->pipe); // establish default pipe for it
-      lob_free(link_resync(link)); // need this?
-    }else{
-      LOG("no link found");
-    }
-  }
+  // if beacon mote see if there's a link yet
+  if(k->mote->beacon) mote_link(k->mote);
 
   return tm;
 }
@@ -591,6 +572,7 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
 
       // move ahead window(s)
       while(mote->at < at) mote_advance(mote);
+      while(mote_tx(mote) && mote->chunks && util_chunks_size(mote->chunks) <= 0) mote_advance(mote);
       MORTY(mote);
 
       // peek at the next knock details
@@ -862,6 +844,65 @@ mote_t mote_handshake(mote_t m)
   }
 
   return m;
+}
+
+// attempt to establish link from a beacon mote
+mote_t mote_link(mote_t mote)
+{
+  if(!mote) return LOG("bad args");
+  tmesh_t tm = mote->medium->com->tm;
+
+  // can't proceed until we've flushed
+  if(util_chunks_size(mote->chunks) > 0) return LOG("not flushed yet: %d",util_chunks_size(mote->chunks));
+
+  // and also have received
+  lob_t packet;
+  if(!(packet = util_chunks_receive(mote->chunks))) return LOG("none received yet");
+
+  MORTY(mote);
+
+  // for beacon motes we process only handshakes here and create/sync link if good
+  link_t link = NULL;
+  do {
+    LOG("beacon packet %s",lob_json(packet));
+    
+    // only receive raw handshakes
+    if(packet->head_len == 1)
+    {
+      link = mesh_receive(tm->mesh, packet, NULL);
+      continue;
+    }
+
+    if(tm->pubim && lob_get(packet,"1a"))
+    {
+      // if public, try new link
+      lob_t keys = lob_new();
+      lob_set_base32(keys,"1a",packet->body,packet->body_len);
+      link = link_keys(tm->mesh, keys);
+      lob_free(keys);
+      lob_free(packet);
+      continue;
+    }
+    
+    LOG("unknown packet received on beacon mote: %s",lob_json(packet));
+    lob_free(packet);
+  } while((packet = util_chunks_receive(mote->chunks)));
+  
+  // booo, start over
+  if(!link)
+  {
+    mote_reset(mote);
+    return LOG("no link found");
+  }
+
+  LOG("established link");
+  mote_t linked = tmesh_link(tm, mote->medium->com, link);
+  linked->at = mote->at;
+  memcpy(linked->nonce,mote->nonce,8);
+  link_pipe(link,linked->medium->com->pipe); // establish default pipe for it
+  lob_free(link_resync(link)); // need this?
+
+  return linked;
 }
 
 knock_t knock_sooner(knock_t a, knock_t b)

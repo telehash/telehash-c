@@ -275,6 +275,12 @@ int main(int argc, char **argv)
   // continue establishing link
   printf("\n\n");
   int max = 40;
+  mote_reset(mAB);
+  mote_reset(mBA);
+  mote_reset(bmAB);
+  mote_reset(bmBA);
+  mAB->at = mBA->at;
+  bmAB->at = bmBA->at;
   uint32_t step = mAB->at;
   while(--max > 0 && !link_up(mBA->link) && !link_up(mAB->link))
   {
