@@ -4,7 +4,7 @@
 #include "telehash.h"
 #include "tmesh.h"
 
-#define MORTY(mote) LOG("%s %s mote %u %s nonce %s at %u",mote->public?"pub":"pri",mote->beacon?"bekn":"link",mote->priority,hashname_short(mote->link?mote->link->id:mote->beacon),util_hex(mote->nonce,8,NULL),mote->at);
+#define MORTY(mote) LOG("%s %s mote %u %s nonce %s at %u %s",mote->public?"pub":"pri",mote->beacon?"bekn":"link",mote->priority,hashname_short(mote->link?mote->link->id:mote->beacon),util_hex(mote->nonce,8,NULL),mote->at,mote_tx(mote)?"tx":"rx");
 
 //////////////////
 // private community management methods
@@ -26,7 +26,7 @@ static void cmnty_send(pipe_t pipe, lob_t packet, link_t link)
   for(m=c->links;m;m=m->next) if(m->link == link)
   {
     util_chunks_send(m->chunks, packet);
-    LOG("delivering %d to mote, %d",lob_len(packet),util_chunks_size(m->chunks));
+    LOG("delivering %d to mote %s",lob_len(packet),hashname_short(link->id));
     return;
   }
 
@@ -311,6 +311,15 @@ radio_t radio_device(radio_t device)
   return NULL;
 }
 
+/*
+* pub bkn tx nonce+rand+seed+self, set at to done
+* pub bkn rx, sync at to done, use nonce, order to rx, start prv bkn
+* 
+* prv bkn tx ping nonce+rand+seed+self, rand is rx, set at to done
+* prv bkn rx sync at to done, nonce to rand, tx handshake
+* prv bkn rx, if nonce==k->nonce, initiate handshake, else rx ping
+*/
+
 // fills in next tx knock
 tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
 {
@@ -326,7 +335,7 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
     if(size <= 0)
     {
       k->mote->txz++;
-      return tm;
+      return NULL;
     }
 
     // flag is terminated even tho full
@@ -379,6 +388,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 
   // clear some flags straight away
   k->ready = 0;
+  k->mote->priority = 0;
   
   if(k->err)
   {
@@ -405,18 +415,25 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
       return tm;
     }
     
-    // beacons always shift start time to when actually done for sync
-    k->mote->at = k->done;
-
-    // a sent ack starts the handshake
+    // handle the sent ack state changes
     if(k->mote->ack)
     {
-      mote_handshake(k->mote);
+      LOG("beacon tx ack done");
       k->mote->ack = 0;
+      // public/private beacons behave differently after ack
+      if(k->mote->public)
+      {
+        mote_reset(k->mote);
+      }else{
+        mote_handshake(k->mote);
+      }
       return tm;
     }
     
-    // a sent beacon waits for an ack
+    // a newly sent beacon waits for an ack
+
+    // beacons always shift start time to when actually done for sync
+    k->mote->at = k->done;
 
     // restore the sent nonce
     memcpy(k->mote->nonce,k->nonce,8);
@@ -512,9 +529,6 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   // first decipher the frame using the bundled nonce
   chacha20(k->mote->secret,k->frame,k->frame+8,64-8);
 
-  // rebase all beacon starts to when actually done receiving for sync
-  k->mote->at = k->done;
-  
   // get the private beacon to this hashname
   hashname_t id = hashname_vbin(k->frame+8+8);
   if(!id) return LOG("OOM");
@@ -529,18 +543,21 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     // check the seed to see if there was a reset
     if(memcmp(beacon->seed,k->frame+8+8+32,4) == 0) return LOG("skipping public beacon for an active mote");
     
-    // a nonce that matches is a reply, sync the beacon and start handshake
-    if(memcmp(k->mote->nonce,k->frame,8) == 0)
+    // a nonce that matches is a synchronized reply, sync the private beacon and start handshake
+    if(memcmp(k->nonce,k->frame,8) == 0)
     {
       LOG("incoming public beacon, u can't touch this");
       mote_reset(beacon);
-      beacon->at = k->mote->at;
-      memcpy(beacon->nonce,k->mote->nonce,8);
+      beacon->at = k->start; // best sync time is when this rx knock started
+      memcpy(beacon->nonce,k->nonce,8); // carry over nonce from rx
       mote_advance(beacon); // one window past so no conflict
-      mote_handshake(beacon);
+      mote_handshake(beacon); // can start handshaking immediately, in sync
       return tm;
     }
     
+    // rebase all beacon starts to when actually done receiving for sync
+    k->mote->at = k->done;
+  
     // sync
     memcpy(k->mote->nonce,k->frame,8);
     LOG("new incoming public beacon from %s %s",hashname_short(id),util_hex(k->mote->nonce,8,NULL));
@@ -548,8 +565,10 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     // since there's no ordering w/ public beacons, make sure we're inverted to the sender for the ack
     k->mote->order = mote_tx(k->mote) ? 1 : 0;
 
-    // fast forward to the ack
+    // fast forward to the ack and prioritize
     while(!mote_tx(k->mote)) mote_advance(k->mote);
+    k->mote->priority = 3;
+    k->mote->ack = 1;
 
     // reset/sync the private beacon to start handshaking after that
     mote_reset(beacon);
@@ -663,8 +682,13 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
     MORTY(knock->mote);
 
     // do the work to fill in the tx frame only once here
-    if(knock->tx) tmesh_knock(tm, knock);
-    
+    if(knock->tx && !tmesh_knock(tm, knock))
+    {
+      LOG("tx prep failed, skipping knock");
+      memset(knock,0,sizeof(struct knock_struct));
+      continue;
+    }
+
     // signal driver
     if(radio->ready && !radio->ready(radio, knock->mote->medium, knock))
     {
@@ -899,7 +923,7 @@ mote_t mote_handshake(mote_t m)
     return m;
   }else{
     // send handshake
-    util_chunks_send(m->chunks, link_resync(m->link));
+    util_chunks_send(m->chunks, link_handshakes(m->link));
   }
 
   return m;
