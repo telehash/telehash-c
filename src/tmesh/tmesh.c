@@ -529,18 +529,34 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     // check the seed to see if there was a reset
     if(memcmp(beacon->seed,k->frame+8+8+32,4) == 0) return LOG("skipping public beacon for an active mote");
     
-    LOG("new incoming public beacon from %s",hashname_short(id));
+    // a nonce that matches is a reply, sync the beacon and start handshake
+    if(memcmp(k->mote->nonce,k->frame,8) == 0)
+    {
+      LOG("incoming public beacon, u can't touch this");
+      mote_reset(beacon);
+      beacon->at = k->mote->at;
+      memcpy(beacon->nonce,k->mote->nonce,8);
+      mote_advance(beacon); // one window past so no conflict
+      mote_handshake(beacon);
+      return tm;
+    }
+    
+    // sync
+    memcpy(k->mote->nonce,k->frame,8);
+    LOG("new incoming public beacon from %s %s",hashname_short(id),util_hex(k->mote->nonce,8,NULL));
 
     // since there's no ordering w/ public beacons, make sure we're inverted to the sender for the ack
     k->mote->order = mote_tx(k->mote) ? 1 : 0;
 
-    // sync and fast forward to the ack
-    memcpy(k->mote->nonce,k->frame,8);
+    // fast forward to the ack
     while(!mote_tx(k->mote)) mote_advance(k->mote);
 
-    // reset/sync the private beacon to start after that
+    // reset/sync the private beacon to start handshaking after that
     mote_reset(beacon);
-    mote_sync(k->mote,beacon);
+    beacon->at = k->mote->at;
+    memcpy(beacon->nonce,k->mote->nonce,8);
+    mote_advance(beacon); // one window past so no conflict
+    mote_handshake(beacon);
     
     return tm;
   }
@@ -552,7 +568,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   if(memcmp(k->mote->seed,k->frame+8+8+32,4) == 0) return LOG("skipping private beacon for a known mote");
 
   // an incoming matching nonce is sync signal, much celebration
-  if(memcmp(k->nonce,k->frame,8) == 0)
+  if(memcmp(k->mote->nonce,k->frame,8) == 0)
   {
     LOG("incoming private beacon is to legit to quit");
     // copy in the given bundled sync nonce and cache seed
@@ -611,12 +627,12 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
       // first rebase cycle count if requested
       if(rebase) mote->at -= rebase;
 
+      // already have one active, noop
+      if(knock->ready) continue;
+
       // move ahead window(s)
       while(mote->at < at) mote_advance(mote);
       MORTY(mote);
-
-      // already have one active
-      if(knock->ready) continue;
 
       // peek at the next knock details
       memset(&k2,0,sizeof(struct knock_struct));
