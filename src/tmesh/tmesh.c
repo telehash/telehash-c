@@ -602,11 +602,11 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
 
     // walk all the motes for next best knock
     mote_t next = NULL;
-    for(mote=com->links;mote;mote=next)
+    for(mote=com->beacons;mote;mote=next)
     {
-      // switch to beacon list after links
+      // switch to link motes list after beacons
       next = mote->next;
-      if(!next && !mote->beacon) next = com->beacons;
+      if(!next && !mote->link) next = com->links;
 
       // first rebase cycle count if requested
       if(rebase) mote->at -= rebase;
@@ -740,8 +740,6 @@ mote_t mote_reset(mote_t m)
   if(!m || !m->medium) return LOG("bad args");
   tmesh_t tm = m->medium->com->tm;
   
-  MORTY(m);
-
   // reset to defaults
   m->z = m->medium->z;
   m->ack = 0;
@@ -796,6 +794,8 @@ mote_t mote_reset(mote_t m)
   // randomize nonce
   e3x_rand(m->nonce,8);
   
+  MORTY(m);
+
   return m;
 }
 
