@@ -27,7 +27,7 @@ medium_t device_ready(radio_t self, medium_t m, knock_t knock)
   tmesh_t tm = m->com->tm;
   LOG("RADIO READY %s %s",(tm == netA) ? "netA" : "netB",knock->tx?"TX":"RX");
   LOG("start %lu stop %lu on %d",knock->start,knock->stop,knock->chan);
-  knock->done = knock->stop; // flag done here for testing
+  knock->stopped = knock->stop; // flag done here for testing
   return m;
 }
 

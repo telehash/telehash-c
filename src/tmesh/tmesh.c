@@ -419,7 +419,8 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     }
 
     // beacons always sync next at time to when actually done
-    k->mote->at = k->done;
+    k->mote->at = k->stopped;
+    k->mote->priority = 0; // only one priority tx
     LOG("beacon tx done");
     
       // since there's no ordering w/ public beacons, advance one and make sure we're rx
@@ -466,7 +467,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
       private->priority = 2;
 
       // always sync to given nonce and done at
-      k->mote->at = k->done;
+      k->mote->at = k->stopped;
       memcpy(k->mote->nonce,k->frame,8);
 
       // since there's no ordering w/ public beacons, advance one and make sure we're tx
@@ -486,7 +487,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     LOG("RX private beacon RSSI %d frame %s",k->rssi,util_hex(k->frame,64,NULL));
 
     // safe to sync to given nonce and done at
-    k->mote->at = k->done;
+    k->mote->at = k->stopped;
     memcpy(k->mote->nonce,k->frame,8);
     
     // we received a private beacon, initiate handshake
@@ -910,8 +911,8 @@ knock_t knock_sooner(knock_t a, knock_t b)
 {
   LOG("sort a%u %u/%u b%u %u/%u",a->mote->priority,a->start,a->stop,b->mote->priority,b->start,b->stop);
   // any that finish before another starts
-  if(a->stop < b->start) return a;
-  if(b->stop < a->start) return b;
+  if(a->stop+100 < b->start) return a;
+  if(b->stop+100 < a->start) return b;
   // any rx over tx
   if(a->tx < b->tx) return a;
   if(b->tx < a->tx) return a;

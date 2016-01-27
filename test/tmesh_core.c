@@ -144,12 +144,12 @@ int main(int argc, char **argv)
   fail_unless(util_cmp(hex,"6c265ac8d9a533a1bc7c7f49ed83ae5d32d31b4b9b76c485b182d649c91deb08a160aab63ee8212c") == 0);
   // let's preted it's an rx now
   knock->tx = 0;
-  knock->done = knock->stop; // fake rx good
+  knock->stopped = knock->stop; // fake rx good
   LOG("faking rx in");
   fail_unless(!tmesh_knocked(netA,knock)); // identity crisis
   fail_unless(tmesh_process(netA,42424,0));
   LOG("tx %d start %lld stop %lld chan %d",knock->tx,knock->start,knock->stop,knock->chan);
-  fail_unless(knock->done);
+  fail_unless(knock->stopped);
   fail_unless(knock->start == 43444);
 
   // leave public community
@@ -297,8 +297,8 @@ int main(int argc, char **argv)
     {
       printf("~~~~RXTX %u\n",step);
       RXTX(knAB,knBA);
-      knAB->done = knAB->stop;
-      knBA->done = knBA->stop;
+      knAB->stopped = knAB->stop;
+      knBA->stopped = knBA->stop;
     }else{
       knAB->err = knBA->err = 1;
     }

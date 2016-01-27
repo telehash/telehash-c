@@ -97,8 +97,8 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase);
 struct knock_struct
 {
   mote_t mote;
-  uint32_t start, stop;
-  uint32_t done; // actual stop time, done-start is time it took
+  uint32_t start, stop; // requested start/stop times
+  uint32_t started, stopped; // actual start/stop times
   uint8_t frame[64];
   uint8_t nonce[8]; // nonce for this knock
   uint8_t chan; // current channel (< med->chans)
