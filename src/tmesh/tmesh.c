@@ -388,7 +388,6 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 
   // clear some flags straight away
   k->ready = 0;
-  k->mote->priority = 0;
   
   if(k->err)
   {
@@ -458,6 +457,14 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     {
       LOG("RX public beacon RSSI %d frame %s",k->rssi,util_hex(k->frame,64,NULL));
 
+      // make sure a private beacon exists
+      mote_t private = tmesh_seek(tm, k->mote->medium->com, id);
+      if(!private) return LOG("internal error");
+
+      // check the private seed to see if there was a reset
+      if(memcmp(private->seed,k->frame+8+32,4) == 0) return LOG("skipping public beacon for an active mote");
+      private->priority = 2;
+
       // always sync to given nonce and done at
       k->mote->at = k->done;
       memcpy(k->mote->nonce,k->frame,8);
@@ -465,9 +472,6 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
       // since there's no ordering w/ public beacons, advance one and make sure we're tx
       mote_advance(k->mote);
       if(!mote_tx(k->mote)) k->mote->order ^= 1; 
-
-      // make sure a private beacon exists
-      tmesh_seek(tm, k->mote->medium->com, id);
       
       // TODO, could we pre-sync the private beacon?
       k->mote->priority = 1;
@@ -585,7 +589,7 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
       // set priority when there's data to send
       if(k2.tx && mote->chunks)
       {
-        if(util_chunks_size(mote->chunks) > 0) mote->priority++;
+        if(util_chunks_size(mote->chunks) > 0) mote->priority = 4;
         else mote->priority = 0;
       }
 
@@ -908,6 +912,9 @@ knock_t knock_sooner(knock_t a, knock_t b)
   // any that finish before another starts
   if(a->stop < b->start) return a;
   if(b->stop < a->start) return b;
+  // any rx over tx
+  if(a->tx < b->tx) return a;
+  if(b->tx < a->tx) return a;
   // any higher priority state
   if(a->mote->priority > b->mote->priority) return a;
   if(b->mote->priority > a->mote->priority) return b;
