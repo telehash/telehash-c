@@ -528,8 +528,9 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   // if terminated
   if(size < 62 || size == 63) util_chunks_chunk(k->mote->chunks,NULL,0);
   
-  // if beacon mote see if there's a link yet
+  // process any new packets, if beacon mote see if there's a link yet
   if(k->mote->beacon) mote_link(k->mote);
+  else mote_process(k->mote);
 
   return tm;
 }
@@ -539,7 +540,6 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
 {
   cmnty_t com;
   mote_t mote;
-  lob_t packet;
   struct knock_struct k1, k2;
   knock_t knock;
   if(!tm || !at) return NULL;
@@ -566,6 +566,9 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
 
       // first rebase cycle count if requested
       if(rebase) mote->at -= rebase;
+
+      // brute timeout idle beacon motes
+      if(mote->beacon && mote->rxz > 5) mote_reset(mote);
 
       // already have one active, noop
       if(knock->ready) continue;
@@ -620,31 +623,6 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
     }
   }
 
-  // now do any heavier processing work decoupled
-  for(com=tm->coms;com;com=com->next)
-  {
-    // TODO split out beacon motes for timeouts!
-    for(mote=com->links;mote;mote=mote->next)
-    {
-      // process any packets on this mote
-      while((packet = util_chunks_receive(mote->chunks)))
-      {
-        MORTY(mote);
-        LOG("pkt %s",lob_json(packet));
-        // TODO make this more of a protocol, not a hack
-        if(lob_get(packet,"1a"))
-        {
-          lob_t keys = lob_new();
-          lob_set_base32(keys,"1a",packet->body,packet->body_len);
-          lob_set_raw(packet,"keys",0,(char*)keys->head,keys->head_len);
-          lob_free(keys);
-        }
-        // TODO associate mote for neighborhood
-        mesh_receive(tm->mesh, packet, com->pipe);
-      }
-    }
-  }
-  
   // overall telehash background processing now based on seconds
   if(rebase) tm->last -= rebase;
   tm->cycles += (at - tm->last);
@@ -706,15 +684,13 @@ mote_t mote_reset(mote_t m)
   m->z = m->medium->z;
   m->txz = m->rxz = 0;
   m->last = m->best = m->worst = 0;
+  m->priority = 0;
   memset(m->seed,0,4);
   m->chunks = util_chunks_free(m->chunks);
   if(m->link)
   {
     m->chunks = util_chunks_new(63);
     if(m->chunks) m->chunks->blocking = 0;
-    m->priority = 0; // not until data
-  }else{
-    m->priority = 1; // beacon defaults higher
   }
 
   // TODO detach pipe from link?
@@ -869,11 +845,11 @@ mote_t mote_link(mote_t mote)
     // only receive raw handshakes
     if(packet->head_len == 1)
     {
-      link = mesh_receive(tm->mesh, packet, NULL);
+      link = mesh_receive(tm->mesh, packet, mote->medium->com->pipe);
       continue;
     }
 
-    if(tm->pubim && lob_get(packet,"1a"))
+    if(tm->pubim && !link && lob_get(packet,"1a"))
     {
       // if public, try new link
       lob_t keys = lob_new();
@@ -891,6 +867,7 @@ mote_t mote_link(mote_t mote)
   // booo, start over
   if(!link)
   {
+    LOG("TODO: if a mote reset its handshake may be old and rejected above, reset link?");
     mote_reset(mote);
     return LOG("no link found");
   }
@@ -899,11 +876,31 @@ mote_t mote_link(mote_t mote)
   mote_t linked = tmesh_link(tm, mote->medium->com, link);
   linked->at = mote->at;
   memcpy(linked->nonce,mote->nonce,8);
-  link_pipe(link,linked->medium->com->pipe); // establish default pipe for it
-  lob_free(link_resync(link)); // need this?
+  link_pipe(link, mote->medium->com->pipe);
 
   return linked;
 }
+
+// process new link data on a mote
+mote_t mote_process(mote_t mote)
+{
+  if(!mote) return LOG("bad args");
+  tmesh_t tm = mote->medium->com->tm;
+  
+  MORTY(mote);
+
+  // process any packets on this mote
+  lob_t packet;
+  while((packet = util_chunks_receive(mote->chunks)))
+  {
+    LOG("pkt %s",lob_json(packet));
+    // TODO associate mote for neighborhood
+    mesh_receive(tm->mesh, packet, mote->medium->com->pipe);
+  }
+  
+  return mote;
+}
+
 
 knock_t knock_sooner(knock_t a, knock_t b)
 {

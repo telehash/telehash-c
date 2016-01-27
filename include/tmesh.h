@@ -153,6 +153,9 @@ mote_t mote_handshake(mote_t m);
 // attempt to establish link from a beacon mote
 mote_t mote_link(mote_t m);
 
+// process new link data on a mote
+mote_t mote_process(mote_t m);
+
 // for tmesh sorting
 knock_t knock_sooner(knock_t a, knock_t b);
 
