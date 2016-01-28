@@ -453,6 +453,13 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     if(!id) return LOG("OOM");
     if(hashname_cmp(id,tm->mesh->id) == 0) return LOG("identity crisis");
 
+    // always sync beacon time to sender's reality
+    k->mote->at = k->stopped;
+
+    // check the seed to see if there was a reset
+    if(memcmp(k->mote->seed,k->frame+8+32,4) == 0) return LOG("skipping seen beacon");
+    memcpy(k->mote->seed,k->frame+8+32,4);
+
     // here is where a public beacon behaves different than a private one
     if(k->mote->public)
     {
@@ -462,32 +469,33 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
       mote_t private = tmesh_seek(tm, k->mote->medium->com, id);
       if(!private) return LOG("internal error");
 
-      // check the private seed to see if there was a reset
-      if(memcmp(private->seed,k->frame+8+32,4) == 0) return LOG("skipping public beacon for an active mote");
-      private->priority = 2;
+      // if the incoming nonce doesnt match, make sure we sync ack
+      if(memcmp(k->mote->nonce,k->frame,8) != 0)
+      {
+        memcpy(k->mote->nonce,k->frame,8);
 
-      // always sync to given nonce and done at
-      k->mote->at = k->stopped;
-      memcpy(k->mote->nonce,k->frame,8);
-
-      // since there's no ordering w/ public beacons, advance one and make sure we're tx
-      mote_advance(k->mote);
-      if(!mote_tx(k->mote)) k->mote->order ^= 1; 
+        // since there's no ordering w/ public beacons, advance one and make sure we're tx
+        mote_advance(k->mote);
+        if(!mote_tx(k->mote)) k->mote->order ^= 1; 
+        k->mote->priority = 1;
+        
+        LOG("scheduled public beacon at %d with %s",k->mote->at,util_hex(k->mote->nonce,8,NULL));
+      }
       
-      // TODO, could we pre-sync the private beacon?
-      k->mote->priority = 1;
-      LOG("scheduled public beacon ack tx at %d with %s",k->mote->at,util_hex(k->mote->nonce,8,NULL));
+      // sync up private for after
+      private->priority = 2;
+      private->at = k->mote->at;
+      memcpy(private->nonce,k->mote->nonce,8);
+      mote_advance(private);
+      
+      LOG("scheduled private beacon at %d with %s",private->at,util_hex(private->nonce,8,NULL));
 
       return tm;
     }
 
-    // check the seed to see if there was a reset
-    if(memcmp(k->mote->seed,k->frame+8+32,4) == 0) return LOG("skipping private beacon for an active mote");
-
     LOG("RX private beacon RSSI %d frame %s",k->rssi,util_hex(k->frame,64,NULL));
 
-    // safe to sync to given nonce and done at
-    k->mote->at = k->stopped;
+    // safe to sync to given nonce
     memcpy(k->mote->nonce,k->frame,8);
     
     // we received a private beacon, initiate handshake
@@ -785,8 +793,10 @@ mote_t mote_knock(mote_t m, knock_t k)
 
   // set relative start/stop times
   k->start = m->at;
-  // listen window is larger for a beacon
-  k->stop = k->start + ((!k->tx && m->beacon) ? m->medium->max : m->medium->min);
+  k->stop = k->start + m->medium->max;
+
+  // window is small for a link rx
+  if(!k->tx && m->link) k->stop = k->start + m->medium->min;
 
   // derive current channel
   k->chan = m->chan[1] % m->medium->chans;
