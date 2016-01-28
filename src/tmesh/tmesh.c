@@ -577,6 +577,9 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
       next = mote->next;
       if(!next && !mote->link) next = com->links;
 
+      // skip zip
+      if(!mote->z) continue;
+
       // first rebase cycle count if requested
       if(rebase) mote->at -= rebase;
 
@@ -595,13 +598,6 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
       memset(&k2,0,sizeof(struct knock_struct));
       mote_knock(mote,&k2);
       
-      // set priority when there's data to send
-      if(k2.tx && mote->chunks)
-      {
-        if(util_chunks_size(mote->chunks) > 0) mote->priority = 4;
-        else mote->priority = 0;
-      }
-
       // use the new one if preferred
       if(!k1.mote || tm->sort(&k1,&k2) != &k1)
       {
@@ -822,7 +818,7 @@ mote_t mote_handshake(mote_t m)
   
   // get relevant link, if any
   link_t link = m->link;
-  if(!link) link = mesh_linked(tm->mesh, m->beacon);
+  if(!link) link = mesh_linked(tm->mesh, hashname_char(m->beacon), 0);
 
   // if public and no keys, send discovery
   if(m->medium->com->tm->pubim && (!link || !link->x))
@@ -892,6 +888,9 @@ mote_t mote_link(mote_t mote)
   linked->at = mote->at;
   memcpy(linked->nonce,mote->nonce,8);
   link_pipe(link, mote->medium->com->pipe);
+  
+  // stop private beacon, make sure link fail resets it
+  mote->z = 0;
 
   return linked;
 }
