@@ -247,11 +247,11 @@ link_t link_pipe(link_t link, pipe_t pipe)
     seen->notif = lob_new();
     seen->notif->arg = link;
     pipe->links = lob_push(pipe->links, seen->notif);
+
+    // make sure it gets sync'd
+    lob_free(link_sync(link));
   }
   
-  // make sure it gets sync'd
-  lob_free(link_sync(link));
-
   return link;
 }
 
