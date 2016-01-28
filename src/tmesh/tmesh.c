@@ -594,7 +594,11 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
 
       // move ahead window(s)
       while(mote->at < at) mote_advance(mote);
-      while(mote_tx(mote) && mote->chunks && util_chunks_size(mote->chunks) <= 0) mote_advance(mote);
+      while(mote_tx(mote) && mote->chunks && util_chunks_size(mote->chunks) <= 0)
+      {
+        mote->txz++;
+        mote_advance(mote);
+      }
       MORTY(mote);
 
       // peek at the next knock details
