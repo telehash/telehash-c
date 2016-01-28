@@ -53,8 +53,9 @@ lob_t mesh_links(mesh_t mesh);
 // creates a link from the json format of {"hashname":"...","keys":{},"paths":[]}, optional direct pipe too
 link_t mesh_add(mesh_t mesh, lob_t json, pipe_t pipe);
 
-// return only if this hashname is currently linked (in any state)
-link_t mesh_linked(mesh_t mesh, hashname_t id);
+// return only if this hashname (full or short) is currently linked (in any state)
+link_t mesh_linked(mesh_t mesh, char *hn, size_t len);
+link_t mesh_linkid(mesh_t mesh, hashname_t id); // TODO, clean this up
 
 // remove this link, will event it down and clean up during next process()
 mesh_t mesh_unlink(link_t link);

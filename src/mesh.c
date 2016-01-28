@@ -213,7 +213,18 @@ link_t mesh_add(mesh_t mesh, lob_t json, pipe_t pipe)
   return link;
 }
 
-link_t mesh_linked(mesh_t mesh, hashname_t id)
+link_t mesh_linked(mesh_t mesh, char *hn, size_t len)
+{
+  link_t link;
+  if(!mesh || !hn) return NULL;
+  if(!len) len = strlen(hn);
+  
+  for(link = mesh->links;link;link = link->next) if(strncmp(hashname_char(link->id),hn,len) == 0) return link;
+  
+  return NULL;
+}
+
+link_t mesh_linkid(mesh_t mesh, hashname_t id)
 {
   link_t link;
   if(!mesh || !id) return NULL;
@@ -419,7 +430,8 @@ link_t mesh_receive_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe)
     lob_free(tmp);
 
     // short-cut, if it's a key from an existing link, pass it on
-    if((link = mesh_linked(mesh,from))) return link_receive_handshake(link, handshake, pipe);
+    // TODO: using mesh_linked here is a stack issue during loopback peer test!
+    if((link = mesh_linkid(mesh,from))) return link_receive_handshake(link, handshake, pipe);
     LOG("no link found for handshake from %s",hashname_char(from));
 
     // extend the key json to make it compatible w/ normal patterns
@@ -527,8 +539,8 @@ link_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
   
   // run everything else through discovery, usually plain handshakes
   mesh_discover(mesh, outer, pipe);
-  id = hashname_vchar(lob_get(outer,"hashname"));
+  link = mesh_linked(mesh, lob_get(outer,"hashname"), 0);
   lob_free(outer);
 
-  return mesh_linked(mesh, id);
+  return link;
 }

@@ -12,4 +12,4 @@
 104	mote_t
 48	medium_t
 56	cmnty_t
-96	knock_t
+104	knock_t

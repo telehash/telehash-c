@@ -36,10 +36,10 @@ int main(int argc, char **argv)
   fail_unless(status);
   
   fail_unless(mesh_process(meshA,1));
-  fail_unless(mesh_linked(meshA, meshB->id));
+  fail_unless(mesh_linked(meshA, hashname_char(meshB->id),0));
   fail_unless(mesh_unlink(linkAB));
   fail_unless(mesh_process(meshA,1));
-  fail_unless(!mesh_linked(meshA, meshB->id));
+  fail_unless(!mesh_linked(meshA, hashname_char(meshB->id),0));
   fail_unless(!status);
 
   return 0;
