@@ -420,7 +420,9 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 
     // beacons always sync next at time to when actually done
     k->mote->at = k->stopped;
-    k->mote->priority = 0; // only one priority tx
+
+    // public gets only one priority tx
+    if(k->mote->public) k->mote->priority = 0;
     LOG("beacon tx done");
     
       // since there's no ordering w/ public beacons, advance one and make sure we're rx
