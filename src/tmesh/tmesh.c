@@ -4,7 +4,8 @@
 #include "telehash.h"
 #include "tmesh.h"
 
-#define MORTY(mote) LOG("%s %s mote %u %s nonce %s at %u %s",mote->public?"pub":"pri",mote->beacon?"bekn":"link",mote->priority,hashname_short(mote->link?mote->link->id:mote->beacon),util_hex(mote->nonce,8,NULL),mote->at,mote_tx(mote)?"tx":"rx");
+// util debug dump of mote state
+#define MORTY(mote) LOG("%s %s %s %u/%02u/%02u %s %s at %u %s %d",mote->public?"pub":"pri",mote->beacon?"bekn":"link",mote_tx(mote)?"tx":"rx",mote->priority,mote->txz,mote->rxz,hashname_short(mote->link?mote->link->id:mote->beacon),util_hex(mote->nonce,8,NULL),mote->at,mote_tx(mote)?"tx":"rx",util_chunks_size(mote->chunks));
 
 //////////////////
 // private community management methods
@@ -603,7 +604,6 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
       // use the new one if preferred
       if(!k1.mote || tm->sort(&k1,&k2) != &k1)
       {
-        LOG("electing");MORTY(k2.mote);
         memcpy(&k1,&k2,sizeof(struct knock_struct));
       }
     }
@@ -614,7 +614,6 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
     // signal this knock is ready to roll
     memcpy(knock,&k1,sizeof(struct knock_struct));
     knock->ready = 1;
-    LOG("new %s knock at %lu nonce %s",knock->tx?"TX":"RX",knock->start,util_hex(knock->nonce,8,NULL));
     MORTY(knock->mote);
 
     // do the work to fill in the tx frame only once here
@@ -628,7 +627,7 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
     // signal driver
     if(radio->ready && !radio->ready(radio, knock->mote->medium, knock))
     {
-      LOG("radio ready driver failed, cancelling knock");
+      LOG("radio ready driver failed, canceling knock");
       memset(knock,0,sizeof(struct knock_struct));
       continue;
     }
