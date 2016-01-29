@@ -213,7 +213,18 @@ link_t mesh_add(mesh_t mesh, lob_t json, pipe_t pipe)
   return link;
 }
 
-link_t mesh_linked(mesh_t mesh, hashname_t id)
+link_t mesh_linked(mesh_t mesh, char *hn, size_t len)
+{
+  link_t link;
+  if(!mesh || !hn) return NULL;
+  if(!len) len = strlen(hn);
+  
+  for(link = mesh->links;link;link = link->next) if(strncmp(hashname_char(link->id),hn,len) == 0) return link;
+  
+  return NULL;
+}
+
+link_t mesh_linkid(mesh_t mesh, hashname_t id)
 {
   link_t link;
   if(!mesh || !id) return NULL;
@@ -419,7 +430,8 @@ link_t mesh_receive_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe)
     lob_free(tmp);
 
     // short-cut, if it's a key from an existing link, pass it on
-    if((link = mesh_linked(mesh,from))) return link_receive_handshake(link, handshake, pipe);
+    // TODO: using mesh_linked here is a stack issue during loopback peer test!
+    if((link = mesh_linkid(mesh,from))) return link_receive_handshake(link, handshake, pipe);
     LOG("no link found for handshake from %s",hashname_char(from));
 
     // extend the key json to make it compatible w/ normal patterns
@@ -447,18 +459,14 @@ link_t mesh_receive_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe)
 }
 
 // processes incoming packet, it will take ownership of p
-uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
+link_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
 {
   lob_t inner;
   link_t link;
   char token[17];
   hashname_t id;
 
-  if(!mesh || !outer || !pipe)
-  {
-    LOG("bad args");
-    return 1;
-  }
+  if(!mesh || !outer || !pipe) return LOG("bad args");
   
   LOG("mesh receiving %s to %s via pipe %s",outer->head_len?"handshake":"channel",hashname_short(mesh->id),pipe->id);
 
@@ -470,7 +478,7 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
     {
       LOG("%02x handshake failed %s",outer->head[0],e3x_err());
       lob_free(outer);
-      return 2;
+      return NULL;
     }
     
     // couple the two together, inner->outer
@@ -481,7 +489,7 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
     lob_set(inner,"id",token);
 
     // process the handshake
-    return mesh_receive_handshake(mesh, inner, pipe) ? 0 : 3;
+    return mesh_receive_handshake(mesh, inner, pipe);
   }
 
   // handle channel packets
@@ -491,7 +499,7 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
     {
       LOG("packet too small %d",outer->body_len);
       lob_free(outer);
-      return 5;
+      return NULL;
     }
     
     route_t route;
@@ -501,26 +509,18 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
     {
       LOG("dropping, no link for token %s",util_hex(outer->body,16,NULL));
       lob_free(outer);
-      return 6;
+      return NULL;
     }
     
     // forward packet
-    if(!route->flag)
-    {
-      link_send(link, outer);
-      return 0;
-    }
+    if(!route->flag) return link_send(link, outer);
     
     inner = e3x_exchange_receive(link->x, outer);
     lob_free(outer);
-    if(!inner)
-    {
-      LOG("channel decryption fail for link %s %s",hashname_short(link->id),e3x_err());
-      return 7;
-    }
+    if(!inner) return LOG("channel decryption fail for link %s %s",hashname_short(link->id),e3x_err());
     
     LOG("channel packet %d bytes from %s",lob_len(inner),hashname_short(link->id));
-    return link_receive(link,inner,pipe) ? 0 : 8;
+    return link_receive(link,inner,pipe);
     
   }
 
@@ -539,7 +539,8 @@ uint8_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
   
   // run everything else through discovery, usually plain handshakes
   mesh_discover(mesh, outer, pipe);
+  link = mesh_linked(mesh, lob_get(outer,"hashname"), 0);
   lob_free(outer);
 
-  return 10;
+  return link;
 }

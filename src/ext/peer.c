@@ -8,7 +8,7 @@ void peer_send(pipe_t pipe, lob_t packet, link_t link)
   link_t router;
   if(!pipe || !packet || !link) return;
 
-  if(!(router = mesh_linked(link->mesh, pipe->arg)))
+  if(!(router = mesh_linkid(link->mesh, pipe->arg)))
   {
     LOG("router link not found for %s",pipe->id);
     return;
@@ -103,7 +103,7 @@ lob_t peer_open_peer(link_t link, lob_t open)
 
   LOG("incoming peer route request %s",lob_json(open));
 
-  if(!(peer = mesh_linked(link->mesh,hashname_vchar(lob_get(open,"peer")))))
+  if(!(peer = mesh_linkid(link->mesh,hashname_vchar(lob_get(open,"peer")))))
   {
     LOG("no peer link found for %s from %s",lob_get(open,"peer"),hashname_short(link->id));
     return open;
