@@ -126,6 +126,7 @@ cmnty_t tmesh_join(tmesh_t tm, char *medium, char *name)
     tm->mesh->paths = lob_push(tm->mesh->paths, c->pipe->path);
     
   }
+  if(!tm->pubim) tm->pubim = hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys));
   
   return c;
 }
@@ -865,7 +866,7 @@ mote_t mote_link(mote_t mote)
       continue;
     }
 
-    if(tm->pubim && !link && lob_get(packet,"1a"))
+    if(tm->pubim && lob_get(packet,"1a"))
     {
       // if public, try new link
       lob_t keys = lob_new();
