@@ -187,6 +187,9 @@ mote_t tmesh_seek(tmesh_t tm, cmnty_t com, hashname_t id)
   m->next = com->beacons;
   com->beacons = m;
   
+  // start mesh trust to save a discovery step
+  link_get(tm->mesh, id);
+  
   // TODO gc unused beacons
 
   return mote_reset(m);
@@ -768,7 +771,7 @@ mote_t mote_advance(mote_t m)
   // smaller for high z, using only high 4 bits of z
   next >>= (m->z >> 4) + m->medium->zshift;
 
-  m->at += next + m->medium->min + m->medium->max;
+  m->at += next + (m->medium->max*2);
   
   LOG("advanced to nonce %s at %u next %u",util_hex(m->nonce,8,NULL),m->at,next);
 
@@ -827,7 +830,7 @@ mote_t mote_handshake(mote_t m)
   if(!link) link = mesh_linked(tm->mesh, hashname_char(m->beacon), 0);
 
   // if public and no keys, send discovery
-  if(m->medium->com->tm->pubim && (!link || !link->x))
+  if(m->medium->com->tm->pubim && (!link || !e3x_exchange_out(link->x,0)))
   {
     LOG("sending bare discovery %s",lob_json(tm->pubim));
     util_chunks_send(m->chunks, lob_copy(tm->pubim));
