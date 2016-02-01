@@ -410,6 +410,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   {
     if(!k->tx) k->mote->rxz++; // count missed rx knocks
     LOG("knock error");
+    if(k->tx) printf("tx error\n");
     return tm;
   }
   
@@ -430,6 +431,9 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
         util_chunks_next(k->mote->chunks);
         if(util_chunks_size(k->mote->chunks) == 0) util_chunks_next(k->mote->chunks);
         mote_link(k->mote);
+      }else{
+        // did a tx, skip to rx
+        while(mote_tx(k->mote)) mote_advance(k->mote);
       }
 
       return tm;
@@ -516,6 +520,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 
     // safe to sync to given nonce
     memcpy(k->mote->nonce,k->frame,8);
+    k->mote->priority = 3;
     
     // we received a private beacon, initiate handshake
     mote_handshake(k->mote);
@@ -648,6 +653,7 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
       while(mote->at < at) mote_advance(mote);
       while(mote_tx(mote) && mote->chunks && util_chunks_size(mote->chunks) <= 0 && !mote->txhash)
       {
+        printf("txz %u\n",mote->txz);
         mote->txz++;
         mote_advance(mote);
       }
@@ -949,6 +955,7 @@ mote_t mote_link(mote_t mote)
   mote_reset(linked);
   linked->at = mote->at;
   memcpy(linked->nonce,mote->nonce,8);
+  linked->priority = 2;
   link_pipe(link, mote->medium->com->pipe);
   lob_free(link_sync(link));
   
