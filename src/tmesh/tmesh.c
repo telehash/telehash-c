@@ -418,6 +418,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   if(k->tx)
   {
     k->mote->txz = 0; // clear skipped tx's
+    k->mote->txs++;
     
     // did we send a data frame?
     if(k->mote->chunks)
@@ -456,9 +457,6 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     return tm;
   }
   
-  // rx handling, update last seen rssi for all
-  k->mote->last = k->rssi;
-
   // it could be either a beacon or data, check if beacon first
   uint8_t data[64];
   memcpy(data,k->frame,64);
@@ -517,6 +515,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     }
 
     LOG("RX private beacon RSSI %d frame %s",k->rssi,util_hex(k->frame,64,NULL));
+    k->mote->last = k->rssi;
 
     // safe to sync to given nonce
     memcpy(k->mote->nonce,k->frame,8);
@@ -549,10 +548,6 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   }
   */
 
-  // received stats only after minimal validation
-  k->mote->rxz = 0;
-  if(k->rssi < k->mote->best) k->mote->best = k->rssi;
-  if(k->rssi > k->mote->worst) k->mote->worst = k->rssi;
 
   // receive ack check hash
   if(k->frame[0])
@@ -563,6 +558,14 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
       util_chunks_next(k->mote->chunks);
       if(util_chunks_size(k->mote->chunks) == 0) util_chunks_next(k->mote->chunks);
       k->mote->rxhash = 0;
+
+      // received stats only after minimal validation
+      k->mote->rxz = 0;
+      k->mote->rxs++;
+      if(k->rssi < k->mote->best) k->mote->best = k->rssi;
+      if(k->rssi > k->mote->worst) k->mote->worst = k->rssi;
+      k->mote->last = k->rssi;
+
     }else{
       printf("WARN: ack hash check failed!\n");
     }
@@ -577,6 +580,13 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     size--;
   }
   if(size > 62) return LOG("invalid chunk frame, too large: %d",size);
+
+  // received stats only after minimal validation
+  k->mote->rxz = 0;
+  k->mote->rxs++;
+  if(k->rssi < k->mote->best || !k->mote->best) k->mote->best = k->rssi;
+  if(k->rssi > k->mote->worst) k->mote->worst = k->rssi;
+  k->mote->last = k->rssi;
 
   // use hash to signal ack next
   if(k->mote->link)
@@ -644,7 +654,7 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
       if(rebase) mote->at -= rebase;
 
       // brute timeout idle beacon motes
-      if(mote->beacon && mote->rxz > 15) mote_reset(mote);
+      if(mote->beacon && mote->rxz > 25) mote_reset(mote);
 
       // already have one active, noop
       if(knock->ready) continue;
@@ -755,6 +765,7 @@ mote_t mote_reset(mote_t m)
   // reset to defaults
   m->z = m->medium->z;
   m->txz = m->rxz = 0;
+  m->txs = m->rxs = 0;
   m->txhash = m->rxhash = 0;
   m->cash = 0;
   m->last = m->best = m->worst = 0;
