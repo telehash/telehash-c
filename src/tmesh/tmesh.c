@@ -362,6 +362,7 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
       memcpy(k->frame+2,util_chunks_frame(k->mote->chunks),size);
       k->mote->rxhash = murmur4((uint32_t*)(k->frame),64);
       LOG("TX chunk frame %d %d %08lx: %s",size,flag,k->mote->rxhash,util_hex(k->frame,64,NULL));
+      k->mote->txr++;
     }
 
     // ciphertext full frame
@@ -408,7 +409,11 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   
   if(k->err)
   {
-    if(!k->tx) k->mote->rxz++; // count missed rx knocks
+    if(!k->tx)
+    {
+      k->mote->rxz++; // count missed rx knocks
+      if(k->mote->txr) k->mote->txr++;
+    }
     LOG("knock error");
     if(k->tx) printf("tx error\n");
     return tm;
@@ -560,6 +565,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
       k->mote->rxhash = 0;
 
       // received stats only after minimal validation
+      k->mote->txr = 0;
       k->mote->rxz = 0;
       k->mote->rxs++;
       if(k->rssi < k->mote->best) k->mote->best = k->rssi;
@@ -568,6 +574,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 
     }else{
       printf("WARN: ack hash check failed!\n");
+      k->mote->bad++;
     }
     return tm;
   }
@@ -579,7 +586,11 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     flag = 1;
     size--;
   }
-  if(size > 62) return LOG("invalid chunk frame, too large: %d",size);
+  if(size > 62)
+  {
+    k->mote->bad++;
+    return LOG("invalid chunk frame, too large: %d",size);
+  }
 
   // received stats only after minimal validation
   k->mote->rxz = 0;
@@ -599,8 +610,10 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   if(k->mote->txhash && k->mote->txhash == k->mote->cash)
   {
     LOG("skipping duplicate TX frame hash %08lx\n",k->mote->txhash);
+    k->mote->rxr++;
     return tm;
   }
+  k->mote->rxr = 0;
   k->mote->cash = k->mote->txhash;
 
   LOG("RX data received, chunk len %d %d rssi %d/%d/%d hash %08lx\n",size,flag,k->mote->last,k->mote->best,k->mote->worst,k->mote->txhash);
@@ -767,6 +780,8 @@ mote_t mote_reset(mote_t m)
   m->txz = m->rxz = 0;
   m->txs = m->rxs = 0;
   m->txhash = m->rxhash = 0;
+  m->txr = m->rxr = 0;
+  m->bad = 0;
   m->cash = 0;
   m->last = m->best = m->worst = 0;
   m->priority = 0;
@@ -939,6 +954,13 @@ mote_t mote_link(mote_t mote)
 
     if(tm->pubim && lob_get(packet,"1a"))
     {
+      hashname_t id = hashname_vkey(packet,0x1a);
+      if(hashname_cmp(id,mote->beacon) != 0)
+      {
+        printf("dropping mismatch key %s != %s\n",hashname_short(id),hashname_short(mote->beacon));
+        mote_reset(mote);
+        return LOG("mismatch");
+      }
       // if public, try new link
       lob_t keys = lob_new();
       lob_set_base32(keys,"1a",packet->body,packet->body_len);
@@ -959,6 +981,13 @@ mote_t mote_link(mote_t mote)
     mote_reset(mote);
     printf("no link\n");
     return LOG("no link found");
+  }
+  
+  if(hashname_cmp(link->id,mote->beacon) != 0)
+  {
+    printf("link beacon mismatch %s != %s\n",hashname_short(link->id),hashname_short(mote->beacon));
+    mote_reset(mote);
+    return LOG("mismatch");
   }
 
   LOG("established link");
@@ -992,6 +1021,7 @@ mote_t mote_process(mote_t mote)
     // TODO associate mote for neighborhood
     mesh_receive(tm->mesh, packet, mote->medium->com->pipe);
   }
+  if(mote->chunks->err) mote->bad++;
   
   return mote;
 }

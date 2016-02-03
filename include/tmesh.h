@@ -121,6 +121,8 @@ struct mote_struct
   uint32_t at; // cycles until next knock
   uint16_t txz, rxz; // empty tx/rx counts
   uint16_t txs, rxs; // current tx/rx counts
+  uint16_t txr, rxr; // count of current retransmits  
+  uint16_t bad; // dropped bad frames
   uint8_t secret[32];
   uint8_t nonce[8];
   uint8_t seed[4]; // last seen seed to detect resets
