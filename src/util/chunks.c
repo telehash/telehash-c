@@ -138,6 +138,7 @@ lob_t util_chunks_receive(util_chunks_t chunks)
   chunks->ack = 1; // make sure ack is set after any full packets too
 //  LOG("parsing chunked packet length %d hash %d",len,murmur4((uint32_t*)buf,len));
   lob_t ret = lob_parse(buf,len);
+  chunks->err = ret ? 0 : 1;
   free(buf);
   return ret;
 }
