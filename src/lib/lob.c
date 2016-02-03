@@ -233,8 +233,8 @@ lob_t lob_set_printf(lob_t p, char *key, const char *format, ...)
   va_start(ap, format);
   va_copy(cp, ap);
 
-  len = (size_t) vsnprintf(NULL, 0, format, cp);
-  if((val = malloc(len))) vsprintf(val, format, ap);
+  len = vasprintf(&val, format, ap);
+
   va_end(ap);
   va_end(cp);
   if(!val) return NULL;
