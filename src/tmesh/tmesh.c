@@ -108,9 +108,10 @@ cmnty_t tmesh_join(tmesh_t tm, char *medium, char *name)
     LOG("joining public community %s on medium %s",name,medium);
 
     // add a public beacon mote using zeros hashname
-    uint8_t zeros[32] = {0};
-    if(!(c->beacons = mote_new(c->medium, hashname_vbin(zeros)))) return cmnty_free(c);
-    c->beacons->beacon = hashname_dup(hashname_vbin(zeros));;
+    uint8_t bin[32] = {0};
+    base32_decode("publicmeshbeaconaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",0,bin,32);
+    if(!(c->beacons = mote_new(c->medium, hashname_vbin(bin)))) return cmnty_free(c);
+    c->beacons->beacon = hashname_dup(hashname_vbin(bin));;
     c->beacons->public = 1; // convenience flag for altered logic
     mote_reset(c->beacons);
 
