@@ -2,7 +2,6 @@
 #define util_frames_h
 
 #include <stdint.h>
-#include <stdbool.h>
 #include "lob.h"
 
 // for list of incoming frames
@@ -15,11 +14,13 @@ typedef struct util_frame_struct
 typedef struct util_frames_struct
 {
 
-  util_frame_t inbox; // stacked linked list of incoming frames
+  lob_t inbox; // received packets waiting to be processed
   lob_t outbox; // current packet being sent out
 
-  uint8_t inframe; // number of incoming frames received
-  uint8_t outframe; //  number of outgoing frames sent
+  util_frame_t cache; // stacked linked list of incoming frames in progress
+
+  uint8_t in; // number of incoming frames received/waiting
+  uint8_t out; //  number of outgoing frames sent from outbox
 
   uint8_t size; // frame size
   uint8_t flush:1; // bool to signal a flush is needed
@@ -27,7 +28,7 @@ typedef struct util_frames_struct
 } *util_frames_t;
 
 
-// size of each frame, max 128;
+// size of each frame, min 16 max 128, multiple of 4
 util_frames_t util_frames_new(uint8_t size);
 
 util_frames_t util_frames_free(util_frames_t frames);
@@ -42,9 +43,9 @@ lob_t util_frames_receive(util_frames_t frames);
 size_t util_frames_inlen(util_frames_t frames);
 size_t util_frames_outlen(util_frames_t frames);
 
-// the next frame of data in/out, if data NULL bool is just ready check
-bool util_frames_inbox(util_frames_t frames, uint8_t *data);
-bool util_frames_outbox(util_frames_t frames, uint8_t *data);
+// the next frame of data in/out, if data NULL return is just ready check bool
+util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data);
+util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data);
 
 
 #endif

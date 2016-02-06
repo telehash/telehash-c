@@ -4,19 +4,22 @@
 #include <stdbool.h>
 #include "telehash.h"
 
+// max payload size per frame
+#define PAYLOAD(f) (f->size - 4)
+
 // one malloc per frame, put storage after it
 util_frames_t util_frame_new(util_frames_t frames)
 {
   util_frame_t frame;
   size_t size = sizeof (struct util_frame_struct);
-  size += frame->size;
+  size += PAYLOAD(frames);
   if(!(frame = malloc(size))) return LOG("OOM");
   memset(frame,0,size);
 
   // add to inbox
-  frame->prev = frames->inbox;
-  frames->inbox = frame;
-  frames->inframe++;
+  frame->prev = frames->cache;
+  frames->cache = frame;
+  frames->in++;
 
   return frames;
 }
@@ -31,7 +34,7 @@ util_frame_t util_frame_free(util_frame_t frame)
 
 util_frames_t util_frames_new(uint8_t size)
 {
-  if(!size || size > 128) return LOG("invalid size: %u",size);
+  if(size < 16 || size > 128) return LOG("invalid size: %u",size);
 
   util_frames_t frames;
   if(!(frames = malloc(sizeof (struct util_frames_struct)))) return LOG("OOM");
@@ -45,61 +48,39 @@ util_frames_t util_frames_free(util_frames_t frames)
 {
   if(!frames) return NULL;
   lob_freeall(frames->inbox);
-  util_frame_free(frames->outbox);
+  lob_freeall(frames->outbox);
+  util_frame_free(frames->cache);
   free(frames);
   return NULL;
 }
 
 util_frames_t util_frames_send(util_frames_t frames, lob_t out)
 {
-  if(!frames || !out) return LOG("bad args");
-//  LOG("sending frameed packet len %d hash %d",lob_len(out),murmur4((uint32_t*)lob_raw(out),lob_len(out)));
+  if(!frames) return LOG("bad args");
+  
+  if(out) frames->outbox = lob_push(frames->outbox, out);
+  else frames->flush = 1;
 
-  frames->writing = lob_push(frames->writing, out);
   return frames;
 }
 
 // get any packets that have been reassembled from incoming frames
 lob_t util_frames_receive(util_frames_t frames)
 {
-  util_frame_t frame, flush;
-  size_t len = 0;
+  if(!frames || !frames->inbox) return NULL;
+  lob_t pkt = lob_shift(frames->inbox);
+  frames->inbox = pkt->next;
+  pkt->next = NULL;
+  return pkt;
+}
 
-  if(!frames || !frames->reading) return NULL;
-  
-  // add up total length of any sequence
-  for(flush = NULL,frame = frames->reading;frame;frame=frame->prev)
-  {
-    // only start/reset on flush
-    if(frame->size == 0)
-    {
-      flush = frame;
-      len = 0;
-    }
-    if(flush) len += frame->size;
-//    LOG("frame %d %d len %d next %d",frame->size,frames->cap,len,frame->prev);
-  }
+void frames_lob(util_frames_t frames, uint8_t *tail, uint8_t len)
+{  
+//  size_t tlen = (frames->inframes * frames->size);
 
-  if(!flush) return NULL;
-  
-  // clip off before flush
-  if(frames->reading == flush)
-  {
-    frames->reading = NULL;
-  }else{
-    for(frame = frames->reading;frame->prev != flush;frame = frame->prev);
-    frame->prev = NULL;
-  }
-  
-  // pop off empty flush
-  frame = flush->prev;
-  free(flush);
-
-  // if lone flush, just recurse
-  if(!frame) return util_frames_receive(frames);
-
+  /*
   // TODO make a lob_new that creates space to prevent double-copy here
-  uint8_t *buf = malloc(len);
+  uint8_t *buf = malloc(tlen);
   if(!buf) return LOG("OOM");
   
   // eat frames copying in
@@ -114,19 +95,29 @@ lob_t util_frames_receive(util_frames_t frames)
     free(frame);
   }
   
-  frames->ack = 1; // make sure ack is set after any full packets too
-//  LOG("parsing frameed packet length %d hash %d",len,murmur4((uint32_t*)buf,len));
   lob_t ret = lob_parse(buf,len);
   frames->err = ret ? 0 : 1;
   free(buf);
   return ret;
+  */
 }
 
 // total bytes in the inbox/outbox
 size_t util_frames_inlen(util_frames_t frames)
 {
   if(!frames) return 0;
-  return (frames->inframe * frames->size);
+
+  size_t len = 0;
+  lob_t cur = frames->inbox;
+  do {
+    len += lob_len(cur);
+    cur = lob_next(cur);
+  }while(cur);
+  
+  // add cached frames
+  len += (frames->in * PAYLOAD(frames));
+  
+  return len;
 }
 
 size_t util_frames_outlen(util_frames_t frames)
@@ -140,7 +131,7 @@ size_t util_frames_outlen(util_frames_t frames)
   }while(cur);
   
   // subtract sent
-  len -= (frames->outframe * frames->size)
+  len -= (frames->out * PAYLOAD(frames));
 
   return len;
 }
@@ -151,16 +142,21 @@ size_t util_frames_outlen(util_frames_t frames)
 // == 60 is flush, first 4 is last good rx frame hash, next 4 last tx frame hash
 
 // the next frame of data in/out, if data NULL bool is just ready check
-bool util_frames_inbox(util_frames_t frames, uint8_t *data)
+util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data)
 {
-  return false;
+  if(!frames) return LOG("bad args");
+  if(!data) return (frames->inbox) ? frames : NULL;
+  return NULL;
 }
 
-bool util_frames_outbox(util_frames_t frames, uint8_t *data)
+util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
 {
-  return false;
+  if(!frames) return LOG("bad args");
+  if(!data) return (frames->outbox || frames->flush) ? frames : NULL;
+  return NULL;
 }
 
+/*
 // internal to append read data
 util_frames_t _util_frames_append(util_frames_t frames, uint8_t *block, size_t len)
 {
@@ -318,3 +314,4 @@ util_frames_t util_frames_next(util_frames_t frames)
   if(!util_frames_written(frames,size)) return NULL;
   return frames;
 }
+*/
