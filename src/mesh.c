@@ -323,6 +323,7 @@ mesh_t mesh_forward(mesh_t mesh, uint8_t *token, link_t link, uint8_t flag)
       LOG("too many routes, can't add forward (TODO: add eviction)");
       return NULL;
     }
+    LOG("adding new forwarding route to %s token %s",hashname_short(link->id),util_hex(token,8,NULL));
     empty = malloc(sizeof(struct route_struct));
     memset(empty,0,sizeof(struct route_struct));
     empty->next = mesh->routes;
@@ -391,16 +392,15 @@ lob_t mesh_handshakes(mesh_t mesh, lob_t handshake, char *type)
 link_t mesh_receive_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe)
 {
   uint32_t now;
-  lob_t outer;
   hashname_t from;
-  char hexid[3], *paths;
   link_t link;
 
   if(!mesh || !handshake) return LOG("bad args");
   if(!lob_get(handshake,"id"))
   {
+    LOG("bad handshake, no id: %s",lob_json(handshake));
     lob_free(handshake);
-    return LOG("bad handshake, no id");
+    return NULL;
   }
   now = util_sys_seconds();
   
@@ -411,11 +411,29 @@ link_t mesh_receive_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe)
   LOG("handshake at %d id %s",now,lob_get(handshake,"id"));
   
   // validate/extend link handshakes immediately
-  if(util_cmp(lob_get(handshake,"type"),"link") == 0 && (outer = lob_linked(handshake)))
+  if(util_cmp(lob_get(handshake,"type"),"link") == 0)
   {
+    // get the csid
+    uint8_t csid = 0;
+    lob_t outer;
+    if((outer = lob_linked(handshake)))
+    {
+      csid = outer->head[0];
+    }else if(lob_get(handshake,"csid")){
+      util_unhex(lob_get(handshake,"csid"),2,&csid);
+    }
+    if(!csid)
+    {
+      LOG("bad link handshake, no csid: %s",lob_json(handshake));
+      lob_free(handshake);
+      return NULL;
+    }
+    char hexid[3] = {0};
+    util_hex(&csid, 1, hexid);
+      
     // get attached hashname
     lob_t tmp = lob_parse(handshake->body, handshake->body_len);
-    from = hashname_vkey(tmp, outer->head[0]);
+    from = hashname_vkey(tmp, csid);
     if(!from)
     {
       LOG("bad link handshake, no hashname: %s",lob_json(handshake));
@@ -423,7 +441,6 @@ link_t mesh_receive_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe)
       lob_free(handshake);
       return NULL;
     }
-    util_hex(outer->head, 1, hexid);
     lob_set(handshake,"csid",hexid);
     lob_set(handshake,"hashname",hashname_char(from));
     lob_body(handshake, tmp->body, tmp->body_len); // re-attach as raw key
@@ -442,7 +459,7 @@ link_t mesh_receive_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe)
     // add the path if one
     if(pipe && pipe->path)
     {
-      paths = malloc(pipe->path->head_len+3);
+      char *paths = malloc(pipe->path->head_len+3);
       sprintf(paths,"[%.*s]",(int)pipe->path->head_len,(char*)pipe->path->head);
       lob_set_raw(handshake,"paths",0,paths,pipe->path->head_len+2);
       free(paths);
@@ -513,7 +530,11 @@ link_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
     }
     
     // forward packet
-    if(!route->flag) return link_send(link, outer);
+    if(!route->flag)
+    {
+      LOG("forwarding route token %s via %s len %d",util_hex(route->token,8,NULL),hashname_short(link->id),lob_len(outer));
+      return link_send(link, outer);
+    }
     
     inner = e3x_exchange_receive(link->x, outer);
     lob_free(outer);

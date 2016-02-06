@@ -33,6 +33,7 @@ int main(int argc, char **argv)
   lob_set(peerAB,"type","peer");
   lob_set(peerAB,"peer",hashname_char(meshB->id));
   lob_set_uint(peerAB,"c",e3x_exchange_cid(linkBA->x, NULL));
+  memset(lob_body(peerAB,NULL,2),0,2);
   fail_unless(link_receive(linkAB, peerAB, NULL));
 
   // add a third

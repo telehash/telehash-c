@@ -87,9 +87,13 @@ lob_t peer_open_connect(link_t link, lob_t open)
   // get routing peer pipe
   pipe = peer_pipe(link->mesh, link->id);
 
+
   // encrypted or not handshake
   if(hs->head_len == 1) mesh_receive(link->mesh, hs, pipe);
-  else mesh_receive_handshake(link->mesh, hs, pipe);
+  else{
+    lob_set(hs,"id","connect");
+    mesh_receive_handshake(link->mesh, hs, pipe);
+  }
 
   return lob_free(open);
 }
@@ -108,6 +112,22 @@ lob_t peer_open_peer(link_t link, lob_t open)
     LOG("no peer link found for %s from %s",lob_get(open,"peer"),hashname_short(link->id));
     return open;
   }
+  
+  lob_t packet;
+  if(!(packet = lob_parse(open->body,open->body_len)))
+  {
+    LOG("invalid peer request body: %s",util_hex(open->body,open->body_len,NULL));
+    return open;
+  }
+  // set up forwarding if a handshake is observed
+  if(packet->head_len == 1)
+  {
+    uint8_t hash[32];
+    e3x_hash(packet->body,16,hash);
+    mesh_forward(link->mesh, hash, link, 0);
+  }
+  lob_free(packet);
+  
   
   lob_set_uint(open,"c",0); // so it gets re-set
   lob_set(open,"type","connect");

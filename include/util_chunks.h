@@ -24,7 +24,7 @@ typedef struct util_chunks_struct
   uint8_t readat; // always less than a max chunk, offset into reading
 
   uint8_t cap;
-  uint8_t blocked:1, blocking:1, ack:1; // bool flags
+  uint8_t blocked:1, blocking:1, ack:1, err:1; // bool flags
 } *util_chunks_t;
 
 
@@ -38,6 +38,9 @@ util_chunks_t util_chunks_send(util_chunks_t chunks, lob_t out);
 
 // get any packets that have been reassembled from incoming chunks
 lob_t util_chunks_receive(util_chunks_t chunks);
+
+// bytes waiting to be sent
+uint32_t util_chunks_writing(util_chunks_t chunks);
 
 
 ////// these are for a stream-based transport
