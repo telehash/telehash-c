@@ -1,24 +1,22 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include "telehash.h"
 
 // one malloc per frame, put storage after it
-util_frames_t util_frame_new(util_frames_t frames, uint8_t len)
+util_frames_t util_frame_new(util_frames_t frames)
 {
   util_frame_t frame;
   size_t size = sizeof (struct util_frame_struct);
-  size += len;
+  size += frame->size;
   if(!(frame = malloc(size))) return LOG("OOM");
   memset(frame,0,size);
-  frame->size = len;
-  // point to extra space after struct, less opaque
-//  frame->data = ((void*)frame)+(sizeof (struct util_frame_struct));
 
-  // add to reading list
-  frame->prev = frames->reading;
-  frames->reading = frame;
-  frames->readat = 0;
+  // add to inbox
+  frame->prev = frames->inbox;
+  frames->inbox = frame;
+  frames->inframe++;
 
   return frames;
 }
@@ -33,20 +31,12 @@ util_frame_t util_frame_free(util_frame_t frame)
 
 util_frames_t util_frames_new(uint8_t size)
 {
+  if(!size || size > 128) return LOG("invalid size: %u",size);
+
   util_frames_t frames;
   if(!(frames = malloc(sizeof (struct util_frames_struct)))) return LOG("OOM");
   memset(frames,0,sizeof (struct util_frames_struct));
-  frames->blocked = 0;
-  frames->blocking = 1; // default
-
-  if(!size)
-  {
-    frames->cap = 255;
-  }else if(size == 1){
-    frames->cap = 1; // minimum
-  }else{
-    frames->cap = size-1;
-  }
+  frames->size = size;
 
   return frames;
 }
@@ -54,21 +44,10 @@ util_frames_t util_frames_new(uint8_t size)
 util_frames_t util_frames_free(util_frames_t frames)
 {
   if(!frames) return NULL;
-  if(frames->writing) lob_free(frames->writing);
-  util_frame_free(frames->reading);
+  lob_freeall(frames->inbox);
+  util_frame_free(frames->outbox);
   free(frames);
   return NULL;
-}
-
-uint32_t util_frames_writing(util_frames_t frames)
-{
-  lob_t cur;
-  uint32_t len = 0;
-  if(!frames) return 0;
-  util_frames_len(frames); // flushes
-  len = lob_len(frames->writing) - frames->writeat;
-  for(cur=lob_next(frames->writing);cur;cur = lob_next(cur)) len += lob_len(cur);
-  return len;
 }
 
 util_frames_t util_frames_send(util_frames_t frames, lob_t out)
@@ -141,6 +120,45 @@ lob_t util_frames_receive(util_frames_t frames)
   frames->err = ret ? 0 : 1;
   free(buf);
   return ret;
+}
+
+// total bytes in the inbox/outbox
+size_t util_frames_inlen(util_frames_t frames)
+{
+  if(!frames) return 0;
+  return (frames->inframe * frames->size);
+}
+
+size_t util_frames_outlen(util_frames_t frames)
+{
+  if(!frames) return 0;
+  size_t len = 0;
+  lob_t cur = frames->outbox;
+  do {
+    len += lob_len(cur);
+    cur = lob_next(cur);
+  }while(cur);
+  
+  // subtract sent
+  len -= (frames->outframe * frames->size)
+
+  return len;
+}
+
+//[60][4] normal data, if mmh is inverted it's a meta frame
+// meta frame byte -5 (before mmh) is meta type
+// <= 59 is packet done len
+// == 60 is flush, first 4 is last good rx frame hash, next 4 last tx frame hash
+
+// the next frame of data in/out, if data NULL bool is just ready check
+bool util_frames_inbox(util_frames_t frames, uint8_t *data)
+{
+  return false;
+}
+
+bool util_frames_outbox(util_frames_t frames, uint8_t *data)
+{
+  return false;
 }
 
 // internal to append read data
