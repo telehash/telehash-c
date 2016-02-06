@@ -116,7 +116,7 @@ lob_t peer_open_peer(link_t link, lob_t open)
   lob_t packet;
   if(!(packet = lob_parse(open->body,open->body_len)))
   {
-    LOG("invalid peer request body");
+    LOG("invalid peer request body: %s",util_hex(open->body,open->body_len,NULL));
     return open;
   }
   // set up forwarding if a handshake is observed
