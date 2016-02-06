@@ -76,7 +76,7 @@ char *murmur8(const uint32_t *data, uint32_t len, char *hex)
 
 uint8_t *murmur(const uint8_t *data, uint32_t len, uint8_t *hash)
 {
-  uint32_t num = util_sys_long(murmur4((uint32_t*)data,len));
+  uint32_t num = murmur4((uint32_t*)data,len);
   memcpy(hash,&num,4);
   return hash;
 }

@@ -147,12 +147,44 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data)
   if(!frames) return LOG("bad args");
   if(!data) return (frames->inbox) ? frames : NULL;
   
-  // check hash, if valid add frame and done
-  // if valid after metamod, process meta
-  //  if meta < PAYLOAD() process lob, set flush and done
-  //  if meta == PAYLOAD() is an incoming flush
+  // bundled hash
+  uint32_t fhash;
+  memcpy(&fhash,data+PAYLOAD(frames),4);
+
+  // check hash
+  uint32_t hash = murmur4((uint32_t*)data,PAYLOAD(frames));
+  
+  // meta frames are self contained
+  if(fhash == hash)
+  {
   //    if first hash is unknown, unrecoverable frame error
   //    if second hash is unknown, send flush
+    // if good, clear flush
+    // if older first hash, reset frames->out
+  }
+  
+  // full data frames must match combined w/ previous
+  if(fhash == (hash ^ frames->inhash))
+  {
+    // append, update inhash, continue
+    // clear flush
+  }
+  
+  // check if it's a tail data frame
+  uint8_t tail = data[PAYLOAD(frames)-1];
+  if(tail >= PAYLOAD(frames))
+  {
+    // bad data, flush
+  }
+  
+  hash = murmur4((uint32_t*)data,tail);
+  if(fhash != (hash ^ frames->inhash))
+  {
+    // bad data, flush
+  }
+  
+  // process tail, update inhash, set flush
+  
   return NULL;
 }
 
@@ -160,11 +192,37 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
 {
   if(!frames) return LOG("bad args");
   if(!data) return (frames->outbox || frames->flush) ? frames : NULL;
+
+  // clear
+  uint8_t size = PAYLOAD(frames);
+  memset(data,0,size);
   
-  // if flushing, send hashes and set meta flag
+  // first get the last sent hash
+  uint32_t hash = frames->outhash;
+  uint8_t *bin = lob_raw(frames->outbox);
+  for(uint8_t i = 0;i < frames->out;i++) hash ^= murmur4((uint32_t*)(bin+(size*i)),size);
+
+  // if flushing, just send hashes
+  if(frames->flush)
+  {
+    memcpy(data,&frames->inhash,4);
+    memcpy(data+4,&hash,4);
+    murmur(data,size,data+size);
+    return frames;
+  }
+  
+  // nothing to send
+  if(!bin) return NULL;
+
   // get next frame
+  uint32_t at = frames->out * size;
+  if((lob_len(frames->outbox) - at) < size)
+  {
   // if < PAYLOAD, set meta flag to size
+  }else{
   // else fill and hash
+    
+  }
 
   return NULL;
 }
