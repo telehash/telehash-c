@@ -8,7 +8,7 @@ E3X = src/e3x/e3x.c src/e3x/self.c src/e3x/exchange.c src/e3x/cipher.c
 MESH = src/mesh.c src/link.c src/chan.c src/pipe.c
 EXT = src/ext/stream.c src/ext/block.c src/ext/peer.c src/ext/path.c
 NET = src/net/loopback.c src/net/udp4.c src/net/tcp4.c src/net/serial.c
-UTIL = src/util/util.c src/util/uri.c src/util/chunks.c src/unix/util.c src/unix/util_sys.c
+UTIL = src/util/util.c src/util/uri.c src/util/chunks.c src/util/frames.c src/unix/util.c src/unix/util_sys.c
 TMESH = src/tmesh/tmesh.c 
 
 # CS1a by default
