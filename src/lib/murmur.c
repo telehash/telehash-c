@@ -10,9 +10,9 @@ static inline uint32_t rotl32(uint32_t x, int8_t r)
     return (x << r) | (x >> (32 - r));
 }
 
-uint32_t murmur4(const uint32_t *data, uint8_t len)
+uint32_t murmur4(const uint32_t *data, uint32_t len)
 {
-    const int nblocks = len / 4;
+    const uint32_t nblocks = len / 4;
 
     uint32_t h1 = 0;
 
@@ -67,10 +67,17 @@ uint32_t murmur4(const uint32_t *data, uint8_t len)
     return h1;
 }
 
-char *murmur8(const uint32_t* data, uint8_t len, char *hex)
+char *murmur8(const uint32_t *data, uint32_t len, char *hex)
 {
   uint32_t hash = murmur4(data,len);
   sprintf(hex,"%08lx",(unsigned long)hash);
   return hex;
+}
+
+uint8_t *murmur(const uint8_t *data, uint32_t len, uint8_t *hash)
+{
+  uint32_t num = util_sys_long(murmur4((uint32_t*)data,len));
+  memcpy(hash,&num,4);
+  return hash;
 }
 
