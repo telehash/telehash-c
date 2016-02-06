@@ -146,6 +146,13 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data)
 {
   if(!frames) return LOG("bad args");
   if(!data) return (frames->inbox) ? frames : NULL;
+  
+  // check hash, if valid add frame and done
+  // if valid after metamod, process meta
+  //  if meta < PAYLOAD() process lob, set flush and done
+  //  if meta == PAYLOAD() is an incoming flush
+  //    if first hash is unknown, unrecoverable frame error
+  //    if second hash is unknown, send flush
   return NULL;
 }
 
@@ -153,6 +160,12 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
 {
   if(!frames) return LOG("bad args");
   if(!data) return (frames->outbox || frames->flush) ? frames : NULL;
+  
+  // if flushing, send hashes and set meta flag
+  // get next frame
+  // if < PAYLOAD, set meta flag to size
+  // else fill and hash
+
   return NULL;
 }
 
