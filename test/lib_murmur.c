@@ -12,9 +12,9 @@ int main(int argc, char **argv)
   fail_unless(strcmp("0a329c57",murmur8(str,len,hex)) == 0);
   
   uint8_t hash[4];
-  fail_unless(murmur("foo bar",7,hash));
-  LOG("hex %s",util_hex(&hash,4,NULL));
-  fail_unless(strcmp("579c320a",util_hex(&hash,4,NULL)) == 0);
+  fail_unless(murmur((uint8_t*)"foo bar",7,hash));
+  LOG("hex %s",util_hex(hash,4,NULL));
+  fail_unless(strcmp("579c320a",util_hex(hash,4,NULL)) == 0);
 
   return 0;
 }
