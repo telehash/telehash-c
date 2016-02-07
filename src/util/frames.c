@@ -76,30 +76,6 @@ lob_t util_frames_receive(util_frames_t frames)
 
 void frames_lob(util_frames_t frames, uint8_t *tail, uint8_t len)
 {  
-//  size_t tlen = (frames->inframes * frames->size);
-
-  /*
-  // TODO make a lob_new that creates space to prevent double-copy here
-  uint8_t *buf = malloc(tlen);
-  if(!buf) return LOG("OOM");
-  
-  // eat frames copying in
-  util_frame_t prev;
-  size_t at;
-  for(at=len;frame;frame = prev)
-  {
-    prev = frame->prev;
-    // backfill since we're inverted
-    memcpy(buf+(at-frame->size),frame->data,frame->size);
-    at -= frame->size;
-    free(frame);
-  }
-  
-  lob_t ret = lob_parse(buf,len);
-  frames->err = ret ? 0 : 1;
-  free(buf);
-  return ret;
-  */
 }
 
 // total bytes in the inbox/outbox
@@ -136,16 +112,12 @@ size_t util_frames_outlen(util_frames_t frames)
   return len;
 }
 
-//[60][4] normal data, if mmh is inverted it's a meta frame
-// meta frame byte -5 (before mmh) is meta type
-// <= 59 is packet done len
-// == 60 is flush, first 4 is last good rx frame hash, next 4 last tx frame hash
-
 // the next frame of data in/out, if data NULL bool is just ready check
 util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data)
 {
   if(!frames) return LOG("bad args");
   if(!data) return (frames->inbox) ? frames : NULL;
+  uint8_t size = PAYLOAD(frames);
   
   // bundled hash
   uint32_t fhash;
@@ -157,35 +129,90 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data)
   // meta frames are self contained
   if(fhash == hash)
   {
-  //    if first hash is unknown, unrecoverable frame error
-  //    if second hash is unknown, send flush
-    // if good, clear flush
-    // if older first hash, reset frames->out
+    // verify sender's last rx'd hash
+    uint32_t rxd;
+    memcpy(&rxd,data,4);
+    uint8_t *bin = lob_raw(frames->outbox);
+    uint32_t rxs = frames->outhash;
+    for(uint8_t i = 0;i < frames->out;i++)
+    {
+      // verify/reset to last rx'd frame
+      if(rxd == rxs)
+      {
+        frames->out = i;
+        break;
+      }
+      rxs ^= murmur4((uint32_t*)(bin+(size*i)),size);
+    }
+    if(rxd != rxs)
+    {
+      LOG("TODO invalid received frame hash, broken stream");
+      return NULL;
+    }
+
+    // sender's last tx'd hash changes flush state
+    uint32_t txd;
+    memcpy(&txd,data+4,4);
+    frames->flush = (txd == frames->inhash) ? 0 : 1;
+
   }
   
   // full data frames must match combined w/ previous
   if(fhash == (hash ^ frames->inhash))
   {
+    if(!util_frame_new(frames)) return LOG("OOM");
     // append, update inhash, continue
-    // clear flush
+    memcpy(frames->cache->data,data,size);
+    frames->flush = 0;
+    frames->inhash = fhash;
+    return frames;
   }
   
   // check if it's a tail data frame
   uint8_t tail = data[PAYLOAD(frames)-1];
   if(tail >= PAYLOAD(frames))
   {
-    // bad data, flush
+    frames->flush = 1;
+    return LOG("invalid frame data length: %u",tail);
   }
   
+  // hash must match
   hash = murmur4((uint32_t*)data,tail);
   if(fhash != (hash ^ frames->inhash))
   {
-    // bad data, flush
+    frames->flush = 1;
+    return LOG("invalid frame data hash");
   }
   
-  // process tail, update inhash, set flush
+  // process full packet w/ tail, update inhash, set flush
+  frames->flush = 1;
+  frames->inhash = fhash;
   
-  return NULL;
+  size_t tlen = (frames->in * size) + tail;
+
+  // TODO make a lob_new that creates space to prevent double-copy here
+  uint8_t *buf = malloc(tlen);
+  if(!buf) return LOG("OOM");
+  
+  // copy in tail
+  memcpy(buf+(frames->in * size), data, tail);
+  
+  // eat cached frames copying in reverse
+  util_frame_t frame = frames->cache;
+  uint8_t i = frames->in;
+  while(i && frame)
+  {
+    i--;
+    memcpy(buf+(i*size),frame->data,size);
+    frame = frame->prev;
+  }
+  frames->cache = util_frame_free(frames->cache);
+  
+  lob_t packet = lob_parse(buf,tlen);
+  if(!packet) LOG("packet parsing failed: %s",util_hex(buf,tlen,NULL));
+  free(buf);
+  frames->inbox = lob_push(frames->inbox,packet);
+  return frames;
 }
 
 util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
@@ -216,173 +243,18 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
 
   // get next frame
   uint32_t at = frames->out * size;
-  if((lob_len(frames->outbox) - at) < size)
-  {
+  uint32_t diff = lob_len(frames->outbox) - at;
   // if < PAYLOAD, set meta flag to size
+  if(diff < size)
+  {
+    memcpy(data,bin,diff);
+    data[size-1] = diff;
+    murmur(data,size-1,data+size);
   }else{
-  // else fill and hash
-    
+    memcpy(data,bin,size);
+    murmur(data,size,data+size);
   }
 
   return NULL;
 }
 
-/*
-// internal to append read data
-util_frames_t _util_frames_append(util_frames_t frames, uint8_t *block, size_t len)
-{
-  if(!frames || !block || !len) return frames;
-  uint8_t quota = 0;
-  
-  // first, determine if block is a new frame or a remainder of a previous frame (quota > 0)
-  if(frames->reading) quota = frames->reading->size - frames->readat;
-
-//  LOG("frames append %d q %d",len,quota);
-  
-  // no space means we're at a frame start byte
-  if(!quota)
-  {
-    if(!util_frame_new(frames,*block)) return LOG("OOM");
-    // a frame was received, unblock
-    frames->blocked = 0;
-    // if it had data, flag to ack
-    if(*block) frames->ack = 1;
-    // start processing the data now that there's space
-    return _util_frames_append(frames,block+1,len-1);
-  }
-
-  // only a partial data avail now
-  if(len < quota) quota = len;
-
-  // copy in quota space and recurse
-  memcpy(frames->reading->data+frames->readat,block,quota);
-  frames->readat += quota;
-  return _util_frames_append(frames,block+quota,len-quota);
-}
-
-// how many bytes are there waiting
-uint32_t util_frames_len(util_frames_t frames)
-{
-  if(!frames || frames->blocked) return 0;
-
-  // when no packet, only send an ack
-  if(!frames->writing) return (frames->ack) ? 1 : 0;
-
-  // what's the total left to write
-  size_t avail = lob_len(frames->writing) - frames->writeat;
-
-  // only deal w/ the next frame
-  if(avail > frames->cap) avail = frames->cap;
-  if(!frames->waiting) frames->waiting = avail;
-
-  // just writing the waiting size byte first
-  if(!frames->waitat) return 1;
-
-  return frames->waiting - (frames->waitat-1);
-}
-
-// return the next block of data to be written to the stream transport
-uint8_t *util_frames_write(util_frames_t frames)
-{
-  // ensures consistency
-  if(!util_frames_len(frames)) return NULL;
-  
-  // always write the frame size byte first, is also the ack/flush
-  if(!frames->waitat) return &frames->waiting;
-  
-  // into the raw data
-  return lob_raw(frames->writing)+frames->writeat+(frames->waitat-1);
-}
-
-// advance the write pointer this far
-util_frames_t util_frames_written(util_frames_t frames, size_t len)
-{
-  if(!frames || !len) return frames;
-  if(len > util_frames_len(frames)) return LOG("len too big %d > %d",len,util_frames_len(frames));
-  frames->waitat += len;
-  frames->ack = 0; // any write is an ack
-
-//  LOG("frames written %d at %d ing %d",len,frames->waitat,frames->waiting);
-
-  // if a frame was done, advance to next frame
-  if(frames->waitat > frames->waiting)
-  {
-    // confirm we wrote the frame data and size
-    frames->writeat += frames->waiting;
-    frames->waiting = frames->waitat = 0;
-
-    // only block if it was a full frame
-    if(frames->waiting == frames->cap) frames->blocked = frames->blocking;
-
-    // only advance packet after we wrote a flushing 0
-    if(len == 1 && frames->writing && frames->writeat == lob_len(frames->writing))
-    {
-      lob_t old = lob_shift(frames->writing);
-      frames->writing = old->next;
-      old->next = NULL;
-      lob_free(old);
-      frames->writeat = 0;
-      // always block after a full packet
-      frames->blocked = frames->blocking;
-    }
-  }
-  
-  return frames;
-}
-
-// queues incoming stream based data
-util_frames_t util_frames_read(util_frames_t frames, uint8_t *block, size_t len)
-{
-  if(!_util_frames_append(frames,block,len)) return NULL;
-  if(!frames->reading) return NULL; // paranoid
-  return frames;
-}
-
-
-////// these are for frame-based transport
-
-// size of the next frame, -1 when none, max is frames size-1
-int16_t util_frames_size(util_frames_t frames)
-{
-  if(!util_frames_len(frames)) return -1;
-  return frames->waiting;
-}
-
-// return the next frame of data, use util_frames_next to advance
-uint8_t *util_frames_frame(util_frames_t frames)
-{
-  if(!frames || !frames->waiting) return NULL;
-  // into the raw data
-  return lob_raw(frames->writing)+frames->writeat;
-  
-}
-
-// process incoming frame
-util_frames_t util_frames_data(util_frames_t frames, uint8_t *frame, int16_t size)
-{
-  if(!frames || size < 0) return NULL;
-  if(!_util_frames_append(frames,(uint8_t*)&size,1)) return NULL;
-  if(!_util_frames_append(frames,frame,size)) return NULL;
-  return frames;
-}
-
-// peek into what the next frame size will be, to see terminator ones
-int16_t util_frames_peek(util_frames_t frames)
-{
-  int16_t size = util_frames_size(frames);
-  // TODO, peek into next frame
-  if(size <= 0) return -1;
-  return lob_len(frames->writing) - (frames->writeat+size);
-}
-
-// advance the write past the current frame
-util_frames_t util_frames_next(util_frames_t frames)
-{
-  int16_t size = util_frames_size(frames);
-  if(size < 0) return NULL;
-  // header byte first, then full frame
-  if(!util_frames_written(frames,1)) return NULL;
-  if(!util_frames_written(frames,size)) return NULL;
-  return frames;
-}
-*/
