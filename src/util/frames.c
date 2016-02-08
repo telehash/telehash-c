@@ -60,6 +60,7 @@ util_frames_t util_frames_free(util_frames_t frames)
 util_frames_t util_frames_send(util_frames_t frames, lob_t out)
 {
   if(!frames) return LOG("bad args");
+  if(frames->err) return LOG("stream broken");
   
   if(out) frames->outbox = lob_push(frames->outbox, out);
   else frames->flush = 1;
@@ -119,19 +120,21 @@ size_t util_frames_outlen(util_frames_t frames)
 util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data)
 {
   if(!frames) return LOG("bad args");
+  if(frames->err) return LOG("stream broken");
   if(!data) return (frames->inbox) ? frames : NULL;
-  uint8_t size = PAYLOAD(frames);
+  uint8_t size = PAYLOAD(frames); // easier to read
   
   // bundled hash
   uint32_t fhash;
-  memcpy(&fhash,data+PAYLOAD(frames),4);
+  memcpy(&fhash,data+size,4);
 
   // check hash
-  uint32_t hash = murmur4((uint32_t*)data,PAYLOAD(frames));
+  uint32_t hash = murmur4((uint32_t*)data,size);
   
   // meta frames are self contained
   if(fhash == hash)
   {
+    LOG("meta frame %s",util_hex(data,size,NULL));
     // verify sender's last rx'd hash
     uint32_t rxd;
     memcpy(&rxd,data,4);
@@ -150,7 +153,8 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data)
     }
     if(rxd != rxs)
     {
-      LOG("TODO invalid received frame hash, broken stream");
+      LOG("invalid received frame hash, broken stream");
+      frames->err = 1;
       return NULL;
     }
 
@@ -158,7 +162,8 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data)
     uint32_t txd;
     memcpy(&txd,data+4,4);
     frames->flush = (txd == frames->inhash) ? 0 : 1;
-
+    
+    return frames;
   }
   
   // full data frames must match combined w/ previous
@@ -222,6 +227,7 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data)
 util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
 {
   if(!frames) return LOG("bad args");
+  if(frames->err) return LOG("stream broken");
   if(!data) return (frames->outbox || frames->flush) ? frames : NULL;
 
   // clear

@@ -20,20 +20,31 @@ int main(int argc, char **argv)
   fail_unless(util_frames_send(frames, lob_copy(packet)));
   fail_unless(util_frames_outlen(frames) == 102);
   fail_unless(util_frames_outbox(frames,NULL));
-  uint8_t frame[16];
-  fail_unless(util_frames_outbox(frames,frame));
-  printf("frame %s\n",util_hex(frame,16,NULL));
-  fail_unless(strcmp("000000000000000000000000611441d9",util_hex(frame,16,NULL)) == 0);
-  
+
   // cause a flush frame
+  uint8_t frame[16];
   fail_unless(util_frames_send(frames,NULL));
   fail_unless(util_frames_outbox(frames,frame));
   printf("frame %s\n",util_hex(frame,16,NULL));
   fail_unless(strcmp("2a0000002a00000000000000daa1a223",util_hex(frame,16,NULL)) == 0);
-  fail_unless(!util_frames_free(frames));
 
+  // receive the flush frame
+  fail_unless(util_frames_inbox(frames,frame));
 
+  // cause a data frame
+  fail_unless(util_frames_outbox(frames,frame));
+  printf("frame %s\n",util_hex(frame,16,NULL));
+  fail_unless(strcmp("000000000000000000000000611441d9",util_hex(frame,16,NULL)) == 0);
   
+  // receive the data frame
+  fail_unless(util_frames_inbox(frames,frame));
+  printf("inlen %lu\n",util_frames_inlen(frames));
+  fail_unless(util_frames_inlen(frames) == 12);
+
+  // do rest
+  while(util_frames_outbox(frames,frame)) util_frames_inbox(frames,frame);
+
+  fail_unless(!util_frames_free(frames));
 
   return 0;
 }

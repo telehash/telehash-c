@@ -27,6 +27,7 @@ typedef struct util_frames_struct
 
   uint8_t size; // frame size
   uint8_t flush:1; // bool to signal a flush is needed
+  uint8_t err:1; // unrecoverable failure
 
 } *util_frames_t;
 
