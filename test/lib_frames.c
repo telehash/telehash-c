@@ -38,11 +38,10 @@ int main(int argc, char **argv)
   
   // receive the data frame
   fail_unless(util_frames_inbox(frames,frame));
-  printf("inlen %lu\n",util_frames_inlen(frames));
   fail_unless(util_frames_inlen(frames) == 12);
 
   // do rest
-  while(util_frames_outbox(frames,frame)) util_frames_inbox(frames,frame);
+  while(util_frames_outbox(frames,frame)) fail_unless(util_frames_inbox(frames,frame));
 
   fail_unless(!util_frames_free(frames));
 

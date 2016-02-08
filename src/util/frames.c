@@ -134,11 +134,12 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data)
   // meta frames are self contained
   if(fhash == hash)
   {
-    LOG("meta frame %s",util_hex(data,size,NULL));
+    LOG("meta frame %s",util_hex(data,size+4,NULL));
     // verify sender's last rx'd hash
     uint32_t rxd;
     memcpy(&rxd,data,4);
     uint8_t *bin = lob_raw(frames->outbox);
+    uint32_t len = lob_len(frames->outbox);
     uint32_t rxs = frames->outhash;
     uint8_t i;
     for(i = 0;i < frames->out;i++)
@@ -149,7 +150,12 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data)
         frames->out = i;
         break;
       }
-      rxs ^= murmur4((uint32_t*)(bin+(size*i)),size);
+
+      // handle tail hash correctly like sender
+      uint32_t at = i * size;
+      uint32_t diff = len - at;
+      if(diff > size) diff = size;
+      rxs ^= murmur4((uint32_t*)(bin+at),diff);
     }
     if(rxd != rxs)
     {
@@ -174,12 +180,13 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data)
     memcpy(frames->cache->data,data,size);
     frames->flush = 0;
     frames->inhash = fhash;
+    LOG("got data frame");
     return frames;
   }
   
   // check if it's a tail data frame
-  uint8_t tail = data[PAYLOAD(frames)-1];
-  if(tail >= PAYLOAD(frames))
+  uint8_t tail = data[size-1];
+  if(tail >= size)
   {
     frames->flush = 1;
     return LOG("invalid frame data length: %u",tail);
@@ -194,6 +201,7 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data)
   }
   
   // process full packet w/ tail, update inhash, set flush
+  LOG("got frame tail of %u",tail);
   frames->flush = 1;
   frames->inhash = fhash;
   
@@ -238,6 +246,7 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
   uint32_t hash = frames->outhash;
   uint8_t *bin = lob_raw(frames->outbox);
   uint8_t i;
+  // TODO know when we've sent all
   for(i = 0;i < frames->out;i++) hash ^= murmur4((uint32_t*)(bin+(size*i)),size);
 
   // if flushing, just send hashes
@@ -245,7 +254,9 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
   {
     memcpy(data,&frames->inhash,4);
     memcpy(data+4,&hash,4);
-    murmur(data,size,data+size);
+    hash = murmur4((uint32_t*)data,size);
+    memcpy(data+size,&hash,4);
+    LOG("sending meta frame %s",util_hex(data,size+4,NULL));
     return frames;
   }
   
@@ -253,15 +264,18 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
   if(!bin) return NULL;
 
   // get next frame
+  frames->out++;
   uint32_t at = frames->out * size;
   uint32_t diff = lob_len(frames->outbox) - at;
   // if < PAYLOAD, set meta flag
   if(diff < size)
   {
+    LOG("sending data frame tail");
     memcpy(data,bin,diff);
     data[size-1] = diff;
     hash ^= murmur4((uint32_t*)data,diff);
   }else{
+    LOG("sending data frame");
     memcpy(data,bin,size);
     hash ^= murmur4((uint32_t*)data,size);
   }
