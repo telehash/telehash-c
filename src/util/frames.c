@@ -134,7 +134,8 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data)
     memcpy(&rxd,data,4);
     uint8_t *bin = lob_raw(frames->outbox);
     uint32_t rxs = frames->outhash;
-    for(uint8_t i = 0;i < frames->out;i++)
+    uint8_t i;
+    for(i = 0;i < frames->out;i++)
     {
       // verify/reset to last rx'd frame
       if(rxd == rxs)
@@ -227,7 +228,8 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
   // first get the last sent hash
   uint32_t hash = frames->outhash;
   uint8_t *bin = lob_raw(frames->outbox);
-  for(uint8_t i = 0;i < frames->out;i++) hash ^= murmur4((uint32_t*)(bin+(size*i)),size);
+  uint8_t i;
+  for(i = 0;i < frames->out;i++) hash ^= murmur4((uint32_t*)(bin+(size*i)),size);
 
   // if flushing, just send hashes
   if(frames->flush)
