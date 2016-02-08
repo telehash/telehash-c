@@ -15,7 +15,7 @@ util_frames_t util_frame_new(util_frames_t frames)
   size += PAYLOAD(frames);
   if(!(frame = malloc(size))) return LOG("OOM");
   memset(frame,0,size);
-
+  
   // add to inbox
   frame->prev = frames->cache;
   frames->cache = frame;
@@ -40,6 +40,9 @@ util_frames_t util_frames_new(uint8_t size)
   if(!(frames = malloc(sizeof (struct util_frames_struct)))) return LOG("OOM");
   memset(frames,0,sizeof (struct util_frames_struct));
   frames->size = size;
+
+  // default init hash state
+  frames->inhash = frames->outhash = 42;
 
   return frames;
 }
@@ -246,17 +249,18 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
   // get next frame
   uint32_t at = frames->out * size;
   uint32_t diff = lob_len(frames->outbox) - at;
-  // if < PAYLOAD, set meta flag to size
+  // if < PAYLOAD, set meta flag
   if(diff < size)
   {
     memcpy(data,bin,diff);
     data[size-1] = diff;
-    murmur(data,size-1,data+size);
+    hash ^= murmur4((uint32_t*)data,diff);
   }else{
     memcpy(data,bin,size);
-    murmur(data,size,data+size);
+    hash ^= murmur4((uint32_t*)data,size);
   }
+  memcpy(data+size,&hash,4);
 
-  return NULL;
+  return frames;
 }
 
