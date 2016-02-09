@@ -52,6 +52,31 @@ int main(int argc, char **argv)
 
   fail_unless(!util_frames_free(frames));
 
+  util_frames_t fa = util_frames_new(64);
+  util_frames_t fb = util_frames_new(64);
+  lob_t msg = lob_new();
+  lob_body(msg, NULL, 1024);
+  e3x_rand(msg->body, 1024);
+  fail_unless(!util_frames_outbox(fa,NULL));
+  fail_unless(!util_frames_inbox(fb,NULL));
+  util_frames_send(fa,msg);
+
+  // chat
+  uint8_t f64[64];
+  while(util_frames_outbox(fa,f64))
+  {
+    fail_unless(util_frames_inbox(fb,f64));
+    if(util_frames_outbox(fb,f64)) fail_unless(util_frames_inbox(fa,f64));
+  }
+
+  fail_unless(!util_frames_outbox(fa,NULL));
+  lob_t msg2 = util_frames_receive(fb);
+  fail_unless(msg2);
+  fail_unless(msg2->body_len == 1024);
+
+  fail_unless(!util_frames_free(fa));
+  fail_unless(!util_frames_free(fb));
+  
   return 0;
 }
 
