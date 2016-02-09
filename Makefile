@@ -75,7 +75,7 @@ static-tmesh:
 	@echo "#include <telehash.h>" > telehash.c
 	@cat $(LIB) $(E3X) $(MESH) $(EXT) $(UTIL) $(TMESH) >> telehash.c
 	@sed -i '' "/#include \"/d" telehash.c
-	@cat include/lob.h include/xht.h include/e3x_cipher.h include/e3x_self.h include/e3x_exchange.h include/hashname.h include/mesh.h include/link.h include/chan.h include/util_chunks.h include/*.h > telehash.h
+	@cat include/lob.h include/xht.h include/e3x_cipher.h include/e3x_self.h include/e3x_exchange.h include/hashname.h include/mesh.h include/link.h include/chan.h include/util_chunks.h include/util_frames.h include/*.h > telehash.h
 	@sed -i.bak "/#include \"/d" telehash.h
 	@rm -f telehash.h.bak
 
