@@ -19,11 +19,11 @@ typedef struct util_frames_struct
 
   util_frame_t cache; // stacked linked list of incoming frames in progress
 
-  uint32_t inhash; // last good incoming frame hash
-  uint32_t outhash; // last sent outbox frame hash
+  uint32_t inlast; // last good incoming frame hash
+  uint32_t outbase; // last sent outbox frame hash
 
   uint8_t in; // number of incoming frames received/waiting
-  uint8_t out; //  number of outgoing frames sent from outbox
+  uint8_t out; //  number of outgoing frames sent since outbase
 
   uint8_t size; // frame size
   uint8_t flush:1; // bool to signal a flush is needed

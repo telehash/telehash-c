@@ -42,6 +42,13 @@ int main(int argc, char **argv)
 
   // do rest
   while(util_frames_outbox(frames,frame)) fail_unless(util_frames_inbox(frames,frame));
+  
+  fail_unless(util_frames_outlen(frames) == 0);
+  fail_unless(util_frames_inbox(frames,NULL));
+  lob_t in = util_frames_receive(frames);
+  fail_unless(in);
+  fail_unless(!util_frames_inbox(frames,NULL));
+  fail_unless(in->body_len == 100);
 
   fail_unless(!util_frames_free(frames));
 
