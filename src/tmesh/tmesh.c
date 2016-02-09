@@ -5,7 +5,7 @@
 #include "tmesh.h"
 
 // util debug dump of mote state
-#define MORTY(mote) LOG("%s %s %s %u/%02u/%02u %s %s at %u %s %d %08lx/%08lx %08lx",mote->public?"pub":"pri",mote->beacon?"bekn":"link",mote_tx(mote)?"tx":"rx",mote->priority,mote->txz,mote->rxz,hashname_short(mote->link?mote->link->id:mote->beacon),util_hex(mote->nonce,8,NULL),mote->at,mote_tx(mote)?"tx":"rx",util_chunks_size(mote->chunks),mote->txhash,mote->rxhash,mote->cash);
+#define MORTY(mote) LOG("%s %s %s %u/%02u/%02u %s %s at %u %s %d %08lx/%08lx %08lx",mote->public?"pub":"pri",mote->beacon?"bekn":"link",mote_tx(mote)?"tx":"rx",mote->priority,mote->txz,mote->rxz,hashname_short(mote->link?mote->link->id:mote->beacon),util_hex(mote->nonce,8,NULL),mote->at,mote_tx(mote)?"tx":"rx",util_frames_outlen(mote->frames),mote->txhash,mote->rxhash,mote->cash);
 
 //////////////////
 // private community management methods
@@ -26,7 +26,7 @@ static void cmnty_send(pipe_t pipe, lob_t packet, link_t link)
   // find link in this community
   for(m=c->links;m;m=m->next) if(m->link == link)
   {
-    util_chunks_send(m->chunks, packet);
+    util_frames_send(m->frames, packet);
     LOG("delivering %d to mote %s",lob_len(packet),hashname_short(link->id));
     return;
   }
@@ -334,37 +334,18 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
   MORTY(k->mote);
 
   // send data frames if any
-  if(k->mote->chunks)
+  if(k->mote->frames)
   {
-    // send hash only if there is one
-    if(k->mote->txhash)
+    if(!util_frames_outbox(k->mote->frames,k->frame))
     {
-      k->frame[0] = 1;
-      memcpy(k->frame+1,(uint8_t*)&(k->mote->txhash),4);
-      LOG("TX ack frame %s",util_hex(k->frame,64,NULL));
-      k->mote->txhash = 0;
-    }else{
-      int16_t size = util_chunks_size(k->mote->chunks);
       // nothing to send, noop
-      if(size <= 0)
-      {
-        k->mote->txz++;
-        LOG("tx noop %u",k->mote->txz);
-        return NULL;
-      }
-
-      // flag is terminated even tho full
-      uint8_t flag = 0;
-      if(size == 62 && util_chunks_peek(k->mote->chunks) == 0) flag = 1;
-      
-      // TODO, real header, term flag
-      k->frame[0] = 0;
-      k->frame[1] = size+flag; // max 62+1
-      memcpy(k->frame+2,util_chunks_frame(k->mote->chunks),size);
-      k->mote->rxhash = murmur4((uint32_t*)(k->frame),64);
-      LOG("TX chunk frame %d %d %08lx: %s",size,flag,k->mote->rxhash,util_hex(k->frame,64,NULL));
-      k->mote->txr++;
+      k->mote->txz++;
+      LOG("tx noop %u",k->mote->txz);
+      return NULL;
     }
+
+    LOG("TX frame %s",util_hex(k->frame,64,NULL));
+    k->mote->txr++;
 
     // ciphertext full frame
     chacha20(k->mote->secret,k->nonce,k->frame,64);
@@ -427,20 +408,16 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     k->mote->txs++;
     
     // did we send a data frame?
-    if(k->mote->chunks)
+    if(k->mote->frames)
     {
-      LOG("tx chunk done %d next %d",util_chunks_size(k->mote->chunks),util_chunks_peek(k->mote->chunks));
+      LOG("tx frame done %lu",util_frames_outlen(k->mote->frames));
 
       // if beacon mote see if there's a link yet
       if(k->mote->beacon)
       {
-        // advance chunks immediately for beacons we don't use flush zeros so dump em
-        util_chunks_next(k->mote->chunks);
-        if(util_chunks_size(k->mote->chunks) == 0) util_chunks_next(k->mote->chunks);
         mote_link(k->mote);
       }else{
-        // did a tx, skip to rx
-        while(mote_tx(k->mote)) mote_advance(k->mote);
+        // TODO, skip to rx if nothing to send?
       }
 
       return tm;
@@ -535,8 +512,8 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   
   // assume sync and process it as a data frame
   
-  // if no chunks, initiate a handshake to bootstrap
-  if(!k->mote->chunks) mote_handshake(k->mote);
+  // if no data handler, initiate a handshake to bootstrap
+  if(!k->mote->frames) mote_handshake(k->mote);
 
   chacha20(k->mote->secret,k->nonce,k->frame,64);
   LOG("RX data RSSI %d frame %s",k->rssi,util_hex(k->frame,64,NULL));
@@ -554,43 +531,10 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   }
   */
 
-
-  // receive ack check hash
-  if(k->frame[0])
-  {
-    if(memcmp(k->frame+1,(uint8_t*)&(k->mote->rxhash),4) == 0)
-    {
-      LOG("got ack %08lx\n",k->mote->rxhash);
-      util_chunks_next(k->mote->chunks);
-      if(util_chunks_size(k->mote->chunks) == 0) util_chunks_next(k->mote->chunks);
-      k->mote->rxhash = 0;
-
-      // received stats only after minimal validation
-      k->mote->txr = 0;
-      k->mote->rxz = 0;
-      k->mote->rxs++;
-      if(k->rssi < k->mote->best) k->mote->best = k->rssi;
-      if(k->rssi > k->mote->worst) k->mote->worst = k->rssi;
-      k->mote->last = k->rssi;
-
-    }else{
-      printf("WARN: ack hash check failed!\n");
-      k->mote->bad++;
-    }
-    return tm;
-  }
-
-  uint8_t size = k->frame[1];
-  uint8_t flag = 0;
-  if(size == 63)
-  {
-    flag = 1;
-    size--;
-  }
-  if(size > 62)
+  if(!util_frames_inbox(k->mote->frames, k->frame))
   {
     k->mote->bad++;
-    return LOG("invalid chunk frame, too large: %d",size);
+    return LOG("invalid frame: %s",util_hex(k->frame,64,NULL));
   }
 
   // received stats only after minimal validation
@@ -600,31 +544,8 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   if(k->rssi > k->mote->worst) k->mote->worst = k->rssi;
   k->mote->last = k->rssi;
 
-  // use hash to signal ack next
-  if(k->mote->link)
-  {
-    k->mote->txhash = murmur4((uint32_t*)(k->frame),64);
-    if(k->mote->txhash == 0) k->mote->txhash++; // safe for logic flag
-  }
+  LOG("RX data received, total %lu rssi %d/%d/%d\n",util_frames_inlen(k->mote->frames),k->mote->last,k->mote->best,k->mote->worst);
 
-  // check if it is a dup of the last frame
-  if(k->mote->txhash && k->mote->txhash == k->mote->cash)
-  {
-    LOG("skipping duplicate TX frame hash %08lx\n",k->mote->txhash);
-    k->mote->rxr++;
-    return tm;
-  }
-  k->mote->rxr = 0;
-  k->mote->cash = k->mote->txhash;
-
-  LOG("RX data received, chunk len %d %d rssi %d/%d/%d hash %08lx\n",size,flag,k->mote->last,k->mote->best,k->mote->worst,k->mote->txhash);
-
-  // process incoming chunk to link
-  util_chunks_chunk(k->mote->chunks,k->frame+2,size);
-
-  // if terminated
-  if(size < 62 || flag) util_chunks_chunk(k->mote->chunks,NULL,0);
-  
   // process any new packets, if beacon mote see if there's a link yet
   if(k->mote->beacon) mote_link(k->mote);
   else mote_process(k->mote);
@@ -675,7 +596,7 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
 
       // move ahead window(s)
       while(mote->at < at) mote_advance(mote);
-      while(mote_tx(mote) && mote->chunks && util_chunks_size(mote->chunks) <= 0 && !mote->txhash)
+      while(mote_tx(mote) && mote->frames && !util_frames_outbox(mote->frames,NULL))
       {
         printf("txz %u\n",mote->txz);
         mote->txz++;
@@ -765,7 +686,7 @@ mote_t mote_free(mote_t m)
 {
   if(!m) return NULL;
   hashname_free(m->beacon);
-  util_chunks_free(m->chunks);
+  util_frames_free(m->frames);
   free(m);
   return NULL;
 }
@@ -788,12 +709,8 @@ mote_t mote_reset(mote_t m)
   m->priority = 0;
   m->at = tm->last;
   memset(m->seed,0,4);
-  m->chunks = util_chunks_free(m->chunks);
-  if(m->link)
-  {
-    m->chunks = util_chunks_new(63);
-    if(m->chunks) m->chunks->blocking = 0;
-  }
+  m->frames = util_frames_free(m->frames);
+  if(m->link) m->frames = util_frames_new(64);
 
   // TODO detach pipe from link?
 
@@ -905,9 +822,8 @@ mote_t mote_handshake(mote_t m)
   MORTY(m);
 
   // TODO, set up first sync timeout to reset!
-  util_chunks_free(m->chunks);
-  if(!(m->chunks = util_chunks_new(63))) return LOG("OOM");
-  m->chunks->blocking = 0;
+  util_frames_free(m->frames);
+  if(!(m->frames = util_frames_new(66))) return LOG("OOM");
   
   // get relevant link, if any
   link_t link = m->link;
@@ -917,10 +833,10 @@ mote_t mote_handshake(mote_t m)
   if(m->medium->com->tm->pubim && (!link || !e3x_exchange_out(link->x,0)))
   {
     LOG("sending bare discovery %s",lob_json(tm->pubim));
-    util_chunks_send(m->chunks, lob_copy(tm->pubim));
+    util_frames_send(m->frames, lob_copy(tm->pubim));
   }else{
     LOG("sending new handshake");
-    util_chunks_send(m->chunks, link_handshakes(link));
+    util_frames_send(m->frames, link_handshakes(link));
   }
 
   return m;
@@ -933,11 +849,11 @@ mote_t mote_link(mote_t mote)
   tmesh_t tm = mote->medium->com->tm;
 
   // can't proceed until we've flushed
-  if(util_chunks_size(mote->chunks) > 0) return LOG("not flushed yet: %d",util_chunks_size(mote->chunks));
+  if(util_frames_outbox(mote->frames,NULL)) return LOG("not flushed yet: %d",util_frames_outlen(mote->frames));
 
   // and also have received
   lob_t packet;
-  if(!(packet = util_chunks_receive(mote->chunks))) return LOG("none received yet");
+  if(!(packet = util_frames_receive(mote->frames))) return LOG("none received yet");
 
   MORTY(mote);
 
@@ -973,7 +889,7 @@ mote_t mote_link(mote_t mote)
     
     LOG("unknown packet received on beacon mote: %s",lob_json(packet));
     lob_free(packet);
-  } while((packet = util_chunks_receive(mote->chunks)));
+  } while((packet = util_frames_receive(mote->frames)));
   
   // booo, start over
   if(!link)
@@ -1016,13 +932,13 @@ mote_t mote_process(mote_t mote)
 
   // process any packets on this mote
   lob_t packet;
-  while((packet = util_chunks_receive(mote->chunks)))
+  while((packet = util_frames_receive(mote->frames)))
   {
     LOG("pkt %s",lob_json(packet));
     // TODO associate mote for neighborhood
     mesh_receive(tm->mesh, packet, mote->medium->com->pipe);
   }
-  if(mote->chunks->err) mote->bad++;
+  if(mote->frames->err) mote->bad++;
   
   return mote;
 }
