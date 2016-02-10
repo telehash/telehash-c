@@ -823,7 +823,7 @@ mote_t mote_handshake(mote_t m)
 
   // TODO, set up first sync timeout to reset!
   util_frames_free(m->frames);
-  if(!(m->frames = util_frames_new(66))) return LOG("OOM");
+  if(!(m->frames = util_frames_new(64))) return LOG("OOM");
   
   // get relevant link, if any
   link_t link = m->link;

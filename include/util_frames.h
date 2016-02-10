@@ -23,7 +23,7 @@ typedef struct util_frames_struct
   uint32_t outbase; // last sent outbox frame hash
 
   uint8_t in; // number of incoming frames received/waiting
-  uint8_t out; //  number of outgoing frames sent since outbase
+  uint8_t out; //  number of outgoing frames of outbox sent since outbase
 
   uint8_t size; // frame size
   uint8_t flush:1; // bool to signal a flush is needed
