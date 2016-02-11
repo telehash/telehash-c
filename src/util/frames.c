@@ -325,3 +325,14 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
   return frames;
 }
 
+// is there an expectation of an incoming frame
+util_frames_t util_frames_await(util_frames_t frames)
+{
+  if(!frames) return NULL;
+  // need more to complete inbox
+  if(frames->cache) return frames;
+  // outbox is complete, awaiting flush
+  if((frames->out * PAYLOAD(frames)) > lob_len(frames->outbox)) return frames;
+  return NULL;
+}
+

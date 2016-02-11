@@ -391,10 +391,13 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   
   if(k->err)
   {
+    // missed rx windows
     if(!k->tx)
     {
       k->mote->rxz++; // count missed rx knocks
       if(k->mote->txr) k->mote->txr++;
+      // if expecting data, trigger a flush
+      if(util_frames_await(k->mote->frames)) util_frames_send(k->mote->frames,NULL);
     }
     LOG("knock error");
     if(k->tx) printf("tx error\n");

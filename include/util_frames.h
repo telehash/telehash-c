@@ -51,5 +51,7 @@ size_t util_frames_outlen(util_frames_t frames);
 util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data);
 util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data);
 
+// is there an expectation of an incoming frame
+util_frames_t util_frames_await(util_frames_t frames);
 
 #endif
