@@ -344,7 +344,7 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
       return NULL;
     }
 
-    LOG("TX frame %s",util_hex(k->frame,64,NULL));
+    printf("TX frame %s\n",util_hex(k->frame,64,NULL));
     k->mote->txr++;
 
     // ciphertext full frame
@@ -516,7 +516,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   if(!k->mote->frames) mote_handshake(k->mote);
 
   chacha20(k->mote->secret,k->nonce,k->frame,64);
-  LOG("RX data RSSI %d frame %s",k->rssi,util_hex(k->frame,64,NULL));
+  printf("RX data RSSI %d frame %s\n",k->rssi,util_hex(k->frame,64,NULL));
 
   // TODO check and validate frame[0] now
 

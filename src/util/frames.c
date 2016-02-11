@@ -261,16 +261,23 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
 {
   if(!frames) return LOG("bad args");
   if(frames->err) return LOG("stream broken");
-  if(!data) return (frames->outbox || frames->flush) ? frames : NULL;
-
-  // clear/init
   uint8_t size = PAYLOAD(frames);
-  memset(data,0,size);
-  uint8_t *out = lob_raw(frames->outbox);
-  uint32_t len = lob_len(frames->outbox); 
-  uint32_t hash = frames->outbase;
   uint8_t size32 = size/4;
   uint32_t *data32 = (uint32_t*)data;
+  uint8_t *out = lob_raw(frames->outbox);
+  uint32_t len = lob_len(frames->outbox); 
+  
+  // is just a check to see if there's something to send
+  if(!data)
+  {
+    if(frames->flush) return frames;
+    if(len && (frames->out * size) <= len) return frames;
+    return NULL;
+  }
+
+  // clear/init
+  memset(data,0,size);
+  uint32_t hash = frames->outbase;
   
   // first get the last sent hash
   if(out && len)
@@ -291,6 +298,8 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
     data32[1] = hash;
     data32[size32] = murmur4(data32,size);
     LOG("sending meta frame %s",util_hex(data,size+4,NULL));
+    LOG("check hash %u",data32[size32]);
+    LOG("inlast %u hash %u",frames->inlast,hash);
     frames->flush = 0;
     return frames;
   }
