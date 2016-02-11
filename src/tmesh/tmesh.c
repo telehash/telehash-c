@@ -344,8 +344,7 @@ tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
       return NULL;
     }
 
-    printf("TX frame %s\n",util_hex(k->frame,64,NULL));
-    k->mote->txr++;
+    LOG("TX frame %s\n",util_hex(k->frame,64,NULL));
 
     // ciphertext full frame
     chacha20(k->mote->secret,k->nonce,k->frame,64);
@@ -395,7 +394,6 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     if(!k->tx)
     {
       k->mote->rxz++; // count missed rx knocks
-      if(k->mote->txr) k->mote->txr++;
       // if expecting data, trigger a flush
       if(util_frames_await(k->mote->frames)) util_frames_send(k->mote->frames,NULL);
     }
@@ -519,7 +517,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   if(!k->mote->frames) mote_handshake(k->mote);
 
   chacha20(k->mote->secret,k->nonce,k->frame,64);
-  printf("RX data RSSI %d frame %s\n",k->rssi,util_hex(k->frame,64,NULL));
+  LOG("RX data RSSI %d frame %s\n",k->rssi,util_hex(k->frame,64,NULL));
 
   // TODO check and validate frame[0] now
 
@@ -601,7 +599,6 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
       while(mote->at < at) mote_advance(mote);
       while(mote_tx(mote) && mote->frames && !util_frames_outbox(mote->frames,NULL))
       {
-        printf("txz %u\n",mote->txz);
         mote->txz++;
         mote_advance(mote);
       }
@@ -699,13 +696,12 @@ mote_t mote_reset(mote_t m)
   uint8_t *a, *b, roll[64];
   if(!m || !m->medium) return LOG("bad args");
   tmesh_t tm = m->medium->com->tm;
-  printf("RESET MOTE %p %p\n",m->beacon,m->link);
+  LOG("RESET MOTE %p %p\n",m->beacon,m->link);
   // reset to defaults
   m->z = m->medium->z;
   m->txz = m->rxz = 0;
   m->txs = m->rxs = 0;
   m->txhash = m->rxhash = 0;
-  m->txr = m->rxr = 0;
   m->bad = 0;
   m->cash = 0;
   m->last = m->best = m->worst = 0;
@@ -941,7 +937,6 @@ mote_t mote_process(mote_t mote)
     // TODO associate mote for neighborhood
     mesh_receive(tm->mesh, packet, mote->medium->com->pipe);
   }
-  if(mote->frames->err) mote->bad++;
   
   return mote;
 }
