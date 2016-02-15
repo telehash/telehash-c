@@ -1,5 +1,5 @@
 #include "mesh.h"
-#include "tmesh.h"
+//#include "tmesh.h"
 #include "unit_test.h"
 
 int main(int argc, char **argv)
@@ -14,11 +14,11 @@ int main(int argc, char **argv)
   printf("%lu\te3x_exchange_t\n",sizeof(struct e3x_exchange_struct));
   printf("%lu\tchan_t\n",sizeof(struct chan_struct));
   printf("%lu\tpipe_t\n",sizeof(struct pipe_struct));
-  printf("%lu\ttmesh_t\n",sizeof(struct tmesh_struct));
-  printf("%lu\tmote_t\n",sizeof(struct mote_struct));
-  printf("%lu\tmedium_t\n",sizeof(struct medium_struct));
-  printf("%lu\tcmnty_t\n",sizeof(struct cmnty_struct));
-  printf("%lu\tknock_t\n",sizeof(struct knock_struct));
+//  printf("%lu\ttmesh_t\n",sizeof(struct tmesh_struct));
+//  printf("%lu\tmote_t\n",sizeof(struct mote_struct));
+//  printf("%lu\tmedium_t\n",sizeof(struct medium_struct));
+//  printf("%lu\tcmnty_t\n",sizeof(struct cmnty_struct));
+//  printf("%lu\tknock_t\n",sizeof(struct knock_struct));
   return 0;
 }
 
