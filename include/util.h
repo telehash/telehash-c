@@ -8,6 +8,7 @@
 #include "util_sys.h"
 #include "util_uri.h"
 #include "util_chunks.h"
+#include "util_frames.h"
 #include "util_unix.h"
 
 // make sure out is 2*len + 1

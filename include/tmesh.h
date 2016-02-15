@@ -116,12 +116,11 @@ struct mote_struct
   link_t link; // only on link motes
   hashname_t beacon; // only on beacon motes
   mote_t next; // for lists
-  util_chunks_t chunks; // actual chunk encoding for r/w frame buffers
+  util_frames_t frames; // r/w frame buffers
   uint32_t txhash, rxhash, cash; // dup detection
   uint32_t at; // cycles until next knock
   uint16_t txz, rxz; // empty tx/rx counts
   uint16_t txs, rxs; // current tx/rx counts
-  uint16_t txr, rxr; // count of current retransmits  
   uint16_t bad; // dropped bad frames
   uint8_t secret[32];
   uint8_t nonce[8];

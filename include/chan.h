@@ -7,7 +7,7 @@ enum chan_states { CHAN_ENDED, CHAN_OPENING, CHAN_OPEN };
 
 // standalone channel packet management, buffering and ordering
 // internal only structure, always use accessors
-typedef struct chan_struct
+struct chan_struct
 {
   link_t link; // so channels can be first-class
   chan_t next; // links keep lists
@@ -30,7 +30,7 @@ typedef struct chan_struct
   void (*handle)(chan_t c, void *arg);
 
   enum chan_states state;
-} *chan_t;
+};
 
 // caller must manage lists of channels per e3x_exchange based on cid
 chan_t chan_new(lob_t open); // open must be chan_receive or chan_send next yet

@@ -225,7 +225,6 @@ lob_t lob_set_raw(lob_t p, char *key, size_t klen, char *val, size_t vlen)
 lob_t lob_set_printf(lob_t p, char *key, const char *format, ...)
 {
   va_list ap, cp;
-  size_t len;
   char *val;
 
   if(!p || !key || !format) return LOG("bad args");
@@ -233,7 +232,7 @@ lob_t lob_set_printf(lob_t p, char *key, const char *format, ...)
   va_start(ap, format);
   va_copy(cp, ap);
 
-  len = vasprintf(&val, format, ap);
+  vasprintf(&val, format, ap);
 
   va_end(ap);
   va_end(cp);
