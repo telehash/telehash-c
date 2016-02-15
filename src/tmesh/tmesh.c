@@ -5,7 +5,7 @@
 #include "tmesh.h"
 
 // util debug dump of mote state
-#define MORTY(mote) LOG("%s %s %s %u/%02u/%02u %s %s at %u %s %d %08lx/%08lx %08lx",mote->public?"pub":"pri",mote->beacon?"bekn":"link",mote_tx(mote)?"tx":"rx",mote->priority,mote->txz,mote->rxz,hashname_short(mote->link?mote->link->id:mote->beacon),util_hex(mote->nonce,8,NULL),mote->at,mote_tx(mote)?"tx":"rx",util_frames_outlen(mote->frames),mote->txhash,mote->rxhash,mote->cash);
+#define MORTY(mote) LOG("%s %s %s %u/%02u/%02u %s %s at %u %s %lu %lu",mote->public?"pub":"pri",mote->beacon?"bekn":"link",mote_tx(mote)?"tx":"rx",mote->priority,mote->txz,mote->rxz,hashname_short(mote->link?mote->link->id:mote->beacon),util_hex(mote->nonce,8,NULL),mote->at,mote_tx(mote)?"tx":"rx",util_frames_outlen(mote->frames),util_frames_inlen(mote->frames));
 
 //////////////////
 // private community management methods
@@ -500,6 +500,8 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 
     LOG("RX private beacon RSSI %d frame %s",k->rssi,util_hex(k->frame,64,NULL));
     k->mote->last = k->rssi;
+    k->mote->rxz = 0;
+    k->mote->rxs++;
 
     // safe to sync to given nonce
     memcpy(k->mote->nonce,k->frame,8);
@@ -590,7 +592,7 @@ tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
       if(rebase) mote->at -= rebase;
 
       // brute timeout idle beacon motes
-      if(mote->beacon && mote->rxz > 25) mote_reset(mote);
+      if(mote->beacon && mote->rxz > 50) mote_reset(mote);
 
       // already have one active, noop
       if(knock->ready) continue;

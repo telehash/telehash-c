@@ -188,7 +188,7 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data)
       LOG("data frame confirmed");
     }else{
       frames->flush = 1;
-      LOG("data frame mismatch, hash %lu last %lu",data32[1],frames->inlast);
+      LOG("flushing mismatch, hash %lu last %lu",data32[1],frames->inlast);
     }
     
     return frames;
