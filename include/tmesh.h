@@ -5,57 +5,59 @@
 
 /*
 
-one mote per link
-every mote is part of one community
-public communities start w/ "Public"
-private include hashname in secret, new motes must be invited by active ones
-every community has one or more mediums
-each community medium has 1+ beacon motes
-beacon tx/rx is always fixed channel, public community has dedicated beacon hashname \0\0\0\0...
-one beacon mote per known hashname for signal detection and handshakes, cloned for new links
-all known links in a community have motes bound to just one medium
+a mote is a virtual radio connection
+every mote has one medium that defines the transceiver details
+all motes belong to a community for grouping
+two types of motes: signal and stream
+any link may have multiples of each, ephemeral
+signal motes
+  - use shared secrets
+  - are either beacon signals or link signals
+  - beacon should use limited medium to ease syncing
+  - beacons should be ephemeral hashnames, validate membership before real link
+  - include neighbor info and stream requests only of same family (beacon or link)
+  - either initiates stream
+  - 6*10-block format, +4 mmh
+    - neighbors (+rssi)
+    - stream req (+repeat)
+    - beacons (+hops)
+stream motes
+  - use one-time secrets
+  - initiated from signals
+  - frames only
+  - flush meta space for app use
+  - inside channel sent link signal sync
 
-mote_sync(a, b) - clones state from a to b
-  - use this on any incoming public beacon rx to private beacon tx
-  - use to transition from beacon to link mote
+mediums
+  - limit # of channels
+  - set rx tolerance
+  - indicate power/lna for rssi comparisons
+
 */
 
 typedef struct tmesh_struct *tmesh_t;
-typedef struct cmnty_struct *cmnty_t; // list of mediums and beacon mote
-typedef struct mote_struct *mote_t; // secret, nonce, time, knock, link
-typedef struct medium_struct *medium_t; // channels, energy
+typedef struct cmnty_struct *cmnty_t; // list of beacons, links, and streams
+typedef struct mote_struct *mote_t; // signal/stream details
 typedef struct radio_struct *radio_t; // driver utils
-typedef struct knock_struct *knock_t; // single action
-
-// medium management w/ device driver
-struct medium_struct
-{
-  cmnty_t com; // mediums belong to one community
-  medium_t next; // for lists
-  void *arg; // for use by radio device driver
-  uint32_t min, max; // cycles to knock, set by driver
-  uint32_t avg; // average actual cycles to tx for drift calc
-  uint8_t bin[5];
-  uint8_t chans; // number of total channels, set by driver
-  uint8_t z; // default
-  uint8_t radio:4; // radio device id based on radio_devices[]
-  uint8_t zshift:4; // window time exponent offset for this medium
-};
+typedef struct knock_struct *knock_t; // single mote action
 
 // community management
 struct cmnty_struct
 {
   tmesh_t tm;
   char *name;
-  medium_t medium; // TODO, support multiple per community
   mote_t beacons;
   mote_t links;
+  mote_t streams;
   pipe_t pipe; // one pipe per community as it's shared performance
   struct cmnty_struct *next;
 };
 
-// join a new private/public community
-cmnty_t tmesh_join(tmesh_t tm, char *medium, char *name);
+// join a new community
+cmnty_t tmesh_join(tmesh_t tm, char *name);
+
+// start a beacon on this medium in this community
+cmnty_t tmesh_join(tmesh_t tm, char *medium);
 
 // leave any community
 tmesh_t tmesh_leave(tmesh_t tm, cmnty_t c);
