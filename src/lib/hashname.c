@@ -117,16 +117,6 @@ char *hashname_char(hashname_t hn)
   return hn_ctmp;
 }
 
-// 16 byte base32 string w/ \0 (TEMPORARY)
-char *hashname_short(hashname_t hn)
-{
-  static uint8_t tog = 1;
-  if(!hn) return NULL;
-  tog = tog ? 0 : 26; // fit two short names in hn_ctmp for easier LOG() args
-  base32_encode(hn->bin,10,hn_ctmp+tog,53-tog);
-  return hn_ctmp+tog;
-}
-
 int hashname_cmp(hashname_t a, hashname_t b)
 {
   if(!a || !b) return -1;
@@ -193,4 +183,52 @@ lob_t hashname_im(lob_t keys, uint8_t id)
   return im;
 }
 
+
+// working with short hashnames (5 bin bytes, 8 char bytes)
+
+// 8 byte base32 string w/ \0 (TEMPORARY)
+char *hashname_short(hashname_t hn)
+{
+  static uint8_t tog = 1;
+  if(!hn) return NULL;
+  tog = tog ? 0 : 26; // fit two short names in hn_ctmp for easier LOG() args
+  base32_encode(hn->bin,5,hn_ctmp+tog,53-tog);
+  return hn_ctmp+tog;
+}
+
+
+// short only comparison
+int hashname_scmp(hashname_t a, hashname_t b)
+{
+  if(!a || !b) return -1;
+  return memcmp(a->bin,b->bin,5);
+}
+
+
+hashname_t hashname_schar(const char *str)
+{
+  if(!str) return NULL;
+  if(strlen(str) != 8) return NULL;
+  memset(hn_vtmp.bin,0,32);
+  if(base32_decode(str,8,hn_vtmp.bin,5) != 5) return NULL;
+  return &hn_vtmp;
+}
+
+hashname_t hashname_sbin(const uint8_t *bin)
+{
+  if(!bin) return NULL;
+  memset(hn_vtmp.bin,0,32);
+  memcpy(hn_vtmp.bin,bin,5);
+  return &hn_vtmp;
+}
+
+// NULL unless is short
+hashname_t hashname_isshort(hashname_t hn)
+{
+  if(!hn) return NULL;
+  uint8_t i;
+  // check all 5-31 is zeros
+  for(i=5;i<32;i++) if(hn->bin[i]) return NULL;
+  return hn;
+}
 
