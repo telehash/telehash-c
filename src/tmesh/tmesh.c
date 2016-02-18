@@ -498,6 +498,8 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
       return tm;
     }
 
+    if(hashname_cmp(id,k->mote->beacon) != 0) return LOG("ignoring beacon, expected %s saw %s",hashname_short(k->mote->beacon),id);
+
     LOG("RX private beacon RSSI %d frame %s",k->rssi,util_hex(k->frame,64,NULL));
     k->mote->last = k->rssi;
     k->mote->rxz = 0;
@@ -830,8 +832,8 @@ mote_t mote_handshake(mote_t m)
   link_t link = m->link;
   if(!link) link = mesh_linked(tm->mesh, hashname_char(m->beacon), 0);
 
-  // if public and no keys, send discovery
-  if(m->medium->com->tm->pubim && (!link || !e3x_exchange_out(link->x,0)))
+  // if public send discovery
+  if(m->medium->com->tm->pubim)
   {
     LOG("sending bare discovery %s",lob_json(tm->pubim));
     util_frames_send(m->frames, lob_copy(tm->pubim));
