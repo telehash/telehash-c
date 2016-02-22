@@ -6,11 +6,11 @@
 /*
 
 a mote is a virtual radio connection
-every mote has one medium that defines the transceiver details
+every mote has one medium that identifies the transceiver details
 all motes belong to a community for grouping
-two types of motes: signal and stream
-any link may have multiples of each, ephemeral
-signal motes
+two types of motes: beacon and packet
+links typically have one constant beacon and on-demand packet motes
+beacon motes
   - use shared secrets
   - are either beacon signals or link signals
   - beacon should use limited medium to ease syncing
