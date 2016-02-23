@@ -5,23 +5,22 @@
 
 /*
 
-a mote is a virtual radio connection
-every mote has one medium that identifies the transceiver details
-all motes belong to a community for grouping
-two types of motes: beacon and packet
-links typically have one constant beacon and on-demand packet motes
-beacon motes
+tempo_t is one synchronized comm thread
+every tempo has a medium id that identifies the transceiver details
+all tempos belong to a community for grouping
+two types of tempos: signals and streams
+motes have one constant signal tempo and on-demand stream tempos
+signal tempo
   - use shared secrets
-  - are either beacon signals or link signals
-  - beacon should use limited medium to ease syncing
-  - beacons should be ephemeral hashnames, validate membership before real link
-  - include neighbor info and stream requests only of same family (beacon or link)
-  - either initiates stream
+  - can be lost signal, derived secret and no neighbors
+  - signal tempo should use limited medium to ease syncing
+  - include neighbor info and stream requests
+  - either side initiates stream tempo
   - 6*10-block format, +4 mmh
     - neighbors (+rssi)
     - stream req (+repeat)
-    - beacons (+hops)
-stream motes
+    - signals (+hops)
+stream tempo
   - use one-time secrets
   - initiated from signals
   - frames only
