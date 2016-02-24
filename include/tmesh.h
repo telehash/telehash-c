@@ -5,7 +5,7 @@
 
 /*
 
-tempo_t is one synchronized comm thread
+tempo_t is a synchronized comm thread
 every tempo has a medium id that identifies the transceiver details
 all tempos belong to a community for grouping
 two types of tempos: signals and streams
@@ -34,41 +34,11 @@ mediums
 
 */
 
-typedef struct tmesh_struct *tmesh_t;
-typedef struct cmnty_struct *cmnty_t; // list of beacons, links, and streams
-typedef struct mote_struct *mote_t; // signal/stream details
-typedef struct radio_struct *radio_t; // driver utils
-typedef struct knock_struct *knock_t; // single mote action
-
-// community management
-struct cmnty_struct
-{
-  tmesh_t tm;
-  char *name;
-  mote_t beacons;
-  mote_t links;
-  mote_t streams;
-  pipe_t pipe; // one pipe per community as it's shared performance
-  struct cmnty_struct *next;
-};
-
-// join a new community
-cmnty_t tmesh_join(tmesh_t tm, char *name);
-
-// start a beacon on this medium in this community
-cmnty_t tmesh_join(tmesh_t tm, char *medium);
-
-// leave any community
-tmesh_t tmesh_leave(tmesh_t tm, cmnty_t c);
-
-// add a link already known to be in this community
-mote_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link);
-
-// start looking for this hashname in this community, will link once found
-mote_t tmesh_seek(tmesh_t tm, cmnty_t c, hashname_t id);
-
-// if there's a mote for this link, return it
-mote_t tmesh_mote(tmesh_t tm, link_t link);
+typedef struct tmesh_struct *tmesh_t; // list of communities
+typedef struct cmnty_struct *cmnty_t; // list of motes, our own signal tempo
+typedef struct mote_struct *mote_t; // local link info, signal and list of stream tempos
+typedef struct tempo_struct *tempo_t; // single tempo
+typedef struct knock_struct *knock_t; // single txrx action
 
 // overall tmesh manager
 struct tmesh_struct
@@ -94,6 +64,56 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k);
 // process everything based on current cycle count, optional rebase cycles
 tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase);
 
+// community management
+struct cmnty_struct
+{
+  tmesh_t tm;
+  char *name;
+  mote_t motes;
+  tempo_t signal; 
+  struct cmnty_struct *next;
+  knock_t knock; // managed by radio driver
+};
+
+// join a new community
+cmnty_t tmesh_join(tmesh_t tm, char *name);
+
+// start a beacon on this medium in this community
+cmnty_t tmesh_join(tmesh_t tm, char *medium);
+
+// leave any community
+tmesh_t tmesh_leave(tmesh_t tm, cmnty_t c);
+
+// add a link already known to be in this community
+mote_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link);
+
+// start looking for this hashname in this community, will link once found
+mote_t tmesh_seek(tmesh_t tm, cmnty_t c, hashname_t id);
+
+// if there's a mote for this link, return it
+mote_t tmesh_mote(tmesh_t tm, link_t link);
+
+// tempo state
+struct tempo_struct
+{
+  tempo_t next; // for lists
+  mote_t mote; // ownership
+  union {
+    util_frames_t frames; // r/w frame buffers for streams
+    void *reserved; // for signals
+  };
+  uint32_t at; // cycles until next knock
+  uint16_t tx, rx, miss; // current tx/rx counts
+  uint16_t bad; // dropped bad frames
+  uint16_t seq; // local part of nonce
+  uint8_t secret[32];
+  uint8_t medium[4];
+  uint8_t last, best, worst; // rssi
+  uint8_t order:1; // is hashname compare
+  uint8_t signal:1; // type of tempo
+  uint8_t priority:6; // next knock priority
+};
+
 // a single knock request ready to go
 struct knock_struct
 {
@@ -102,7 +122,7 @@ struct knock_struct
   uint32_t started, stopped; // actual start/stop times
   uint8_t frame[64];
   uint8_t nonce[8]; // nonce for this knock
-  uint8_t chan; // current channel (< med->chans)
+  uint8_t chan; // current channel
   uint8_t rssi; // set by driver only after rx
   // boolean flags for state tracking, etc
   uint8_t tx:1; // tells radio to tx or rx
@@ -113,25 +133,12 @@ struct knock_struct
 // mote state tracking
 struct mote_struct
 {
-  medium_t medium;
-  link_t link; // only on link motes
-  hashname_t beacon; // only on beacon motes
+  pipe_t pipe; // one pipe per community as it's shared performance
+  link_t link;
   mote_t next; // for lists
-  util_frames_t frames; // r/w frame buffers
-  uint32_t txhash, rxhash, cash; // dup detection
-  uint32_t at; // cycles until next knock
-  uint16_t txz, rxz; // empty tx/rx counts
-  uint16_t txs, rxs; // current tx/rx counts
-  uint16_t bad; // dropped bad frames
-  uint8_t secret[32];
-  uint8_t nonce[8];
-  uint8_t seed[4]; // last seen seed to detect resets
-  uint8_t chan[2];
-  uint8_t last, best, worst; // rssi
-  uint8_t z;
-  uint8_t order:1; // is hashname compare
-  uint8_t public:1; // special public beacon mote
-  uint8_t priority:3; // next knock priority
+  tempo_t signal;
+  tempo_t streams;
+  uint16_t seq; // helps detect resets
 };
 
 // these are primarily for internal use
@@ -162,38 +169,5 @@ mote_t mote_process(mote_t m);
 
 // for tmesh sorting
 knock_t knock_sooner(knock_t a, knock_t b);
-
-///////////////////
-// radio devices must process all mediums
-struct radio_struct
-{
-  // initialize any medium scheduling time/cost and channels
-  medium_t (*init)(radio_t self, medium_t m);
-
-  // when a medium isn't used anymore, let the radio free any associated resources
-  medium_t (*free)(radio_t self, medium_t m);
-
-  // called whenever a new knock is ready to be scheduled
-  medium_t (*ready)(radio_t self, medium_t m, knock_t knock);
-  
-  // shared knock between tmesh and driver
-  knock_t knock;
-
-  // for use by the radio driver
-  void *arg;
-
-  // guid
-  uint8_t id:4;
-};
-
-#ifndef RADIOS_MAX
-#define RADIOS_MAX 1
-#endif
-extern radio_t radio_devices[]; // all of em
-
-// globally add/set a new device
-radio_t radio_device(radio_t device);
-
-
 
 #endif
