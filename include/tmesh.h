@@ -37,7 +37,7 @@ mediums
 typedef struct tmesh_struct *tmesh_t; // list of communities
 typedef struct cmnty_struct *cmnty_t; // list of motes, our own signal tempo
 typedef struct mote_struct *mote_t; // local link info, signal and list of stream tempos
-typedef struct tempo_struct *tempo_t; // single tempo
+typedef struct tempo_struct *tempo_t; // single tempo, is a signal or stream
 typedef struct knock_struct *knock_t; // single txrx action
 
 // overall tmesh manager
@@ -47,11 +47,10 @@ struct tmesh_struct
   cmnty_t coms;
   lob_t pubim;
   uint32_t last; // last seen cycles for rebasing
-  uint32_t epoch; // for relative time into mesh_process
-  uint32_t cycles; // remainder for epoch
-  knock_t (*sort)(knock_t a, knock_t b);
-  uint8_t seed[4]; // random seed for restart detection
-  uint8_t z; // our current z-index
+  knock_t (*sort)(tmesh_t tm, knock_t a, knock_t b);
+  tmesh_t (*notify)(tmesh_t tm, lob_t notice); // just used for seq overflow increment notifications right now
+  tmesh_t (*schedule)(tmesh_t tm, knock_t knock); // called whenever a new knock is ready to be scheduled
+  uint16_t seq; // increment every reboot or overflow
 };
 
 // create a new tmesh radio network bound to this mesh
@@ -61,8 +60,8 @@ void tmesh_free(tmesh_t tm);
 // process any knock that has been completed by a driver
 tmesh_t tmesh_knocked(tmesh_t tm, knock_t k);
 
-// process everything based on current cycle count, optional rebase cycles
-tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase);
+//  based on current cycle count, optional rebase cycles
+tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase);
 
 // community management
 struct cmnty_struct
@@ -75,22 +74,16 @@ struct cmnty_struct
   knock_t knock; // managed by radio driver
 };
 
-// join a new community
-cmnty_t tmesh_join(tmesh_t tm, char *name);
-
-// start a beacon on this medium in this community
-cmnty_t tmesh_join(tmesh_t tm, char *medium);
+// join a new community, start lost signal on given medium
+cmnty_t tmesh_join(tmesh_t tm, char *name, char *medium);
 
 // leave any community
 tmesh_t tmesh_leave(tmesh_t tm, cmnty_t c);
 
-// add a link already known to be in this community
-mote_t tmesh_link(tmesh_t tm, cmnty_t c, link_t link);
+// start looking for this link in this community
+mote_t tmesh_find(tmesh_t tm, cmnty_t c, link_t link);
 
-// start looking for this hashname in this community, will link once found
-mote_t tmesh_seek(tmesh_t tm, cmnty_t c, hashname_t id);
-
-// if there's a mote for this link, return it
+// return the first mote found for this link in any community
 mote_t tmesh_mote(tmesh_t tm, link_t link);
 
 // tempo state
@@ -143,31 +136,22 @@ struct mote_struct
 
 // these are primarily for internal use
 
-mote_t mote_new(medium_t medium, hashname_t id);
-mote_t mote_free(mote_t m);
-
-// resets secret/nonce and to ping mode
-mote_t mote_reset(mote_t m);
+tempo_t tempo_new(mote_t m, bool signal);
+tempo_t tempo_free(tempo_t t);
 
 // advance mote ahead next window
-mote_t mote_advance(mote_t m);
+tempo_t tempo_advance(tempo_t t);
 
 // least significant nonce bit sets direction
-uint8_t mote_tx(mote_t m);
+uint8_t tempo_tx(tempo_t t);
 
 // next knock init
-mote_t mote_knock(mote_t m, knock_t k);
+tempo_t tempo_knock(tempo_t t, knock_t k);
 
-// initiates handshake over beacon mote
-mote_t mote_handshake(mote_t m);
-
-// attempt to establish link from a beacon mote
-mote_t mote_link(mote_t m);
-
-// process new link data on a mote
-mote_t mote_process(mote_t m);
+// process new stream data
+tempo_t tempo_process(tempo_t t);
 
 // for tmesh sorting
-knock_t knock_sooner(knock_t a, knock_t b);
+knock_t knock_sooner(tmesh_t tm, knock_t a, knock_t b);
 
 #endif
