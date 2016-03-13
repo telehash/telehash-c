@@ -7,11 +7,11 @@
 
 tempo_t is a synchronized comm thread
 every tempo has a medium id that identifies the transceiver details
-all tempos belong to a community for grouping
+all tempos belong to a mote->community for grouping
 two types of tempos: signals and streams
 motes have one constant signal tempo and on-demand stream tempos
 signal tempo
-  - use shared secrets
+  - use shared secrets across the community
   - can be lost signal, derived secret and no neighbors
   - signal tempo should use limited medium to ease syncing
   - include neighbor info and stream requests
@@ -49,16 +49,22 @@ struct tmesh_struct
   cmnty_t coms;
   lob_t pubim;
   uint32_t last; // last seen cycles for rebasing
-  knock_t (*sort)(tmesh_t tm, knock_t a, knock_t b);
+  // driver interface
+  tempo_t (*sort)(tmesh_t tm, tempo_t a, tempo_t b);
   tmesh_t (*notify)(tmesh_t tm, lob_t notice); // just used for seq overflow increment notifications right now
   tmesh_t (*schedule)(tmesh_t tm, knock_t knock); // called whenever a new knock is ready to be scheduled
-  tempo_t (*tempo)(tmesh_t tm, tempo_t tempo); // driver can initialize a new tempo
+  tempo_t (*advance)(tmesh_t tm, tempo_t tempo, uint8_t seed[8]); // advances tempo to next window
+  tmesh_t (*init)(tmesh_t tm, tempo_t tempo, cmnty_t com); // driver can initialize a new tempo/community
+  tmesh_t (*free)(tmesh_t tm, tempo_t tempo, cmnty_t com); // driver can free any associated resources
   uint16_t seq; // increment every reboot or overflow
 };
 
 // create a new tmesh radio network bound to this mesh
 tmesh_t tmesh_new(mesh_t mesh, lob_t options);
 void tmesh_free(tmesh_t tm);
+
+// util to return the medium id decoded from the 8-char string
+uint32_t tmesh_medium(tmesh_t tm, char *medium);
 
 // process any knock that has been completed by a driver
 tmesh_t tmesh_knocked(tmesh_t tm, knock_t k);
@@ -75,16 +81,17 @@ struct cmnty_struct
   tempo_t signal; 
   struct cmnty_struct *next;
   knock_t knock, seek; // managed by radio driver
+  uint32_t m_signal, m_lost, m_stream; // default mediums
 };
 
-// join a new community, start lost signal on given medium
-cmnty_t tmesh_join(tmesh_t tm, char *name, char *medium);
+// join a new community, starts lost signal on given medium
+cmnty_t tmesh_join(tmesh_t tm, char *name, uint32_t medium);
 
 // leave any community
-tmesh_t tmesh_leave(tmesh_t tm, cmnty_t c);
+tmesh_t tmesh_leave(tmesh_t tm, cmnty_t com);
 
 // start looking for this link in this community
-mote_t tmesh_find(tmesh_t tm, cmnty_t c, link_t link);
+mote_t tmesh_find(tmesh_t tm, cmnty_t com, link_t link);
 
 // return the first mote found for this link in any community
 mote_t tmesh_mote(tmesh_t tm, link_t link);
@@ -96,17 +103,18 @@ struct tempo_struct
   mote_t mote; // ownership
   void *driver; // for driver use, set during tm->tempo()
   util_frames_t frames; // r/w frame buffers for streams
-  uint32_t at; // cycles until next knock
-  uint16_t tx, rx, miss; // current tx/rx counts
+  uint32_t medium; // id
+  uint32_t at; // cycles until next knock in current window
+  uint16_t itx, irx; // current counts
   uint16_t bad; // dropped bad frames
   uint16_t seq; // local part of nonce
   uint8_t secret[32];
-  uint8_t medium[4]; // id
+  uint8_t miss, skip; // how many of the last rx windows were missed (nothing received) or skipped (scheduling)
   uint8_t chan; // channel of next knock
   uint8_t last, best, worst; // rssi
-  uint8_t order:1; // is hashname compare
   uint8_t signal:1; // type of tempo
-  uint8_t priority:6; // next knock priority
+  uint8_t tx:1; // current window direction
+  uint8_t priority:5; // next knock priority
 };
 
 // a single knock request ready to go
@@ -117,7 +125,6 @@ struct knock_struct
   uint8_t frame[64];
   uint8_t rssi; // set by driver only after rx
   // boolean flags for state tracking, etc
-  uint8_t tx:1; // tells radio to tx or rx
   uint8_t ready:1; // is ready to transceive
   uint8_t err:1; // failed
 };
@@ -125,32 +132,23 @@ struct knock_struct
 // mote state tracking
 struct mote_struct
 {
-  pipe_t pipe; // one pipe per community as it's shared performance
+  pipe_t pipe; // one pipe per mote to start/find best stream
   link_t link;
   mote_t next; // for lists
   tempo_t signal;
   tempo_t streams;
   uint16_t seq; // helps detect resets, part of the nonce
+  uint8_t order:1; // is hashname compare
 };
 
-// these are primarily for internal use
-
-tempo_t tempo_new(mote_t m, bool signal);
+// calls tm->tempo() for driver initialize
+tempo_t tempo_new(mote_t m, bool signal, uint32_t medium);
 tempo_t tempo_free(tempo_t t);
 
-// advance mote ahead next window
+// advance mote ahead next window (calls tm->advance())
 tempo_t tempo_advance(tempo_t t);
-
-// least significant nonce bit sets direction
-uint8_t tempo_tx(tempo_t t);
-
-// next knock init
-tempo_t tempo_knock(tempo_t t, knock_t k);
 
 // process new stream data
 tempo_t tempo_process(tempo_t t);
-
-// for tmesh sorting
-knock_t knock_sooner(tmesh_t tm, knock_t a, knock_t b);
 
 #endif
