@@ -31,6 +31,8 @@ mediums
   - limit # of channels
   - set rx tolerance
   - indicate power/lna for rssi comparisons
+  - tm->tempo(tempo), sets window min/max, can change secret
+
 
 */
 
@@ -50,6 +52,7 @@ struct tmesh_struct
   knock_t (*sort)(tmesh_t tm, knock_t a, knock_t b);
   tmesh_t (*notify)(tmesh_t tm, lob_t notice); // just used for seq overflow increment notifications right now
   tmesh_t (*schedule)(tmesh_t tm, knock_t knock); // called whenever a new knock is ready to be scheduled
+  tempo_t (*tempo)(tmesh_t tm, tempo_t tempo); // driver can initialize a new tempo
   uint16_t seq; // increment every reboot or overflow
 };
 
@@ -71,7 +74,7 @@ struct cmnty_struct
   mote_t motes;
   tempo_t signal; 
   struct cmnty_struct *next;
-  knock_t knock; // managed by radio driver
+  knock_t knock, seek; // managed by radio driver
 };
 
 // join a new community, start lost signal on given medium
@@ -91,16 +94,15 @@ struct tempo_struct
 {
   tempo_t next; // for lists
   mote_t mote; // ownership
-  union {
-    util_frames_t frames; // r/w frame buffers for streams
-    void *reserved; // for signals
-  };
+  void *driver; // for driver use, set during tm->tempo()
+  util_frames_t frames; // r/w frame buffers for streams
   uint32_t at; // cycles until next knock
   uint16_t tx, rx, miss; // current tx/rx counts
   uint16_t bad; // dropped bad frames
   uint16_t seq; // local part of nonce
   uint8_t secret[32];
-  uint8_t medium[4];
+  uint8_t medium[4]; // id
+  uint8_t chan; // channel of next knock
   uint8_t last, best, worst; // rssi
   uint8_t order:1; // is hashname compare
   uint8_t signal:1; // type of tempo
@@ -110,12 +112,9 @@ struct tempo_struct
 // a single knock request ready to go
 struct knock_struct
 {
-  mote_t mote;
-  uint32_t start, stop; // requested start/stop times
-  uint32_t started, stopped; // actual start/stop times
+  tempo_t tempo;
+  uint32_t stopped; // actual stop time
   uint8_t frame[64];
-  uint8_t nonce[8]; // nonce for this knock
-  uint8_t chan; // current channel
   uint8_t rssi; // set by driver only after rx
   // boolean flags for state tracking, etc
   uint8_t tx:1; // tells radio to tx or rx
@@ -131,7 +130,7 @@ struct mote_struct
   mote_t next; // for lists
   tempo_t signal;
   tempo_t streams;
-  uint16_t seq; // helps detect resets
+  uint16_t seq; // helps detect resets, part of the nonce
 };
 
 // these are primarily for internal use

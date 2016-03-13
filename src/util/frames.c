@@ -305,7 +305,7 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
   }
   
   // nothing to send
-  if(!out || !len || (frames->out * size) > len) return LOG("no data to send %u/%lu",frames->out,len);
+  if(!out || !len || (frames->out * size) > len) return NULL;
 
   // send next frame
   uint32_t at = frames->out * size;
