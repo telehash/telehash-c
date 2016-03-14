@@ -114,6 +114,7 @@ struct tempo_struct
   uint8_t last, best, worst; // rssi
   uint8_t signal:1; // type of tempo
   uint8_t tx:1; // current window direction
+  uint8_t lost:1; // if currently lost
   uint8_t priority:5; // next knock priority
 };
 
@@ -123,6 +124,7 @@ struct knock_struct
   tempo_t tempo;
   uint32_t stopped; // actual stop time
   uint8_t frame[64];
+  uint8_t nonce[8]; // convenience
   uint8_t rssi; // set by driver only after rx
   // boolean flags for state tracking, etc
   uint8_t ready:1; // is ready to transceive

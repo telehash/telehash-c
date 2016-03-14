@@ -4,9 +4,6 @@
 #include "telehash.h"
 #include "tmesh.h"
 
-// util debug dump of mote state
-#define MORTY(mote) LOG("%s %s %s %u/%02u/%02u %s %s at %u %s %lu %lu",mote->public?"pub":"pri",mote->beacon?"bekn":"link",mote_tx(mote)?"tx":"rx",mote->priority,mote->txz,mote->rxz,hashname_short(mote->link?mote->link->id:mote->beacon),util_hex(mote->nonce,8,NULL),mote->at,mote_tx(mote)?"tx":"rx",util_frames_outlen(mote->frames),util_frames_inlen(mote->frames));
-
 // util to return the medium id decoded from the 8-char string
 uint32_t tmesh_medium(tmesh_t tm, char *medium)
 {
@@ -229,63 +226,64 @@ void tmesh_free(tmesh_t tm)
 */
 
 // fills in next tx knock
-tmesh_t tmesh_knock(tmesh_t tm, knock_t k)
+knock_t tempo_knock(tempo_t tempo, knock_t k)
 {
-  if(!tm || !k) return LOG("bad args");
-
-  MORTY(k->tempo);
+  if(!tempo || !k) return LOG("bad args");
+  mote_t mote = tempo->mote;
+  cmnty_t com = mote->com;
+  tmesh_t tm = com->tm;
 
   // send data frames if any
-  if(k->tempo->frames)
+  if(tempo->frames)
   {
-    if(!util_frames_outbox(k->tempo->frames,k->frame))
+    if(!util_frames_outbox(tempo->frames,k->frame))
     {
       // nothing to send, noop
-      k->tempo->txz++;
-      LOG("tx noop %u",k->tempo->txz);
+      tempo->skip++;
+      LOG("tx noop %u",tempo->skip);
       return NULL;
     }
 
     LOG("TX frame %s\n",util_hex(k->frame,64,NULL));
 
     // ciphertext full frame
-    chacha20(k->tempo->secret,k->nonce,k->frame,64);
-    return tm;
+    chacha20(tempo->secret,k->nonce,k->frame,64);
+    return k;
   }
 
-  // construct beacon tx frame data
+  // construct signal tx
 
-  // nonce is prepended to beacons
-  memcpy(k->frame,k->nonce,8);
+  // TODO lost signal
+  if(tempo->lost)
+  {
+    // nonce is prepended to beacons
+    memcpy(k->frame,k->nonce,8);
 
-  // copy in hashname
-  memcpy(k->frame+8,hashname_bin(tm->mesh->id),32);
+    // copy in self
+//    memcpy(k->frame+8,hashname_bin(tm->mesh->id),32);
+    
+     // ciphertext frame after nonce
+    chacha20(k->tempo->secret,k->frame,k->frame+8,64-8);
+    return k;
+  }
 
-  // copy in our reset seed
-  memcpy(k->frame+8+32,tm->seed,4);
+  // TODO normal signal
 
-  // hash the contents
-  uint8_t hash[32];
-  e3x_hash(k->frame,8+32+4,hash);
-  
-  // copy as much as will fit for validation
-  memcpy(k->frame+8+32+4,hash,64-(8+32+4));
 
-   // ciphertext frame after nonce
-  chacha20(k->tempo->secret,k->frame,k->frame+8,64-8);
+  LOG("TX signal frame: %s",util_hex(k->frame,64,NULL));
 
-  LOG("TX beacon frame: %s",util_hex(k->frame,64,NULL));
-
-  return tm;
+  return k;
 }
 
-// signal once a knock has been sent/received for this tempo
+// handle a knock that has been sent/received
 tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 {
   if(!tm || !k) return LOG("bad args");
   if(!k->ready) return LOG("knock wasn't ready");
   
-  MORTY(k->tempo);
+  tempo_t tempo = k->tempo;
+  mote_t mote = tempo->mote;
+  cmnty_t com = mote->com;
 
   // clear some flags straight away
   k->ready = 0;
@@ -293,32 +291,32 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   if(k->err)
   {
     // missed rx windows
-    if(!k->tx)
+    if(!tempo->tx)
     {
-      k->tempo->rxz++; // count missed rx knocks
+      tempo->miss++; // count missed rx knocks
       // if expecting data, trigger a flush
-      if(util_frames_await(k->tempo->frames)) util_frames_send(k->tempo->frames,NULL);
+      if(util_frames_await(tempo->frames)) util_frames_send(tempo->frames,NULL);
     }
     LOG("knock error");
-    if(k->tx) printf("tx error\n");
+    if(tempo->tx) printf("tx error\n");
     return tm;
   }
   
   // tx just updates state things here
-  if(k->tx)
+  if(tempo->tx)
   {
-    k->tempo->txz = 0; // clear skipped tx's
-    k->tempo->txs++;
+    tempo->skip = 0; // clear skipped tx's
+    tempo->itx++;
     
     // did we send a data frame?
-    if(k->tempo->frames)
+    if(tempo->frames)
     {
-      LOG("tx frame done %lu",util_frames_outlen(k->tempo->frames));
+      LOG("tx frame done %lu",util_frames_outlen(tempo->frames));
 
-      // if beacon tempo see if there's a link yet
-      if(k->tempo->beacon)
+      // if lost stream tempo see if there's a link yet
+      if(tempo->lost)
       {
-        tempo_link(k->tempo);
+//        tempo_link(k->tempo);
       }else{
         // TODO, skip to rx if nothing to send?
       }
@@ -326,230 +324,160 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
       return tm;
     }
 
-    // beacons always sync next at time to when actually done
-    k->tempo->at = k->stopped;
-
-    // public gets only one priority tx
-    if(k->tempo->public) k->tempo->priority = 0;
-    LOG("beacon tx done");
-    
-      // since there's no ordering w/ public beacons, advance one and make sure we're rx
-    if(k->tempo->public)
-    {
-      tempo_advance(k->tempo);
-      if(tempo_tx(k->tempo)) k->tempo->order ^= 1; 
-    }
-    
-    return tm;
-  }
-  
-  // it could be either a beacon or data, check if beacon first
-  uint8_t data[64];
-  memcpy(data,k->frame,64);
-  chacha20(k->tempo->secret,k->frame,data+8,64-8); // rx frame has nonce prepended
-  
-  // hash will validate if a beacon
-  uint8_t hash[32];
-  e3x_hash(data,8+32+4,hash);
-  if(memcmp(data+8+32+4,hash,64-(8+32+4)) == 0)
-  {
-    memcpy(k->frame,data,64); // deciphered data is correct
-
-    // extract the beacon'd hashname
-    hashname_t id = hashname_vbin(k->frame+8);
-    if(!id) return LOG("OOM");
-    if(hashname_cmp(id,tm->mesh->id) == 0) return LOG("identity crisis");
-
-    // always sync beacon time to sender's reality
-    k->tempo->at = k->stopped;
-
-    // check the seed to see if there was a reset
-    if(memcmp(k->tempo->seed,k->frame+8+32,4) == 0) return LOG("skipping seen beacon");
-    memcpy(k->tempo->seed,k->frame+8+32,4);
-
-    // here is where a public beacon behaves different than a private one
-    if(k->tempo->public)
-    {
-      LOG("RX public beacon RSSI %d frame %s",k->rssi,util_hex(k->frame,64,NULL));
-
-      // make sure a private beacon exists
-      tempo_t private = tmesh_seek(tm, k->tempo->medium->com, id);
-      if(!private) return LOG("internal error");
-
-      // if the incoming nonce doesnt match, make sure we sync ack
-      if(memcmp(k->tempo->nonce,k->frame,8) != 0)
-      {
-        memcpy(k->tempo->nonce,k->frame,8);
-
-        // since there's no ordering w/ public beacons, advance one and make sure we're tx
-        tempo_advance(k->tempo);
-        if(!tempo_tx(k->tempo)) k->tempo->order ^= 1; 
-        k->tempo->priority = 1;
-        
-        LOG("scheduled public beacon at %d with %s",k->tempo->at,util_hex(k->tempo->nonce,8,NULL));
-      }
-      
-      // sync up private for after
-      private->priority = 2;
-      private->at = k->tempo->at;
-      memcpy(private->nonce,k->tempo->nonce,8);
-      tempo_advance(private);
-      
-      LOG("scheduled private beacon at %d with %s",private->at,util_hex(private->nonce,8,NULL));
-
-      return tm;
-    }
-
-    LOG("RX private beacon RSSI %d frame %s",k->rssi,util_hex(k->frame,64,NULL));
-    k->tempo->last = k->rssi;
-    k->tempo->rxz = 0;
-    k->tempo->rxs++;
-
-    // safe to sync to given nonce
-    memcpy(k->tempo->nonce,k->frame,8);
-    k->tempo->priority = 3;
-    
-    // we received a private beacon, initiate handshake
-    tempo_handshake(k->tempo);
+    // signals always sync next at time to when actually done
+    tempo->at = k->stopped;
 
     return tm;
   }
   
-  // assume sync and process it as a data frame
+  // process streams first
+  if(!tempo->signal)
+  {
+    chacha20(tempo->secret,k->nonce,k->frame,64);
+    LOG("RX data RSSI %d frame %s\n",k->rssi,util_hex(k->frame,64,NULL));
+
+    if(!util_frames_inbox(tempo->frames, k->frame))
+    {
+      k->tempo->bad++;
+      return LOG("bad frame: %s",util_hex(k->frame,64,NULL));
+    }
+
+    // received stats only after validation
+    tempo->miss = 0;
+    tempo->irx++;
+    if(k->rssi < tempo->best || !tempo->best) tempo->best = k->rssi;
+    if(k->rssi > tempo->worst) tempo->worst = k->rssi;
+    tempo->last = k->rssi;
+
+    LOG("RX data received, total %lu rssi %d/%d/%d\n",util_frames_inlen(k->tempo->frames),k->tempo->last,k->tempo->best,k->tempo->worst);
+
+    // process any new packets, if lost tempo see if there's a link yet
+    if(tempo->lost) tempo_link(tempo);
+    else tempo_process(tempo);
+    return tm;
+  }
+
+  // process a lost signal
+  if(tempo->lost)
+  {
+    uint8_t data[64];
+    memcpy(data,k->frame,64);
+    chacha20(tempo->secret,k->frame,data+8,64-8); // rx frame has nonce prepended
+    
+    // TODO
+    // check senders hashname
+    // use new seq's
+    // sync at time
+    // change to !lost
+
+    return tm;
+  }
   
-  // if no data handler, initiate a handshake to bootstrap
-  if(!k->tempo->frames) tempo_handshake(k->tempo);
-
-  chacha20(k->tempo->secret,k->nonce,k->frame,64);
-  LOG("RX data RSSI %d frame %s\n",k->rssi,util_hex(k->frame,64,NULL));
-
-  // TODO check and validate frame[0] now
-
-  // if avg time is provided, calculate a drift based on when this rx was done
-  /* TODO
-  uint32_t avg = k->tempo->medium->avg;
-  uint32_t took = k->done - k->start;
-  if(avg && took > avg)
-  {
-    LOG("adjusting for drift by %lu, took %lu avg %lu",took - avg,took,avg);
-    k->tempo->at += (took - avg);
-  }
-  */
-
-  if(!util_frames_inbox(k->tempo->frames, k->frame))
-  {
-    k->tempo->bad++;
-    return LOG("invalid frame: %s",util_hex(k->frame,64,NULL));
-  }
-
-  // received stats only after minimal validation
-  k->tempo->rxz = 0;
-  k->tempo->rxs++;
-  if(k->rssi < k->tempo->best || !k->tempo->best) k->tempo->best = k->rssi;
-  if(k->rssi > k->tempo->worst) k->tempo->worst = k->rssi;
-  k->tempo->last = k->rssi;
-
-  LOG("RX data received, total %lu rssi %d/%d/%d\n",util_frames_inlen(k->tempo->frames),k->tempo->last,k->tempo->best,k->tempo->worst);
-
-  // process any new packets, if beacon tempo see if there's a link yet
-  if(k->tempo->beacon) tempo_link(k->tempo);
-  else tempo_process(k->tempo);
+  // TODO regular signal
+  // decode and validate
+  // sync time
+  // process stream requests
+  // check neighbors for needed paths
 
   return tm;
 }
 
-// process everything based on current cycle count, returns success
-tmesh_t tmesh_process(tmesh_t tm, uint32_t at, uint32_t rebase)
+// inner logic
+tempo_t tempo_schedule(tempo_t tempo, uint32_t at, uint32_t rebase)
 {
-  cmnty_t com;
-  tempo_t tempo;
-  struct knock_struct k1, k2;
-  knock_t knock;
-  if(!tm || !at) return NULL;
+  mote_t mote = tempo->mote;
+  cmnty_t com = mote->com;
+  tmesh_t tm = com->tm;
+
+  // first rebase cycle count if requested
+  if(rebase) tempo->at -= rebase;
+
+  // already have one active, noop
+  if(com->knock->ready) return tempo;
+
+  // move ahead window(s)
+  while(tempo->at < at)
+  {
+    // handle seq overflow cascading, notify driver if the big one
+    tempo->seq++;
+    if(tempo->seq == 0)
+    {
+      tempo->seq++;
+      if(tempo->seq == 0 && tm->notify) tm->notify(tm, NULL);
+    }
+
+    // use encrypted seed (follows frame)
+    uint8_t seed[64+8] = {0};
+    uint8_t nonce[8] = {0};
+    memcpy(nonce,&(tempo->medium),4);
+    memcpy(nonce+4,&(mote->seq),2);
+    memcpy(nonce+6,&(tempo->seq),2);
+    chacha20(tempo->secret,nonce,seed,64+8);
+    
+    // call driver to apply seed to tempo
+    if(!tm->advance(tm, tempo, seed+64)) return LOG("driver advance failed");
+  }
+
+  return tempo;
+}
+
+// process everything based on current cycle count, returns success
+tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
+{
+  if(!tm || !at) return LOG("bad args");
+  if(!tm->sort || !tm->advance || !tm->schedule) return LOG("driver missing");
   
   LOG("processing for %s at %lu",hashname_short(tm->mesh->id),at);
 
   // we are looking for the next knock anywhere
+  cmnty_t com;
   for(com=tm->coms;com;com=com->next)
   {
-    if(!com->knock->ready) memset(knock,0,sizeof(struct knock_struct));
+    // upcheck our signal first
+    tempo_t best = tempo_schedule(com->signal);
 
     // walk all the tempos for next best knock
-    tempo_t next = NULL;
-    for(tempo=com->beacons;tempo;tempo=next)
+    mote_t mote;
+    for(mote=com->motes;mote;mote=mote->next)
     {
-      // switch to link tempos list after beacons
-      next = tempo->next;
-      if(!next && !mote->link) next = com->links;
-
-      // skip zip
-      if(!mote->z) continue;
-
-      // first rebase cycle count if requested
-      if(rebase) mote->at -= rebase;
-
-      // brute timeout idle beacon motes
-      if(mote->beacon && mote->rxz > 50) mote_reset(mote);
-
-      // already have one active, noop
-      if(knock->ready) continue;
-
-      // move ahead window(s)
-      while(mote->at < at) mote_advance(mote);
-      while(mote_tx(mote) && mote->frames && !util_frames_outbox(mote->frames,NULL))
-      {
-        mote->txz++;
-        mote_advance(mote);
-      }
-      MORTY(mote);
-
-      // peek at the next knock details
-      memset(&k2,0,sizeof(struct knock_struct));
-      mote_knock(mote,&k2);
+      // upcheck the mote's signal
+      best = tm->sort(best, tempo_schedule(mote->signal));
       
-      // use the new one if preferred
-      if(!k1.mote || tm->sort(&k1,&k2) != &k1)
-      {
-        memcpy(&k1,&k2,sizeof(struct knock_struct));
-      }
+      // TODO, see if this tempo is lost and elect for seek knock
+
+      // any/every stream
+      tempo_t tempo;
+      for(tempo=mote->streams;tempo;tempo = tempo->next) best = tm->sort(best, tempo_schedule(tempo));
     }
+    
+    // already one active
+    if(com->knock->ready) continue;
 
-    // no new knock available
-    if(!k1.mote) continue;
+    // init new knock for this tempo
+    memset(com->knock,0,sizeof(knock_struct));
 
-    // signal this knock is ready to roll
-    memcpy(knock,&k1,sizeof(struct knock_struct));
-    knock->ready = 1;
-    MORTY(knock->mote);
+    // copy nonce parts in
+    memcpy(com->knock->nonce,&(tempo->medium),4);
+    memcpy(com->knock->nonce+4,&(mote->seq),2);
+    memcpy(com->knock->nonce+6,&(tempo->seq),2);
 
     // do the work to fill in the tx frame only once here
-    if(knock->tx && !tmesh_knock(tm, knock))
+    if(best->tx && !tempo_knock(best, com->knock))
     {
       LOG("tx prep failed, skipping knock");
-      memset(knock,0,sizeof(struct knock_struct));
       continue;
     }
+    com->knock->tempo = best;
+    com->knock->ready = 1;
 
     // signal driver
-    if(radio->ready && !radio->ready(radio, knock->mote->medium, knock))
+    if(!tm->schedule(tm, com->knock));
     {
       LOG("radio ready driver failed, canceling knock");
-      memset(knock,0,sizeof(struct knock_struct));
+      memset(com->knock,0,sizeof(struct knock_struct));
       continue;
     }
   }
-
-  // overall telehash background processing now based on seconds
-  if(rebase) tm->last -= rebase;
-  tm->cycles += (at - tm->last);
-  tm->last = at;
-  while(tm->cycles > 32768)
-  {
-    tm->epoch++;
-    tm->cycles -= 32768;
-  }
-  LOG("mesh process epoch %lu",tm->epoch);
-  mesh_process(tm->mesh,tm->epoch);
 
   return tm;
 }
@@ -638,76 +566,14 @@ tempo_t tempo_reset(tempo_t m)
   // randomize nonce
   e3x_rand(m->nonce,8);
   
-  MORTY(m);
-
   return m;
 }
 
-// least significant nonce bit sets direction
-uint8_t tempo_tx(tempo_t m)
-{
-  return ((m->nonce[7] & 0b00000001) == m->order) ? 0 : 1;
-}
-
-// advance window by one
-tempo_t tempo_advance(tempo_t m)
-{
-  // rotate nonce by ciphering it
-  chacha20(m->secret,m->nonce,m->nonce,8);
-
-  uint32_t next = util_sys_long((unsigned long)*(m->nonce));
-
-  // smaller for high z, using only high 4 bits of z
-  next >>= (m->z >> 4) + m->medium->zshift;
-
-  m->at += next + (m->medium->max*2);
-  
-  LOG("advanced to nonce %s at %u next %u",util_hex(m->nonce,8,NULL),m->at,next);
-
-  return m;
-}
-
-// next knock init
-tempo_t tempo_knock(tempo_t m, knock_t k)
-{
-  if(!m || !k) return LOG("bad args");
-
-  k->tempo = m;
-  k->start = k->stop = 0;
-
-  // set current active channel
-  if(m->link)
-  {
-    memset(m->chan,0,2);
-    chacha20(m->secret,m->nonce,m->chan,2);
-  }
-
-  // direction
-  k->tx = tempo_tx(m);
-
-  // set relative start/stop times
-  k->start = m->at;
-  k->stop = k->start + m->medium->max;
-
-  // window is small for a link rx
-  if(!k->tx && m->link) k->stop = k->start + m->medium->min;
-
-  // derive current channel
-  k->chan = m->chan[1] % m->medium->chans;
-
-  // cache nonce
-  memcpy(k->nonce,m->nonce,8);
-
-  return m;
-}
-
-// initiates handshake over beacon tempo
+// initiates handshake over lost stream tempo
 tempo_t tempo_handshake(tempo_t m)
 {
   if(!m) return LOG("bad args");
   tmesh_t tm = m->medium->com->tm;
-
-  MORTY(m);
 
   // TODO, set up first sync timeout to reset!
   util_frames_free(m->frames);
@@ -730,7 +596,7 @@ tempo_t tempo_handshake(tempo_t m)
   return m;
 }
 
-// attempt to establish link from a beacon tempo
+// attempt to establish link from a lost stream tempo
 tempo_t tempo_link(tempo_t tempo)
 {
   if(!tempo) return LOG("bad args");
@@ -742,8 +608,6 @@ tempo_t tempo_link(tempo_t tempo)
   // and also have received
   lob_t packet;
   if(!(packet = util_frames_receive(tempo->frames))) return LOG("none received yet");
-
-  MORTY(tempo);
 
   // for beacon tempos we process only handshakes here and create/sync link if good
   link_t link = NULL;
@@ -810,21 +674,19 @@ tempo_t tempo_link(tempo_t tempo)
   return linked;
 }
 
-// process new link data on a tempo
+// process new stream data on a tempo
 tempo_t tempo_process(tempo_t tempo)
 {
   if(!tempo) return LOG("bad args");
-  tmesh_t tm = tempo->medium->com->tm;
+  tmesh_t tm = tempo->mote->com->tm;
   
-  MORTY(tempo);
-
   // process any packets on this tempo
   lob_t packet;
   while((packet = util_frames_receive(tempo->frames)))
   {
     LOG("pkt %s",lob_json(packet));
     // TODO associate tempo for neighborhood
-    mesh_receive(tm->mesh, packet, tempo->medium->com->pipe);
+    mesh_receive(tm->mesh, packet, tempo->mote->pipe);
   }
   
   return tempo;
