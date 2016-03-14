@@ -2,6 +2,7 @@
 #define tmesh_h
 
 #include "mesh.h"
+#include <stdbool.h>
 
 /*
 
@@ -142,9 +143,5 @@ struct mote_struct
   uint16_t seq; // helps detect resets, part of the nonce
   uint8_t order:1; // is hashname compare
 };
-
-// calls tm->tempo() for driver initialize
-tempo_t tempo_new(mote_t m, bool signal, uint32_t medium);
-tempo_t tempo_free(tempo_t t);
 
 #endif
