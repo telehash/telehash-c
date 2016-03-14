@@ -147,10 +147,4 @@ struct mote_struct
 tempo_t tempo_new(mote_t m, bool signal, uint32_t medium);
 tempo_t tempo_free(tempo_t t);
 
-// advance mote ahead next window (calls tm->advance())
-tempo_t tempo_advance(tempo_t t);
-
-// process new stream data
-tempo_t tempo_process(tempo_t t);
-
 #endif

@@ -4,45 +4,6 @@
 #include "telehash.h"
 #include "tmesh.h"
 
-// util to return the medium id decoded from the 8-char string
-uint32_t tmesh_medium(tmesh_t tm, char *medium)
-{
-  if(!tm || !medium || strlen(medium < 8)) return 0;
-  uint8_t bin[5];
-  if(base32_decode(medium,0,bin,5) != 5) return 0;
-  uint32_t ret;
-  memcpy(&ret,bin+1,4);
-  return ret;
-}
-
-
-//////////////////
-// private community management methods
-
-// find a mote to send it to in this community
-static void cmnty_send(pipe_t pipe, lob_t packet, link_t link)
-{
-  cmnty_t c;
-  mote_t m;
-  if(!pipe || !pipe->arg || !packet || !link)
-  {
-    LOG("bad args");
-    lob_free(packet);
-    return;
-  }
-  c = (cmnty_t)pipe->arg;
-
-  // find link in this community
-  for(m=c->links;m;m=m->next) if(m->link == link)
-  {
-    util_frames_send(m->frames, packet);
-    LOG("delivering %d to mote %s",lob_len(packet),hashname_short(link->id));
-    return;
-  }
-
-  LOG("no link in community");
-  lob_free(packet);
-}
 
 static cmnty_t cmnty_free(cmnty_t com)
 {
@@ -79,7 +40,206 @@ static cmnty_t cmnty_new(tmesh_t tm, char *name, uint32_t medium)
   return com;
 }
 
-mote_t mote_new(cmnty_t com, link_t link)
+static tempo_t tempo_free(tempo_t m)
+{
+  if(!m) return NULL;
+  hashname_free(m->beacon);
+  util_frames_free(m->frames);
+  free(m);
+  return NULL;
+}
+
+static tempo_t tempo_new(mote_t mote, bool signal, uint32_t medium)
+{
+  if(!mote || !medium) return LOG("bad args");
+  tmesh_t tm = mote->com->tm;
+
+  tempo_t tempo;
+  if(!(tempo = malloc(sizeof(struct tempo_struct)))) return LOG("OOM");
+  memset(tempo,0,sizeof (struct tempo_struct));
+  tempo->medium = medium;
+
+  // generate tempo-specific secret, roll up community first
+  uint8_t *a, *b, roll[64];
+  e3x_hash(&medium,4,roll);
+  e3x_hash((uint8_t*)(mote->com->name),strlen(mote->com->name),roll+32);
+  e3x_hash(roll,64,tempo->secret);
+
+  if(signal)
+  {
+    a = b = hashname_bin(m->beacon);
+  }else{
+    m->frames = util_frames_new(64);
+    // add both hashnames in order
+    hashname_t id = (m->link) ? m->link->id : m->beacon;
+    if(m->order)
+    {
+      a = hashname_bin(id);
+      b = hashname_bin(tm->mesh->id);
+    }else{
+      b = hashname_bin(id);
+      a = hashname_bin(tm->mesh->id);
+    }
+  }
+  // TODO fix to shorts
+  memcpy(roll,m->secret,32);
+  memcpy(roll+32,a,32);
+  e3x_hash(roll,64,m->secret);
+  memcpy(roll,m->secret,32);
+  memcpy(roll+32,b,32);
+  e3x_hash(roll,64,m->secret);
+  
+  // try driver init
+  if(tm->init && !tm->init(tm, tempo, NULL)) return tempo_free(com);
+
+  return m;
+}
+
+// initiates handshake over lost stream tempo
+static tempo_t tempo_handshake(tempo_t m)
+{
+  if(!m) return LOG("bad args");
+  tmesh_t tm = m->medium->com->tm;
+
+  // TODO, set up first sync timeout to reset!
+  util_frames_free(m->frames);
+  if(!(m->frames = util_frames_new(64))) return LOG("OOM");
+  
+  // get relevant link, if any
+  link_t link = m->link;
+  if(!link) link = mesh_linked(tm->mesh, hashname_char(m->beacon), 0);
+
+  // if public and no keys, send discovery
+  if(m->medium->com->tm->pubim && (!link || !e3x_exchange_out(link->x,0)))
+  {
+    LOG("sending bare discovery %s",lob_json(tm->pubim));
+    util_frames_send(m->frames, lob_copy(tm->pubim));
+  }else{
+    LOG("sending new handshake");
+    util_frames_send(m->frames, link_handshakes(link));
+  }
+
+  return m;
+}
+
+// attempt to establish link from a lost stream tempo
+static tempo_t tempo_link(tempo_t tempo)
+{
+  if(!tempo) return LOG("bad args");
+  tmesh_t tm = tempo->medium->com->tm;
+
+  // can't proceed until we've flushed
+  if(util_frames_outbox(tempo->frames,NULL)) return LOG("not flushed yet: %d",util_frames_outlen(tempo->frames));
+
+  // and also have received
+  lob_t packet;
+  if(!(packet = util_frames_receive(tempo->frames))) return LOG("none received yet");
+
+  // for beacon tempos we process only handshakes here and create/sync link if good
+  link_t link = NULL;
+  do {
+    LOG("beacon packet %s",lob_json(packet));
+    
+    // only receive raw handshakes
+    if(packet->head_len == 1)
+    {
+      link = mesh_receive(tm->mesh, packet, tempo->medium->com->pipe);
+      continue;
+    }
+
+    if(tm->pubim && lob_get(packet,"1a"))
+    {
+      hashname_t id = hashname_vkey(packet,0x1a);
+      if(hashname_cmp(id,tempo->beacon) != 0)
+      {
+        printf("dropping mismatch key %s != %s\n",hashname_short(id),hashname_short(tempo->beacon));
+        tempo_reset(tempo);
+        return LOG("mismatch");
+      }
+      // if public, try new link
+      lob_t keys = lob_new();
+      lob_set_base32(keys,"1a",packet->body,packet->body_len);
+      link = link_keys(tm->mesh, keys);
+      lob_free(keys);
+      lob_free(packet);
+      continue;
+    }
+    
+    LOG("unknown packet received on beacon tempo: %s",lob_json(packet));
+    lob_free(packet);
+  } while((packet = util_frames_receive(tempo->frames)));
+  
+  // booo, start over
+  if(!link)
+  {
+    LOG("TODO: if a tempo reset its handshake may be old and rejected above, reset link?");
+    tempo_reset(tempo);
+    printf("no link\n");
+    return LOG("no link found");
+  }
+  
+  if(hashname_cmp(link->id,tempo->beacon) != 0)
+  {
+    printf("link beacon mismatch %s != %s\n",hashname_short(link->id),hashname_short(tempo->beacon));
+    tempo_reset(tempo);
+    return LOG("mismatch");
+  }
+
+  LOG("established link");
+  tempo_t linked = tmesh_link(tm, tempo->medium->com, link);
+  tempo_reset(linked);
+  linked->at = tempo->at;
+  memcpy(linked->nonce,tempo->nonce,8);
+  linked->priority = 2;
+  link_pipe(link, tempo->medium->com->pipe);
+  lob_free(link_sync(link));
+  
+  // stop private beacon, make sure link fail resets it
+  tempo->z = 0;
+
+  return linked;
+}
+
+// process new stream data on a tempo
+static tempo_t tempo_process(tempo_t tempo)
+{
+  if(!tempo) return LOG("bad args");
+  tmesh_t tm = tempo->mote->com->tm;
+  
+  // process any packets on this tempo
+  lob_t packet;
+  while((packet = util_frames_receive(tempo->frames)))
+  {
+    LOG("pkt %s",lob_json(packet));
+    // TODO associate tempo for neighborhood
+    mesh_receive(tm->mesh, packet, tempo->mote->pipe);
+  }
+  
+  return tempo;
+}
+
+// find a stream to send it to for this mote
+static void mote_send(pipe_t pipe, lob_t packet, link_t link)
+{
+  if(!pipe || !pipe->arg || !packet || !link)
+  {
+    LOG("bad args");
+    lob_free(packet);
+    return;
+  }
+
+  mote_t mote = (mote_t)pipe->arg;
+  if(!mote->streams)
+  {
+    LOG("TODO start one!");
+    return;
+  }
+
+  util_frames_send(mote->streams->frames, packet);
+  LOG("delivering %d to mote %s",lob_len(packet),hashname_short(link->id));
+}
+
+static mote_t mote_new(cmnty_t com, link_t link)
 {
   // determine ordering based on hashname compare
   uint8_t *bin1 = hashname_bin(id);
@@ -91,12 +251,26 @@ mote_t mote_new(cmnty_t com, link_t link)
     break;
   }
   
-  // create pipe and signal
+  // TODO create pipe and signal
+
   return NULL;
 }
 
-//////////////////
-// public methods
+static mote_t mote_free(mote_t mote)
+{
+  return LOG("TODO");
+}
+
+// util to return the medium id decoded from the 8-char string
+uint32_t tmesh_medium(tmesh_t tm, char *medium)
+{
+  if(!tm || !medium || strlen(medium < 8)) return 0;
+  uint8_t bin[5];
+  if(base32_decode(medium,0,bin,5) != 5) return 0;
+  uint32_t ret;
+  memcpy(&ret,bin+1,4);
+  return ret;
+}
 
 // join a new community, starts lost signal on given medium
 cmnty_t tmesh_join(tmesh_t tm, char *name, char *medium);
@@ -216,17 +390,8 @@ void tmesh_free(tmesh_t tm)
   return;
 }
 
-/*
-* pub bkn tx nonce+self+seed+hash, set at to done
-* pub bkn rx, sync at to done, use nonce, order to rx, if hash valid start prv bkn
-* 
-* prv bkn tx ping nonce+self+seed+hash, set at to done
-* prv bkn rx, sync at to done, use nonce, if hash valid then tx handshake
-*   else try rx handshake, if no chunks initiate handshake
-*/
-
 // fills in next tx knock
-knock_t tempo_knock(tempo_t tempo, knock_t k)
+static knock_t tempo_knock(tempo_t tempo, knock_t k)
 {
   if(!tempo || !k) return LOG("bad args");
   mote_t mote = tempo->mote;
@@ -383,11 +548,14 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 }
 
 // inner logic
-tempo_t tempo_schedule(tempo_t tempo, uint32_t at, uint32_t rebase)
+static tempo_t tempo_schedule(tempo_t tempo, uint32_t at, uint32_t rebase)
 {
   mote_t mote = tempo->mote;
   cmnty_t com = mote->com;
   tmesh_t tm = com->tm;
+
+  // initialize to *now* if not set
+  if(!tempo->at) tempo->at = at + rebase;
 
   // first rebase cycle count if requested
   if(rebase) tempo->at -= rebase;
@@ -481,214 +649,3 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
 
   return tm;
 }
-
-tempo_t tempo_new(medium_t medium, hashname_t id)
-{
-  uint8_t i;
-  tmesh_t tm;
-  tempo_t m;
-  
-  if(!medium || !medium->com || !medium->com->tm || !id) return LOG("internal error");
-  tm = medium->com->tm;
-
-  if(!(m = malloc(sizeof(struct tempo_struct)))) return LOG("OOM");
-  memset(m,0,sizeof (struct tempo_struct));
-  m->at = tm->last;
-  m->medium = medium;
-
-  return m;
-}
-
-tempo_t tempo_free(tempo_t m)
-{
-  if(!m) return NULL;
-  hashname_free(m->beacon);
-  util_frames_free(m->frames);
-  free(m);
-  return NULL;
-}
-
-tempo_t tempo_reset(tempo_t m)
-{
-  uint8_t *a, *b, roll[64];
-  if(!m || !m->medium) return LOG("bad args");
-  tmesh_t tm = m->medium->com->tm;
-  LOG("RESET tempo %p %p\n",m->beacon,m->link);
-  // reset to defaults
-  m->z = m->medium->z;
-  m->txz = m->rxz = 0;
-  m->txs = m->rxs = 0;
-  m->txhash = m->rxhash = 0;
-  m->bad = 0;
-  m->cash = 0;
-  m->last = m->best = m->worst = 0;
-  m->priority = 0;
-  m->at = tm->last;
-  memset(m->seed,0,4);
-  m->frames = util_frames_free(m->frames);
-  if(m->link) m->frames = util_frames_new(64);
-
-  // TODO detach pipe from link?
-
-  // generate tempo-specific secret, roll up community first
-  e3x_hash(m->medium->bin,5,roll);
-  e3x_hash((uint8_t*)(m->medium->com->name),strlen(m->medium->com->name),roll+32);
-  e3x_hash(roll,64,m->secret);
-
-  if(m->public)
-  {
-    // public uses single shared hashname
-    a = b = hashname_bin(m->beacon);
-  }else{
-    // add both hashnames in order
-    hashname_t id = (m->link) ? m->link->id : m->beacon;
-    if(m->order)
-    {
-      a = hashname_bin(id);
-      b = hashname_bin(tm->mesh->id);
-    }else{
-      b = hashname_bin(id);
-      a = hashname_bin(tm->mesh->id);
-    }
-  }
-  memcpy(roll,m->secret,32);
-  memcpy(roll+32,a,32);
-  e3x_hash(roll,64,m->secret);
-  memcpy(roll,m->secret,32);
-  memcpy(roll+32,b,32);
-  e3x_hash(roll,64,m->secret);
-  
-  // initalize chan based on secret w/ zero nonce
-  memset(m->chan,0,2);
-  memset(m->nonce,0,8);
-  chacha20(m->secret,m->nonce,m->chan,2);
-  
-  // randomize nonce
-  e3x_rand(m->nonce,8);
-  
-  return m;
-}
-
-// initiates handshake over lost stream tempo
-tempo_t tempo_handshake(tempo_t m)
-{
-  if(!m) return LOG("bad args");
-  tmesh_t tm = m->medium->com->tm;
-
-  // TODO, set up first sync timeout to reset!
-  util_frames_free(m->frames);
-  if(!(m->frames = util_frames_new(64))) return LOG("OOM");
-  
-  // get relevant link, if any
-  link_t link = m->link;
-  if(!link) link = mesh_linked(tm->mesh, hashname_char(m->beacon), 0);
-
-  // if public and no keys, send discovery
-  if(m->medium->com->tm->pubim && (!link || !e3x_exchange_out(link->x,0)))
-  {
-    LOG("sending bare discovery %s",lob_json(tm->pubim));
-    util_frames_send(m->frames, lob_copy(tm->pubim));
-  }else{
-    LOG("sending new handshake");
-    util_frames_send(m->frames, link_handshakes(link));
-  }
-
-  return m;
-}
-
-// attempt to establish link from a lost stream tempo
-tempo_t tempo_link(tempo_t tempo)
-{
-  if(!tempo) return LOG("bad args");
-  tmesh_t tm = tempo->medium->com->tm;
-
-  // can't proceed until we've flushed
-  if(util_frames_outbox(tempo->frames,NULL)) return LOG("not flushed yet: %d",util_frames_outlen(tempo->frames));
-
-  // and also have received
-  lob_t packet;
-  if(!(packet = util_frames_receive(tempo->frames))) return LOG("none received yet");
-
-  // for beacon tempos we process only handshakes here and create/sync link if good
-  link_t link = NULL;
-  do {
-    LOG("beacon packet %s",lob_json(packet));
-    
-    // only receive raw handshakes
-    if(packet->head_len == 1)
-    {
-      link = mesh_receive(tm->mesh, packet, tempo->medium->com->pipe);
-      continue;
-    }
-
-    if(tm->pubim && lob_get(packet,"1a"))
-    {
-      hashname_t id = hashname_vkey(packet,0x1a);
-      if(hashname_cmp(id,tempo->beacon) != 0)
-      {
-        printf("dropping mismatch key %s != %s\n",hashname_short(id),hashname_short(tempo->beacon));
-        tempo_reset(tempo);
-        return LOG("mismatch");
-      }
-      // if public, try new link
-      lob_t keys = lob_new();
-      lob_set_base32(keys,"1a",packet->body,packet->body_len);
-      link = link_keys(tm->mesh, keys);
-      lob_free(keys);
-      lob_free(packet);
-      continue;
-    }
-    
-    LOG("unknown packet received on beacon tempo: %s",lob_json(packet));
-    lob_free(packet);
-  } while((packet = util_frames_receive(tempo->frames)));
-  
-  // booo, start over
-  if(!link)
-  {
-    LOG("TODO: if a tempo reset its handshake may be old and rejected above, reset link?");
-    tempo_reset(tempo);
-    printf("no link\n");
-    return LOG("no link found");
-  }
-  
-  if(hashname_cmp(link->id,tempo->beacon) != 0)
-  {
-    printf("link beacon mismatch %s != %s\n",hashname_short(link->id),hashname_short(tempo->beacon));
-    tempo_reset(tempo);
-    return LOG("mismatch");
-  }
-
-  LOG("established link");
-  tempo_t linked = tmesh_link(tm, tempo->medium->com, link);
-  tempo_reset(linked);
-  linked->at = tempo->at;
-  memcpy(linked->nonce,tempo->nonce,8);
-  linked->priority = 2;
-  link_pipe(link, tempo->medium->com->pipe);
-  lob_free(link_sync(link));
-  
-  // stop private beacon, make sure link fail resets it
-  tempo->z = 0;
-
-  return linked;
-}
-
-// process new stream data on a tempo
-tempo_t tempo_process(tempo_t tempo)
-{
-  if(!tempo) return LOG("bad args");
-  tmesh_t tm = tempo->mote->com->tm;
-  
-  // process any packets on this tempo
-  lob_t packet;
-  while((packet = util_frames_receive(tempo->frames)))
-  {
-    LOG("pkt %s",lob_json(packet));
-    // TODO associate tempo for neighborhood
-    mesh_receive(tm->mesh, packet, tempo->mote->pipe);
-  }
-  
-  return tempo;
-}
-
