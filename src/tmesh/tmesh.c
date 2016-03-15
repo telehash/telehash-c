@@ -4,6 +4,12 @@
 #include "telehash.h"
 #include "tmesh.h"
 
+struct signal_struct {
+  uint8_t medium[4];
+  uint8_t id[5];
+  uint8_t neighbor:1;
+  uint8_t val:7;
+};
 
 static tempo_t tempo_free(tempo_t tempo)
 {
@@ -412,6 +418,9 @@ void tmesh_free(tmesh_t tm)
 static knock_t tempo_knock(tempo_t tempo, knock_t k)
 {
   if(!tempo || !k) return LOG("bad args");
+  mote_t mote = tempo->mote;
+  cmnty_t com = mote->com;
+  tmesh_t tm = com->tm;
 
   // send data frames if any
   if(tempo->frames)
@@ -436,14 +445,20 @@ static knock_t tempo_knock(tempo_t tempo, knock_t k)
   // TODO lost signal
   if(tempo->lost)
   {
-    // nonce is prepended to beacons
-    memcpy(k->frame,k->nonce,8);
-
-    // copy in self
-//    memcpy(k->frame+8,hashname_bin(tm->mesh->id),32);
+    // seq part of nonce is prepended to lost signals
+    memcpy(k->frame,k->nonce+4,4);
     
-     // ciphertext frame after nonce
-    chacha20(k->tempo->secret,k->frame,k->frame+8,64-8);
+    // create a lost sig stream req
+    struct signal_struct req;
+    memcpy(req.medium, &(com->m_stream), 4);
+    memcpy(req.id, hashname_bin(tm->mesh->id), 5);
+    req.neighbor = 0;
+    req.val = 1;
+    
+    memcpy(k->frame+4,&req,10);
+
+    // ciphertext frame after nonce
+    chacha20(k->tempo->secret,k->nonce,k->frame+4,64-4);
     return k;
   }
 
