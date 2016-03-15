@@ -5,41 +5,6 @@
 #include "tmesh.h"
 
 
-static cmnty_t cmnty_free(cmnty_t com)
-{
-  if(!com) return NULL;
-  // TODO motes
-  // TODO signal
-  if(com->tm->free) com->tm->free(com->tm, NULL, com);
-  free(com->name);
-  
-  free(com);
-  return NULL;
-}
-
-// create a new blank community
-static cmnty_t cmnty_new(tmesh_t tm, char *name, uint32_t medium)
-{
-  cmnty_t com;
-  if(!tm || !name || !medium) return LOG("bad args");
-
-  if(!(com = malloc(sizeof (struct cmnty_struct)))) return LOG("OOM");
-  memset(com,0,sizeof (struct cmnty_struct));
-  com->tm = tm;
-  com->name = strdup(name);
-
-  // try driver init
-  if(tm->init && !tm->init(tm, NULL, com)) return cmnty_free(com);
-
-  // TODO make lost signal
-
-  // make official
-  com->next = tm->coms;
-  tm->coms = com;
-
-  return com;
-}
-
 static tempo_t tempo_free(tempo_t tempo)
 {
   if(!tempo) return NULL;
@@ -85,6 +50,52 @@ static tempo_t tempo_new(cmnty_t com, hashname_t to, uint32_t medium, tempo_t si
   if(com->tm->init && !com->tm->init(com->tm, tempo, NULL)) return tempo_free(tempo);
 
   return tempo;
+}
+
+static mote_t mote_free(mote_t mote);
+
+static cmnty_t cmnty_free(cmnty_t com)
+{
+  if(!com) return NULL;
+  while(com->motes)
+  {
+    mote_t m = com->motes;
+    com->motes = com->motes->next;
+    mote_free(m);
+  }
+  tempo_free(com->signal);
+  if(com->tm->free) com->tm->free(com->tm, NULL, com);
+  free(com->name);
+  
+  free(com);
+  return NULL;
+}
+
+// create a new blank community
+static cmnty_t cmnty_new(tmesh_t tm, char *name, uint32_t mediums[3])
+{
+  cmnty_t com;
+  if(!tm || !name || !mediums) return LOG("bad args");
+
+  if(!(com = malloc(sizeof (struct cmnty_struct)))) return LOG("OOM");
+  memset(com,0,sizeof (struct cmnty_struct));
+  com->tm = tm;
+  com->name = strdup(name);
+  com->m_lost = mediums[0];
+  com->m_signal = mediums[1];
+  com->m_stream = mediums[2];
+  
+  // our default signal outgoing
+  com->signal = tempo_new(com, tm->mesh->id, com->m_lost, NULL);
+
+  // try driver init
+  if(tm->init && !tm->init(tm, NULL, com)) return cmnty_free(com);
+
+  // make official
+  com->next = tm->coms;
+  tm->coms = com;
+
+  return com;
 }
 
 /*
@@ -243,14 +254,29 @@ static mote_t mote_new(cmnty_t com, link_t link)
   mote->link = link;
   mote->com = com;
   
-  // TODO create pipe and signal
+  // set up pipe
+  if(!(mote->pipe = pipe_new("tmesh"))) return mote_free(mote);
+  mote->pipe->arg = mote;
+  mote->pipe->send = mote_send;
+  
+  // create lost signal
+  mote->signal = tempo_new(com, link->id, com->m_lost, NULL);
 
-  return NULL;
+  return mote;
 }
 
 static mote_t mote_free(mote_t mote)
 {
-  // TODO free signals and streams
+  if(!mote) return NULL;
+  // free signals and streams
+  tempo_free(mote->signal);
+  while(mote->streams)
+  {
+    tempo_t t = mote->streams;
+    mote->streams = mote->streams->next;
+    tempo_free(t);
+  }
+  pipe_free(mote->pipe);
   free(mote);
   return LOG("TODO");
 }
@@ -269,8 +295,9 @@ uint32_t tmesh_medium(tmesh_t tm, char *medium)
 // join a new community, starts lost signal on given medium
 cmnty_t tmesh_join(tmesh_t tm, char *name, char *medium)
 {
-  uint32_t mid = tmesh_medium(tm, medium);
-  cmnty_t com = cmnty_new(tm,name,mid);
+  uint32_t mediums[3] = {0};
+  mediums[0] = tmesh_medium(tm, medium);
+  cmnty_t com = cmnty_new(tm,name,mediums);
   if(!com) return LOG("bad args");
 
   LOG("joining community %s on medium %s",name,medium);
@@ -505,6 +532,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     // process any new packets, if lost tempo see if there's a link yet
 //    if(tempo->lost) tempo_link(tempo);
 //    else tempo_process(tempo);
+    tempo_process(tempo);
     return tm;
   }
 
