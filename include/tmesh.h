@@ -139,6 +139,7 @@ struct mote_struct
   mote_t next; // for lists
   tempo_t signal;
   tempo_t streams;
+  lob_t cached; // queued packet waiting for stream
   uint16_t seq; // helps detect resets, part of the nonce
 };
 

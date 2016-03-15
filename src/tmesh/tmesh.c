@@ -245,7 +245,13 @@ static void mote_send(pipe_t pipe, lob_t packet, link_t link)
   mote_t mote = (mote_t)pipe->arg;
   if(!mote->streams)
   {
-    LOG("TODO start one!");
+    if(mote->cached)
+    {
+      LOG("dropping queued packet(%lu) waiting for stream",lob_len(mote->cached));
+      lob_free(mote->cached);
+    }
+    mote->cached = packet;
+    LOG("queued packet(%lu) waiting for stream",lob_len(packet));
     return;
   }
 
@@ -410,7 +416,7 @@ static knock_t tempo_knock(tempo_t tempo, knock_t k)
 {
   if(!tempo || !k) return LOG("bad args");
   mote_t mote = tempo->mote;
-  cmnty_t com = mote->com;
+  cmnty_t com = tempo->com;
   tmesh_t tm = com->tm;
 
   // send data frames if any
@@ -454,6 +460,15 @@ static knock_t tempo_knock(tempo_t tempo, knock_t k)
   }
 
   // TODO normal signal
+  for(mote = com->motes;mote;mote = mote->next)
+  {
+    // check for any w/ cached packets to request stream
+  }
+
+  for(mote = com->motes;mote;mote = mote->next)
+  {
+    // fill in neighbors in remaining slots
+  }
 
 
   LOG("TX signal frame: %s",util_hex(k->frame,64,NULL));
@@ -561,7 +576,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   // TODO regular signal
   // decode and validate
   // sync time
-  // process stream requests
+  // process stream requests/accepts
   // check neighbors for needed paths
 
   return tm;
