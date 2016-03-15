@@ -86,7 +86,7 @@ struct cmnty_struct
 };
 
 // join a new community, starts lost signal on given medium
-cmnty_t tmesh_join(tmesh_t tm, char *name, uint32_t medium);
+cmnty_t tmesh_join(tmesh_t tm, char *name, char *medium);
 
 // leave any community
 tmesh_t tmesh_leave(tmesh_t tm, cmnty_t com);
@@ -116,7 +116,7 @@ struct tempo_struct
   uint8_t signal:1; // type of tempo
   uint8_t tx:1; // current window direction
   uint8_t lost:1; // if currently lost
-  uint8_t priority:5; // next knock priority
+  uint8_t priority:4; // next knock priority
 };
 
 // a single knock request ready to go
@@ -135,13 +135,13 @@ struct knock_struct
 // mote state tracking
 struct mote_struct
 {
+  cmnty_t com;
   pipe_t pipe; // one pipe per mote to start/find best stream
   link_t link;
   mote_t next; // for lists
   tempo_t signal;
   tempo_t streams;
   uint16_t seq; // helps detect resets, part of the nonce
-  uint8_t order:1; // is hashname compare
 };
 
 #endif

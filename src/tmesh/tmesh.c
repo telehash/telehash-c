@@ -40,61 +40,54 @@ static cmnty_t cmnty_new(tmesh_t tm, char *name, uint32_t medium)
   return com;
 }
 
-static tempo_t tempo_free(tempo_t m)
+static tempo_t tempo_free(tempo_t tempo)
 {
-  if(!m) return NULL;
-  hashname_free(m->beacon);
-  util_frames_free(m->frames);
-  free(m);
+  if(!tempo) return NULL;
+  util_frames_free(tempo->frames);
+  free(tempo);
   return NULL;
 }
 
-static tempo_t tempo_new(mote_t mote, bool signal, uint32_t medium)
+static tempo_t tempo_new(cmnty_t com, hashname_t to, uint32_t medium, tempo_t signal)
 {
-  if(!mote || !medium) return LOG("bad args");
-  tmesh_t tm = mote->com->tm;
+  if(!com || !to || !medium) return LOG("bad args");
 
   tempo_t tempo;
   if(!(tempo = malloc(sizeof(struct tempo_struct)))) return LOG("OOM");
   memset(tempo,0,sizeof (struct tempo_struct));
   tempo->medium = medium;
 
-  // generate tempo-specific secret, roll up community first
-  uint8_t *a, *b, roll[64];
-  e3x_hash(&medium,4,roll);
-  e3x_hash((uint8_t*)(mote->com->name),strlen(mote->com->name),roll+32);
-  e3x_hash(roll,64,tempo->secret);
+  // generate tempo-specific secret
+  uint8_t roll[64];
 
   if(signal)
   {
-    a = b = hashname_bin(m->beacon);
-  }else{
-    m->frames = util_frames_new(64);
-    // add both hashnames in order
-    hashname_t id = (m->link) ? m->link->id : m->beacon;
-    if(m->order)
-    {
-      a = hashname_bin(id);
-      b = hashname_bin(tm->mesh->id);
-    }else{
-      b = hashname_bin(id);
-      a = hashname_bin(tm->mesh->id);
-    }
-  }
-  // TODO fix to shorts
-  memcpy(roll,m->secret,32);
-  memcpy(roll+32,a,32);
-  e3x_hash(roll,64,m->secret);
-  memcpy(roll,m->secret,32);
-  memcpy(roll+32,b,32);
-  e3x_hash(roll,64,m->secret);
-  
-  // try driver init
-  if(tm->init && !tm->init(tm, tempo, NULL)) return tempo_free(com);
+    // signal tempo spawns streams
+    tempo->frames = util_frames_new(64);
 
-  return m;
+    // inherit secret base
+    memcpy(roll,signal->secret,32);
+
+    // add in the other party
+    memcpy(roll+32,hashname_bin(to),32);
+
+  }else{
+    // new signal tempo
+    tempo->signal = 1;
+    
+    // base secret
+    e3x_hash((uint8_t*)(com->name),strlen(com->name),roll);
+    e3x_hash((uint8_t*)&medium,4,roll+32);
+  }
+  e3x_hash(roll,64,tempo->secret);
+
+  // try driver init
+  if(com->tm->init && !com->tm->init(com->tm, tempo, NULL)) return tempo_free(tempo);
+
+  return tempo;
 }
 
+/*
 // initiates handshake over lost stream tempo
 static tempo_t tempo_handshake(tempo_t m)
 {
@@ -199,6 +192,7 @@ static tempo_t tempo_link(tempo_t tempo)
 
   return linked;
 }
+*/
 
 // process new stream data on a tempo
 static tempo_t tempo_process(tempo_t tempo)
@@ -241,15 +235,13 @@ static void mote_send(pipe_t pipe, lob_t packet, link_t link)
 
 static mote_t mote_new(cmnty_t com, link_t link)
 {
-  // determine ordering based on hashname compare
-  uint8_t *bin1 = hashname_bin(id);
-  uint8_t *bin2 = hashname_bin(tm->mesh->id);
-  for(i=0;i<32;i++)
-  {
-    if(bin1[i] == bin2[i]) continue;
-    m->order = (bin1[i] > bin2[i]) ? 1 : 0;
-    break;
-  }
+  if(!com || !link) return LOG("bad args");
+
+  mote_t mote;
+  if(!(mote = malloc(sizeof(struct mote_struct)))) return LOG("OOM");
+  memset(mote,0,sizeof (struct mote_struct));
+  mote->link = link;
+  mote->com = com;
   
   // TODO create pipe and signal
 
@@ -258,13 +250,15 @@ static mote_t mote_new(cmnty_t com, link_t link)
 
 static mote_t mote_free(mote_t mote)
 {
+  // TODO free signals and streams
+  free(mote);
   return LOG("TODO");
 }
 
 // util to return the medium id decoded from the 8-char string
 uint32_t tmesh_medium(tmesh_t tm, char *medium)
 {
-  if(!tm || !medium || strlen(medium < 8)) return 0;
+  if(!tm || !medium || strlen(medium) < 8) return 0;
   uint8_t bin[5];
   if(base32_decode(medium,0,bin,5) != 5) return 0;
   uint32_t ret;
@@ -273,7 +267,7 @@ uint32_t tmesh_medium(tmesh_t tm, char *medium)
 }
 
 // join a new community, starts lost signal on given medium
-cmnty_t tmesh_join(tmesh_t tm, char *name, char *medium);
+cmnty_t tmesh_join(tmesh_t tm, char *name, char *medium)
 {
   uint32_t mid = tmesh_medium(tm, medium);
   cmnty_t com = cmnty_new(tm,name,mid);
@@ -286,7 +280,7 @@ cmnty_t tmesh_join(tmesh_t tm, char *name, char *medium);
   lob_set(path,"name",name);
   tm->mesh->paths = lob_push(tm->mesh->paths, path);
 
-  return c;
+  return com;
 }
 
 // leave any community
@@ -316,10 +310,7 @@ mote_t tmesh_link(tmesh_t tm, cmnty_t com, link_t link)
   if(!tm || !com || !link) return LOG("bad args");
 
   // check list of motes, add if not there
-  for(m=com->links;m;m = m->next) if(m->link == link) return m;
-
-  // make sure there's a mote also for syncing
-  if(!(tmesh_find(tm, com, link))) return LOG("OOM");
+  for(m=com->motes;m;m = m->next) if(m->link == link) return m;
 
   if(!(m = mote_new(com, link))) return LOG("OOM");
   m->link = link;
@@ -328,7 +319,7 @@ mote_t tmesh_link(tmesh_t tm, cmnty_t com, link_t link)
 
   // TODO set up link down event handler to remove this mote
   
-  return mote_reset(m);
+  return m;
 }
 
 // if there's a mote for this link, return it
@@ -339,7 +330,7 @@ mote_t tmesh_mote(tmesh_t tm, link_t link)
   for(c=tm->coms;c;c=c->next)
   {
     mote_t m;
-    for(m=c->links;m;m = m->next) if(m->link == link) return m;
+    for(m=c->motes;m;m = m->next) if(m->link == link) return m;
   }
   return LOG("no mote found for link %s",hashname_short(link->id));
 }
@@ -394,9 +385,6 @@ void tmesh_free(tmesh_t tm)
 static knock_t tempo_knock(tempo_t tempo, knock_t k)
 {
   if(!tempo || !k) return LOG("bad args");
-  mote_t mote = tempo->mote;
-  cmnty_t com = mote->com;
-  tmesh_t tm = com->tm;
 
   // send data frames if any
   if(tempo->frames)
@@ -447,8 +435,6 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
   if(!k->ready) return LOG("knock wasn't ready");
   
   tempo_t tempo = k->tempo;
-  mote_t mote = tempo->mote;
-  cmnty_t com = mote->com;
 
   // clear some flags straight away
   k->ready = 0;
@@ -517,8 +503,8 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     LOG("RX data received, total %lu rssi %d/%d/%d\n",util_frames_inlen(k->tempo->frames),k->tempo->last,k->tempo->best,k->tempo->worst);
 
     // process any new packets, if lost tempo see if there's a link yet
-    if(tempo->lost) tempo_link(tempo);
-    else tempo_process(tempo);
+//    if(tempo->lost) tempo_link(tempo);
+//    else tempo_process(tempo);
     return tm;
   }
 
@@ -602,32 +588,32 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
   for(com=tm->coms;com;com=com->next)
   {
     // upcheck our signal first
-    tempo_t best = tempo_schedule(com->signal);
+    tempo_t best = tempo_schedule(com->signal, at, rebase);
 
     // walk all the tempos for next best knock
     mote_t mote;
     for(mote=com->motes;mote;mote=mote->next)
     {
       // upcheck the mote's signal
-      best = tm->sort(best, tempo_schedule(mote->signal));
+      best = tm->sort(tm, best, tempo_schedule(mote->signal, at, rebase));
       
       // TODO, see if this tempo is lost and elect for seek knock
 
       // any/every stream
       tempo_t tempo;
-      for(tempo=mote->streams;tempo;tempo = tempo->next) best = tm->sort(best, tempo_schedule(tempo));
+      for(tempo=mote->streams;tempo;tempo = tempo->next) best = tm->sort(tm, best, tempo_schedule(tempo, at, rebase));
     }
     
     // already one active
     if(com->knock->ready) continue;
 
     // init new knock for this tempo
-    memset(com->knock,0,sizeof(knock_struct));
+    memset(com->knock,0,sizeof(struct knock_struct));
 
     // copy nonce parts in
-    memcpy(com->knock->nonce,&(tempo->medium),4);
+    memcpy(com->knock->nonce,&(best->medium),4);
     memcpy(com->knock->nonce+4,&(mote->seq),2);
-    memcpy(com->knock->nonce+6,&(tempo->seq),2);
+    memcpy(com->knock->nonce+6,&(best->seq),2);
 
     // do the work to fill in the tx frame only once here
     if(best->tx && !tempo_knock(best, com->knock))
@@ -639,7 +625,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
     com->knock->ready = 1;
 
     // signal driver
-    if(!tm->schedule(tm, com->knock));
+    if(!tm->schedule(tm, com->knock))
     {
       LOG("radio ready driver failed, canceling knock");
       memset(com->knock,0,sizeof(struct knock_struct));
