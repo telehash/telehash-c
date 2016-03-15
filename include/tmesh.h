@@ -64,9 +64,6 @@ struct tmesh_struct
 tmesh_t tmesh_new(mesh_t mesh, lob_t options);
 void tmesh_free(tmesh_t tm);
 
-// util to return the medium id decoded from the 8-char string
-uint32_t tmesh_medium(tmesh_t tm, char *medium);
-
 // process any knock that has been completed by a driver
 tmesh_t tmesh_knocked(tmesh_t tm, knock_t k);
 
@@ -82,11 +79,11 @@ struct cmnty_struct
   tempo_t signal; 
   struct cmnty_struct *next;
   knock_t knock, seek; // managed by radio driver
-  uint32_t m_signal, m_lost, m_stream; // default mediums
+  uint32_t m_lost, m_signal, m_stream; // default mediums
 };
 
 // join a new community, starts lost signal on given medium
-cmnty_t tmesh_join(tmesh_t tm, char *name, char *medium);
+cmnty_t tmesh_join(tmesh_t tm, char *name, uint32_t mediums[3]);
 
 // leave any community
 tmesh_t tmesh_leave(tmesh_t tm, cmnty_t com);

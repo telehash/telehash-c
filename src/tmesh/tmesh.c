@@ -287,29 +287,16 @@ static mote_t mote_free(mote_t mote)
   return LOG("TODO");
 }
 
-// util to return the medium id decoded from the 8-char string
-uint32_t tmesh_medium(tmesh_t tm, char *medium)
-{
-  if(!tm || !medium || strlen(medium) < 8) return 0;
-  uint8_t bin[5];
-  if(base32_decode(medium,0,bin,5) != 5) return 0;
-  uint32_t ret;
-  memcpy(&ret,bin+1,4);
-  return ret;
-}
-
 // join a new community, starts lost signal on given medium
-cmnty_t tmesh_join(tmesh_t tm, char *name, char *medium)
+cmnty_t tmesh_join(tmesh_t tm, char *name, uint32_t mediums[3])
 {
-  uint32_t mediums[3] = {0};
-  mediums[0] = tmesh_medium(tm, medium);
   cmnty_t com = cmnty_new(tm,name,mediums);
   if(!com) return LOG("bad args");
 
-  LOG("joining community %s on medium %s",name,medium);
+  LOG("joining community %s on mediums %lu, %lu, %lu",name,mediums[0],mediums[1],mediums[2]);
   lob_t path = lob_new();
   lob_set(path,"type","tmesh");
-  lob_set(path,"medium",medium);
+  lob_set_uint(path,"medium",mediums[0]);
   lob_set(path,"name",name);
   tm->mesh->paths = lob_push(tm->mesh->paths, path);
 
