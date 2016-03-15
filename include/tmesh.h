@@ -57,7 +57,6 @@ struct tmesh_struct
   tempo_t (*advance)(tmesh_t tm, tempo_t tempo, uint8_t seed[8]); // advances tempo to next window
   tmesh_t (*init)(tmesh_t tm, tempo_t tempo, cmnty_t com); // driver can initialize a new tempo/community
   tmesh_t (*free)(tmesh_t tm, tempo_t tempo, cmnty_t com); // driver can free any associated resources
-  uint16_t seq; // increment every reboot or overflow
 };
 
 // create a new tmesh radio network bound to this mesh
@@ -80,6 +79,7 @@ struct cmnty_struct
   struct cmnty_struct *next;
   knock_t knock, seek; // managed by radio driver
   uint32_t m_lost, m_signal, m_stream; // default mediums
+  uint16_t seq; // increment every reboot or overflow
 };
 
 // join a new community, starts lost signal on given medium
@@ -99,6 +99,7 @@ struct tempo_struct
 {
   tempo_t next; // for lists
   mote_t mote; // ownership
+  cmnty_t com; // needed when no mote (our signal)
   void *driver; // for driver use, set during tm->tempo()
   util_frames_t frames; // r/w frame buffers for streams
   uint32_t medium; // id

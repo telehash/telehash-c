@@ -27,6 +27,7 @@ static tempo_t tempo_new(cmnty_t com, hashname_t to, uint32_t medium, tempo_t si
   if(!(tempo = malloc(sizeof(struct tempo_struct)))) return LOG("OOM");
   memset(tempo,0,sizeof (struct tempo_struct));
   tempo->medium = medium;
+  tempo->com = com;
 
   // generate tempo-specific mesh unique secret
   uint8_t roll[64];
@@ -43,7 +44,7 @@ static tempo_t tempo_new(cmnty_t com, hashname_t to, uint32_t medium, tempo_t si
     memcpy(roll+32,hashname_bin(to),32);
 
   }else{
-    // new signal tempo
+    // new signal tempo, defaults to lost
     tempo->signal = 1;
     tempo->lost = 1;
     
@@ -54,7 +55,7 @@ static tempo_t tempo_new(cmnty_t com, hashname_t to, uint32_t medium, tempo_t si
   e3x_hash(roll,64,tempo->secret);
 
   // driver init for medium customizations
-  if(com->tm->init && !com->tm->init(com->tm, tempo, com)) return tempo_free(tempo);
+  if(com->tm->init && !com->tm->init(com->tm, tempo, NULL)) return tempo_free(tempo);
 
   return tempo;
 }
@@ -570,7 +571,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 static tempo_t tempo_schedule(tempo_t tempo, uint32_t at, uint32_t rebase)
 {
   mote_t mote = tempo->mote;
-  cmnty_t com = mote->com;
+  cmnty_t com = tempo->com;
   tmesh_t tm = com->tm;
 
   // initialize to *now* if not set
@@ -590,7 +591,16 @@ static tempo_t tempo_schedule(tempo_t tempo, uint32_t at, uint32_t rebase)
     if(tempo->seq == 0)
     {
       tempo->seq++;
-      if(tempo->seq == 0 && tm->notify) tm->notify(tm, NULL);
+      if(tempo->seq == 0)
+      {
+        if(mote)
+        {
+          mote->seq++;
+        }else{
+          com->seq++;
+          tm->notify(tm, NULL);
+        }
+      }
     }
 
     // use encrypted seed (follows frame)
@@ -620,6 +630,8 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
   cmnty_t com;
   for(com=tm->coms;com;com=com->next)
   {
+    tempo_t lost = NULL;
+
     // upcheck our signal first
     tempo_t best = tempo_schedule(com->signal, at, rebase);
 
@@ -627,25 +639,40 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
     mote_t mote;
     for(mote=com->motes;mote;mote=mote->next)
     {
-      // upcheck the mote's signal
-      best = tm->sort(tm, best, tempo_schedule(mote->signal, at, rebase));
+      // advance
+      tempo_schedule(mote->signal, at, rebase);
       
-      // TODO, see if this tempo is lost and elect for seek knock
-
-      // any/every stream
+      // lost signals are elected for seek, others for best
+      if(mote->signal->lost) lost = tm->sort(tm, lost, mote->signal);
+      else best = tm->sort(tm, best, mote->signal);
+      
+      // any/every stream for best pool
       tempo_t tempo;
       for(tempo=mote->streams;tempo;tempo = tempo->next) best = tm->sort(tm, best, tempo_schedule(tempo, at, rebase));
     }
     
-    // already one active
+    // already an active knock
     if(com->knock->ready) continue;
+
+    // any lost tempo, always set seek
+    memset(com->seek,0,sizeof(struct knock_struct));
+    if(lost)
+    {
+      // copy nonce parts in, nothing to prep since is just RX
+      memcpy(com->seek->nonce,&(lost->medium),4);
+      memcpy(com->seek->nonce+4,&(lost->mote->seq),2);
+      memcpy(com->seek->nonce+6,&(lost->seq),2);
+      com->seek->tempo = lost;
+      com->seek->ready = 1;
+    }
 
     // init new knock for this tempo
     memset(com->knock,0,sizeof(struct knock_struct));
 
     // copy nonce parts in
     memcpy(com->knock->nonce,&(best->medium),4);
-    memcpy(com->knock->nonce+4,&(mote->seq),2);
+    if(best->mote) memcpy(com->knock->nonce+4,&(best->mote->seq),2);
+    else memcpy(com->knock->nonce+4,&(best->com->seq),2);
     memcpy(com->knock->nonce+6,&(best->seq),2);
 
     // do the work to fill in the tx frame only once here
