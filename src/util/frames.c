@@ -133,7 +133,7 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data)
   uint8_t size32 = size/4;
   uint32_t *data32 = (uint32_t*)data;
   uint32_t hash1 = data32[size32];
-  uint32_t hash2 = murmur4(data32,size);
+  uint32_t hash2 = murmur4(data,size);
   
   LOG("frame hash rx %lu check %lu",hash1,hash2);
   LOG("frame last %lu",frames->inlast);
@@ -159,7 +159,7 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data)
 
       // handle tail hash correctly like sender
       uint32_t at = i * size;
-      rxs ^= murmur4((uint32_t*)(bin+at), ((at+size) > len) ? (len - at) : size);
+      rxs ^= murmur4((bin+at), ((at+size) > len) ? (len - at) : size);
       rxs += i;
     }
     if(rxd != rxs)
@@ -217,7 +217,7 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data)
   }
   
   // hash must match
-  hash2 = murmur4(data32,tail);
+  hash2 = murmur4(data,tail);
   hash2 ^= frames->inlast;
   hash2 += frames->in;
   if(hash1 != hash2)
@@ -286,7 +286,7 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
     uint32_t at, i;
     for(i = at = 0;at < len && i < frames->out;i++,at += size)
     {
-      hash ^= murmur4((uint32_t*)(out+at), ((at - len) < size) ? (at - len) : size);
+      hash ^= murmur4((out+at), ((at - len) < size) ? (at - len) : size);
       hash += i;
     }
   }
@@ -296,7 +296,7 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
   {
     data32[0] = frames->inlast;
     data32[1] = hash;
-    data32[size32] = murmur4(data32,size);
+    data32[size32] = murmur4(data,size);
     LOG("sending meta frame %s",util_hex(data,size+4,NULL));
     LOG("check hash %u",data32[size32]);
     LOG("inlast %u hash %u",frames->inlast,hash);
@@ -315,7 +315,7 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
     data[PAYLOAD(frames)-1] = size;
   }
   memcpy(data,out+at,size);
-  hash ^= murmur4(data32,size);
+  hash ^= murmur4(data,size);
   hash += frames->out;
   data32[size32] = hash;
   LOG("sending data frame %u %lu",frames->out,hash);
