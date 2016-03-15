@@ -28,15 +28,15 @@ static tempo_t tempo_new(cmnty_t com, hashname_t to, uint32_t medium, tempo_t si
   memset(tempo,0,sizeof (struct tempo_struct));
   tempo->medium = medium;
 
-  // generate tempo-specific secret
+  // generate tempo-specific mesh unique secret
   uint8_t roll[64];
-
   if(signal)
   {
     // signal tempo spawns streams
     tempo->frames = util_frames_new(64);
 
-    // inherit secret base
+    // inherit seq and secret base
+    tempo->seq = signal->seq;
     memcpy(roll,signal->secret,32);
 
     // add in the other party
@@ -45,15 +45,16 @@ static tempo_t tempo_new(cmnty_t com, hashname_t to, uint32_t medium, tempo_t si
   }else{
     // new signal tempo
     tempo->signal = 1;
+    tempo->lost = 1;
     
-    // base secret
+    // base secret name+hn
     e3x_hash((uint8_t*)(com->name),strlen(com->name),roll);
-    e3x_hash((uint8_t*)&medium,4,roll+32);
+    memcpy(roll+32,hashname_bin(to),32);
   }
   e3x_hash(roll,64,tempo->secret);
 
-  // try driver init
-  if(com->tm->init && !com->tm->init(com->tm, tempo, NULL)) return tempo_free(tempo);
+  // driver init for medium customizations
+  if(com->tm->init && !com->tm->init(com->tm, tempo, com)) return tempo_free(tempo);
 
   return tempo;
 }
@@ -91,11 +92,12 @@ static cmnty_t cmnty_new(tmesh_t tm, char *name, uint32_t mediums[3])
   com->m_signal = mediums[1];
   com->m_stream = mediums[2];
   
+  // driver init
+  if(tm->init && !tm->init(tm, NULL, com)) return cmnty_free(com);
+
   // our default signal outgoing
   com->signal = tempo_new(com, tm->mesh->id, com->m_lost, NULL);
-
-  // try driver init
-  if(tm->init && !tm->init(tm, NULL, com)) return cmnty_free(com);
+  com->signal->tx = 1; // our signal is always tx
 
   // make official
   com->next = tm->coms;
@@ -267,6 +269,7 @@ static mote_t mote_new(cmnty_t com, link_t link)
   
   // create lost signal
   mote->signal = tempo_new(com, link->id, com->m_lost, NULL);
+  mote->signal->mote = mote;
 
   return mote;
 }
