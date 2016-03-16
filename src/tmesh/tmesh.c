@@ -4,7 +4,7 @@
 #include "telehash.h"
 #include "tmesh.h"
 
-struct signal_struct {
+struct sigblk_struct {
   uint8_t medium[4];
   uint8_t id[5];
   uint8_t neighbor:1;
@@ -441,7 +441,7 @@ static knock_t tempo_knock(tempo_t tempo, knock_t k)
 
   // construct signal tx
 
-  struct signal_struct req;
+  struct sigblk_struct blk;
 
   // lost signal is special
   if(tempo->lost)
@@ -449,15 +449,16 @@ static knock_t tempo_knock(tempo_t tempo, knock_t k)
     // nonce is prepended to lost signals
     memcpy(k->frame,k->nonce,8);
     
-    uint8_t at = 8;
+    uint8_t at = 8, syncs = 0;
     mote_t mote;
     for(mote=com->motes;mote;mote = mote->next) if(mote->streams && mote->streams->lost)
     {
-      memcpy(req.medium, &(mote->streams->medium), 4);
-      memcpy(req.id, hashname_bin(mote->link->id), 5);
-      req.neighbor = 0;
-      req.val = 2; // lost broadcasts an accept
-      memcpy(k->frame+at,&req,10);
+      memcpy(blk.medium, &(mote->streams->medium), 4);
+      memcpy(blk.id, hashname_bin(mote->link->id), 5);
+      blk.neighbor = 0;
+      blk.val = 2; // lost broadcasts an accept
+      k->syncs[syncs++] = mote->streams; // needs to be sync'd after tx
+      memcpy(k->frame+at,&blk,10);
       at += 10;
       if(at > 50) break; // full!
     }
@@ -477,6 +478,8 @@ static knock_t tempo_knock(tempo_t tempo, knock_t k)
   for(mote = com->motes;mote;mote = mote->next)
   {
     // check for any w/ cached packets to request stream
+    // accept any requested streams (mote->m_req)
+    //    tempo->syncs[syncs++] = mote->streams; // needs to be sync'd after tx
   }
 
   for(mote = com->motes;mote;mote = mote->next)
@@ -531,22 +534,15 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     {
       LOG("tx frame done %lu",util_frames_outlen(tempo->frames));
 
-      // if lost stream tempo see if there's a link yet
-      if(tempo->lost)
-      {
-//        tempo_link(k->tempo);
-      }else{
-        // TODO, skip to rx if nothing to send?
-      }
-
       return tm;
     }
 
-    // signals always sync next at time to when actually done
-    tempo->at = k->stopped;
+    // lost signals always sync next at time to when actually done
+    if(tempo->lost) tempo->at = k->stopped;
     
-    // TODO
-    // loop every mote and sync lost streams
+    // sync any bundled/accepted stream tempos too
+    uint8_t syncs;
+    for(syncs=0;syncs<5;syncs++) if(k->syncs[syncs]) k->syncs[syncs]->at = k->stopped;
 
     return tm;
   }
@@ -577,29 +573,76 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
     return tm;
   }
 
-  // TODO decode/validate signal, may be lost encoded
-
-  // process an expected lost signal
-  if(tempo->lost)
-  {
-    uint8_t data[64];
-    memcpy(data,k->frame,64);
-    chacha20(tempo->secret,k->frame,data+8,64-8); // rx frame has nonce prepended
-    
-    // TODO
-    // check senders hashname
-    // use new seq's
-    // sync at time
-    // change to !lost
-
-    return tm;
-  }
+  // decode/validate signal safely
+  uint8_t at = 0;
+  uint8_t frame[64];
+  memcpy(frame,k->frame,64);
+  chacha20(tempo->secret,k->nonce,frame,64);
+  uint32_t check = murmur4(frame,60);
   
-  // TODO regular signal
-  // decode and validate
-  // sync time
-  // process stream requests/accepts
-  // check neighbors for needed paths
+  // did it validate
+  if(memcmp(&check,frame+60,4) != 0)
+  {
+    // also check if lost encoded
+    memcpy(frame,k->frame,64);
+    chacha20(tempo->secret,frame,frame+8,64-8);
+    uint32_t check = murmur4(frame,60);
+    
+    // lost encoded signal fail
+    if(memcmp(&check,frame+60,4) != 0)
+    {
+      tempo->bad++;
+      return LOG("signal frame validation failed");
+    }
+    
+    LOG("valid lost signal: %s",util_hex(frame,64,NULL));
+
+    // always sync lost time
+    tempo->at = k->stopped;
+    tempo->lost = 0;
+
+    // sync lost nonce info
+    memcpy(&(tempo->medium),frame,4); // sync medium
+    memcpy(&(tempo->mote->seq),frame+4,2); // sync mote nonce
+    memcpy(&(tempo->seq),frame+6,2); // sync tempo nonce
+    
+    // fall through w/ offset past prefixed nonce
+    at = 8;
+  }else{
+    LOG("valid regular signal: %s",util_hex(frame,64,NULL));
+  }
+
+  struct sigblk_struct blk;
+  while(at <= 50)
+  {
+    memcpy(&blk,frame+at,10);
+    at += 10;
+
+    uint32_t medium;
+    memcpy(&medium,blk.medium,4);
+    hashname_t id = hashname_sbin(blk.id);
+
+    if(blk.neighbor)
+    {
+      LOG("neighbor %s on %lu q %u",hashname_short(id),medium,blk.val);
+      // TODO, do we want to talk to them? add id as a peer path now and do a peer/connect
+      continue;
+    }
+
+    // TODO also match against our exchange token so neighbors don't recognize stream requests
+    if(hashname_scmp(id,tm->mesh->id) != 0) continue;
+    
+    // streams r us!
+    if(blk.val == 2)
+    {
+      LOG("TODO start new stream from here");
+    }
+    if(blk.val == 1)
+    {
+      LOG("stream requested from %s on medium %lu",hashname_short(id),medium);
+      tempo->mote->m_req = medium;
+    }
+  }
 
   return tm;
 }

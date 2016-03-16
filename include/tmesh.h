@@ -125,7 +125,7 @@ struct tempo_struct
 struct knock_struct
 {
   tempo_t tempo;
-  tempo_t sync; // if there's another tempo to sync after
+  tempo_t syncs[5]; // max number of tempos being sync'd in this knock
   uint32_t stopped; // actual stop time
   uint8_t frame[64];
   uint8_t nonce[8]; // convenience
@@ -145,6 +145,7 @@ struct mote_struct
   tempo_t signal;
   tempo_t streams;
   lob_t cached; // queued packet waiting for stream
+  uint32_t m_req; // stream requested w/ this medium
   uint16_t seq; // helps detect resets, part of the nonce
 };
 
