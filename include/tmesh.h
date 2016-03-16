@@ -83,7 +83,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k);
 tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase);
 
 // start looking for this link in this community
-mote_t tmesh_find(tmesh_t tm, link_t link, uint32_t mediums[3]);
+mote_t tmesh_find(tmesh_t tm, link_t link, uint32_t m_lost);
 
 // returns an existing mote for this link (if any)
 mote_t tmesh_mote(tmesh_t tm, link_t link);

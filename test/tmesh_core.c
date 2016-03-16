@@ -87,16 +87,13 @@ int main(int argc, char **argv)
   fail_unless(netA->seek);
   fail_unless(strcmp(netA->community,"test") == 0);
 
-  mote_t moteB = tmesh_find(netA, linkAB, (uint32_t[3]){4,5,6});
+  mote_t moteB = tmesh_find(netA, linkAB, 4);
   fail_unless(moteB);
   fail_unless(moteB->link == linkAB);
   fail_unless(moteB->pipe);
   fail_unless(moteB->signal);
   fail_unless(moteB->signal->lost);
   fail_unless(moteB->signal->medium == 4);
-  fail_unless(moteB->streams);
-  fail_unless(moteB->streams->lost);
-  fail_unless(moteB->streams->medium == 6);
 
   // this gets created during first find
   fail_unless(netA->signal);
@@ -114,6 +111,11 @@ int main(int argc, char **argv)
   fail_unless(netA->knock->tempo == netA->signal);
   fail_unless(netA->knock->tempo->at == 2);
   fail_unless(netA->knock->tempo->chan == 1);
+
+  // created when signalled
+  fail_unless(moteB->streams);
+  fail_unless(moteB->streams->medium == 3);
+  fail_unless(moteB->streams->at == 0);
 
   /*
   cmnty_t c = tmesh_join(netA,"qzjb5f4t","foo");

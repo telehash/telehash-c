@@ -19,20 +19,22 @@ static tempo_t tempo_free(tempo_t tempo)
   return NULL;
 }
 
-static tempo_t tempo_new(tmesh_t tm, hashname_t to, uint32_t medium, tempo_t signal)
+static tempo_t tempo_new(tmesh_t tm, hashname_t to, tempo_t signal)
 {
-  if(!tm || !to || !medium) return LOG("bad args");
+  if(!tm || !to) return LOG("bad args");
 
   tempo_t tempo;
   if(!(tempo = malloc(sizeof(struct tempo_struct)))) return LOG("OOM");
   memset(tempo,0,sizeof (struct tempo_struct));
-  tempo->medium = medium;
   tempo->tm = tm;
 
   // generate tempo-specific mesh unique secret
   uint8_t roll[64];
   if(signal)
   {
+    tempo->mote = signal->mote;
+    tempo->medium = tm->m_stream;
+
     // signal tempo spawns streams
     tempo->frames = util_frames_new(64);
 
@@ -44,9 +46,10 @@ static tempo_t tempo_new(tmesh_t tm, hashname_t to, uint32_t medium, tempo_t sig
     memcpy(roll+32,hashname_bin(to),32);
 
   }else{
-    // new signal tempo, defaults to lost
+    // new signal tempo
     tempo->signal = 1;
     tempo->lost = 1;
+    tempo->medium = tm->m_lost;
     
     // base secret name+hn
     e3x_hash((uint8_t*)(tm->community),strlen(tm->community),roll);
@@ -211,6 +214,25 @@ static void mote_send(pipe_t pipe, lob_t packet, link_t link)
   LOG("delivering %d to mote %s",lob_len(packet),hashname_short(link->id));
 }
 
+// reset a mote to being lost
+static mote_t mote_lost(mote_t mote, uint32_t m_lost)
+{
+  if(!mote) return LOG("bad args");
+  tmesh_t tm = mote->tm;
+  if(!m_lost) m_lost = tm->m_lost;
+
+  // create lost signal if none
+  if(!mote->signal)
+  {
+    mote->signal = tempo_new(tm, mote->link->id, NULL);
+    mote->signal->mote = mote;
+  }
+  mote->signal->medium = m_lost;
+  mote->signal->lost = 1;
+  
+  return mote;
+}
+
 static mote_t mote_free(mote_t mote)
 {
   if(!mote) return NULL;
@@ -227,7 +249,7 @@ static mote_t mote_free(mote_t mote)
   return LOG("TODO");
 }
 
-static mote_t mote_new(tmesh_t tm, link_t link, uint32_t mediums[3])
+static mote_t mote_new(tmesh_t tm, link_t link)
 {
   if(!tm || !link) return LOG("bad args");
 
@@ -242,40 +264,34 @@ static mote_t mote_new(tmesh_t tm, link_t link, uint32_t mediums[3])
   mote->pipe->arg = mote;
   mote->pipe->send = mote_send;
   
-  // create lost signal
-  mote->signal = tempo_new(tm, link->id, mediums[0], NULL);
-  mote->signal->mote = mote;
-
   return mote;
 }
 
 // add a link known to be in this community
-mote_t tmesh_find(tmesh_t tm, link_t link, uint32_t mediums[3])
+mote_t tmesh_find(tmesh_t tm, link_t link, uint32_t m_lost)
 {
   mote_t m;
   if(!tm || !link) return LOG("bad args");
 
-  // have to make sure we have a lost signal now
+  // have to make sure we have our own lost signal now
   if(!tm->signal)
   {
     // our default signal outgoing
-    tm->signal = tempo_new(tm, tm->mesh->id, mediums[0], NULL);
+    tm->signal = tempo_new(tm, tm->mesh->id, NULL);
     tm->signal->tx = 1; // our signal is always tx
   }
 
   // check list of motes, add if not there
-  for(m=tm->motes;m;m = m->next) if(m->link == link) return m;
+  for(m=tm->motes;m;m = m->next) if(m->link == link) return mote_lost(m, m_lost);
 
-  if(!(m = mote_new(tm, link, mediums))) return LOG("OOM");
+  if(!(m = mote_new(tm, link))) return LOG("OOM");
   m->link = link;
   m->next = tm->motes;
   tm->motes = m;
 
-  // TODO add lost signal and lost stream
-  
   // TODO set up link down event handler to remove this mote
   
-  return m;
+  return mote_lost(m, m_lost);
 }
 
 // if there's a mote for this link, return it
@@ -380,10 +396,14 @@ static knock_t tempo_knock(tempo_t tempo)
     // nonce is prepended to lost signals
     memcpy(k->frame,k->nonce,8);
     
+    // advertise a stream to other lost motes we know
     uint8_t at = 8, syncs = 0;
     mote_t mote;
-    for(mote=tm->motes;mote;mote = mote->next) if(mote->streams && mote->streams->lost)
+    for(mote=tm->motes;mote;mote = mote->next) if(mote->signal->lost)
     {
+      // make sure there's a stream to advertise
+      if(!mote->streams) mote->streams = tempo_new(tm, mote->link->id, mote->signal);
+  
       memcpy(blk.medium, &(mote->streams->medium), 4);
       memcpy(blk.id, hashname_bin(mote->link->id), 5);
       blk.neighbor = 0;
@@ -406,14 +426,14 @@ static knock_t tempo_knock(tempo_t tempo)
   }
 
   // TODO normal signal
-  for(mote = tm->motes;mote;mote = mote->next)
+  for(mote = tm->motes;mote;mote = mote->next) if(!mote->signal->lost)
   {
     // check for any w/ cached packets to request stream
     // accept any requested streams (mote->m_req)
     //    tempo->syncs[syncs++] = mote->streams; // needs to be sync'd after tx
   }
 
-  for(mote = tm->motes;mote;mote = mote->next)
+  for(mote = tm->motes;mote;mote = mote->next) if(!mote->signal->lost)
   {
     // fill in neighbors in remaining slots
   }
