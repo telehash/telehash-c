@@ -12,6 +12,50 @@
 tmesh_t netA = NULL, netB = NULL;
 #define RXTX(a,b) (a->tx)?memcpy(b->frame,a->frame,64):memcpy(a->frame,b->frame,64)
 
+tempo_t driver_sort(tmesh_t tm, tempo_t a, tempo_t b)
+{
+  if(a) return a;
+  return b;
+}
+
+tmesh_t driver_notify(tmesh_t tm, lob_t notice)
+{
+  return tm;
+}
+
+tmesh_t driver_schedule(tmesh_t tm, knock_t knock)
+{
+  // start knock
+  return tm;
+}
+
+tempo_t driver_advance(tmesh_t tm, tempo_t tempo, uint8_t seed[8])
+{
+  // set channel and advance at based on seed
+  return tempo;
+}
+
+struct knock_struct driver_knock, driver_seek;
+tmesh_t driver_init(tmesh_t tm, tempo_t tempo, cmnty_t com)
+{
+  if(com)
+  {
+    com->knock = &driver_knock;
+    com->seek = &driver_seek;
+    return tm;
+  }
+  if(tempo)
+  {
+    tempo->driver = (void*)1; // flag for test check
+  }
+  return tm;
+}
+
+tmesh_t driver_free(tmesh_t tm, tempo_t tempo, cmnty_t com)
+{
+  return tm;
+}
+
 int main(int argc, char **argv)
 {
   fail_unless(!e3x_init(NULL)); // random seed
@@ -34,6 +78,30 @@ int main(int argc, char **argv)
   
   netA = tmesh_new(meshA, NULL);
   fail_unless(netA);
+  
+  netA->sort = driver_sort;
+  netA->notify = driver_notify;
+  netA->schedule = driver_schedule;
+  netA->advance = driver_advance;
+  netA->init = driver_init;
+  netA->free = driver_free;
+  
+  cmnty_t c = tmesh_join(netA,"test",(uint32_t[3]){1,2,3});
+  fail_unless(c);
+  fail_unless(c->m_lost == 1);
+  fail_unless(c->m_signal == 2);
+  fail_unless(c->m_stream == 3);
+  fail_unless(c->knock);
+  fail_unless(c->seek);
+  fail_unless(strcmp(c->name,"test") == 0);
+  fail_unless(c->signal);
+  fail_unless(c->signal->signal);
+  fail_unless(c->signal->lost);
+  fail_unless(c->signal->tx);
+  fail_unless(!c->signal->mote);
+  fail_unless(c->signal->medium == 1);
+  fail_unless(c->signal->driver == (void*)1);
+
   /*
   cmnty_t c = tmesh_join(netA,"qzjb5f4t","foo");
   fail_unless(c);
@@ -222,7 +290,7 @@ int main(int argc, char **argv)
   LOG("AB tx is %d chan %d at %lu nonce %s",knAB->tx,knAB->chan,knAB->start,util_hex(mAB->nonce,8,NULL));
   fail_unless(knAB->chan == 35);
   fail_unless(knAB->tx == 1);
-/*
+
   // fake reception, with fake cake
   LOG("process netA");
   RXTX(knAB,knBA);
