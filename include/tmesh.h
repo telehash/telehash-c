@@ -41,8 +41,7 @@ lost signal hash is 8+50+4 w/ hash of just 50, rx can detect difference
 must be commanded to change tx signal->lost, scheduled along w/ medium change
 */
 
-typedef struct tmesh_struct *tmesh_t; // list of communities
-typedef struct cmnty_struct *cmnty_t; // list of motes, our own signal tempo
+typedef struct tmesh_struct *tmesh_t; // joined community motes/signals
 typedef struct mote_struct *mote_t; // local link info, signal and list of stream tempos
 typedef struct tempo_struct *tempo_t; // single tempo, is a signal or stream
 typedef struct knock_struct *knock_t; // single txrx action
@@ -51,20 +50,30 @@ typedef struct knock_struct *knock_t; // single txrx action
 struct tmesh_struct
 {
   mesh_t mesh;
-  cmnty_t coms;
-  lob_t pubim;
-  uint32_t last; // last seen cycles for rebasing
+  
+  // community deets
+  char *name;
+  mote_t motes;
+  tempo_t signal; 
+  uint32_t m_lost, m_signal, m_stream; // default mediums
+
   // driver interface
   tempo_t (*sort)(tmesh_t tm, tempo_t a, tempo_t b);
   tmesh_t (*notify)(tmesh_t tm, lob_t notice); // just used for seq overflow increment notifications right now
-  tmesh_t (*schedule)(tmesh_t tm, knock_t knock); // called whenever a new knock is ready to be scheduled
-  tempo_t (*advance)(tmesh_t tm, tempo_t tempo, uint8_t seed[8]); // advances tempo to next window
-  tmesh_t (*init)(tmesh_t tm, tempo_t tempo, cmnty_t com); // driver can initialize a new tempo/community
-  tmesh_t (*free)(tmesh_t tm, tempo_t tempo, cmnty_t com); // driver can free any associated resources
+  tmesh_t (*schedule)(tmesh_t tm); // called whenever a new knock is ready to be scheduled
+  tmesh_t (*advance)(tmesh_t tm, tempo_t tempo, uint8_t seed[8]); // advances tempo to next window
+  tmesh_t (*init)(tmesh_t tm, tempo_t tempo); // driver can initialize a new tempo
+  tmesh_t (*free)(tmesh_t tm, tempo_t tempo); // driver can free any associated tempo resources
+  struct knock_struct knock, seek;
+
+  lob_t pubim;
+  uint32_t last; // last seen cycles for rebasing
+  uint16_t seq; // increment every reboot or overflow
+
 };
 
-// create a new tmesh radio network bound to this mesh
-tmesh_t tmesh_new(mesh_t mesh, lob_t options);
+// join a new tmesh community, starts lost signal
+tmesh_t tmesh_new(mesh_t mesh, char *name, uint32_t mediums[3]);
 void tmesh_free(tmesh_t tm);
 
 // process any knock that has been completed by a driver
@@ -73,37 +82,18 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k);
 //  based on current cycle count, optional rebase cycles
 tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase);
 
-// community management
-struct cmnty_struct
-{
-  tmesh_t tm;
-  char *name;
-  mote_t motes;
-  tempo_t signal; 
-  struct cmnty_struct *next;
-  knock_t knock, seek; // managed by radio driver
-  uint32_t m_lost, m_signal, m_stream; // default mediums
-  uint16_t seq; // increment every reboot or overflow
-};
-
-// join a new community, starts lost signal on given medium
-cmnty_t tmesh_join(tmesh_t tm, char *name, uint32_t mediums[3]);
-
-// leave any community
-tmesh_t tmesh_leave(tmesh_t tm, cmnty_t com);
-
 // start looking for this link in this community
-mote_t tmesh_find(tmesh_t tm, cmnty_t com, link_t link, uint32_t mediums[3]);
+mote_t tmesh_find(tmesh_t tm, link_t link, uint32_t mediums[3]);
 
-// return the first mote found for this link in any community
+// returns an existing mote for this link (if any)
 mote_t tmesh_mote(tmesh_t tm, link_t link);
 
 // tempo state
 struct tempo_struct
 {
-  tempo_t next; // for lists
+  tmesh_t tm;
   mote_t mote; // ownership
-  cmnty_t com; // needed when no mote (our signal)
+  tempo_t next; // for lists
   void *driver; // for driver use, set during tm->tempo()
   util_frames_t frames; // r/w frame buffers for streams
   uint32_t medium; // id
@@ -138,7 +128,7 @@ struct knock_struct
 // mote state tracking
 struct mote_struct
 {
-  cmnty_t com;
+  tmesh_t tm;
   pipe_t pipe; // one pipe per mote to start/find best stream
   link_t link;
   mote_t next; // for lists
