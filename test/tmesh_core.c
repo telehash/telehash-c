@@ -23,15 +23,19 @@ tmesh_t driver_notify(tmesh_t tm, lob_t notice)
   return tm;
 }
 
+uint8_t scheduled = 0;
 tmesh_t driver_schedule(tmesh_t tm, knock_t knock)
 {
   // start knock
+  scheduled++;
   return tm;
 }
 
 tempo_t driver_advance(tmesh_t tm, tempo_t tempo, uint8_t seed[8])
 {
   // set channel and advance at based on seed
+  tempo->at++;
+  tempo->chan++;
   return tempo;
 }
 
@@ -73,8 +77,8 @@ int main(int argc, char **argv)
   lob_set(keyB,"1a",B_KEY);
   hashname_t hnB = hashname_vkeys(keyB);
   fail_unless(hnB);
-  link_t link = link_get(meshA,hnB);
-  fail_unless(link);
+  link_t linkAB = link_get(meshA,hnB);
+  fail_unless(linkAB);
   
   netA = tmesh_new(meshA, NULL);
   fail_unless(netA);
@@ -102,6 +106,25 @@ int main(int argc, char **argv)
   fail_unless(c->signal->medium == 1);
   fail_unless(c->signal->driver == (void*)1);
 
+  // should schedule an empty lost signal tx
+  fail_unless(tmesh_schedule(netA,1,0));
+  fail_unless(scheduled == 1);
+  fail_unless(c->knock->ready);
+  fail_unless(c->knock->tempo == c->signal);
+  fail_unless(c->knock->tempo->at == 2);
+  fail_unless(c->knock->tempo->chan == 1);
+
+  mote_t moteB = tmesh_find(netA, c, linkAB, (uint32_t[3]){4,5,6});
+  fail_unless(moteB);
+  fail_unless(moteB->link == linkAB);
+  fail_unless(moteB->pipe);
+  fail_unless(moteB->signal);
+  fail_unless(moteB->signal->lost);
+  fail_unless(moteB->signal->medium == 4);
+  fail_unless(moteB->streams);
+  fail_unless(moteB->streams->lost);
+  fail_unless(moteB->streams->medium == 6);
+  
   /*
   cmnty_t c = tmesh_join(netA,"qzjb5f4t","foo");
   fail_unless(c);

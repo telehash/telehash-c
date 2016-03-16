@@ -650,6 +650,7 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 // inner logic
 static tempo_t tempo_schedule(tempo_t tempo, uint32_t at, uint32_t rebase)
 {
+  if(!tempo || !at) return LOG("bad args");
   mote_t mote = tempo->mote;
   cmnty_t com = tempo->com;
   tmesh_t tm = com->tm;
@@ -664,7 +665,7 @@ static tempo_t tempo_schedule(tempo_t tempo, uint32_t at, uint32_t rebase)
   if(com->knock->ready) return tempo;
 
   // move ahead window(s)
-  while(tempo->at < at)
+  while(tempo->at <= at)
   {
     // handle seq overflow cascading, notify driver if the big one
     tempo->seq++;
@@ -687,7 +688,8 @@ static tempo_t tempo_schedule(tempo_t tempo, uint32_t at, uint32_t rebase)
     uint8_t seed[64+8] = {0};
     uint8_t nonce[8] = {0};
     memcpy(nonce,&(tempo->medium),4);
-    memcpy(nonce+4,&(mote->seq),2);
+    if(mote) memcpy(nonce+4,&(mote->seq),2);
+    else memcpy(nonce+4,&(com->seq),2);
     memcpy(nonce+6,&(tempo->seq),2);
     chacha20(tempo->secret,nonce,seed,64+8);
     
