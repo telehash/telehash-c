@@ -52,7 +52,7 @@ struct tmesh_struct
   mesh_t mesh;
   
   // community deets
-  char *name;
+  char *community;
   mote_t motes;
   tempo_t signal; 
   uint32_t m_lost, m_signal, m_stream; // default mediums
@@ -64,7 +64,7 @@ struct tmesh_struct
   tmesh_t (*advance)(tmesh_t tm, tempo_t tempo, uint8_t seed[8]); // advances tempo to next window
   tmesh_t (*init)(tmesh_t tm, tempo_t tempo); // driver can initialize a new tempo
   tmesh_t (*free)(tmesh_t tm, tempo_t tempo); // driver can free any associated tempo resources
-  struct knock_struct knock, seek;
+  knock_t knock, seek;
 
   lob_t pubim;
   uint32_t last; // last seen cycles for rebasing
@@ -74,7 +74,7 @@ struct tmesh_struct
 
 // join a new tmesh community, starts lost signal
 tmesh_t tmesh_new(mesh_t mesh, char *name, uint32_t mediums[3]);
-void tmesh_free(tmesh_t tm);
+tmesh_t tmesh_free(tmesh_t tm);
 
 // process any knock that has been completed by a driver
 tmesh_t tmesh_knocked(tmesh_t tm, knock_t k);
