@@ -334,7 +334,7 @@ tmesh_t tmesh_leave(tmesh_t tm, cmnty_t com)
 }
 
 // add a link known to be in this community
-mote_t tmesh_link(tmesh_t tm, cmnty_t com, link_t link)
+mote_t tmesh_find(tmesh_t tm, cmnty_t com, link_t link, uint32_t mediums[3])
 {
   mote_t m;
   if(!tm || !com || !link) return LOG("bad args");
@@ -347,6 +347,8 @@ mote_t tmesh_link(tmesh_t tm, cmnty_t com, link_t link)
   m->next = com->motes;
   com->motes = m;
 
+  // TODO add lost signal and lost stream
+  
   // TODO set up link down event handler to remove this mote
   
   return m;
@@ -417,7 +419,7 @@ static knock_t tempo_knock(tempo_t tempo, knock_t k)
   if(!tempo || !k) return LOG("bad args");
   mote_t mote = tempo->mote;
   cmnty_t com = tempo->com;
-  tmesh_t tm = com->tm;
+  // ;)
 
   // send data frames if any
   if(tempo->frames)
@@ -439,23 +441,35 @@ static knock_t tempo_knock(tempo_t tempo, knock_t k)
 
   // construct signal tx
 
-  // TODO lost signal
+  struct signal_struct req;
+
+  // lost signal is special
   if(tempo->lost)
   {
-    // seq part of nonce is prepended to lost signals
-    memcpy(k->frame,k->nonce+4,4);
+    // nonce is prepended to lost signals
+    memcpy(k->frame,k->nonce,8);
     
-    // create a lost sig stream req
-    struct signal_struct req;
-    memcpy(req.medium, &(com->m_stream), 4);
-    memcpy(req.id, hashname_bin(tm->mesh->id), 5);
-    req.neighbor = 0;
-    req.val = 1;
+    uint8_t at = 8;
+    mote_t mote;
+    for(mote=com->motes;mote;mote = mote->next) if(mote->streams && mote->streams->lost)
+    {
+      memcpy(req.medium, &(mote->streams->medium), 4);
+      memcpy(req.id, hashname_bin(mote->link->id), 5);
+      req.neighbor = 0;
+      req.val = 2; // lost broadcasts an accept
+      memcpy(k->frame+at,&req,10);
+      at += 10;
+      if(at > 50) break; // full!
+    }
     
-    memcpy(k->frame+4,&req,10);
+    // check hash at end
+    murmur(k->frame+8,64-(8+4),k->frame+60);
+
+    LOG("TX lost signal frame: %s",util_hex(k->frame,64,NULL));
 
     // ciphertext frame after nonce
-    chacha20(k->tempo->secret,k->nonce,k->frame+4,64-4);
+    chacha20(tempo->secret,k->nonce,k->frame+8,64-8);
+
     return k;
   }
 
@@ -470,8 +484,13 @@ static knock_t tempo_knock(tempo_t tempo, knock_t k)
     // fill in neighbors in remaining slots
   }
 
-
   LOG("TX signal frame: %s",util_hex(k->frame,64,NULL));
+
+  // check hash at end
+  murmur(k->frame,60,k->frame+60);
+
+  // ciphertext full frame
+  chacha20(tempo->secret,k->nonce,k->frame,64);
 
   return k;
 }
@@ -525,6 +544,9 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 
     // signals always sync next at time to when actually done
     tempo->at = k->stopped;
+    
+    // TODO
+    // loop every mote and sync lost streams
 
     return tm;
   }
@@ -550,14 +572,14 @@ tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
 
     LOG("RX data received, total %lu rssi %d/%d/%d\n",util_frames_inlen(k->tempo->frames),k->tempo->last,k->tempo->best,k->tempo->worst);
 
-    // process any new packets, if lost tempo see if there's a link yet
-//    if(tempo->lost) tempo_link(tempo);
-//    else tempo_process(tempo);
+    // process any new packets
     tempo_process(tempo);
     return tm;
   }
 
-  // process a lost signal
+  // TODO decode/validate signal, may be lost encoded
+
+  // process an expected lost signal
   if(tempo->lost)
   {
     uint8_t data[64];

@@ -34,7 +34,11 @@ mediums
   - indicate power/lna for rssi comparisons
   - tm->tempo(tempo), sets window min/max, can change secret
 
-
+stream tempos are lost until first rx
+lost streams are reset each signal
+lost signal hash is 8+50+4 w/ hash of just 50, rx can detect difference
+!signal->lost after first good rx
+must be commanded to change tx signal->lost, scheduled along w/ medium change
 */
 
 typedef struct tmesh_struct *tmesh_t; // list of communities
@@ -89,7 +93,7 @@ cmnty_t tmesh_join(tmesh_t tm, char *name, uint32_t mediums[3]);
 tmesh_t tmesh_leave(tmesh_t tm, cmnty_t com);
 
 // start looking for this link in this community
-mote_t tmesh_find(tmesh_t tm, cmnty_t com, link_t link);
+mote_t tmesh_find(tmesh_t tm, cmnty_t com, link_t link, uint32_t mediums[3]);
 
 // return the first mote found for this link in any community
 mote_t tmesh_mote(tmesh_t tm, link_t link);
@@ -121,6 +125,7 @@ struct tempo_struct
 struct knock_struct
 {
   tempo_t tempo;
+  tempo_t sync; // if there's another tempo to sync after
   uint32_t stopped; // actual stop time
   uint8_t frame[64];
   uint8_t nonce[8]; // convenience
