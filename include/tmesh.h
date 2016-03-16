@@ -115,10 +115,10 @@ struct tempo_struct
 struct knock_struct
 {
   tempo_t tempo;
-  tempo_t syncs[5]; // max number of tempos being sync'd in this knock
-  uint32_t stopped; // actual stop time
+  uint32_t started, stopped; // actual times
   uint8_t frame[64];
   uint8_t nonce[8]; // convenience
+  tempo_t syncs[5]; // max number of tempos being sync'd in this knock
   uint8_t rssi; // set by driver only after rx
   // boolean flags for state tracking, etc
   uint8_t ready:1; // is ready to transceive
