@@ -87,14 +87,6 @@ int main(int argc, char **argv)
   fail_unless(netA->seek);
   fail_unless(strcmp(netA->community,"test") == 0);
 
-  // should schedule an empty lost signal tx
-  fail_unless(tmesh_schedule(netA,1,0));
-  fail_unless(scheduled == 1);
-  fail_unless(netA->knock->ready);
-  fail_unless(netA->knock->tempo == netA->signal);
-  fail_unless(netA->knock->tempo->at == 2);
-  fail_unless(netA->knock->tempo->chan == 1);
-
   mote_t moteB = tmesh_find(netA, linkAB, (uint32_t[3]){4,5,6});
   fail_unless(moteB);
   fail_unless(moteB->link == linkAB);
@@ -114,7 +106,15 @@ int main(int argc, char **argv)
   fail_unless(!netA->signal->mote);
   fail_unless(netA->signal->medium == 1);
   fail_unless(netA->signal->driver == (void*)1);
-  
+
+  // should schedule a lost signal tx
+  fail_unless(tmesh_schedule(netA,1,0));
+  fail_unless(scheduled == 1);
+  fail_unless(netA->knock->ready);
+  fail_unless(netA->knock->tempo == netA->signal);
+  fail_unless(netA->knock->tempo->at == 2);
+  fail_unless(netA->knock->tempo->chan == 1);
+
   /*
   cmnty_t c = tmesh_join(netA,"qzjb5f4t","foo");
   fail_unless(c);

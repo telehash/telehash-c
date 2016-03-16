@@ -227,7 +227,7 @@ static mote_t mote_free(mote_t mote)
   return LOG("TODO");
 }
 
-static mote_t mote_new(tmesh_t tm, link_t link)
+static mote_t mote_new(tmesh_t tm, link_t link, uint32_t mediums[3])
 {
   if(!tm || !link) return LOG("bad args");
 
@@ -243,7 +243,7 @@ static mote_t mote_new(tmesh_t tm, link_t link)
   mote->pipe->send = mote_send;
   
   // create lost signal
-  mote->signal = tempo_new(tm, link->id, tm->m_lost, NULL);
+  mote->signal = tempo_new(tm, link->id, mediums[0], NULL);
   mote->signal->mote = mote;
 
   return mote;
@@ -266,7 +266,7 @@ mote_t tmesh_find(tmesh_t tm, link_t link, uint32_t mediums[3])
   // check list of motes, add if not there
   for(m=tm->motes;m;m = m->next) if(m->link == link) return m;
 
-  if(!(m = mote_new(tm, link))) return LOG("OOM");
+  if(!(m = mote_new(tm, link, mediums))) return LOG("OOM");
   m->link = link;
   m->next = tm->motes;
   tm->motes = m;
@@ -635,7 +635,8 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
 {
   if(!tm || !at) return LOG("bad args");
   if(!tm->sort || !tm->advance || !tm->schedule) return LOG("driver missing");
-  
+  if(!tm->signal) return LOG("nothing to schedule");
+
   LOG("processing for %s at %lu",hashname_short(tm->mesh->id),at);
 
   // upcheck our signal first
