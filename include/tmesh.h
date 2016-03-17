@@ -77,7 +77,8 @@ tmesh_t tmesh_new(mesh_t mesh, char *name, uint32_t mediums[3]);
 tmesh_t tmesh_free(tmesh_t tm);
 
 // process any knock that has been completed by a driver
-tmesh_t tmesh_knocked(tmesh_t tm, knock_t k);
+tmesh_t tmesh_knocked(tmesh_t tm);
+tmesh_t tmesh_found(tmesh_t tm); // to process tm->seek
 
 //  based on current cycle count, optional rebase cycles
 tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase);
@@ -116,10 +117,10 @@ struct knock_struct
 {
   tempo_t tempo;
   uint32_t started, stopped; // actual times
+  int16_t rssi; // set by driver only after rx
   uint8_t frame[64];
   uint8_t nonce[8]; // convenience
   tempo_t syncs[5]; // max number of tempos being sync'd in this knock
-  uint8_t rssi; // set by driver only after rx
   // boolean flags for state tracking, etc
   uint8_t ready:1; // is ready to transceive
   uint8_t err:1; // failed
@@ -136,6 +137,7 @@ struct mote_struct
   tempo_t streams;
   lob_t cached; // queued packet waiting for stream
   uint32_t m_req; // stream requested w/ this medium
+  uint32_t seen; // first seen (for debugging)
   uint16_t seq; // helps detect resets, part of the nonce
 };
 

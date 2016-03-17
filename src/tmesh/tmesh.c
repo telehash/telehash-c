@@ -226,6 +226,7 @@ static mote_t mote_lost(mote_t mote, uint32_t m_lost)
   {
     mote->signal = tempo_new(tm, mote->link->id, NULL);
     mote->signal->mote = mote;
+    mote->signal->priority = 4; // mid
   }
   mote->signal->medium = m_lost;
   mote->signal->lost = 1;
@@ -279,6 +280,7 @@ mote_t tmesh_find(tmesh_t tm, link_t link, uint32_t m_lost)
     // our default signal outgoing
     tm->signal = tempo_new(tm, tm->mesh->id, NULL);
     tm->signal->tx = 1; // our signal is always tx
+    tm->signal->priority = 7; // max
   }
 
   // check list of motes, add if not there
@@ -324,7 +326,9 @@ tmesh_t tmesh_new(mesh_t mesh, char *name, uint32_t mediums[3])
   if(!(tm = malloc(sizeof (struct tmesh_struct)))) return LOG("OOM");
   memset(tm,0,sizeof (struct tmesh_struct));
   tm->knock = malloc(sizeof (struct knock_struct));
+  memset(tm->knock,0,sizeof (struct knock_struct));
   tm->seek = malloc(sizeof (struct knock_struct));
+  memset(tm->seek,0,sizeof (struct knock_struct));
 
   tm->community = strdup(name);
   tm->m_lost = mediums[0];
@@ -450,11 +454,12 @@ static knock_t tempo_knock(tempo_t tempo)
 }
 
 // handle a knock that has been sent/received
-tmesh_t tmesh_knocked(tmesh_t tm, knock_t k)
+tmesh_t tmesh_knocked(tmesh_t tm)
 {
-  if(!tm || !k) return LOG("bad args");
-  if(!k->ready) return LOG("knock wasn't ready");
-  
+  if(!tm) return LOG("bad args");
+  if(!tm->knock->ready) return LOG("knock wasn't ready");
+
+  knock_t k = tm->knock;
   tempo_t tempo = k->tempo;
 
   // clear some flags straight away
