@@ -32,6 +32,7 @@ static tempo_t tempo_new(tmesh_t tm, hashname_t to, tempo_t signal)
   uint8_t roll[64];
   if(signal)
   {
+    LOG("new stream to %s",hashname_short(to));
     tempo->mote = signal->mote;
     tempo->medium = tm->m_stream;
 
@@ -46,6 +47,7 @@ static tempo_t tempo_new(tmesh_t tm, hashname_t to, tempo_t signal)
     memcpy(roll+32,hashname_bin(to),32);
 
   }else{
+    LOG("new signal to %s",hashname_short(to));
     // new signal tempo
     tempo->signal = 1;
     tempo->lost = 1;
@@ -221,6 +223,8 @@ static mote_t mote_lost(mote_t mote, uint32_t m_lost)
   tmesh_t tm = mote->tm;
   if(!m_lost) m_lost = tm->m_lost;
 
+  LOG("lost %s",hashname_short(mote->link->id));
+
   // create lost signal if none
   if(!mote->signal)
   {
@@ -254,6 +258,8 @@ static mote_t mote_new(tmesh_t tm, link_t link)
 {
   if(!tm || !link) return LOG("bad args");
 
+  LOG("new mote %s",hashname_short(link->id));
+
   mote_t mote;
   if(!(mote = malloc(sizeof(struct mote_struct)))) return LOG("OOM");
   memset(mote,0,sizeof (struct mote_struct));
@@ -274,6 +280,8 @@ mote_t tmesh_find(tmesh_t tm, link_t link, uint32_t m_lost)
   mote_t m;
   if(!tm || !link) return LOG("bad args");
 
+  LOG("finding %s",hashname_short(link->id));
+
   // have to make sure we have our own lost signal now
   if(!tm->signal)
   {
@@ -285,6 +293,8 @@ mote_t tmesh_find(tmesh_t tm, link_t link, uint32_t m_lost)
 
   // check list of motes, add if not there
   for(m=tm->motes;m;m = m->next) if(m->link == link) return mote_lost(m, m_lost);
+
+  LOG("adding %s",hashname_short(link->id));
 
   if(!(m = mote_new(tm, link))) return LOG("OOM");
   m->link = link;
@@ -321,7 +331,7 @@ pipe_t tmesh_on_path(link_t link, lob_t path)
 tmesh_t tmesh_new(mesh_t mesh, char *name, uint32_t mediums[3])
 {
   tmesh_t tm;
-  if(!mesh) return NULL;
+  if(!mesh || !name) return LOG("bad args");
 
   if(!(tm = malloc(sizeof (struct tmesh_struct)))) return LOG("OOM");
   memset(tm,0,sizeof (struct tmesh_struct));
@@ -371,6 +381,8 @@ static knock_t tempo_knock(tempo_t tempo)
   mote_t mote = tempo->mote;
   tmesh_t tm = tempo->tm;
   knock_t k = tm->knock;
+
+  LOG("knocking");
 
   // send data frames if any
   if(tempo->frames)
@@ -458,6 +470,8 @@ tmesh_t tmesh_knocked(tmesh_t tm)
 {
   if(!tm) return LOG("bad args");
   if(!tm->knock->ready) return LOG("knock wasn't ready");
+
+  LOG("knocked");
 
   knock_t k = tm->knock;
   tempo_t tempo = k->tempo;
