@@ -139,6 +139,7 @@ struct mote_struct
   uint32_t m_req; // stream requested w/ this medium
   uint32_t seen; // first seen (for debugging)
   uint16_t seq; // helps detect resets, part of the nonce
+  uint8_t order;
 };
 
 #endif

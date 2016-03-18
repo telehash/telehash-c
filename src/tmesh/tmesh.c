@@ -231,6 +231,7 @@ static mote_t mote_lost(mote_t mote, uint32_t m_lost)
     mote->signal = tempo_new(tm, mote->link->id, NULL);
     mote->signal->mote = mote;
     mote->signal->priority = 4; // mid
+    mote->signal->tx = 0; // default rx
   }
   mote->signal->medium = m_lost;
   mote->signal->lost = 1;
@@ -270,6 +271,17 @@ static mote_t mote_new(tmesh_t tm, link_t link)
   if(!(mote->pipe = pipe_new("tmesh"))) return mote_free(mote);
   mote->pipe->arg = mote;
   mote->pipe->send = mote_send;
+  
+  // determine order, if we sort first, we're #1
+  uint8_t *a = hashname_bin(link->id);
+  uint8_t *b = hashname_bin(tm->mesh->id);
+  uint8_t i;
+  for(i = 0; i < 32; i++)
+  {
+    if(a[i] == b[i]) continue;
+    mote->order = (a[i] > b[i]) ? 1 : 0;
+    break;
+  }
   
   return mote;
 }
@@ -695,7 +707,15 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
     
     // any/every stream for best pool
     tempo_t tempo;
-    for(tempo=mote->streams;tempo;tempo = tempo->next) best = tm->sort(tm, best, tempo_schedule(tempo, at, rebase));
+    for(tempo=mote->streams;tempo;tempo = tempo->next)
+    {
+      if(tempo->tx && !util_frames_outbox(tempo->frames,NULL))
+      {
+        tempo->skip++;
+        continue;
+      }
+      best = tm->sort(tm, best, tempo_schedule(tempo, at, rebase));
+    }
   }
   
   // already an active knock
