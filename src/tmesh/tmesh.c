@@ -481,11 +481,15 @@ static knock_t tempo_knock(tempo_t tempo)
 tmesh_t tmesh_knocked(tmesh_t tm)
 {
   if(!tm) return LOG("bad args");
-  if(!tm->knock->ready) return LOG("knock wasn't ready");
+
+  // which knock is done
+  knock_t k = tm->knock;
+  if(!k->stopped) k = tm->seek;
+
+  if(!k->ready) return LOG("knock wasn't ready");
 
   LOG("knocked");
 
-  knock_t k = tm->knock;
   tempo_t tempo = k->tempo;
 
   // clear some flags straight away
@@ -594,6 +598,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     LOG("valid regular signal: %s",util_hex(frame,64,NULL));
   }
 
+  mote_t mote = tempo->mote; // this is not a crypto-level trust of the sender's authenticity
   struct sigblk_struct blk;
   while(at <= 50)
   {
@@ -617,11 +622,22 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     // streams r us!
     if(blk.val == 2)
     {
-      LOG("TODO start new stream from here");
+      LOG("accepting stream from %s on medium %lu",hashname_short(mote->link->id),medium);
+      // make sure one exists, and sync it, prob need a refactor to shared logic for stream find/create/reset
+      if(!mote->streams) mote->streams = tempo_new(tm, mote->link->id, mote->signal);
+      // reset stream
+      tempo_t stream = mote->streams;
+      stream->medium = medium;
+      util_frames_free(stream->frames);
+      stream->frames = util_frames_new(64);
+      stream->at = k->stopped;
+      // initiate handshake
+      LOG("sending bare discovery %s",lob_json(tm->pubim));
+      util_frames_send(stream->frames, lob_copy(tm->pubim));
     }
     if(blk.val == 1)
     {
-      LOG("stream requested from %s on medium %lu",hashname_short(id),medium);
+      LOG("stream requested from %s on medium %lu",hashname_short(mote->link->id),medium);
       tempo->mote->m_req = medium;
     }
   }

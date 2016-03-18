@@ -78,7 +78,6 @@ tmesh_t tmesh_free(tmesh_t tm);
 
 // process any knock that has been completed by a driver
 tmesh_t tmesh_knocked(tmesh_t tm);
-tmesh_t tmesh_found(tmesh_t tm); // to process tm->seek
 
 //  based on current cycle count, optional rebase cycles
 tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase);
