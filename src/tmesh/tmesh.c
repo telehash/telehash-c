@@ -394,7 +394,7 @@ static knock_t tempo_knock(tempo_t tempo)
   tmesh_t tm = tempo->tm;
   knock_t k = tm->knock;
 
-  LOG("knocking");
+  LOG("knocking %s%s to %s",tempo->lost?"lost ":"",tempo->signal?"signal":"stream",mote?hashname_short(mote->link->id):"mesh");
 
   // send data frames if any
   if(tempo->frames)
@@ -482,19 +482,16 @@ tmesh_t tmesh_knocked(tmesh_t tm)
 {
   if(!tm) return LOG("bad args");
 
-  // which knock is done
-  knock_t k = tm->knock;
-  if(!k->stopped) k = tm->seek;
+  // clear knocks
+  tm->knock->ready = 0;
+  tm->seek->ready = 0;
 
-  if(!k->ready) return LOG("knock wasn't ready");
+  // which knock is done
+  knock_t k = (tm->seek->stopped) ? tm->seek : tm->knock;
+  tempo_t tempo = k->tempo;
 
   LOG("knocked");
 
-  tempo_t tempo = k->tempo;
-
-  // clear some flags straight away
-  k->ready = 0;
-  
   if(k->err)
   {
     // missed rx windows
@@ -572,13 +569,13 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     // also check if lost encoded
     memcpy(frame,k->frame,64);
     chacha20(tempo->secret,frame,frame+8,64-8);
-    uint32_t check = murmur4(frame,60);
+    uint32_t check = murmur4(frame+8,64-(8+4));
     
     // lost encoded signal fail
     if(memcmp(&check,frame+60,4) != 0)
     {
       tempo->bad++;
-      return LOG("signal frame validation failed");
+      return LOG("signal frame validation failed: %s",util_hex(frame,64,NULL));
     }
     
     LOG("valid lost signal: %s",util_hex(frame,64,NULL));
@@ -759,10 +756,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
   memcpy(tm->knock->nonce+6,&(best->seq),2);
 
   // do the work to fill in the tx frame only once here
-  if(best->tx && !tempo_knock(best))
-  {
-    return LOG("tx prep failed, skipping knock");
-  }
+  if(best->tx && !tempo_knock(best)) return LOG("knock tx prep failed");
   tm->knock->tempo = best;
   tm->knock->ready = 1;
 
@@ -770,7 +764,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
   if(!tm->schedule(tm))
   {
     tm->knock->ready = 0;
-    return LOG("radio ready driver failed, canceling knock");
+    return LOG("driver schedule failed");
   }
 
   return tm;
