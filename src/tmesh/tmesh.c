@@ -60,7 +60,7 @@ static tempo_t tempo_new(tmesh_t tm, hashname_t to, tempo_t signal)
   e3x_hash(roll,64,tempo->secret);
 
   // driver init for medium customizations
-  if(!tm->init(tm, tempo)) return tempo_free(tempo);
+  if(tm->init && !tm->init(tm, tempo)) return tempo_free(tempo);
 
   return tempo;
 }
@@ -272,17 +272,6 @@ static mote_t mote_new(tmesh_t tm, link_t link)
   mote->pipe->arg = mote;
   mote->pipe->send = mote_send;
   
-  // determine order, if we sort first, we're #1
-  uint8_t *a = hashname_bin(link->id);
-  uint8_t *b = hashname_bin(tm->mesh->id);
-  uint8_t i;
-  for(i = 0; i < 32; i++)
-  {
-    if(a[i] == b[i]) continue;
-    mote->order = (a[i] > b[i]) ? 1 : 0;
-    break;
-  }
-  
   return mote;
 }
 
@@ -293,15 +282,6 @@ mote_t tmesh_find(tmesh_t tm, link_t link, uint32_t m_lost)
   if(!tm || !link) return LOG("bad args");
 
   LOG("finding %s",hashname_short(link->id));
-
-  // have to make sure we have our own lost signal now
-  if(!tm->signal)
-  {
-    // our default signal outgoing
-    tm->signal = tempo_new(tm, tm->mesh->id, NULL);
-    tm->signal->tx = 1; // our signal is always tx
-    tm->signal->priority = 7; // max
-  }
 
   // check list of motes, add if not there
   for(m=tm->motes;m;m = m->next) if(m->link == link) return mote_lost(m, m_lost);
@@ -363,6 +343,12 @@ tmesh_t tmesh_new(mesh_t mesh, char *name, uint32_t mediums[3])
   mesh_on_path(mesh, "tmesh", tmesh_on_path);
   
   tm->pubim = hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys));
+
+  // have to make sure we have our own lost signal
+  tm->signal = tempo_new(tm, tm->mesh->id, NULL);
+  tm->signal->tx = 1; // our signal is always tx
+  tm->signal->priority = 7; // max
+  e3x_rand((uint8_t*)&(tm->signal->seq),4); // NOTE - this needs to be set/overridden by driver to be unique across reboots
   
   return tm;
 }
@@ -586,8 +572,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
 
     // sync lost nonce info
     memcpy(&(tempo->medium),frame,4); // sync medium
-    memcpy(&(tempo->mote->seq),frame+4,2); // sync mote nonce
-    memcpy(&(tempo->seq),frame+6,2); // sync tempo nonce
+    memcpy(&(tempo->seq),frame+4,4); // sync tempo nonce
     
     // fall through w/ offset past prefixed nonce
     at = 8;
@@ -621,12 +606,9 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     {
       LOG("accepting stream from %s on medium %lu",hashname_short(mote->link->id),medium);
       // make sure one exists, and sync it, prob need a refactor to shared logic for stream find/create/reset
-      if(!mote->streams) mote->streams = tempo_new(tm, mote->link->id, mote->signal);
-      // reset stream
-      tempo_t stream = mote->streams;
-      stream->medium = medium;
-      util_frames_free(stream->frames);
-      stream->frames = util_frames_new(64);
+      tempo_free(mote->streams);
+      tempo_t stream = mote->streams = tempo_new(tm, tm->mesh->id, tempo); // stream is "to" us since we're accepting
+      stream->tx = 1; // we default to inverted
       stream->at = k->stopped;
       // initiate handshake
       LOG("sending bare discovery %s",lob_json(tm->pubim));
@@ -646,7 +628,6 @@ tmesh_t tmesh_knocked(tmesh_t tm)
 static tempo_t tempo_schedule(tempo_t tempo, uint32_t at, uint32_t rebase)
 {
   if(!tempo || !at) return LOG("bad args");
-  mote_t mote = tempo->mote;
   tmesh_t tm = tempo->tm;
 
   // initialize to *now* if not set
@@ -661,30 +642,13 @@ static tempo_t tempo_schedule(tempo_t tempo, uint32_t at, uint32_t rebase)
   // move ahead window(s)
   while(tempo->at <= at)
   {
-    // handle seq overflow cascading, notify driver if the big one
     tempo->seq++;
-    if(tempo->seq == 0)
-    {
-      tempo->seq++;
-      if(tempo->seq == 0)
-      {
-        if(mote)
-        {
-          mote->seq++;
-        }else{
-          tm->seq++;
-          tm->notify(tm, NULL);
-        }
-      }
-    }
 
     // use encrypted seed (follows frame)
     uint8_t seed[64+8] = {0};
     uint8_t nonce[8] = {0};
     memcpy(nonce,&(tempo->medium),4);
-    if(mote) memcpy(nonce+4,&(mote->seq),2);
-    else memcpy(nonce+4,&(tm->seq),2);
-    memcpy(nonce+6,&(tempo->seq),2);
+    memcpy(nonce+4,&(tempo->seq),4);
     chacha20(tempo->secret,nonce,seed,64+8);
     
     // call driver to apply seed to tempo
@@ -740,8 +704,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
   {
     // copy nonce parts in, nothing to prep since is just RX
     memcpy(tm->seek->nonce,&(lost->medium),4);
-    memcpy(tm->seek->nonce+4,&(lost->mote->seq),2);
-    memcpy(tm->seek->nonce+6,&(lost->seq),2);
+    memcpy(tm->seek->nonce+4,&(lost->seq),4);
     tm->seek->tempo = lost;
     tm->seek->ready = 1;
   }
@@ -751,9 +714,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
 
   // copy nonce parts in
   memcpy(tm->knock->nonce,&(best->medium),4);
-  if(best->mote) memcpy(tm->knock->nonce+4,&(best->mote->seq),2);
-  else memcpy(tm->knock->nonce+4,&(best->tm->seq),2);
-  memcpy(tm->knock->nonce+6,&(best->seq),2);
+  memcpy(tm->knock->nonce+4,&(best->seq),4);
 
   // do the work to fill in the tx frame only once here
   if(best->tx && !tempo_knock(best)) return LOG("knock tx prep failed");

@@ -18,11 +18,6 @@ tempo_t driver_sort(tmesh_t tm, tempo_t a, tempo_t b)
   return b;
 }
 
-tmesh_t driver_notify(tmesh_t tm, lob_t notice)
-{
-  return tm;
-}
-
 uint8_t scheduled = 0;
 tmesh_t driver_schedule(tmesh_t tm)
 {
@@ -74,7 +69,6 @@ int main(int argc, char **argv)
   fail_unless(netA);
   
   netA->sort = driver_sort;
-  netA->notify = driver_notify;
   netA->schedule = driver_schedule;
   netA->advance = driver_advance;
   netA->init = driver_init;
@@ -87,14 +81,6 @@ int main(int argc, char **argv)
   fail_unless(netA->seek);
   fail_unless(strcmp(netA->community,"test") == 0);
 
-  mote_t moteB = tmesh_find(netA, linkAB, 4);
-  fail_unless(moteB);
-  fail_unless(moteB->link == linkAB);
-  fail_unless(moteB->pipe);
-  fail_unless(moteB->signal);
-  fail_unless(moteB->signal->lost);
-  fail_unless(moteB->signal->medium == 4);
-
   // this gets created during first find
   fail_unless(netA->signal);
   fail_unless(netA->signal->signal);
@@ -102,7 +88,15 @@ int main(int argc, char **argv)
   fail_unless(netA->signal->tx);
   fail_unless(!netA->signal->mote);
   fail_unless(netA->signal->medium == 1);
-  fail_unless(netA->signal->driver == (void*)1);
+
+  mote_t moteB = tmesh_find(netA, linkAB, 4);
+  fail_unless(moteB);
+  fail_unless(moteB->link == linkAB);
+  fail_unless(moteB->pipe);
+  fail_unless(moteB->signal);
+  fail_unless(moteB->signal->lost);
+  fail_unless(moteB->signal->medium == 4);
+  fail_unless(moteB->signal->driver == (void*)1);
 
   // should schedule a lost signal tx
   fail_unless(tmesh_schedule(netA,1,0));

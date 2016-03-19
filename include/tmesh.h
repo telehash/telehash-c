@@ -59,7 +59,6 @@ struct tmesh_struct
 
   // driver interface
   tempo_t (*sort)(tmesh_t tm, tempo_t a, tempo_t b);
-  tmesh_t (*notify)(tmesh_t tm, lob_t notice); // just used for seq overflow increment notifications right now
   tmesh_t (*schedule)(tmesh_t tm); // called whenever a new knock is ready to be scheduled
   tmesh_t (*advance)(tmesh_t tm, tempo_t tempo, uint8_t seed[8]); // advances tempo to next window
   tmesh_t (*init)(tmesh_t tm, tempo_t tempo); // driver can initialize a new tempo
@@ -68,7 +67,6 @@ struct tmesh_struct
 
   lob_t pubim;
   uint32_t last; // last seen cycles for rebasing
-  uint16_t seq; // increment every reboot or overflow
 
 };
 
@@ -98,9 +96,9 @@ struct tempo_struct
   util_frames_t frames; // r/w frame buffers for streams
   uint32_t medium; // id
   uint32_t at; // cycles until next knock in current window
+  uint32_t seq; // window increment part of nonce
   uint16_t itx, irx; // current counts
   uint16_t bad; // dropped bad frames
-  uint16_t seq; // local part of nonce
   uint8_t secret[32];
   uint8_t miss, skip; // how many of the last rx windows were missed (nothing received) or skipped (scheduling)
   uint8_t chan; // channel of next knock
@@ -137,8 +135,6 @@ struct mote_struct
   lob_t cached; // queued packet waiting for stream
   uint32_t m_req; // stream requested w/ this medium
   uint32_t seen; // first seen (for debugging)
-  uint16_t seq; // helps detect resets, part of the nonce
-  uint8_t order;
 };
 
 #endif
