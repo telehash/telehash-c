@@ -27,6 +27,7 @@ static tempo_t tempo_new(tmesh_t tm, hashname_t to, tempo_t signal)
   if(!(tempo = malloc(sizeof(struct tempo_struct)))) return LOG("OOM");
   memset(tempo,0,sizeof (struct tempo_struct));
   tempo->tm = tm;
+  tempo->lost = 1; // everyone starts out lost until sync'd
 
   // generate tempo-specific mesh unique secret
   uint8_t roll[64];
@@ -50,7 +51,6 @@ static tempo_t tempo_new(tmesh_t tm, hashname_t to, tempo_t signal)
     LOG("new signal to %s",hashname_short(to));
     // new signal tempo
     tempo->signal = 1;
-    tempo->lost = 1;
     tempo->medium = tm->m_lost;
     
     // base secret name+hn
@@ -433,7 +433,9 @@ static knock_t tempo_knock(tempo_t tempo)
     {
       // make sure there's a stream to advertise
       if(!mote->streams) mote->streams = tempo_new(tm, mote->link->id, mote->signal);
+      tempo_t stream = mote->streams;
   
+      if(!stream->lost) continue; // already active
       memcpy(blk.medium, &(mote->streams->medium), 4);
       memcpy(blk.id, hashname_bin(mote->link->id), 5);
       blk.neighbor = 0;
@@ -492,19 +494,19 @@ tmesh_t tmesh_knocked(tmesh_t tm)
   knock_t k = (tm->seek->stopped) ? tm->seek : tm->knock;
   tempo_t tempo = k->tempo;
 
-  LOG("knocked");
-
   if(k->err)
   {
     // missed rx windows
     if(!tempo->tx)
     {
-      tempo->miss++; // count missed rx knocks
+      // if too many missed rx, become lost
+      tempo->miss++;
+      if(tempo->miss > 20) tempo->lost = 1;
+
       // if expecting data, trigger a flush
       if(util_frames_await(tempo->frames)) util_frames_send(tempo->frames,NULL);
     }
-    LOG("knock error");
-    if(tempo->tx) printf("tx error\n");
+    LOG("knock %s error, %u misses",tempo->tx?"tx":"rx",tempo->miss);
     return tm;
   }
   
@@ -527,7 +529,10 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     
     // sync any bundled/accepted stream tempos too
     uint8_t syncs;
-    for(syncs=0;syncs<5;syncs++) if(k->syncs[syncs]) k->syncs[syncs]->at = k->stopped;
+    for(syncs=0;syncs<5;syncs++) if(k->syncs[syncs])
+    {
+      k->syncs[syncs]->at = k->stopped;
+    }
 
     return tm;
   }
@@ -545,6 +550,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     }
 
     // received stats only after validation
+    tempo->lost = 0;
     tempo->miss = 0;
     tempo->irx++;
     if(k->rssi < tempo->best || !tempo->best) tempo->best = k->rssi;
@@ -606,6 +612,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     uint32_t medium;
     memcpy(&medium,blk.medium,4);
     hashname_t id = hashname_sbin(blk.id);
+    if(medium) LOG("BLOCK %s %lu %s",util_hex((uint8_t*)&blk,10,NULL),medium,hashname_short(id));
 
     if(blk.neighbor)
     {
@@ -626,7 +633,8 @@ tmesh_t tmesh_knocked(tmesh_t tm)
       tempo_t stream = mote->streams = tempo_new(tm, tm->mesh->id, tempo); // stream is "to" us since we're accepting
       stream->tx = 1; // we default to inverted
       stream->at = k->stopped;
-      // initiate handshake
+      stream->lost = 0;
+      // initiate linking w/ discovery (TODO start w/ handshake directly)
       LOG("sending bare discovery %s",lob_json(tm->pubim));
       util_frames_send(stream->frames, lob_copy(tm->pubim));
     }
@@ -702,6 +710,8 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
     tempo_t tempo;
     for(tempo=mote->streams;tempo;tempo = tempo->next)
     {
+      LOG("stream %s %lu at %lu %s",tempo->tx?"TX":"RX",util_frames_outbox(tempo->frames,NULL),tempo->at,tempo->lost?"lost":"");
+      if(tempo->lost) continue;
       if(tempo->tx && !util_frames_outbox(tempo->frames,NULL))
       {
         tempo->skip++;
