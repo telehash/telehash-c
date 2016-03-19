@@ -130,9 +130,8 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data)
   
   // conveniences for code readability
   uint8_t size = PAYLOAD(frames);
-  uint8_t size32 = size/4;
-  uint32_t *data32 = (uint32_t*)data;
-  uint32_t hash1 = data32[size32];
+  uint32_t hash1;
+  memcpy(&(hash1),data+size,4);
   uint32_t hash2 = murmur4(data,size);
   
   LOG("frame hash rx %lu check %lu",hash1,hash2);
@@ -143,7 +142,8 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data)
   {
     LOG("meta frame %s",util_hex(data,size+4,NULL));
     // verify sender's last rx'd hash
-    uint32_t rxd = data32[0];
+    uint32_t rxd;
+    memcpy(&rxd,data,4);
     uint8_t *bin = lob_raw(frames->outbox);
     uint32_t len = lob_len(frames->outbox);
     uint32_t rxs = frames->outbase;
@@ -182,13 +182,13 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data)
     }
 
     // sender's last tx'd hash changes flush state
-    if(data32[1] == frames->inlast)
+    if(memcmp(data+4,&(frames->inlast),4) == 0)
     {
       frames->flush = 0;
       LOG("data frame confirmed");
     }else{
       frames->flush = 1;
-      LOG("flushing mismatch, hash %lu last %lu",data32[1],frames->inlast);
+      LOG("flushing mismatch, last %lu",frames->inlast);
     }
     
     return frames;
@@ -223,7 +223,7 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data)
   if(hash1 != hash2)
   {
     frames->flush = 1;
-    return LOG("invalid frame tail (%u) hash %lu tail %u ",tail,hash1,hash2);
+    return LOG("invalid frame %u tail (%u) hash %lu != %lu last %lu",frames->in,tail,hash1,hash2,frames->inlast);
   }
   
   // process full packet w/ tail, update inlast, set flush
@@ -262,8 +262,6 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
   if(!frames) return LOG("bad args");
   if(frames->err) return LOG("stream broken");
   uint8_t size = PAYLOAD(frames);
-  uint8_t size32 = size/4;
-  uint32_t *data32 = (uint32_t*)data;
   uint8_t *out = lob_raw(frames->outbox);
   uint32_t len = lob_len(frames->outbox); 
   
@@ -276,7 +274,7 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
   }
 
   // clear/init
-  memset(data,0,size);
+  memset(data,0,size+4);
   uint32_t hash = frames->outbase;
   
   // first get the last sent hash
@@ -294,12 +292,10 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
   // if flushing, just send hashes
   if(frames->flush)
   {
-    data32[0] = frames->inlast;
-    data32[1] = hash;
-    data32[size32] = murmur4(data,size);
+    memcpy(data,&(frames->inlast),4);
+    memcpy(data+4,&(hash),4);
+    murmur(data,size,data+size);
     LOG("sending meta frame %s",util_hex(data,size+4,NULL));
-    LOG("check hash %u",data32[size32]);
-    LOG("inlast %u hash %u",frames->inlast,hash);
     frames->flush = 0;
     return frames;
   }
@@ -317,7 +313,7 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
   memcpy(data,out+at,size);
   hash ^= murmur4(data,size);
   hash += frames->out;
-  data32[size32] = hash;
+  memcpy(data+PAYLOAD(frames),&(hash),4);
   LOG("sending data frame %u %lu",frames->out,hash);
   frames->out++; // sent frames
   frames->outbox->id = at + size; // track exact sent bytes too
