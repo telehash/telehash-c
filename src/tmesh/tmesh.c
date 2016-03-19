@@ -176,14 +176,30 @@ static tempo_t tempo_link(tempo_t tempo)
 static tempo_t tempo_process(tempo_t tempo)
 {
   if(!tempo) return LOG("bad args");
+  link_t link = tempo->mote->link;
   
   // process any packets on this tempo
   lob_t packet;
   while((packet = util_frames_receive(tempo->frames)))
   {
     LOG("pkt %s",lob_json(packet));
-    // TODO associate tempo for neighborhood
-    mesh_receive(tempo->tm->mesh, packet, tempo->mote->pipe);
+    // handle our compact discovery packet format
+    if(lob_get(packet,"1a"))
+    {
+      hashname_t id = hashname_vkey(packet,0x1a);
+      if(hashname_cmp(id,link->id) != 0)
+      {
+        printf("dropping mismatch key %s != %s\n",hashname_short(id),hashname_short(link->id));
+        lob_free(packet);
+        continue;
+      }
+      // update link keys and trigger handshake
+      link_load(link,0x1a,packet);
+      util_frames_send(tempo->frames, link_handshakes(link));
+      continue;
+    }
+    
+    mesh_receive(link->mesh, packet, tempo->mote->pipe);
   }
   
   return tempo;
