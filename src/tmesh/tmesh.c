@@ -57,7 +57,9 @@ static tempo_t tempo_new(tmesh_t tm, hashname_t to, tempo_t signal)
     e3x_hash((uint8_t*)(tm->community),strlen(tm->community),roll);
     memcpy(roll+32,hashname_bin(to),32);
   }
+  LOG("shared roll %s",util_hex(roll,64,NULL));
   e3x_hash(roll,64,tempo->secret);
+  LOG("shared secret %s",util_hex(tempo->secret,32,NULL));
 
   // driver init for medium customizations
   if(tm->init && !tm->init(tm, tempo)) return tempo_free(tempo);
@@ -429,17 +431,10 @@ static knock_t tempo_knock(tempo_t tempo)
       if(at > 50) break; // full!
     }
     
-    if(at < 10)
-    {
-      LOG("nothing to signal");
-      return NULL;
-    }
-    
-    
     // check hash at end
     murmur(k->frame+8,64-(8+4),k->frame+60);
 
-    LOG("TX lost signal frame: %s",util_hex(k->frame,64,NULL));
+    LOG("TX lost signal frame seq %lu: %s",tempo->seq,util_hex(k->frame,64,NULL));
 
     // ciphertext frame after nonce
     chacha20(tempo->secret,k->nonce,k->frame+8,64-8);
@@ -589,12 +584,13 @@ tmesh_t tmesh_knocked(tmesh_t tm)
       return LOG("signal frame validation failed: %s",util_hex(frame,64,NULL));
     }
     
-    LOG("valid lost signal: %s",util_hex(frame,64,NULL));
+    // TODO, allow changing mediums?
 
     // always sync lost time/nonce
     tempo->at = k->stopped;
-    memcpy(&(tempo->medium),frame,4); // sync medium
     memcpy(&(tempo->seq),frame+4,4); // sync tempo nonce
+
+    LOG("valid lost signal seq %lu: %s",tempo->seq,util_hex(frame,64,NULL));
 
     // fall through w/ offset past prefixed nonce in frame
     at = 8;
