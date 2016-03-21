@@ -99,13 +99,13 @@ struct tempo_struct
   uint32_t seq; // window increment part of nonce
   uint16_t itx, irx; // current counts
   uint16_t bad; // dropped bad frames
+  int16_t last, best, worst; // rssi
   uint8_t secret[32];
   uint8_t miss, skip; // how many of the last rx windows were missed (nothing received) or skipped (scheduling)
   uint8_t chan; // channel of next knock
-  uint8_t last, best, worst; // rssi
   uint8_t signal:1; // type of tempo
   uint8_t tx:1; // current window direction
-  uint8_t lost:1; // if currently lost
+  uint8_t lost:1; // if currently lost, signal only
   uint8_t priority:4; // next knock priority
 };
 

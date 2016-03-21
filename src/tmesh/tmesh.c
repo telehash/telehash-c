@@ -27,7 +27,6 @@ static tempo_t tempo_new(tmesh_t tm, hashname_t to, tempo_t signal)
   if(!(tempo = malloc(sizeof(struct tempo_struct)))) return LOG("OOM");
   memset(tempo,0,sizeof (struct tempo_struct));
   tempo->tm = tm;
-  tempo->lost = 1; // everyone starts out lost until sync'd
 
   // generate tempo-specific mesh unique secret
   uint8_t roll[64];
@@ -49,7 +48,8 @@ static tempo_t tempo_new(tmesh_t tm, hashname_t to, tempo_t signal)
 
   }else{
     LOG("new signal to %s",hashname_short(to));
-    // new signal tempo
+    // new lost signal tempo
+    tempo->lost = 1;
     tempo->signal = 1;
     tempo->medium = tm->m_lost;
     
@@ -232,29 +232,6 @@ static void mote_send(pipe_t pipe, lob_t packet, link_t link)
   LOG("delivering %d to mote %s",lob_len(packet),hashname_short(link->id));
 }
 
-// reset a mote to being lost
-static mote_t mote_lost(mote_t mote, uint32_t m_lost)
-{
-  if(!mote) return LOG("bad args");
-  tmesh_t tm = mote->tm;
-  if(!m_lost) m_lost = tm->m_lost;
-
-  LOG("lost %s",hashname_short(mote->link->id));
-
-  // create lost signal if none
-  if(!mote->signal)
-  {
-    mote->signal = tempo_new(tm, mote->link->id, NULL);
-    mote->signal->mote = mote;
-    mote->signal->priority = 4; // mid
-    mote->signal->tx = 0; // default rx
-  }
-  mote->signal->medium = m_lost;
-  mote->signal->lost = 1;
-  
-  return mote;
-}
-
 static mote_t mote_free(mote_t mote)
 {
   if(!mote) return NULL;
@@ -288,6 +265,12 @@ static mote_t mote_new(tmesh_t tm, link_t link)
   mote->pipe->arg = mote;
   mote->pipe->send = mote_send;
   
+  // create lost signal
+  mote->signal = tempo_new(tm, link->id, NULL);
+  mote->signal->mote = mote;
+  mote->signal->priority = 4; // mid
+  mote->signal->tx = 0; // default rx
+
   return mote;
 }
 
@@ -300,7 +283,7 @@ mote_t tmesh_find(tmesh_t tm, link_t link, uint32_t m_lost)
   LOG("finding %s",hashname_short(link->id));
 
   // check list of motes, add if not there
-  for(m=tm->motes;m;m = m->next) if(m->link == link) return mote_lost(m, m_lost);
+  for(m=tm->motes;m;m = m->next) if(m->link == link) return m;
 
   LOG("adding %s",hashname_short(link->id));
 
@@ -311,7 +294,7 @@ mote_t tmesh_find(tmesh_t tm, link_t link, uint32_t m_lost)
 
   // TODO set up link down event handler to remove this mote
   
-  return mote_lost(m, m_lost);
+  return m;
 }
 
 // if there's a mote for this link, return it
@@ -435,7 +418,7 @@ static knock_t tempo_knock(tempo_t tempo)
       if(!mote->streams) mote->streams = tempo_new(tm, mote->link->id, mote->signal);
       tempo_t stream = mote->streams;
   
-      if(!stream->lost) continue; // already active
+      if(stream->irx) continue; // already active
       memcpy(blk.medium, &(mote->streams->medium), 4);
       memcpy(blk.id, hashname_bin(mote->link->id), 5);
       blk.neighbor = 0;
@@ -445,6 +428,13 @@ static knock_t tempo_knock(tempo_t tempo)
       at += 10;
       if(at > 50) break; // full!
     }
+    
+    if(at < 10)
+    {
+      LOG("nothing to signal");
+      return NULL;
+    }
+    
     
     // check hash at end
     murmur(k->frame+8,64-(8+4),k->frame+60);
@@ -481,6 +471,21 @@ static knock_t tempo_knock(tempo_t tempo)
   return k;
 }
 
+// common successful RX stuff
+tempo_t tempo_knocked(tempo_t tempo, knock_t k)
+{
+  tempo->lost = 0;
+  tempo->miss = 0;
+  tempo->irx++;
+  if(k->rssi < tempo->best || !tempo->best) tempo->best = k->rssi;
+  if(k->rssi > tempo->worst) tempo->worst = k->rssi;
+  tempo->last = k->rssi;
+
+  LOG("RX %s %u received, rssi %d/%d/%d data %d\n",tempo->signal?"signal":"stream",tempo->irx,k->tempo->last,k->tempo->best,k->tempo->worst,util_frames_inlen(k->tempo->frames));
+
+  return tempo;
+}
+
 // handle a knock that has been sent/received
 tmesh_t tmesh_knocked(tmesh_t tm)
 {
@@ -499,9 +504,13 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     // missed rx windows
     if(!tempo->tx)
     {
-      // if too many missed rx, become lost
+      // if too many missed signal rx, become lost
       tempo->miss++;
-      if(tempo->miss > 20) tempo->lost = 1;
+      if(tempo->signal && tempo->miss > 10)
+      {
+        LOG("lost signal to %s",hashname_short(tempo->mote->link->id));
+        tempo->lost = 1;
+      }
 
       // if expecting data, trigger a flush
       if(util_frames_await(tempo->frames)) util_frames_send(tempo->frames,NULL);
@@ -550,17 +559,11 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     }
 
     // received stats only after validation
-    tempo->lost = 0;
-    tempo->miss = 0;
-    tempo->irx++;
-    if(k->rssi < tempo->best || !tempo->best) tempo->best = k->rssi;
-    if(k->rssi > tempo->worst) tempo->worst = k->rssi;
-    tempo->last = k->rssi;
-
-    LOG("RX data received, total %lu rssi %d/%d/%d\n",util_frames_inlen(k->tempo->frames),k->tempo->last,k->tempo->best,k->tempo->worst);
+    tempo_knocked(tempo, k);
 
     // process any new packets
     tempo_process(tempo);
+
     return tm;
   }
 
@@ -588,21 +591,21 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     
     LOG("valid lost signal: %s",util_hex(frame,64,NULL));
 
-    // always sync lost time
+    // always sync lost time/nonce
     tempo->at = k->stopped;
-    tempo->lost = 0;
-
-    // sync lost nonce info
     memcpy(&(tempo->medium),frame,4); // sync medium
     memcpy(&(tempo->seq),frame+4,4); // sync tempo nonce
-    
-    // fall through w/ offset past prefixed nonce
+
+    // fall through w/ offset past prefixed nonce in frame
     at = 8;
   }else{
     LOG("valid regular signal: %s",util_hex(frame,64,NULL));
   }
 
-  mote_t mote = tempo->mote; // this is not a crypto-level trust of the sender's authenticity
+  // received stats only after validation
+  tempo_knocked(tempo, k);
+
+  mote_t mote = tempo->mote; // NOTE: this is not a crypto-level trust of the sender's authenticity
   struct sigblk_struct blk;
   while(at <= 50)
   {
@@ -621,7 +624,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
       continue;
     }
 
-    // TODO also match against our exchange token so neighbors don't recognize stream requests
+    // TODO also match against our exchange token so neighbors can't track stream requests
     if(hashname_scmp(id,tm->mesh->id) != 0) continue;
     
     // streams r us!
@@ -633,7 +636,6 @@ tmesh_t tmesh_knocked(tmesh_t tm)
       tempo_t stream = mote->streams = tempo_new(tm, tm->mesh->id, tempo); // stream is "to" us since we're accepting
       stream->tx = 1; // we default to inverted
       stream->at = k->stopped;
-      stream->lost = 0;
       // initiate linking w/ discovery (TODO start w/ handshake directly)
       LOG("sending bare discovery %s",lob_json(tm->pubim));
       util_frames_send(stream->frames, lob_copy(tm->pubim));
@@ -693,7 +695,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
 
   // upcheck our signal first
   tempo_t best = tempo_schedule(tm->signal, at, rebase);
-  tempo_t lost = NULL;
+  tempo_t seek = NULL;
 
   // walk all the tempos for next best knock
   mote_t mote;
@@ -703,35 +705,36 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
     tempo_schedule(mote->signal, at, rebase);
     
     // lost signals are elected for seek, others for best
-    if(mote->signal->lost) lost = tm->sort(tm, lost, mote->signal);
+    if(mote->signal->lost) seek = tm->sort(tm, seek, mote->signal);
     else best = tm->sort(tm, best, mote->signal);
     
     // any/every stream for best pool
     tempo_t tempo;
     for(tempo=mote->streams;tempo;tempo = tempo->next)
     {
-      LOG("stream %s %lu at %lu %s",tempo->tx?"TX":"RX",util_frames_outbox(tempo->frames,NULL),tempo->at,tempo->lost?"lost":"");
-      if(tempo->lost) continue;
+      tempo_schedule(tempo, at, rebase);
+
+      LOG("stream %s %lu at %lu %u",tempo->tx?"TX":"RX",util_frames_outbox(tempo->frames,NULL),tempo->at,tempo->miss);
       if(tempo->tx && !util_frames_outbox(tempo->frames,NULL))
       {
         tempo->skip++;
         continue;
       }
-      best = tm->sort(tm, best, tempo_schedule(tempo, at, rebase));
+      best = tm->sort(tm, best, tempo);
     }
   }
   
   // already an active knock
   if(tm->knock->ready) return tm;
 
-  // any lost tempo, always set seek knock
+  // set seek knock if any
   memset(tm->seek,0,sizeof(struct knock_struct));
-  if(lost)
+  if(seek)
   {
     // copy nonce parts in, nothing to prep since is just RX
-    memcpy(tm->seek->nonce,&(lost->medium),4);
-    memcpy(tm->seek->nonce+4,&(lost->seq),4);
-    tm->seek->tempo = lost;
+    memcpy(tm->seek->nonce,&(seek->medium),4);
+    memcpy(tm->seek->nonce+4,&(seek->seq),4);
+    tm->seek->tempo = seek;
     tm->seek->ready = 1;
   }
 
