@@ -19,50 +19,86 @@ static tempo_t tempo_free(tempo_t tempo)
   return NULL;
 }
 
-static tempo_t tempo_new(tmesh_t tm, hashname_t to, tempo_t signal)
+static tempo_t tempo_new(tmesh_t tm)
 {
-  if(!tm || !to) return LOG("bad args");
+  if(!tm) return LOG("bad args");
 
   tempo_t tempo;
   if(!(tempo = malloc(sizeof(struct tempo_struct)))) return LOG("OOM");
   memset(tempo,0,sizeof (struct tempo_struct));
   tempo->tm = tm;
 
-  // generate tempo-specific mesh unique secret
+  return tempo;
+}
+
+// new lost signal tempo
+static tempo_t tempo_signal(tmesh_t tm, mote_t from, uint32_t medium)
+{
+  if(!tm) return LOG("bad args");
+
+  tempo_t tempo = tempo_new(tm);
+  if(!tempo) return LOG("OOM");
+
+  tempo->lost = 1;
+  tempo->signal = 1;
+  tempo->medium = medium;
+  
+  // base secret from community name
   uint8_t roll[64];
-  if(signal)
+  e3x_hash((uint8_t*)(tm->community),strlen(tm->community),roll);
+  
+  // signal from someone else, or ours out
+  if(from)
   {
-    LOG("new stream to %s",hashname_short(to));
-    tempo->mote = signal->mote;
-    tempo->medium = tm->m_stream;
-
-    // signal tempo spawns streams
-    tempo->frames = util_frames_new(64);
-
-    // inherit seq and secret base
-    tempo->seq = signal->seq;
-    memcpy(roll,signal->secret,32);
-
-    // add in the other party
-    memcpy(roll+32,hashname_bin(to),32);
-
+    tempo->mote = from;
+    tempo->tx = 0;
+    tempo->priority = 4; // mid
+    memcpy(roll+32,hashname_bin(from->link->id),32);
   }else{
-    LOG("new signal to %s",hashname_short(to));
-    // new lost signal tempo
-    tempo->lost = 1;
-    tempo->signal = 1;
-    tempo->medium = tm->m_lost;
-    
-    // base secret name+hn
-    e3x_hash((uint8_t*)(tm->community),strlen(tm->community),roll);
-    memcpy(roll+32,hashname_bin(to),32);
+    tempo->tx = 1;
+    tempo->priority = 6; // high
+    memcpy(roll+32,hashname_bin(tm->mesh->id),32);
   }
-  LOG("shared roll %s",util_hex(roll,64,NULL));
+
   e3x_hash(roll,64,tempo->secret);
-  LOG("shared secret %s",util_hex(tempo->secret,32,NULL));
+  LOG("shared signal secret %s",util_hex(tempo->secret,32,NULL));
 
   // driver init for medium customizations
   if(tm->init && !tm->init(tm, tempo)) return tempo_free(tempo);
+
+  return tempo;
+}
+
+// get/create stream tempo 
+static tempo_t mote_stream(mote_t to, uint32_t medium)
+{
+  if(!to || !to->signal || !medium) return LOG("bad args");
+  tmesh_t tm = to->tm;
+
+  // find any existing
+  tempo_t tempo;
+  for(tempo = to->streams;tempo;tempo = tempo->next) if(tempo->medium == medium) return tempo;
+
+  // create new
+  tempo = tempo_new(tm);
+  tempo->next = to->streams;
+  to->streams = tempo;
+
+  tempo->mote = to;
+  tempo->medium = medium;
+  tempo->frames = util_frames_new(64);
+
+  // generate tempo-specific mesh unique secret
+  uint8_t roll[64];
+  tempo->seq = to->signal->seq;
+  memcpy(roll,to->signal->secret,32);
+  memcpy(roll+32,hashname_bin(tm->mesh->id),32); // add ours in
+
+  e3x_hash(roll,64,tempo->secret);
+  LOG("shared stream secret %s",util_hex(tempo->secret,32,NULL));
+
+  // driver init for medium customizations
+  if(tm->init && !tm->init(to->tm, tempo)) return tempo_free(tempo);
 
   return tempo;
 }
@@ -267,12 +303,6 @@ static mote_t mote_new(tmesh_t tm, link_t link)
   mote->pipe->arg = mote;
   mote->pipe->send = mote_send;
   
-  // create lost signal
-  mote->signal = tempo_new(tm, link->id, NULL);
-  mote->signal->mote = mote;
-  mote->signal->priority = 4; // mid
-  mote->signal->tx = 0; // default rx
-
   return mote;
 }
 
@@ -293,6 +323,9 @@ mote_t tmesh_find(tmesh_t tm, link_t link, uint32_t m_lost)
   m->link = link;
   m->next = tm->motes;
   tm->motes = m;
+
+  // create lost signal
+  m->signal = tempo_signal(tm, m, m_lost);
 
   // TODO set up link down event handler to remove this mote
   
@@ -346,9 +379,7 @@ tmesh_t tmesh_new(mesh_t mesh, char *name, uint32_t mediums[3])
   tm->pubim = hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys));
 
   // have to make sure we have our own lost signal
-  tm->signal = tempo_new(tm, tm->mesh->id, NULL);
-  tm->signal->tx = 1; // our signal is always tx
-  tm->signal->priority = 7; // max
+  tm->signal = tempo_signal(tm, NULL, tm->m_lost);
   e3x_rand((uint8_t*)&(tm->signal->seq),4); // NOTE - this needs to be set/overridden by driver to be unique across reboots
   
   return tm;
@@ -417,15 +448,14 @@ static knock_t tempo_knock(tempo_t tempo)
     for(mote=tm->motes;mote;mote = mote->next) if(mote->signal->lost)
     {
       // make sure there's a stream to advertise
-      if(!mote->streams) mote->streams = tempo_new(tm, mote->link->id, mote->signal);
-      tempo_t stream = mote->streams;
+      tempo_t stream = mote_stream(mote, tm->m_stream);
   
       if(stream->irx) continue; // already active
-      memcpy(blk.medium, &(mote->streams->medium), 4);
+      memcpy(blk.medium, &(stream->medium), 4);
       memcpy(blk.id, hashname_bin(mote->link->id), 5);
       blk.neighbor = 0;
       blk.val = 2; // lost broadcasts an accept
-      k->syncs[syncs++] = mote->streams; // needs to be sync'd after tx
+      k->syncs[syncs++] = stream; // needs to be sync'd after tx
       memcpy(k->frame+at,&blk,10);
       at += 10;
       if(at > 50) break; // full!
@@ -627,10 +657,9 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     if(blk.val == 2)
     {
       LOG("accepting stream from %s on medium %lu",hashname_short(mote->link->id),medium);
-      // make sure one exists, and sync it, prob need a refactor to shared logic for stream find/create/reset
-      tempo_free(mote->streams);
-      tempo_t stream = mote->streams = tempo_new(tm, tm->mesh->id, tempo); // stream is "to" us since we're accepting
-      stream->tx = 1; // we default to inverted
+      // make sure one exists, and sync it
+      tempo_t stream = mote_stream(mote, medium);
+      stream->tx = 1; // we default to inverted since we're accepting
       stream->at = k->stopped;
       // initiate linking w/ discovery (TODO start w/ handshake directly)
       LOG("sending bare discovery %s",lob_json(tm->pubim));
