@@ -11,6 +11,8 @@ struct sigblk_struct {
   uint8_t val:7;
 };
 
+#define MORTY(t,r) LOG("RICK %s\t%s %s %s [%u,%u,%u,%u,%u] at:%lu seq:%lx s:%s (%lu/%lu) m:%lu",r,t->mote?hashname_short(t->mote->link->id):"selfself",t->tx?"TX":"RX",t->signal?"signal":"stream",t->itx,t->irx,t->bad,t->miss,t->skip,t->at,t->seq,util_hex(t->secret,4,NULL),util_frames_inlen(t->frames),util_frames_outlen(t->frames),t->medium);
+
 static tempo_t tempo_free(tempo_t tempo)
 {
   if(!tempo) return NULL;
@@ -56,7 +58,7 @@ static tempo_t tempo_signal(tmesh_t tm, mote_t from, uint32_t medium)
     memcpy(roll+32,hashname_bin(from->link->id),32);
   }else{
     tempo->tx = 1;
-    tempo->priority = 6; // high
+    tempo->priority = 1; // low while lost
     memcpy(roll+32,hashname_bin(tm->mesh->id),32);
   }
 
@@ -65,6 +67,8 @@ static tempo_t tempo_signal(tmesh_t tm, mote_t from, uint32_t medium)
 
   // driver init for medium customizations
   if(tm->init && !tm->init(tm, tempo)) return tempo_free(tempo);
+
+  MORTY(tempo,"newsig");
 
   return tempo;
 }
@@ -91,14 +95,17 @@ static tempo_t mote_stream(mote_t to, uint32_t medium)
   // generate tempo-specific mesh unique secret
   uint8_t roll[64];
   tempo->seq = to->signal->seq;
-  memcpy(roll,to->signal->secret,32);
+  e3x_hash((uint8_t*)(tm->community),strlen(tm->community),roll);
   memcpy(roll+32,hashname_bin(tm->mesh->id),32); // add ours in
+  uint8_t i, *bin = hashname_bin(to->link->id);
+  for(i=0;i<32;i++) roll[32+i] ^= bin[i]; // xor add theirs in
 
   e3x_hash(roll,64,tempo->secret);
-  LOG("shared stream secret %s",util_hex(tempo->secret,32,NULL));
 
   // driver init for medium customizations
   if(tm->init && !tm->init(to->tm, tempo)) return tempo_free(tempo);
+
+  MORTY(tempo,"newstm");
 
   return tempo;
 }
@@ -412,7 +419,7 @@ static knock_t tempo_knock(tempo_t tempo)
   tmesh_t tm = tempo->tm;
   knock_t k = tm->knock;
 
-  LOG("knocking %s%s to %s",tempo->lost?"lost ":"",tempo->signal?"signal":"stream",mote?hashname_short(mote->link->id):"mesh");
+  MORTY(tempo,"knock");
 
   // send data frames if any
   if(tempo->frames)
@@ -544,6 +551,8 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     return tm;
   }
   
+  MORTY(tempo,"knockd");
+  
   // tx just updates state things here
   if(tempo->tx)
   {
@@ -565,9 +574,15 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     uint8_t syncs;
     for(syncs=0;syncs<5;syncs++) if(k->syncs[syncs])
     {
-      k->syncs[syncs]->at = k->stopped;
+      tempo_t sync = k->syncs[syncs];
+      sync->at = k->stopped;
+      sync->seq = tempo->seq; // also inherits current seq
+      sync->tx = 1; // we are inverted
+      sync->priority = 2; // little boost
+      MORTY(tempo,"stsync");
     }
 
+    MORTY(tempo,"sigout");
     return tm;
   }
   
@@ -620,12 +635,12 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     tempo->at = k->stopped;
     memcpy(&(tempo->seq),frame+4,4); // sync tempo nonce
 
-    LOG("valid lost signal seq %lu: %s",tempo->seq,util_hex(frame,64,NULL));
+    MORTY(tempo,"siglost");
 
     // fall through w/ offset past prefixed nonce in frame
     at = 8;
   }else{
-    LOG("valid regular signal: %s",util_hex(frame,64,NULL));
+    MORTY(tempo,"sigfnd");
   }
 
   // received stats only after validation
@@ -659,8 +674,10 @@ tmesh_t tmesh_knocked(tmesh_t tm)
       LOG("accepting stream from %s on medium %lu",hashname_short(mote->link->id),medium);
       // make sure one exists, and sync it
       tempo_t stream = mote_stream(mote, medium);
-      stream->tx = 1; // we default to inverted since we're accepting
+      stream->tx = 0; // we default to inverted since we're accepting
       stream->at = k->stopped;
+      stream->seq = tempo->seq; // start from same seq
+      stream->priority = 3; // little more boost
       // initiate linking w/ discovery (TODO start w/ handshake directly)
       LOG("sending bare discovery %s",lob_json(tm->pubim));
       util_frames_send(stream->frames, lob_copy(tm->pubim));
@@ -691,7 +708,7 @@ static tempo_t tempo_schedule(tempo_t tempo, uint32_t at, uint32_t rebase)
   if(tm->knock->ready) return tempo;
 
   // move ahead window(s)
-  while(tempo->at <= at)
+  while(tempo->at <= (at+3000))
   {
     tempo->seq++;
 
@@ -705,6 +722,8 @@ static tempo_t tempo_schedule(tempo_t tempo, uint32_t at, uint32_t rebase)
     // call driver to apply seed to tempo
     if(!tm->advance(tm, tempo, seed+64)) return LOG("driver advance failed");
   }
+
+  MORTY(tempo,"advncd");
 
   return tempo;
 }
@@ -756,12 +775,15 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
   memset(tm->seek,0,sizeof(struct knock_struct));
   if(seek)
   {
+    MORTY(seek,"seekin");
     // copy nonce parts in, nothing to prep since is just RX
     memcpy(tm->seek->nonce,&(seek->medium),4);
     memcpy(tm->seek->nonce+4,&(seek->seq),4);
     tm->seek->tempo = seek;
     tm->seek->ready = 1;
   }
+  
+  MORTY(best,"waitin");
 
   // init knock for this tempo
   memset(tm->knock,0,sizeof(struct knock_struct));
