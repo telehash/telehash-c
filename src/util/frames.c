@@ -134,7 +134,7 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data)
   memcpy(&(hash1),data+size,4);
   uint32_t hash2 = murmur4(data,size);
   
-//  LOG("frame hash rx %lu check %lu",hash1,hash2);
+  LOG("frame sz %u hash rx %lu check %lu",size,hash1,hash2);
   
   // meta frames are self contained
   if(hash1 == hash2)
@@ -292,7 +292,7 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
     memcpy(data,&(frames->inlast),4);
     memcpy(data+4,&(hash),4);
     murmur(data,size,data+size);
-//    LOG("sending meta frame %s",util_hex(data,size+4,NULL));
+    LOG("sending meta frame inlast %lu cur %lu",frames->inlast,hash);
     frames->flush = 0;
     return frames;
   }
@@ -311,7 +311,7 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
   hash ^= murmur4(data,size);
   hash += frames->out;
   memcpy(data+PAYLOAD(frames),&(hash),4);
-//  LOG("sending data frame %u %lu",frames->out,hash);
+  LOG("sending data frame %u %lu",frames->out,hash);
   frames->out++; // sent frames
   frames->outbox->id = at + size; // track exact sent bytes too
 

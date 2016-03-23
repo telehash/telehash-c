@@ -379,8 +379,6 @@ static knock_t tempo_knock(tempo_t tempo)
   tmesh_t tm = tempo->tm;
   knock_t k = tm->knock;
 
-  MORTY(tempo,"knock");
-
   // send data frames if any
   if(tempo->frames)
   {
@@ -701,7 +699,7 @@ static tempo_t tempo_schedule(tempo_t tempo, uint32_t at, uint32_t rebase)
     if(!tm->advance(tm, tempo, seed+64)) return LOG("driver advance failed");
   }
 
-  MORTY(tempo,"advncd");
+//  MORTY(tempo,"advncd");
 
   return tempo;
 }
@@ -736,7 +734,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
     {
       tempo_schedule(tempo, at, rebase);
 
-      LOG("stream %s %lu at %lu %u",tempo->tx?"TX":"RX",util_frames_outbox(tempo->frames,NULL),tempo->at,tempo->miss);
+//      LOG("stream %s %lu at %lu %u",tempo->tx?"TX":"RX",util_frames_outbox(tempo->frames,NULL),tempo->at,tempo->miss);
       best = tm->sort(tm, best, tempo);
     }
   }
