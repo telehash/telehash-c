@@ -386,10 +386,10 @@ static knock_t tempo_knock(tempo_t tempo)
   {
     if(!util_frames_outbox(tempo->frames,k->frame))
     {
-      // nothing to send, noop
-      tempo->skip++;
-      LOG("tx noop %u",tempo->skip);
-      return NULL;
+      // nothing to send, force meta flush
+      LOG("outbox empty, sending flush");
+      util_frames_send(tempo->frames,NULL);
+      util_frames_outbox(tempo->frames,k->frame);
     }
 
     LOG("TX frame %s\n",util_hex(k->frame,64,NULL));
@@ -491,6 +491,9 @@ tmesh_t tmesh_knocked(tmesh_t tm)
   knock_t k = (tm->seek->stopped) ? tm->seek : tm->knock;
   tempo_t tempo = k->tempo;
 
+  // always clear skipped counter
+  tempo->skip = 0;
+
   if(k->err)
   {
     // missed rx windows
@@ -516,7 +519,6 @@ tmesh_t tmesh_knocked(tmesh_t tm)
   // tx just updates state things here
   if(tempo->tx)
   {
-    tempo->skip = 0; // clear skipped tx's
     tempo->itx++;
     
     // did we send a data frame?
@@ -686,6 +688,7 @@ static tempo_t tempo_schedule(tempo_t tempo, uint32_t at, uint32_t rebase)
   while(tempo->at <= at)
   {
     tempo->seq++;
+    tempo->skip++; // counts missed windows, cleared after knocked
 
     // use encrypted seed (follows frame)
     uint8_t seed[64+8] = {0};
@@ -734,11 +737,6 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
       tempo_schedule(tempo, at, rebase);
 
       LOG("stream %s %lu at %lu %u",tempo->tx?"TX":"RX",util_frames_outbox(tempo->frames,NULL),tempo->at,tempo->miss);
-      if(tempo->tx && !util_frames_outbox(tempo->frames,NULL))
-      {
-        tempo->skip++;
-        continue;
-      }
       best = tm->sort(tm, best, tempo);
     }
   }
