@@ -539,7 +539,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
       sync->seq = tempo->seq; // also inherits current seq
       sync->tx = 1; // we are inverted
       sync->priority = 2; // little boost
-      MORTY(tempo,"stsync");
+      MORTY(sync,"stsync");
     }
 
     MORTY(tempo,"sigout");
