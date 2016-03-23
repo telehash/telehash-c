@@ -499,7 +499,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     {
       // if too many missed signal rx, become lost
       tempo->miss++;
-      if(tempo->signal && tempo->miss > 10)
+      if(tempo->signal && tempo->miss > 10 && !tempo->lost)
       {
         LOG("lost signal to %s",hashname_short(tempo->mote->link->id));
         tempo->lost = 1;
