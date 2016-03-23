@@ -111,33 +111,6 @@ static tempo_t mote_stream(mote_t to, uint32_t medium)
 }
 
 /*
-// initiates handshake over lost stream tempo
-static tempo_t tempo_handshake(tempo_t m)
-{
-  if(!m) return LOG("bad args");
-  tmesh_t tm = m->medium->com->tm;
-
-  // TODO, set up first sync timeout to reset!
-  util_frames_free(m->frames);
-  if(!(m->frames = util_frames_new(64))) return LOG("OOM");
-  
-  // get relevant link, if any
-  link_t link = m->link;
-  if(!link) link = mesh_linked(tm->mesh, hashname_char(m->beacon), 0);
-
-  // if public and no keys, send discovery
-  if(m->medium->com->tm->pubim && (!link || !e3x_exchange_out(link->x,0)))
-  {
-    LOG("sending bare discovery %s",lob_json(tm->pubim));
-    util_frames_send(m->frames, lob_copy(tm->pubim));
-  }else{
-    LOG("sending new handshake");
-    util_frames_send(m->frames, link_handshakes(link));
-  }
-
-  return m;
-}
-
 // attempt to establish link from a lost stream tempo
 static tempo_t tempo_link(tempo_t tempo)
 {
@@ -261,20 +234,9 @@ static void mote_send(pipe_t pipe, lob_t packet, link_t link)
   }
 
   mote_t mote = (mote_t)pipe->arg;
-  if(!mote->streams)
-  {
-    if(mote->cached)
-    {
-      LOG("dropping queued packet(%lu) waiting for stream",lob_len(mote->cached));
-      lob_free(mote->cached);
-    }
-    mote->cached = packet;
-    LOG("queued packet(%lu) waiting for stream",lob_len(packet));
-    return;
-  }
-
-  util_frames_send(mote->streams->frames, packet);
-  LOG("delivering %d to mote %s",lob_len(packet),hashname_short(link->id));
+  tempo_t stream = mote_stream(mote, mote->tm->m_stream);
+  util_frames_send(stream->frames, packet);
+  LOG("delivering %d to mote %s total %lu",lob_len(packet),hashname_short(link->id),util_frames_outlen(stream->frames));
 }
 
 static mote_t mote_free(mote_t mote)
@@ -377,14 +339,13 @@ tmesh_t tmesh_new(mesh_t mesh, char *name, uint32_t mediums[3])
   tm->m_lost = mediums[0];
   tm->m_signal = mediums[1];
   tm->m_stream = mediums[2];
+  tm->discoverable = 1; // default true for now
   
   // connect us to this mesh
   tm->mesh = mesh;
   xht_set(mesh->index, "tmesh", tm);
   mesh_on_path(mesh, "tmesh", tmesh_on_path);
   
-  tm->pubim = hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys));
-
   // have to make sure we have our own lost signal
   tm->signal = tempo_signal(tm, NULL, tm->m_lost);
   e3x_rand((uint8_t*)&(tm->signal->seq),4); // NOTE - this needs to be set/overridden by driver to be unique across reboots
@@ -403,7 +364,6 @@ tmesh_t tmesh_free(tmesh_t tm)
   }
   tempo_free(tm->signal);
   free(tm->community);
-  lob_free(tm->pubim);
   // TODO path cleanup
   free(tm->knock);
   free(tm->seek);
@@ -482,7 +442,7 @@ static knock_t tempo_knock(tempo_t tempo)
   // TODO normal signal
   for(mote = tm->motes;mote;mote = mote->next) if(!mote->signal->lost)
   {
-    // check for any w/ cached packets to request stream
+    // check for any streams needing to sync
     // accept any requested streams (mote->m_req)
     //    tempo->syncs[syncs++] = mote->streams; // needs to be sync'd after tx
   }
@@ -678,9 +638,24 @@ tmesh_t tmesh_knocked(tmesh_t tm)
       stream->at = k->stopped;
       stream->seq = tempo->seq; // start from same seq
       stream->priority = 3; // little more boost
-      // initiate linking w/ discovery (TODO start w/ handshake directly)
-      LOG("sending bare discovery %s",lob_json(tm->pubim));
-      util_frames_send(stream->frames, lob_copy(tm->pubim));
+
+      // if nothing waiting, send something to start the stream
+      if(!util_frames_outlen(stream->frames))
+      {
+        lob_t out = NULL;
+        if(!e3x_exchange_out(mote->link->x,0))
+        {
+          // if no keys, send discovery
+          if(!tm->discoverable) return LOG("no keys and not discoverable");
+          out = hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys));
+          LOG("sending bare discovery %s",lob_json(out));
+        }else{
+          out = link_handshakes(mote->link);
+          LOG("sending handshake");
+        }
+        util_frames_send(stream->frames, out);
+      }
+
     }
     if(blk.val == 1)
     {
@@ -708,7 +683,7 @@ static tempo_t tempo_schedule(tempo_t tempo, uint32_t at, uint32_t rebase)
   if(tm->knock->ready) return tempo;
 
   // move ahead window(s)
-  while(tempo->at <= (at+3000))
+  while(tempo->at <= at)
   {
     tempo->seq++;
 

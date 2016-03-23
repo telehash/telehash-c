@@ -64,9 +64,9 @@ struct tmesh_struct
   tmesh_t (*init)(tmesh_t tm, tempo_t tempo); // driver can initialize a new tempo
   tmesh_t (*free)(tmesh_t tm, tempo_t tempo); // driver can free any associated tempo resources
   knock_t knock, seek;
-
-  lob_t pubim;
-  uint32_t last; // last seen cycles for rebasing
+  
+  // config/tuning flags
+  uint8_t discoverable:1;
 
 };
 
@@ -132,7 +132,6 @@ struct mote_struct
   mote_t next; // for lists
   tempo_t signal;
   tempo_t streams;
-  lob_t cached; // queued packet waiting for stream
   uint32_t m_req; // stream requested w/ this medium
   uint32_t seen; // first seen (for debugging)
 };
