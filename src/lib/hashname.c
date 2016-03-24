@@ -57,16 +57,19 @@ hashname_t hashname_vkey(lob_t key, uint8_t csid)
   char *id, *value, hexid[3];
   if(!key) return LOG("invalid args");
   util_hex(&csid, 1, hexid);
+  memset(hash,0,64);
 
   // get in sorted order
   lob_sort(key);
 
   // loop through all keys rolling up
+  uint8_t keys = 0;
   for(i=0;(id = lob_get_index(key,i));i+=2)
   {
     value = lob_get_index(key,i+1);
     if(strlen(id) != 2 || !util_ishex(id,2) || !value) continue; // skip non-id keys
     
+    keys++;
     // hash the id
     util_unhex(id,2,hash+32);
     start = (i == 0) ? 32 : 0; // only first one excludes previous rollup
@@ -84,6 +87,7 @@ hashname_t hashname_vkey(lob_t key, uint8_t csid)
     }
     e3x_hash(hash,64,hash);
   }
+  if(!keys) return LOG("no keys found in %s",lob_json(key));
   if(!i || i % 2 != 0) return LOG("invalid keys %d",i);
   
   return hashname_vbin(hash);

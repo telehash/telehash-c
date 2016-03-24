@@ -297,26 +297,18 @@ link_t link_receive_handshake(link_t link, lob_t inner, pipe_t pipe)
   uint32_t in, out, at, err;
   seen_t seen;
   uint8_t csid = 0;
-  char *hexid;
   lob_t outer = lob_linked(inner);
 
   if(!link || !inner || !outer) return LOG("bad args");
 
+  // inner/link must be validated by caller already, we just load if missing
   if(!link->key)
   {
-    hexid = lob_get(inner, "csid");
-    if(!lob_get(link->mesh->keys, hexid))
-    {
-      LOG("unsupported csid %s",hexid);
-      lob_free(inner);
-      return NULL;
-    }
-    util_unhex(hexid, 2, &csid);
-    LOG("handshake key load %s %s",lob_json(inner),util_hex(inner->body,inner->body_len,NULL));
-    if(!link_key(link->mesh, inner, csid))
+    util_unhex(lob_get(inner, "csid"), 2, &csid);
+    if(!link_load(link, csid, inner))
     {
       lob_free(inner);
-      return LOG("invalid/mismatch link handshake");
+      return LOG("load key failed for %s %u %s",link->handle,csid,util_hex(inner->body,inner->body_len,NULL));
     }
   }
 
