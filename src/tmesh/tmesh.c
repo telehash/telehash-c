@@ -467,8 +467,8 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t k)
   tempo->lost = 0;
   tempo->miss = 0;
   tempo->irx++;
-  if(k->rssi < tempo->best || !tempo->best) tempo->best = k->rssi;
-  if(k->rssi > tempo->worst) tempo->worst = k->rssi;
+  if(k->rssi > tempo->best || !tempo->best) tempo->best = k->rssi;
+  if(k->rssi < tempo->worst || !tempo->worst) tempo->worst = k->rssi;
   tempo->last = k->rssi;
 
   LOG("RX %s %u received, rssi %d/%d/%d data %d\n",tempo->signal?"signal":"stream",tempo->irx,k->tempo->last,k->tempo->best,k->tempo->worst,util_frames_inlen(k->tempo->frames));
