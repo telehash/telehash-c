@@ -158,7 +158,8 @@ link_t link_load(link_t link, uint8_t csid, lob_t key)
   // key must be bin
   if(key->body_len)
   {
-    copy = lob_copy(key);
+    copy = lob_new();
+    lob_body(copy,key->body,key->body_len);
   }else{
     util_hex(&csid,1,hex);
     copy = lob_get_base32(key,hex);
@@ -166,8 +167,9 @@ link_t link_load(link_t link, uint8_t csid, lob_t key)
   link->x = e3x_exchange_new(link->mesh->self, csid, copy);
   if(!link->x)
   {
+    LOG("invalid %x key %s %s",csid,util_hex(copy->body,copy->body_len,NULL),lob_json(key));
     lob_free(copy);
-    return LOG("invalid %x key %d %s",csid,key->body_len,lob_json(key));
+    return NULL;
   }
 
   link->csid = csid;
@@ -300,11 +302,6 @@ link_t link_receive_handshake(link_t link, lob_t inner, pipe_t pipe)
   lob_t attached, outer = lob_linked(inner);
 
   if(!link || !inner || !outer) return LOG("bad args");
-  if((err = e3x_exchange_verify(link->x,outer)))
-  {
-    lob_free(inner);
-    return LOG("handshake verification fail: %d",err);
-  }
 
   if(!link->key)
   {
@@ -316,6 +313,7 @@ link_t link_receive_handshake(link_t link, lob_t inner, pipe_t pipe)
       return NULL;
     }
     util_unhex(hexid, 2, &csid);
+    LOG("handshake key load %s %s",lob_json(inner),util_hex(inner->body,inner->body_len,NULL));
     attached = lob_parse(inner->body, inner->body_len);
     ready = link_key(link->mesh, attached, csid);
     lob_free(attached);
@@ -324,6 +322,12 @@ link_t link_receive_handshake(link_t link, lob_t inner, pipe_t pipe)
       lob_free(inner);
       return LOG("invalid/mismatch link handshake");
     }
+  }
+
+  if((err = e3x_exchange_verify(link->x,outer)))
+  {
+    lob_free(inner);
+    return LOG("handshake verification fail: %d",err);
   }
 
   in = e3x_exchange_in(link->x,0);
