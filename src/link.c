@@ -294,12 +294,11 @@ link_t link_handshake(link_t link, lob_t handshake)
 // process an incoming handshake
 link_t link_receive_handshake(link_t link, lob_t inner, pipe_t pipe)
 {
-  link_t ready;
   uint32_t in, out, at, err;
   seen_t seen;
   uint8_t csid = 0;
   char *hexid;
-  lob_t attached, outer = lob_linked(inner);
+  lob_t outer = lob_linked(inner);
 
   if(!link || !inner || !outer) return LOG("bad args");
 
@@ -314,10 +313,7 @@ link_t link_receive_handshake(link_t link, lob_t inner, pipe_t pipe)
     }
     util_unhex(hexid, 2, &csid);
     LOG("handshake key load %s %s",lob_json(inner),util_hex(inner->body,inner->body_len,NULL));
-    attached = lob_parse(inner->body, inner->body_len);
-    ready = link_key(link->mesh, attached, csid);
-    lob_free(attached);
-    if(!ready)
+    if(!link_key(link->mesh, inner, csid))
     {
       lob_free(inner);
       return LOG("invalid/mismatch link handshake");
@@ -333,7 +329,7 @@ link_t link_receive_handshake(link_t link, lob_t inner, pipe_t pipe)
   in = e3x_exchange_in(link->x,0);
   out = e3x_exchange_out(link->x,0);
   at = lob_get_uint(inner,"at");
-  ready = link_up(link);
+  link_t ready = link_up(link);
 
   // if newer handshake, trust/add this pipe
   if(at > in && pipe) link_pipe(link,pipe);
