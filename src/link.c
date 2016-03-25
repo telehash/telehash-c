@@ -108,7 +108,7 @@ lob_t link_json(link_t link)
   json = lob_new();
   lob_set(json,"hashname",hashname_char(link->id));
   lob_set(json,"csid",util_hex(&link->csid, 1, hex));
-  lob_set_raw(json,"key",0,(char*)link->key->head,link->key->head_len);
+  lob_set_base32(json,"key",link->key->body,link->key->body_len);
 //  paths = lob_array(mesh->paths);
 //  lob_set_raw(json,"paths",0,(char*)paths->head,paths->head_len);
 //  lob_free(paths);
