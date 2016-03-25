@@ -54,7 +54,7 @@ static tempo_t tempo_signal(tmesh_t tm, mote_t from, uint32_t medium)
   {
     tempo->mote = from;
     tempo->tx = 0;
-    tempo->priority = 4; // mid
+    tempo->priority = 2; // mid
     memcpy(roll+32,hashname_bin(from->link->id),32);
   }else{
     tempo->tx = 1;
