@@ -257,3 +257,5 @@ uint8_t *chacha20(uint8_t *key, uint8_t *nonce, uint8_t *bytes, uint32_t len)
   chacha_encrypt_bytes (&ctx, bytes, bytes, len);
   return bytes;
 }
+
+#undef ROTL32

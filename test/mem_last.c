@@ -16,8 +16,7 @@ int main(int argc, char **argv)
   printf("%lu\tpipe_t\n",sizeof(struct pipe_struct));
   printf("%lu\ttmesh_t\n",sizeof(struct tmesh_struct));
   printf("%lu\tmote_t\n",sizeof(struct mote_struct));
-  printf("%lu\tmedium_t\n",sizeof(struct medium_struct));
-  printf("%lu\tcmnty_t\n",sizeof(struct cmnty_struct));
+  printf("%lu\ttempo_t\n",sizeof(struct tempo_struct));
   printf("%lu\tknock_t\n",sizeof(struct knock_struct));
   return 0;
 }

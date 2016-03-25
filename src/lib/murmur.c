@@ -339,3 +339,5 @@ void PMurHash32_test(const void *key, int len, uint32_t seed, void *out)
 }
 
 /*---------------------------------------------------------------------------*/
+
+#undef ROTL32

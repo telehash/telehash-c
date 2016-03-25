@@ -12,14 +12,42 @@
 tmesh_t netA = NULL, netB = NULL;
 #define RXTX(a,b) (a->tx)?memcpy(b->frame,a->frame,64):memcpy(a->frame,b->frame,64)
 
-#include "./tmesh_device.c"
+tempo_t driver_sort(tmesh_t tm, tempo_t a, tempo_t b)
+{
+  if(a) return a;
+  return b;
+}
+
+uint8_t scheduled = 0;
+tmesh_t driver_schedule(tmesh_t tm)
+{
+  // start knock
+  scheduled++;
+  return tm;
+}
+
+tmesh_t driver_advance(tmesh_t tm, tempo_t tempo, uint8_t seed[8])
+{
+  // set channel and advance at based on seed
+  tempo->at++;
+  tempo->chan++;
+  return tm;
+}
+
+tmesh_t driver_init(tmesh_t tm, tempo_t tempo)
+{
+  tempo->driver = (void*)1; // flag for test check
+  return tm;
+}
+
+tmesh_t driver_free(tmesh_t tm, tempo_t tempo)
+{
+  return tm;
+}
 
 int main(int argc, char **argv)
 {
-  radio_t devA, devB;
   fail_unless(!e3x_init(NULL)); // random seed
-  fail_unless((devA = radio_device(&radioA)));
-  fail_unless((devB = radio_device(&radioB)));
   
   mesh_t meshA = mesh_new(3);
   fail_unless(meshA);
@@ -34,11 +62,56 @@ int main(int argc, char **argv)
   lob_set(keyB,"1a",B_KEY);
   hashname_t hnB = hashname_vkeys(keyB);
   fail_unless(hnB);
-  link_t link = link_get(meshA,hnB);
-  fail_unless(link);
+  link_t linkAB = link_get(meshA,hnB);
+  fail_unless(linkAB);
   
-  netA = tmesh_new(meshA, NULL);
+  netA = tmesh_new(meshA, "test",(uint32_t[3]){1,2,3});
   fail_unless(netA);
+  
+  netA->sort = driver_sort;
+  netA->schedule = driver_schedule;
+  netA->advance = driver_advance;
+  netA->init = driver_init;
+  netA->free = driver_free;
+  
+  fail_unless(netA->m_lost == 1);
+  fail_unless(netA->m_signal == 2);
+  fail_unless(netA->m_stream == 3);
+  fail_unless(netA->knock);
+  fail_unless(netA->seek);
+  fail_unless(strcmp(netA->community,"test") == 0);
+
+  // this gets created during first find
+  fail_unless(netA->signal);
+  fail_unless(netA->signal->signal);
+  fail_unless(netA->signal->lost);
+  fail_unless(netA->signal->tx);
+  fail_unless(!netA->signal->mote);
+  fail_unless(netA->signal->medium == 1);
+
+  mote_t moteB = tmesh_find(netA, linkAB, 4);
+  fail_unless(moteB);
+  fail_unless(moteB->link == linkAB);
+  fail_unless(moteB->pipe);
+  fail_unless(moteB->signal);
+  fail_unless(moteB->signal->lost);
+  fail_unless(moteB->signal->medium == 4);
+  fail_unless(moteB->signal->driver == (void*)1);
+
+  // should schedule a lost signal tx
+  fail_unless(tmesh_schedule(netA,1,0));
+  fail_unless(scheduled == 1);
+  fail_unless(netA->knock->ready);
+  fail_unless(netA->knock->tempo == netA->signal);
+  fail_unless(netA->knock->tempo->at == 2);
+  fail_unless(netA->knock->tempo->chan == 1);
+
+  // created when signalled
+  fail_unless(moteB->streams);
+  fail_unless(moteB->streams->medium == 3);
+  fail_unless(moteB->streams->at == 0);
+
+  /*
   cmnty_t c = tmesh_join(netA,"qzjb5f4t","foo");
   fail_unless(c);
   fail_unless(c->medium->bin[0] == 134);
@@ -226,7 +299,7 @@ int main(int argc, char **argv)
   LOG("AB tx is %d chan %d at %lu nonce %s",knAB->tx,knAB->chan,knAB->start,util_hex(mAB->nonce,8,NULL));
   fail_unless(knAB->chan == 35);
   fail_unless(knAB->tx == 1);
-/*
+
   // fake reception, with fake cake
   LOG("process netA");
   RXTX(knAB,knBA);
@@ -273,7 +346,6 @@ int main(int argc, char **argv)
   mAB->at = mBA->at;
   LOG("mAB %lu mBA %lu",mAB->at,mBA->at);
   fail_unless(mAB->at == mBA->at);
-  */
   
   // continue establishing link
   printf("\n\n");
@@ -312,7 +384,7 @@ int main(int argc, char **argv)
   }
   LOG("TODO linked by %d",max);
 //  fail_unless(max);
-
+*/
   return 0;
 }
 

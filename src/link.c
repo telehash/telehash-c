@@ -158,7 +158,8 @@ link_t link_load(link_t link, uint8_t csid, lob_t key)
   // key must be bin
   if(key->body_len)
   {
-    copy = lob_copy(key);
+    copy = lob_new();
+    lob_body(copy,key->body,key->body_len);
   }else{
     util_hex(&csid,1,hex);
     copy = lob_get_base32(key,hex);
@@ -166,8 +167,9 @@ link_t link_load(link_t link, uint8_t csid, lob_t key)
   link->x = e3x_exchange_new(link->mesh->self, csid, copy);
   if(!link->x)
   {
+    LOG("invalid %x key %s %s",csid,util_hex(copy->body,copy->body_len,NULL),lob_json(key));
     lob_free(copy);
-    return LOG("invalid %x key %d %s",csid,key->body_len,lob_json(key));
+    return NULL;
   }
 
   link->csid = csid;
@@ -292,44 +294,34 @@ link_t link_handshake(link_t link, lob_t handshake)
 // process an incoming handshake
 link_t link_receive_handshake(link_t link, lob_t inner, pipe_t pipe)
 {
-  link_t ready;
   uint32_t in, out, at, err;
   seen_t seen;
   uint8_t csid = 0;
-  char *hexid;
-  lob_t attached, outer = lob_linked(inner);
+  lob_t outer = lob_linked(inner);
 
   if(!link || !inner || !outer) return LOG("bad args");
+
+  // inner/link must be validated by caller already, we just load if missing
+  if(!link->key)
+  {
+    util_unhex(lob_get(inner, "csid"), 2, &csid);
+    if(!link_load(link, csid, inner))
+    {
+      lob_free(inner);
+      return LOG("load key failed for %s %u %s",link->handle,csid,util_hex(inner->body,inner->body_len,NULL));
+    }
+  }
+
   if((err = e3x_exchange_verify(link->x,outer)))
   {
     lob_free(inner);
     return LOG("handshake verification fail: %d",err);
   }
 
-  if(!link->key)
-  {
-    hexid = lob_get(inner, "csid");
-    if(!lob_get(link->mesh->keys, hexid))
-    {
-      LOG("unsupported csid %s",hexid);
-      lob_free(inner);
-      return NULL;
-    }
-    util_unhex(hexid, 2, &csid);
-    attached = lob_parse(inner->body, inner->body_len);
-    ready = link_key(link->mesh, attached, csid);
-    lob_free(attached);
-    if(!ready)
-    {
-      lob_free(inner);
-      return LOG("invalid/mismatch link handshake");
-    }
-  }
-
   in = e3x_exchange_in(link->x,0);
   out = e3x_exchange_out(link->x,0);
   at = lob_get_uint(inner,"at");
-  ready = link_up(link);
+  link_t ready = link_up(link);
 
   // if newer handshake, trust/add this pipe
   if(at > in && pipe) link_pipe(link,pipe);

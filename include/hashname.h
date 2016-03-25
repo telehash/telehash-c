@@ -20,12 +20,17 @@ hashname_t hashname_vkey(lob_t key, uint8_t id); // key is body, intermediates i
 // accessors
 uint8_t *hashname_bin(hashname_t hn); // 32 bytes
 char *hashname_char(hashname_t hn); // 52 byte base32 string w/ \0 (TEMPORARY)
-char *hashname_short(hashname_t hn); // 16 byte base32 string w/ \0 (TEMPORARY)
 
 // utilities related to hashnames
 int hashname_cmp(hashname_t a, hashname_t b);  // memcmp shortcut
 uint8_t hashname_id(lob_t a, lob_t b); // best matching id (single byte)
 lob_t hashname_im(lob_t keys, uint8_t id); // intermediate hashes in the json, optional id to set that as body
 
+// working with short hashnames (5 bin bytes, 8 char bytes)
+char *hashname_short(hashname_t hn); // 8 byte base32 string w/ \0 (TEMPORARY)
+int hashname_scmp(hashname_t a, hashname_t b);  // short only comparison
+hashname_t hashname_schar(const char *str); // 8 char string, temp hn
+hashname_t hashname_sbin(const uint8_t *bin); // 5 bytes, temp hn
+hashname_t hashname_isshort(hashname_t hn); // NULL unless is short
 
 #endif

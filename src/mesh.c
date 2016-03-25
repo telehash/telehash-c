@@ -443,6 +443,7 @@ link_t mesh_receive_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe)
     }
     lob_set(handshake,"csid",hexid);
     lob_set(handshake,"hashname",hashname_char(from));
+    lob_set_raw(handshake,hexid,2,"true",4); // intermediate format
     lob_body(handshake, tmp->body, tmp->body_len); // re-attach as raw key
     lob_free(tmp);
 

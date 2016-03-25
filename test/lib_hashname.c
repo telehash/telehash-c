@@ -36,6 +36,13 @@ int main(int argc, char **argv)
   lob_set(test,"1a","test");
   lob_set(test,"2a","test");
   fail_unless(hashname_id(keys,test) == 0x1a);
+  
+  // check short utils
+  hn = hashname_schar("uvabrvfq");
+  fail_unless(hn);
+  fail_unless(hashname_isshort(hn));
+  fail_unless(util_cmp(hashname_short(hn),"uvabrvfq") == 0);
+
   return 0;
 }
 
