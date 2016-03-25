@@ -212,7 +212,6 @@ int hashname_scmp(hashname_t a, hashname_t b)
 hashname_t hashname_schar(const char *str)
 {
   if(!str) return NULL;
-  if(strlen(str) != 8) return NULL;
   memset(hn_vtmp.bin,0,32);
   if(base32_decode(str,8,hn_vtmp.bin,5) != 5) return NULL;
   return &hn_vtmp;
