@@ -37,7 +37,7 @@ hashname_t hashname_free(hashname_t hn)
 hashname_t hashname_vchar(const char *str)
 {
   if(!str) return NULL;
-  if(strlen(str) != 52) return NULL;
+  // decode will stop reading the first non-b32 char it sees, like a \0
   if(base32_decode(str,52,hn_vtmp.bin,32) != 32) return NULL;
   return &hn_vtmp;
 }
