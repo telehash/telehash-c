@@ -4,12 +4,12 @@
 #include "telehash.h"
 #include "tmesh.h"
 
-struct sigblk_struct {
+typedef struct sigblk_struct {
   uint8_t medium[4];
   uint8_t id[5];
   uint8_t neighbor:1;
   uint8_t val:7;
-};
+} *sigblk_t;
 
 #define MORTY(t,r) LOG("RICK %s\t%s %s %s [%u,%u,%u,%u,%u] at:%lu seq:%lx s:%s (%lu/%lu) m:%lu",r,t->mote?hashname_short(t->mote->link->id):"selfself",t->tx?"TX":"RX",t->signal?"signal":"stream",t->itx,t->irx,t->bad,t->miss,t->skip,t->at,t->seq,util_hex(t->secret,4,NULL),util_frames_inlen(t->frames),util_frames_outlen(t->frames),t->medium);
 
@@ -73,6 +73,29 @@ static tempo_t tempo_signal(tmesh_t tm, mote_t from, uint32_t medium)
   return tempo;
 }
 
+// sync a stream to the current sigblk
+static tempo_t tempo_stream_sync(tempo_t tempo, sigblk_t blk, uint32_t at)
+{
+  return NULL;
+    /*
+  // generate tempo-specific mesh unique secret
+  uint8_t roll[64];
+  tempo->seq = to->signal->seq;
+  e3x_hash((uint8_t*)(tm->community),strlen(tm->community),roll);
+  memcpy(roll+32,hashname_bin(tm->mesh->id),32); // add ours in
+  uint8_t i, *bin = hashname_bin(to->link->id);
+  for(i=0;i<32;i++) roll[32+i] ^= bin[i]; // xor add theirs in
+
+  e3x_hash(roll,64,tempo->secret);
+
+  // driver init for medium customizations
+  if(tm->init && !tm->init(to->tm, tempo)) return tempo_free(tempo);
+
+  MORTY(tempo,"newstm");
+*/
+  return tempo;
+}
+
 // get/create stream tempo 
 static tempo_t mote_stream(mote_t to, uint32_t medium)
 {
@@ -91,16 +114,6 @@ static tempo_t mote_stream(mote_t to, uint32_t medium)
   tempo->mote = to;
   tempo->medium = medium;
   tempo->frames = util_frames_new(64);
-
-  // generate tempo-specific mesh unique secret
-  uint8_t roll[64];
-  tempo->seq = to->signal->seq;
-  e3x_hash((uint8_t*)(tm->community),strlen(tm->community),roll);
-  memcpy(roll+32,hashname_bin(tm->mesh->id),32); // add ours in
-  uint8_t i, *bin = hashname_bin(to->link->id);
-  for(i=0;i<32;i++) roll[32+i] ^= bin[i]; // xor add theirs in
-
-  e3x_hash(roll,64,tempo->secret);
 
   // driver init for medium customizations
   if(tm->init && !tm->init(to->tm, tempo)) return tempo_free(tempo);
