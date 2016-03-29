@@ -346,10 +346,6 @@ tmesh_t tmesh_new(mesh_t mesh, char *name, uint32_t mediums[3])
   xht_set(mesh->index, "tmesh", tm);
   mesh_on_path(mesh, "tmesh", tmesh_on_path);
   
-  // have to make sure we have our own lost signal
-  tm->signal = tempo_signal(tm, NULL, tm->m_lost);
-  e3x_rand((uint8_t*)&(tm->signal->seq),4); // NOTE - this needs to be set/overridden by driver to be unique across reboots
-  
   return tm;
 }
 
@@ -369,6 +365,17 @@ tmesh_t tmesh_free(tmesh_t tm)
   free(tm->seek);
   free(tm);
   return NULL;
+}
+
+// start/reset our outgoing signal
+tempo_t tmesh_signal(tmesh_t tm, uint32_t seq, uint32_t medium)
+{
+  // TODO allow reset of medium
+  tm->signal = tempo_signal(tm, NULL, medium);
+  if(!seq) e3x_rand((uint8_t*)&(tm->signal->seq),4);
+  else tm->signal->seq = seq;
+  
+  return tm->signal;
 }
 
 // fills in next tx knock
@@ -482,7 +489,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
   if(!tm) return LOG("bad args");
 
   // which knock is done
-  knock_t k = (tm->seek->stopped) ? tm->seek : tm->knock;
+  knock_t k = (tm->seek->ready && tm->seek->stopped) ? tm->seek : tm->knock;
   tempo_t tempo = k->tempo;
 
   // always clear skipped counter and ready flag

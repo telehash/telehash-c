@@ -70,9 +70,12 @@ struct tmesh_struct
 
 };
 
-// join a new tmesh community, starts lost signal
+// join a new tmesh community
 tmesh_t tmesh_new(mesh_t mesh, char *name, uint32_t mediums[3]);
 tmesh_t tmesh_free(tmesh_t tm);
+
+// start/reset our outgoing signal
+tempo_t tmesh_signal(tmesh_t tm, uint32_t seq, uint32_t medium);
 
 // process any knock that has been completed by a driver
 tmesh_t tmesh_knocked(tmesh_t tm);
