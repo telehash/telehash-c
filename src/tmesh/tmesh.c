@@ -749,12 +749,13 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
   if(seek && seek->at < best->at)
   {
     MORTY(seek,"seekin");
+
     // copy nonce parts in, nothing to prep since is just RX
     memcpy(knock->nonce,&(seek->medium),4);
     memcpy(knock->nonce+4,&(seek->seq),4);
     knock->tempo = seek;
     knock->ready = 1;
-    knock->next = best->at;
+    knock->seekto = best->at;
 
     // ask driver if it can seek, done if so, else fall through
     if(tm->schedule(tm)) return tm;
@@ -764,13 +765,14 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
   
   MORTY(best,"waitin");
 
-  // do the work to fill in the tx frame only once here
-  if(best->tx && !tempo_knock(best)) return LOG("knock tx prep failed");
-
-  // copy nonce parts in
+  // copy nonce parts in first
   memcpy(knock->nonce,&(best->medium),4);
   memcpy(knock->nonce+4,&(best->seq),4);
   knock->tempo = best;
+
+  // do the work to fill in the tx frame only once here
+  if(best->tx && !tempo_knock(best)) return LOG("knock tx prep failed");
+
   knock->ready = 1;
 
   // signal driver

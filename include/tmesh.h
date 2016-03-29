@@ -116,7 +116,7 @@ struct tempo_struct
 struct knock_struct
 {
   tempo_t tempo;
-  uint32_t next; // when is the next knock (if known)
+  uint32_t seekto; // when is the next knock if seeking
   uint32_t started, stopped; // actual times
   int16_t rssi; // set by driver only after rx
   uint8_t frame[64];
