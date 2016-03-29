@@ -73,27 +73,35 @@ static tempo_t tempo_signal(tmesh_t tm, mote_t from, uint32_t medium)
   return tempo;
 }
 
-// sync a stream to the current sigblk
-static tempo_t tempo_stream_sync(tempo_t tempo, sigblk_t blk, uint32_t at)
+// sync a stream to the current signal it was paired with
+static tempo_t tempo_stream_sync(tempo_t stream, tempo_t signal, uint32_t at)
 {
-  return NULL;
-    /*
-  // generate tempo-specific mesh unique secret
+  if(!stream || !signal || !at) return LOG("bad args");
+  tmesh_t tm = stream->tm;
+
+  // always start at 0/now
+  stream->seq = 0;
+  stream->at = at;
+
+  // generate mesh-wide unique stream secret
   uint8_t roll[64];
-  tempo->seq = to->signal->seq;
   e3x_hash((uint8_t*)(tm->community),strlen(tm->community),roll);
   memcpy(roll+32,hashname_bin(tm->mesh->id),32); // add ours in
-  uint8_t i, *bin = hashname_bin(to->link->id);
+  uint8_t i, *bin = hashname_bin(stream->mote->link->id);
   for(i=0;i<32;i++) roll[32+i] ^= bin[i]; // xor add theirs in
 
-  e3x_hash(roll,64,tempo->secret);
+  // hash shared base
+  e3x_hash(roll,64,roll);
 
-  // driver init for medium customizations
-  if(tm->init && !tm->init(to->tm, tempo)) return tempo_free(tempo);
+  // add in current signal uniqueness
+  memcpy(roll+32,&(signal->medium),4);
+  memcpy(roll+32+4,&(signal->seq),4);
+  
+  // final secret/sync
+  e3x_hash(roll,32+4+4,stream->secret);
 
-  MORTY(tempo,"newstm");
-*/
-  return tempo;
+  MORTY(stream,"stsync");
+  return stream;
 }
 
 // get/create stream tempo 
