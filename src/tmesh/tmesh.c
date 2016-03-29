@@ -382,12 +382,12 @@ static knock_t tempo_knock(tempo_t tempo)
   // send data frames if any
   if(tempo->frames)
   {
-    if(!util_frames_outbox(tempo->frames,k->frame))
+    if(!util_frames_outbox(tempo->frames,k->frame,NULL))
     {
       // nothing to send, force meta flush
       LOG("outbox empty, sending flush");
       util_frames_send(tempo->frames,NULL);
-      util_frames_outbox(tempo->frames,k->frame);
+      util_frames_outbox(tempo->frames,k->frame,NULL);
     }
 
     LOG("TX frame %s\n",util_hex(k->frame,64,NULL));
@@ -552,7 +552,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     chacha20(tempo->secret,k->nonce,k->frame,64);
     LOG("RX data RSSI %d frame %s\n",k->rssi,util_hex(k->frame,64,NULL));
 
-    if(!util_frames_inbox(tempo->frames, k->frame))
+    if(!util_frames_inbox(tempo->frames, k->frame, NULL))
     {
       k->tempo->bad++;
       return LOG("bad frame: %s",util_hex(k->frame,64,NULL));

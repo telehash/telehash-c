@@ -122,7 +122,7 @@ size_t util_frames_outlen(util_frames_t frames)
 }
 
 // the next frame of data in/out, if data NULL bool is just ready check
-util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data)
+util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t **meta)
 {
   if(!frames) return LOG("bad args");
   if(frames->err) return LOG("stream broken");
@@ -140,6 +140,10 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data)
   if(hash1 == hash2)
   {
 //    LOG("meta frame %s",util_hex(data,size+4,NULL));
+
+    // if requested, point to metadata block
+    if(meta) *meta = data+10;
+
     // verify sender's last rx'd hash
     uint32_t rxd;
     memcpy(&rxd,data,4);
@@ -254,7 +258,7 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data)
   return frames;
 }
 
-util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
+util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t **meta)
 {
   if(!frames) return LOG("bad args");
   if(frames->err) return LOG("stream broken");
@@ -291,6 +295,11 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
   {
     memcpy(data,&(frames->inlast),4);
     memcpy(data+4,&(hash),4);
+    if(meta && *meta)
+    {
+      memcpy(data+10,*meta,size-10);
+      *meta = NULL; // flag was sent
+    }
     murmur(data,size,data+size);
     LOG("sending meta frame inlast %lu cur %lu",frames->inlast,hash);
     frames->flush = 0;
