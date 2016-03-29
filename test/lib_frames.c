@@ -61,8 +61,16 @@ int main(int argc, char **argv)
   fail_unless(!util_frames_inbox(fb,NULL,NULL));
   util_frames_send(fa,msg);
 
-  // chat
+  // meta
   uint8_t f64[64];
+  uint8_t metaout[50], metain[50] = {0};
+  memset(metaout,42,50);
+  fa->flush = 1;
+  fail_unless(util_frames_outbox(fa,f64,metaout));
+  fail_unless(util_frames_inbox(fb,f64,metain));
+  fail_unless(memcmp(metaout,metain,50) == 0);
+
+  // chat
   while(util_frames_outbox(fa,f64,NULL))
   {
     fail_unless(util_frames_inbox(fb,f64,NULL));
