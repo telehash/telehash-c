@@ -556,11 +556,9 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     for(syncs=0;syncs<5;syncs++) if(k->syncs[syncs])
     {
       tempo_t sync = k->syncs[syncs];
-      sync->at = k->stopped;
-      sync->seq = tempo->seq; // also inherits current seq
       sync->tx = 1; // we are inverted
       sync->priority = 2; // little boost
-      MORTY(sync,"stsync");
+      tempo_stream_sync(sync, tempo, k->stopped);
     }
 
     MORTY(tempo,"sigout");
@@ -656,9 +654,8 @@ tmesh_t tmesh_knocked(tmesh_t tm)
       // make sure one exists, and sync it
       tempo_t stream = mote_stream(mote, medium);
       stream->tx = 0; // we default to inverted since we're accepting
-      stream->at = k->stopped;
-      stream->seq = tempo->seq; // start from same seq
       stream->priority = 3; // little more boost
+      tempo_stream_sync(stream,tempo,k->stopped);
 
       // if nothing waiting, send something to start the stream
       if(!util_frames_outlen(stream->frames))
