@@ -481,16 +481,13 @@ tmesh_t tmesh_knocked(tmesh_t tm)
 {
   if(!tm) return LOG("bad args");
 
-  // clear knocks
-  tm->knock->ready = 0;
-  tm->seek->ready = 0;
-
   // which knock is done
   knock_t k = (tm->seek->stopped) ? tm->seek : tm->knock;
   tempo_t tempo = k->tempo;
 
-  // always clear skipped counter
+  // always clear skipped counter and ready flag
   tempo->skip = 0;
+  k->ready = 0;
 
   if(k->err)
   {
