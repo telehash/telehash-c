@@ -78,7 +78,6 @@ int main(int argc, char **argv)
   fail_unless(netA->m_signal == 2);
   fail_unless(netA->m_stream == 3);
   fail_unless(netA->knock);
-  fail_unless(netA->seek);
   fail_unless(strcmp(netA->community,"test") == 0);
 
   // outgoing signal

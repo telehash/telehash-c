@@ -332,8 +332,6 @@ tmesh_t tmesh_new(mesh_t mesh, char *name, uint32_t mediums[3])
   memset(tm,0,sizeof (struct tmesh_struct));
   tm->knock = malloc(sizeof (struct knock_struct));
   memset(tm->knock,0,sizeof (struct knock_struct));
-  tm->seek = malloc(sizeof (struct knock_struct));
-  memset(tm->seek,0,sizeof (struct knock_struct));
 
   tm->community = strdup(name);
   tm->m_lost = mediums[0];
@@ -362,7 +360,6 @@ tmesh_t tmesh_free(tmesh_t tm)
   free(tm->community);
   // TODO path cleanup
   free(tm->knock);
-  free(tm->seek);
   free(tm);
   return NULL;
 }
@@ -487,9 +484,7 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t k)
 tmesh_t tmesh_knocked(tmesh_t tm)
 {
   if(!tm) return LOG("bad args");
-
-  // which knock is done
-  knock_t k = (tm->seek->ready && tm->seek->stopped) ? tm->seek : tm->knock;
+  knock_t k = tm->knock;
   tempo_t tempo = k->tempo;
 
   // always clear skipped counter and ready flag
@@ -745,37 +740,43 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
   
   // already an active knock
   if(tm->knock->ready) return tm;
+  
+  // try a new knock
+  knock_t knock = tm->knock;
+  memset(knock,0,sizeof(struct knock_struct));
 
-  // set seek knock if any
-  memset(tm->seek,0,sizeof(struct knock_struct));
-  if(seek)
+  // first try seek knock if any
+  if(seek && seek->at < best->at)
   {
     MORTY(seek,"seekin");
     // copy nonce parts in, nothing to prep since is just RX
-    memcpy(tm->seek->nonce,&(seek->medium),4);
-    memcpy(tm->seek->nonce+4,&(seek->seq),4);
-    tm->seek->tempo = seek;
-    tm->seek->ready = 1;
+    memcpy(knock->nonce,&(seek->medium),4);
+    memcpy(knock->nonce+4,&(seek->seq),4);
+    knock->tempo = seek;
+    knock->ready = 1;
+    knock->next = best->at;
+
+    // ask driver if it can seek, done if so, else fall through
+    if(tm->schedule(tm)) return tm;
+
+    memset(knock,0,sizeof(struct knock_struct));
   }
   
   MORTY(best,"waitin");
 
-  // init knock for this tempo
-  memset(tm->knock,0,sizeof(struct knock_struct));
-
-  // copy nonce parts in
-  memcpy(tm->knock->nonce,&(best->medium),4);
-  memcpy(tm->knock->nonce+4,&(best->seq),4);
-
   // do the work to fill in the tx frame only once here
   if(best->tx && !tempo_knock(best)) return LOG("knock tx prep failed");
-  tm->knock->tempo = best;
-  tm->knock->ready = 1;
+
+  // copy nonce parts in
+  memcpy(knock->nonce,&(best->medium),4);
+  memcpy(knock->nonce+4,&(best->seq),4);
+  knock->tempo = best;
+  knock->ready = 1;
 
   // signal driver
   if(!tm->schedule(tm))
   {
-    tm->knock->ready = 0;
+    memset(knock,0,sizeof(struct knock_struct));
     return LOG("driver schedule failed");
   }
 
