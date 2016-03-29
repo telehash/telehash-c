@@ -4,12 +4,20 @@
 #include "telehash.h"
 #include "tmesh.h"
 
+// 10-byte blocks included in signal payloads
 typedef struct sigblk_struct {
   uint8_t medium[4];
   uint8_t id[5];
   uint8_t neighbor:1;
   uint8_t val:7;
 } *sigblk_t;
+
+// 10-byte blocks included in stream metas
+typedef struct stmblk_struct {
+  uint8_t medium[4];
+  uint8_t at[4];
+  uint8_t seq[2];
+} *stmblk_t;
 
 #define MORTY(t,r) LOG("RICK %s\t%s %s %s [%u,%u,%u,%u,%u] at:%lu seq:%lx s:%s (%lu/%lu) m:%lu",r,t->mote?hashname_short(t->mote->link->id):"selfself",t->tx?"TX":"RX",t->signal?"signal":"stream",t->itx,t->irx,t->bad,t->miss,t->skip,t->at,t->seq,util_hex(t->secret,4,NULL),util_frames_inlen(t->frames),util_frames_outlen(t->frames),t->medium);
 
@@ -403,12 +411,21 @@ static knock_t tempo_knock(tempo_t tempo)
   // send data frames if any
   if(tempo->frames)
   {
-    if(!util_frames_outbox(tempo->frames,k->frame,NULL))
+    // bundle metadata about our signal
+    struct stmblk_struct meta[5] = {{{0},{0},{0}}};
+    memcpy(meta[0].medium,&(tm->signal->medium),4);
+    memcpy(meta[0].at,&(tm->signal->at),4);
+    memcpy(meta[0].seq,&(tm->signal->seq),2);
+    // TODO, if they're lost suggest non-lost medium as meta[1]
+    // TODO include 3 other signals from last neighbors sent
+
+    // fill in stream frame
+    if(!util_frames_outbox(tempo->frames,k->frame,(uint8_t*)meta))
     {
       // nothing to send, force meta flush
       LOG("outbox empty, sending flush");
       util_frames_send(tempo->frames,NULL);
-      util_frames_outbox(tempo->frames,k->frame,NULL);
+      util_frames_outbox(tempo->frames,k->frame,(uint8_t*)meta);
     }
 
     LOG("TX frame %s\n",util_hex(k->frame,64,NULL));
@@ -571,7 +588,8 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     chacha20(tempo->secret,k->nonce,k->frame,64);
     LOG("RX data RSSI %d frame %s\n",k->rssi,util_hex(k->frame,64,NULL));
 
-    if(!util_frames_inbox(tempo->frames, k->frame, NULL))
+    struct stmblk_struct meta[5] = {{{0},{0},{0}}};
+    if(!util_frames_inbox(tempo->frames, k->frame, (uint8_t*)meta))
     {
       k->tempo->bad++;
       return LOG("bad frame: %s",util_hex(k->frame,64,NULL));
@@ -580,7 +598,26 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     // received stats only after validation
     tempo_knocked(tempo, k);
 
-    // process any new packets
+    // handle any meta
+    uint32_t mid = 0, at = 0;
+    uint16_t seq = 0;
+    memcpy(&mid,meta[0].medium,4);
+    if(mid)
+    {
+      memcpy(&at,meta[0].at,4);
+      memcpy(&seq,meta[0].seq,2);
+      // TODO sender's signal sync
+    }
+    memcpy(&mid,meta[1].medium,4);
+    if(mid)
+    {
+      memcpy(&at,meta[0].at,4);
+      memcpy(&seq,meta[0].seq,2);
+      // TODO our new found signal, validate sender
+    }
+    // TODO check other meta blocks for neighbor syncs
+
+    // process any new packets (TODO, queue for background processing?)
     tempo_process(tempo);
 
     return tm;
