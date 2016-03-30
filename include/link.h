@@ -6,9 +6,6 @@
 
 struct link_struct
 {
-  char handle[17]; // b32 hashname_short
-  uint8_t csid;
-
   // public link data
   hashname_t id;
   e3x_exchange_t x;
@@ -20,6 +17,9 @@ struct link_struct
   // these are for internal link management only
   struct seen_struct *pipes;
   link_t next;
+
+  uint8_t csid;
+  char handle[9]; // b32 hashname_short
 };
 
 // these all create or return existing one from the mesh

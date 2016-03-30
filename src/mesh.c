@@ -229,7 +229,7 @@ link_t mesh_linkid(mesh_t mesh, hashname_t id)
   link_t link;
   if(!mesh || !id) return NULL;
   
-  for(link = mesh->links;link;link = link->next) if(hashname_cmp(link->id,id) == 0) return link;
+  for(link = mesh->links;link;link = link->next) if(hashname_scmp(link->id,id) == 0) return link;
   
   return NULL;
 }

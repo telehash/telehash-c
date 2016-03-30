@@ -28,7 +28,7 @@ link_t link_new(mesh_t mesh, hashname_t id)
   link->id = hashname_dup(id);
   link->csid = 0x01; // default state
   link->mesh = mesh;
-  memcpy(link->handle,hashname_short(link->id),17);
+  memcpy(link->handle,hashname_short(link->id),9);
   link->next = mesh->links;
   mesh->links = link;
 
