@@ -78,10 +78,10 @@ int main(int argc, char **argv)
   fail_unless(netA->m_signal == 2);
   fail_unless(netA->m_stream == 3);
   fail_unless(netA->knock);
-  fail_unless(netA->seek);
   fail_unless(strcmp(netA->community,"test") == 0);
 
-  // this gets created during first find
+  // outgoing signal
+  fail_unless(tmesh_signal(netA,0,1));
   fail_unless(netA->signal);
   fail_unless(netA->signal->signal);
   fail_unless(netA->signal->lost);

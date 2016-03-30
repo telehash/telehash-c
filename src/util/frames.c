@@ -134,7 +134,7 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *me
   memcpy(&(hash1),data+size,4);
   uint32_t hash2 = murmur4(data,size);
   
-  LOG("frame sz %u hash rx %lu check %lu",size,hash1,hash2);
+//  LOG("frame sz %u hash rx %lu check %lu",size,hash1,hash2);
   
   // meta frames are self contained
   if(hash1 == hash2)

@@ -63,18 +63,21 @@ struct tmesh_struct
   tmesh_t (*advance)(tmesh_t tm, tempo_t tempo, uint8_t seed[8]); // advances tempo to next window
   tmesh_t (*init)(tmesh_t tm, tempo_t tempo); // driver can initialize a new tempo
   tmesh_t (*free)(tmesh_t tm, tempo_t tempo); // driver can free any associated tempo resources
-  knock_t knock, seek;
+  knock_t knock;
   
   // config/tuning flags
   uint8_t discoverable:1;
 
 };
 
-// join a new tmesh community, starts lost signal
+// join a new tmesh community
 tmesh_t tmesh_new(mesh_t mesh, char *name, uint32_t mediums[3]);
 tmesh_t tmesh_free(tmesh_t tm);
 
-// process any knock that has been completed by a driver
+// start/reset our outgoing signal
+tempo_t tmesh_signal(tmesh_t tm, uint32_t seq, uint32_t medium);
+
+// process knock that has been completed by a driver
 tmesh_t tmesh_knocked(tmesh_t tm);
 
 //  based on current cycle count, optional rebase cycles
@@ -113,6 +116,7 @@ struct tempo_struct
 struct knock_struct
 {
   tempo_t tempo;
+  uint32_t seekto; // when is the next knock if seeking
   uint32_t started, stopped; // actual times
   int16_t rssi; // set by driver only after rx
   uint8_t frame[64];
