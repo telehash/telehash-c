@@ -477,14 +477,21 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
     tempo_t stream = mote_stream(mote, 0);
     if(stream && stream->lost)
     {
-      // TODO include block
       knock->syncs[syncs++] = stream; // needs to be sync'd after tx
+      block->type = MBLOCK_MEDIUM;
+      block->head = 2; // accept
+      memcpy(block->body,&(stream->medium),4);
+      if(++at >= 12){break;}else{block = &(meta[at]);}
     }
 
-    // TODO fill in quality
-    
+    // TODO fill in actual quality
+    block->type = MBLOCK_QUALITY;
+    memcpy(block->body,&(mote->signal->last),2);
+    memcpy(block->body+2,&(mote->signal->bad),2);
+
     // end this mote's blocks
-    meta[at-1].done = 1;
+    block->done = 1;
+    if(++at >= 12) break;
   }
   
   // copy in meta
@@ -531,10 +538,16 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, mblock_t blocks, uint8_t cou
       case MBLOCK_NONE:
         return tempo;
       case MBLOCK_AT:
+        if(!mote) break; // require known mote
+        mote->signal->at = (body - tempo->at); // is an offset
         break;
       case MBLOCK_SEQ:
+        if(!mote) break; // require known mote
+        mote->signal->seq = body;
         break;
       case MBLOCK_QUALITY:
+        // TODO, use/track quality metrics
+        LOG("quality %lu for %s",body,mote?hashname_short(mote->link->id):"unknown");
         break;
       case MBLOCK_MEDIUM:
         switch(block->head)
