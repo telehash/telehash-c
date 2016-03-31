@@ -108,7 +108,8 @@ struct tempo_struct
   uint8_t chan; // channel of next knock
   uint8_t signal:1; // type of tempo
   uint8_t tx:1; // current window direction
-  uint8_t lost:1; // if currently lost, signal only
+  uint8_t lost:1; // if currently lost
+  uint8_t hold:1; // on hold, don't schedule (requested streams)
   uint8_t priority:4; // next knock priority
 };
 
@@ -125,6 +126,7 @@ struct knock_struct
   // boolean flags for state tracking, etc
   uint8_t ready:1; // is ready to transceive
   uint8_t err:1; // failed
+  uint8_t lost:1; // if is lost format
 };
 
 // mote state tracking
