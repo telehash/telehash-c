@@ -577,14 +577,14 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, mblock_t blocks, uint8_t cou
 tmesh_t tmesh_knocked(tmesh_t tm)
 {
   if(!tm) return LOG("bad args");
-  knock_t k = tm->knock;
-  tempo_t tempo = k->tempo;
+  knock_t knock = tm->knock;
+  tempo_t tempo = knock->tempo;
 
   // always clear skipped counter and ready flag
   tempo->skip = 0;
-  k->ready = 0;
+  knock->ready = 0;
 
-  if(k->err)
+  if(knock->err)
   {
     // missed rx windows
     if(!tempo->tx)
@@ -620,16 +620,16 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     }
 
     // lost signals always sync next at time to when actually done
-    if(tempo->lost) tempo->at = k->stopped;
+    if(tempo->lost) tempo->at = knock->stopped;
     
     // sync any bundled/accepted stream tempos too
     uint8_t syncs;
-    for(syncs=0;syncs<5;syncs++) if(k->syncs[syncs])
+    for(syncs=0;syncs<5;syncs++) if(knock->syncs[syncs])
     {
-      tempo_t sync = k->syncs[syncs];
+      tempo_t sync = knock->syncs[syncs];
       sync->tx = 1; // we are inverted
       sync->priority = 2; // little boost
-      tempo_stream_sync(sync, tempo, k->stopped);
+      tempo_stream_sync(sync, tempo, knock->stopped);
     }
 
     MORTY(tempo,"sigout");
@@ -639,19 +639,19 @@ tmesh_t tmesh_knocked(tmesh_t tm)
   // process streams first
   if(!tempo->signal)
   {
-    chacha20(tempo->secret,k->nonce,k->frame,64);
-    LOG("RX data RSSI %d frame %s\n",k->rssi,util_hex(k->frame,64,NULL));
+    chacha20(tempo->secret,knock->nonce,knock->frame,64);
+    LOG("RX data RSSI %d frame %s\n",knock->rssi,util_hex(knock->frame,64,NULL));
 
     struct mblock_struct meta[10];
     memset(meta,0,50);
-    if(!util_frames_inbox(tempo->frames, k->frame, (uint8_t*)meta))
+    if(!util_frames_inbox(tempo->frames, knock->frame, (uint8_t*)meta))
     {
-      k->tempo->bad++;
-      return LOG("bad frame: %s",util_hex(k->frame,64,NULL));
+      knock->tempo->bad++;
+      return LOG("bad frame: %s",util_hex(knock->frame,64,NULL));
     }
 
     // received processing only after validation
-    tempo_knocked(tempo, k, meta, 10);
+    tempo_knocked(tempo, knock, meta, 10);
 
     // process any new packets (TODO, queue for background processing?)
     tempo_process(tempo);
@@ -661,8 +661,8 @@ tmesh_t tmesh_knocked(tmesh_t tm)
 
   // decode/validate signal safely
   uint8_t frame[64];
-  memcpy(frame,k->frame,64);
-  chacha20(tempo->secret,k->nonce,frame,64);
+  memcpy(frame,knock->frame,64);
+  chacha20(tempo->secret,knock->nonce,frame,64);
   uint32_t check = murmur4(frame,60);
   mblock_t blocks;
   uint8_t count = 0;
@@ -671,7 +671,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
   if(memcmp(&check,frame+60,4) != 0)
   {
     // also check if lost encoded
-    memcpy(frame,k->frame,64);
+    memcpy(frame,knock->frame,64);
     chacha20(tempo->secret,frame,frame+8,64-8);
     uint32_t check = murmur4(frame+8,64-(8+4));
     
@@ -685,7 +685,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     // TODO, allow changing mediums?
 
     // always sync lost time/nonce
-    tempo->at = k->stopped;
+    tempo->at = knock->stopped;
     memcpy(&(tempo->seq),frame+4,4); // sync tempo nonce
 
     MORTY(tempo,"siglost");
@@ -700,7 +700,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
   }
 
   // received processing only after validation
-  tempo_knocked(tempo, k, blocks, count);
+  tempo_knocked(tempo, knock, blocks, count);
 
   return tm;
 }
