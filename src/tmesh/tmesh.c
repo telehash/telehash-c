@@ -447,13 +447,21 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
   // construct signal meta blocks
   uint8_t at = 0;
 
-  // lost signal is prefixed w/ nonce in first two blocks
+  // lost signal is prefixed w/ random nonce in first two blocks
   if(tempo->lost)
   {
     knock->lost = 1;
+    e3x_rand(knock->nonce,8);
     memcpy(meta,knock->nonce,8);
-    at = 2;
-    // TODO put our signal medium/seq in here when nonce is random
+
+    // put our signal medium/seq in here for recipient to sync
+    memcpy(&(meta[2]),tm->mesh->id,5); // our short hn
+    meta[3].type = MBLOCK_MEDIUM;
+    memcpy(meta[3].body,&(tempo->medium),4);
+    meta[4].type = MBLOCK_SEQ;
+    memcpy(meta[4].body,&(tempo->seq),4);
+    meta[4].done = 1;
+    at = 5;
   }
 
   // fill in meta blocks for our neighborhood
@@ -687,11 +695,8 @@ tmesh_t tmesh_knocked(tmesh_t tm)
       return LOG("signal frame validation failed: %s",util_hex(frame,64,NULL));
     }
     
-    // TODO, allow changing mediums?
-
-    // always sync lost time/nonce
+    // always sync lost at
     tempo->at = knock->stopped;
-    memcpy(&(tempo->seq),frame+4,4); // sync tempo nonce
 
     MORTY(tempo,"siglost");
 
