@@ -4,6 +4,20 @@
 #include "telehash.h"
 #include "tmesh.h"
 
+// 5-byte blocks for mesh meta values
+typedef struct mblock_struct {
+  uint8_t type:3; // medium, at, seq, quality
+  uint8_t head:4; // per-type
+  uint8_t done:1; // last one
+  uint8_t body[4]; // payload
+} *mblock_t;
+
+#define MBLOCK_NONE     0
+#define MBLOCK_MEDIUM   1
+#define MBLOCK_AT       2
+#define MBLOCK_SEQ      3
+#define MBLOCK_QUALITY  4
+
 // 10-byte blocks included in signal payloads
 typedef struct sigblk_struct {
   uint8_t medium[4];
@@ -11,13 +25,6 @@ typedef struct sigblk_struct {
   uint8_t neighbor:1;
   uint8_t val:7;
 } *sigblk_t;
-
-// 10-byte blocks included in stream metas
-typedef struct stmblk_struct {
-  uint8_t medium[4];
-  uint8_t at[4];
-  uint8_t seq[2];
-} *stmblk_t;
 
 #define MORTY(t,r) LOG("RICK %s\t%s %s %s [%u,%u,%u,%u,%u] at:%lu seq:%lx s:%s (%lu/%lu) m:%lu",r,t->mote?hashname_short(t->mote->link->id):"selfself",t->tx?"TX":"RX",t->signal?"signal":"stream",t->itx,t->irx,t->bad,t->miss,t->skip,t->at,t->seq,util_hex(t->secret,4,NULL),util_frames_inlen(t->frames),util_frames_outlen(t->frames),t->medium);
 
@@ -415,13 +422,21 @@ static knock_t tempo_knock(tempo_t tempo)
   // send data frames if any
   if(tempo->frames)
   {
+    struct mblock_struct meta[10];
+    memset(meta,0,50);
+
     // bundle metadata about our signal
-    struct stmblk_struct meta[5] = {{{0},{0},{0}}};
-    memcpy(meta[0].medium,&(tm->signal->medium),4);
-    memcpy(meta[0].at,&(tm->signal->at),4);
-    memcpy(meta[0].seq,&(tm->signal->seq),2);
-    // TODO, if they're lost suggest non-lost medium as meta[1]
-    // TODO include 3 other signals from last neighbors sent
+    memcpy(meta,tm->mesh->id,5); // our short hn
+    meta[1].type = MBLOCK_MEDIUM;
+    memcpy(meta[1].body,&(tm->signal->medium),4);
+    meta[2].type = MBLOCK_AT;
+    memcpy(meta[2].body,&(tm->signal->at),4);
+    meta[3].type = MBLOCK_SEQ;
+    memcpy(meta[3].body,&(tm->signal->seq),4);
+    meta[3].done = 1;
+
+    // TODO, if they're lost suggest non-lost medium
+    // TODO include other signals from suggested neighbors
 
     // fill in stream frame
     if(!util_frames_outbox(tempo->frames,k->frame,(uint8_t*)meta))
@@ -501,6 +516,44 @@ static knock_t tempo_knock(tempo_t tempo)
   chacha20(tempo->secret,k->nonce,k->frame,64);
 
   return k;
+}
+
+tempo_t tempo_mblocks(tempo_t tempo, mblock_t blocks, uint8_t count)
+{
+  uint32_t body = 0;
+  uint8_t *hn = NULL;
+
+  uint8_t i;
+  for(i=0;i<count;i++)
+  {
+    if(!hn)
+    {
+      hn = (uint8_t*)&(blocks[i]);
+      continue;
+    }
+
+    memcpy(&body,blocks[i].body,4);
+    switch(blocks[i].type)
+    {
+      case MBLOCK_NONE:
+        return tempo;
+      case MBLOCK_MEDIUM:
+        break;
+      case MBLOCK_AT:
+        break;
+      case MBLOCK_SEQ:
+        break;
+      case MBLOCK_QUALITY:
+        break;
+      default:
+        LOG("unknown mblock %u: %s",blocks[i].type,util_hex((uint8_t*)&(blocks[i]),5,NULL));
+    }
+    
+    // done w/ this hn
+    if(blocks[i].done) hn = NULL;
+  }
+  
+  return tempo;
 }
 
 // common successful RX stuff
@@ -587,7 +640,8 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     chacha20(tempo->secret,k->nonce,k->frame,64);
     LOG("RX data RSSI %d frame %s\n",k->rssi,util_hex(k->frame,64,NULL));
 
-    struct stmblk_struct meta[5] = {{{0},{0},{0}}};
+    struct mblock_struct meta[10];
+    memset(meta,0,50);
     if(!util_frames_inbox(tempo->frames, k->frame, (uint8_t*)meta))
     {
       k->tempo->bad++;
@@ -598,23 +652,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     tempo_knocked(tempo, k);
 
     // handle any meta
-    uint32_t mid = 0, at = 0;
-    uint16_t seq = 0;
-    memcpy(&mid,meta[0].medium,4);
-    if(mid)
-    {
-      memcpy(&at,meta[0].at,4);
-      memcpy(&seq,meta[0].seq,2);
-      // TODO sender's signal sync
-    }
-    memcpy(&mid,meta[1].medium,4);
-    if(mid)
-    {
-      memcpy(&at,meta[0].at,4);
-      memcpy(&seq,meta[0].seq,2);
-      // TODO our new found signal, validate sender
-    }
-    // TODO check other meta blocks for neighbor syncs
+    tempo_mblocks(tempo, meta, 10);
 
     // process any new packets (TODO, queue for background processing?)
     tempo_process(tempo);
