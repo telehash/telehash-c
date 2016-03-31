@@ -114,26 +114,28 @@ static tempo_t tempo_stream_sync(tempo_t stream, tempo_t signal, uint32_t at)
 // get/create stream tempo 
 static tempo_t mote_stream(mote_t to, uint32_t medium)
 {
-  if(!to || !to->signal || !medium) return LOG("bad args");
+  if(!to) return LOG("bad args");
   tmesh_t tm = to->tm;
+  tempo_t tempo = to->stream;
 
-  // find any existing
-  tempo_t tempo;
-  for(tempo = to->streams;tempo;tempo = tempo->next) if(tempo->medium == medium) return tempo;
+  // create if it doesn't exist
+  if(!tempo)
+  {
+    // create new
+    tempo = to->stream = tempo_new(tm);
+    tempo->mote = to;
+    tempo->frames = util_frames_new(64);
+    if(!medium) medium = tm->m_stream; // default medium if none specified
+    LOG("new stream to %s",hashname_short(to->link->id));
+  }
 
-  // create new
-  tempo = tempo_new(tm);
-  tempo->next = to->streams;
-  to->streams = tempo;
-
-  tempo->mote = to;
-  tempo->medium = medium;
-  tempo->frames = util_frames_new(64);
-
-  // driver init for medium customizations
-  if(tm->init && !tm->init(to->tm, tempo)) return tempo_free(tempo);
-
-  MORTY(tempo,"newstm");
+  // driver init for any medium changes
+  if(medium && tempo->medium != medium)
+  {
+    tempo->medium = medium;
+    if(!tm->init(to->tm, tempo)) return tempo_free(tempo);
+    MORTY(tempo,"medinit");
+  }
 
   return tempo;
 }
@@ -262,7 +264,14 @@ static void mote_send(pipe_t pipe, lob_t packet, link_t link)
   }
 
   mote_t mote = (mote_t)pipe->arg;
-  tempo_t stream = mote_stream(mote, mote->tm->m_stream);
+  tempo_t stream = mote_stream(mote, 0);
+  if(!stream)
+  {
+    LOG("no stream to %s, dropping packet len %lu",hashname_short(link->id),lob_len(packet));
+    lob_free(packet);
+    return;
+  }
+
   util_frames_send(stream->frames, packet);
   LOG("delivering %d to mote %s total %lu",lob_len(packet),hashname_short(link->id),util_frames_outlen(stream->frames));
 }
@@ -270,14 +279,9 @@ static void mote_send(pipe_t pipe, lob_t packet, link_t link)
 static mote_t mote_free(mote_t mote)
 {
   if(!mote) return NULL;
-  // free signals and streams
+  // free signal and stream
   tempo_free(mote->signal);
-  while(mote->streams)
-  {
-    tempo_t t = mote->streams;
-    mote->streams = mote->streams->next;
-    tempo_free(t);
-  }
+  tempo_free(mote->stream);
   pipe_free(mote->pipe);
   free(mote);
   return LOG("TODO");
@@ -462,14 +466,14 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
     if(++at >= 12){break;}else{block = &(meta[at]);}
 
     // see if there's a stream to advertise
-    tempo_t stream = mote_stream(mote, tm->m_stream);
+    tempo_t stream = mote_stream(mote, 0);
     if(stream && stream->lost)
     {
-      // TODO
+      // TODO include block
       knock->syncs[syncs++] = stream; // needs to be sync'd after tx
     }
 
-    // fill in quality if any
+    // TODO fill in quality
     
     // end this mote's blocks
     meta[at-1].done = 1;
@@ -537,6 +541,7 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, mblock_t blocks, uint8_t cou
             LOG("accepting stream from %s on medium %lu",hashname_short(mote->link->id),body);
             // make sure one exists, and sync it
             tempo_t stream = mote_stream(mote, body);
+            if(!stream) break; // invalid
             stream->tx = 0; // we default to inverted since we're accepting
             stream->priority = 3; // little more boost
             tempo_stream_sync(stream,tempo,knock->stopped);
@@ -762,18 +767,17 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
     // advance
     tempo_schedule(mote->signal, at, rebase);
     
-    // lost signals are elected for seek, others for best
+    // only lost signals are elected for seek
     if(mote->signal->lost) seek = tm->sort(tm, seek, mote->signal);
-    else best = tm->sort(tm, best, mote->signal);
     
-    // any/every stream for best pool
-    tempo_t tempo;
-    for(tempo=mote->streams;tempo;tempo = tempo->next)
+    // any signal is elected for best
+    best = tm->sort(tm, best, mote->signal);
+    
+    // any active stream for best 
+    if(mote->stream)
     {
-      tempo_schedule(tempo, at, rebase);
-
-//      LOG("stream %s %lu at %lu %u",tempo->tx?"TX":"RX",util_frames_outbox(tempo->frames,NULL),tempo->at,tempo->miss);
-      best = tm->sort(tm, best, tempo);
+      tempo_schedule(mote->stream, at, rebase);
+      if(!mote->stream->hold) best = tm->sort(tm, best, mote->stream);
     }
   }
   

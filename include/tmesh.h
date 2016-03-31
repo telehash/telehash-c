@@ -94,7 +94,6 @@ struct tempo_struct
 {
   tmesh_t tm;
   mote_t mote; // ownership
-  tempo_t next; // for lists
   void *driver; // for driver use, set during tm->tempo()
   util_frames_t frames; // r/w frame buffers for streams
   uint32_t medium; // id
@@ -132,13 +131,12 @@ struct knock_struct
 // mote state tracking
 struct mote_struct
 {
-  tmesh_t tm;
-  pipe_t pipe; // one pipe per mote to start/find best stream
-  link_t link;
   mote_t next; // for lists
+  tmesh_t tm;
+  pipe_t pipe; // one pipe per mote to start stream as needed
+  link_t link;
   tempo_t signal;
-  tempo_t streams;
-  uint32_t m_req; // stream requested w/ this medium
+  tempo_t stream;
   uint32_t seen; // first seen (for debugging)
 };
 
