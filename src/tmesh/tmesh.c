@@ -36,51 +36,71 @@ static tempo_t tempo_new(tmesh_t tm)
   if(!(tempo = malloc(sizeof(struct tempo_struct)))) return LOG("OOM");
   memset(tempo,0,sizeof (struct tempo_struct));
   tempo->tm = tm;
+  tempo->lost = 1;
 
+  return tempo;
+}
+
+// update medium if needed
+static tempo_t tempo_medium(tempo_t tempo, uint32_t medium)
+{
+  if(!tempo || !medium) return LOG("bad args");
+
+  if(tempo->medium == medium) return tempo;
+
+  // driver init for any medium changes
+  uint32_t revert = tempo->medium;
+  tempo->medium = medium;
+  if(!tempo->tm->init(tempo->tm, tempo))
+  {
+    tempo->medium = revert;
+    return LOG("driver failed medium init from %lu to %lu",revert,medium);
+  }
+
+  MORTY(tempo,"medium");
   return tempo;
 }
 
 // new lost signal tempo
-static tempo_t tempo_signal(tmesh_t tm, mote_t from, uint32_t medium)
+static tempo_t tempo_signal(tempo_t tempo, uint32_t medium)
 {
-  if(!tm) return LOG("bad args");
-
-  tempo_t tempo = tempo_new(tm);
-  if(!tempo) return LOG("OOM");
-
-  tempo->lost = 1;
-  tempo->signal = 1;
-  tempo->medium = medium;
+  if(!tempo) return LOG("bad args");
+  if(!medium) medium = tempo->tm->m_lost; // default lost medium if none specified
   
-  // base secret from community name
-  uint8_t roll[64];
-  e3x_hash((uint8_t*)(tm->community),strlen(tm->community),roll);
-  
-  // signal from someone else, or ours out
-  if(from)
+  // initialize if not yet
+  if(!tempo->signal)
   {
-    tempo->mote = from;
-    tempo->tx = 0;
-    tempo->priority = 2; // mid
-    memcpy(roll+32,hashname_bin(from->link->id),32);
-  }else{
-    tempo->tx = 1;
-    tempo->priority = 1; // low while lost
-    memcpy(roll+32,hashname_bin(tm->mesh->id),32);
+    tempo->signal = 1;
+    
+    // signal from someone else, or ours out
+    hashname_t id = NULL;
+    if(tempo->mote)
+    {
+      tempo->tx = 0;
+      tempo->priority = 2; // mid
+      id = tempo->mote->link->id;
+    }else{
+      tempo->tx = 1;
+      tempo->priority = 1; // low while lost
+      id = tempo->tm->mesh->id;
+    }
+
+    // base secret from community name then one hashname
+    uint8_t roll[64];
+    e3x_hash((uint8_t*)(tempo->tm->community),strlen(tempo->tm->community),roll);
+    memcpy(roll+32,hashname_bin(id),32);
+    e3x_hash(roll,64,tempo->secret);
+    LOG("shared signal secret %s",util_hex(tempo->secret,32,NULL));
   }
-
-  e3x_hash(roll,64,tempo->secret);
-  LOG("shared signal secret %s",util_hex(tempo->secret,32,NULL));
-
+  
   // driver init for medium customizations
-  if(tm->init && !tm->init(tm, tempo)) return tempo_free(tempo);
+  if(!tempo_medium(tempo, medium)) return tempo_free(tempo);
 
-  MORTY(tempo,"newsig");
-
+  MORTY(tempo,"signal");
   return tempo;
 }
 
-// get/create stream tempo 
+// get/create/update stream tempo 
 static tempo_t mote_stream(mote_t to, uint32_t medium)
 {
   if(!to) return LOG("bad args");
@@ -108,12 +128,7 @@ static tempo_t mote_stream(mote_t to, uint32_t medium)
   }
 
   // driver init for any medium changes
-  if(medium && tempo->medium != medium)
-  {
-    tempo->medium = medium;
-    if(!tm->init(to->tm, tempo)) return tempo_free(tempo);
-    MORTY(tempo,"medinit");
-  }
+  if(!tempo_medium(tempo, medium)) return tempo_free(tempo);
 
   return tempo;
 }
@@ -304,7 +319,9 @@ mote_t tmesh_find(tmesh_t tm, link_t link, uint32_t m_lost)
   tm->motes = m;
 
   // create lost signal
-  m->signal = tempo_signal(tm, m, m_lost);
+  m->signal = tempo_new(tm);
+  m->signal->mote = m;
+  tempo_signal(m->signal, m_lost);
 
   // TODO set up link free event handler to remove this mote
   
@@ -377,7 +394,8 @@ tmesh_t tmesh_free(tmesh_t tm)
 tempo_t tmesh_signal(tmesh_t tm, uint32_t seq, uint32_t medium)
 {
   // TODO allow reset of medium
-  tm->signal = tempo_signal(tm, NULL, medium);
+  tm->signal = tempo_new(tm);
+  tempo_signal(tm->signal, medium);
   if(!seq) e3x_rand((uint8_t*)&(tm->signal->seq),4);
   else tm->signal->seq = seq;
   
