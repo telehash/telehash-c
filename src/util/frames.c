@@ -260,8 +260,9 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *me
 
 util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *meta)
 {
-  if(!frames || !data) return LOG("bad args");
+  if(!frames) return LOG("bad args");
   if(frames->err) return LOG("stream broken");
+  if(!data) return util_frames_ready(frames); // retain orig behavior as a check
   uint8_t size = PAYLOAD(frames);
   uint8_t *out = lob_raw(frames->outbox);
   uint32_t len = lob_len(frames->outbox); 
