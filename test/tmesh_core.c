@@ -109,7 +109,7 @@ int main(int argc, char **argv)
   // created when signalled
   fail_unless(moteB->stream);
   fail_unless(moteB->stream->medium == 3);
-  fail_unless(moteB->stream->at == 0);
+  fail_unless(moteB->stream->at > 0);
 
   /*
   cmnty_t c = tmesh_join(netA,"qzjb5f4t","foo");

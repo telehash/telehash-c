@@ -303,29 +303,33 @@ static mote_t mote_new(tmesh_t tm, link_t link)
 // add a link known to be in this community
 mote_t tmesh_find(tmesh_t tm, link_t link, uint32_t m_lost)
 {
-  mote_t m;
+  mote_t mote;
   if(!tm || !link) return LOG("bad args");
 
   LOG("finding %s",hashname_short(link->id));
 
   // check list of motes, add if not there
-  for(m=tm->motes;m;m = m->next) if(m->link == link) return m;
+  for(mote=tm->motes;mote;mote = mote->next) if(mote->link == link) return mote;
 
   LOG("adding %s",hashname_short(link->id));
 
-  if(!(m = mote_new(tm, link))) return LOG("OOM");
-  m->link = link;
-  m->next = tm->motes;
-  tm->motes = m;
+  if(!(mote = mote_new(tm, link))) return LOG("OOM");
+  mote->link = link;
+  mote->next = tm->motes;
+  tm->motes = mote;
 
   // create lost signal
-  m->signal = tempo_new(tm);
-  m->signal->mote = m;
-  tempo_signal(m->signal, m_lost);
+  mote->signal = tempo_new(tm);
+  mote->signal->mote = mote;
+  tempo_signal(mote->signal, m_lost);
+
+  // create and prime stream so it's advertised
+  mote_stream(mote, tm->m_stream);
+  if(mote->stream) util_frames_send(mote->stream->frames,NULL);
 
   // TODO set up link free event handler to remove this mote
   
-  return m;
+  return mote;
 }
 
 // if there's a mote for this link, return it
@@ -468,9 +472,9 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
     memcpy(block,mote->link->id,5);
     if(++at >= 12){break;}else{block = &(meta[at]);}
 
-    // see if there's a stream to advertise
+    // see if there's a lost ready stream to advertise
     tempo_t stream = mote_stream(mote, 0);
-    if(stream && stream->lost)
+    if(stream && stream->lost && util_frames_ready(stream->frames))
     {
       knock->syncs[syncs++] = stream; // needs to be sync'd after tx
       block->type = MBLOCK_MEDIUM;
@@ -788,12 +792,15 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
     // any signal is elected for best
     best = tm->sort(tm, best, mote->signal);
     
-    // any active stream for best 
-    if(mote->stream)
-    {
-      tempo_schedule(mote->stream, at, rebase);
-      if(!mote->stream->hold) best = tm->sort(tm, best, mote->stream);
-    }
+    if(!mote->stream) continue;
+    tempo_schedule(mote->stream, at, rebase);
+
+    // skip held/lost streams that are idle
+    if(mote->stream->hold) continue;
+    if(mote->stream->lost && !util_frames_ready(mote->stream->frames)) continue;
+
+    // include in best schedule
+    best = tm->sort(tm, best, mote->stream);
   }
   
   // already an active knock
