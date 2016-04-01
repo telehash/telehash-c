@@ -19,7 +19,7 @@ int main(int argc, char **argv)
   lob_body(packet,0,100);
   fail_unless(util_frames_send(frames, lob_copy(packet)));
   fail_unless(util_frames_outlen(frames) == 102);
-  fail_unless(util_frames_outbox(frames,NULL,NULL));
+  fail_unless(util_frames_ready(frames));
 
   // cause a flush frame
   uint8_t frame[16];
@@ -57,7 +57,7 @@ int main(int argc, char **argv)
   lob_t msg = lob_new();
   lob_body(msg, NULL, 1024);
   e3x_rand(msg->body, 1024);
-  fail_unless(!util_frames_outbox(fa,NULL,NULL));
+  fail_unless(!util_frames_ready(fa));
   fail_unless(!util_frames_inbox(fb,NULL,NULL));
   util_frames_send(fa,msg);
 
@@ -77,7 +77,7 @@ int main(int argc, char **argv)
     if(util_frames_outbox(fb,f64,NULL)) fail_unless(util_frames_inbox(fa,f64,NULL));
   }
 
-  fail_unless(!util_frames_outbox(fa,NULL,NULL));
+  fail_unless(!util_frames_ready(fa));
   lob_t msg2 = util_frames_receive(fb);
   fail_unless(msg2);
   fail_unless(msg2->body_len == 1024);

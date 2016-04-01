@@ -260,20 +260,12 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *me
 
 util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *meta)
 {
-  if(!frames) return LOG("bad args");
+  if(!frames || !data) return LOG("bad args");
   if(frames->err) return LOG("stream broken");
   uint8_t size = PAYLOAD(frames);
   uint8_t *out = lob_raw(frames->outbox);
   uint32_t len = lob_len(frames->outbox); 
   
-  // is just a check to see if there's something to send
-  if(!data)
-  {
-    if(frames->flush) return frames;
-    if(len && (frames->out * size) <= len) return frames;
-    return NULL;
-  }
-
   // clear/init
   memset(data,0,size+4);
   uint32_t hash = frames->outbase;
@@ -321,6 +313,19 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *m
   frames->outbox->id = at + size; // track exact sent bytes too
 
   return frames;
+}
+
+  // is just a check to see if there's something to send
+util_frames_t util_frames_ready(util_frames_t frames)
+{
+  if(!frames) return LOG("bad args");
+  if(frames->err) return LOG("stream broken");
+  uint8_t size = PAYLOAD(frames);
+  uint32_t len = lob_len(frames->outbox); 
+  
+  if(frames->flush) return frames;
+  if(len && (frames->out * size) <= len) return frames;
+  return NULL;
 }
 
 // is there an expectation of an incoming frame
