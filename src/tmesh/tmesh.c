@@ -44,9 +44,9 @@ static tempo_t tempo_new(tmesh_t tm)
 // update medium if needed
 static tempo_t tempo_medium(tempo_t tempo, uint32_t medium)
 {
-  if(!tempo || !medium) return LOG("bad args");
+  if(!tempo) return LOG("bad args");
 
-  if(tempo->medium == medium) return tempo;
+  if(!medium || tempo->medium == medium) return tempo;
 
   // driver init for any medium changes
   uint32_t revert = tempo->medium;
@@ -54,81 +54,64 @@ static tempo_t tempo_medium(tempo_t tempo, uint32_t medium)
   if(!tempo->tm->init(tempo->tm, tempo))
   {
     tempo->medium = revert;
-    return LOG("driver failed medium init from %lu to %lu",revert,medium);
+    LOG("driver failed medium init from %lu to %lu",revert,medium);
+  }else{
+    MORTY(tempo,"medium");
   }
 
-  MORTY(tempo,"medium");
   return tempo;
 }
 
-// new lost signal tempo
-static tempo_t tempo_signal(tempo_t tempo, uint32_t medium)
+// init lost signal tempo
+static tempo_t tempo_signal(tempo_t tempo)
 {
   if(!tempo) return LOG("bad args");
-  if(!medium) medium = tempo->tm->m_lost; // default lost medium if none specified
   
-  // initialize if not yet
-  if(!tempo->signal)
+  tempo->signal = 1;
+  
+  // signal from someone else, or ours out
+  hashname_t id = NULL;
+  if(tempo->mote)
   {
-    tempo->signal = 1;
-    
-    // signal from someone else, or ours out
-    hashname_t id = NULL;
-    if(tempo->mote)
-    {
-      tempo->tx = 0;
-      tempo->priority = 2; // mid
-      id = tempo->mote->link->id;
-    }else{
-      tempo->tx = 1;
-      tempo->priority = 1; // low while lost
-      id = tempo->tm->mesh->id;
-    }
-
-    // base secret from community name then one hashname
-    uint8_t roll[64];
-    e3x_hash((uint8_t*)(tempo->tm->community),strlen(tempo->tm->community),roll);
-    memcpy(roll+32,hashname_bin(id),32);
-    e3x_hash(roll,64,tempo->secret);
-    LOG("shared signal secret %s",util_hex(tempo->secret,32,NULL));
+    tempo->tx = 0;
+    tempo->priority = 2; // mid
+    id = tempo->mote->link->id;
+  }else{
+    tempo->tx = 1;
+    tempo->priority = 1; // low while lost
+    id = tempo->tm->mesh->id;
   }
-  
-  // driver init for medium customizations
-  if(!tempo_medium(tempo, medium)) return tempo_free(tempo);
 
+  // base secret from community name then one hashname
+  uint8_t roll[64];
+  e3x_hash((uint8_t*)(tempo->tm->community),strlen(tempo->tm->community),roll);
+  memcpy(roll+32,hashname_bin(id),32);
+  e3x_hash(roll,64,tempo->secret);
+  LOG("shared signal secret %s",util_hex(tempo->secret,32,NULL));
+  
   MORTY(tempo,"signal");
   return tempo;
 }
 
-// get/create/update stream tempo 
-static tempo_t mote_stream(mote_t to, uint32_t medium)
+// init stream tempo
+static tempo_t tempo_stream(tempo_t tempo)
 {
-  if(!to) return LOG("bad args");
-  tmesh_t tm = to->tm;
-  tempo_t tempo = to->stream;
+  if(!tempo || !tempo->mote) return LOG("bad args");
+  tmesh_t tm = tempo->tm;
+  mote_t to = tempo->mote;
 
-  // create if it doesn't exist
-  if(!tempo)
-  {
-    // create new
-    tempo = to->stream = tempo_new(tm);
-    tempo->mote = to;
-    tempo->frames = util_frames_new(64);
-    if(!medium) medium = tm->m_stream; // default medium if none specified
+  util_frames_free(tempo->frames);
+  tempo->frames = util_frames_new(64);
 
-    // generate mesh-wide unique stream secret
-    uint8_t roll[64];
-    e3x_hash((uint8_t*)(tm->community),strlen(tm->community),roll);
-    memcpy(roll+32,hashname_bin(tm->mesh->id),32); // add ours in
-    uint8_t i, *bin = hashname_bin(to->link->id);
-    for(i=0;i<32;i++) roll[32+i] ^= bin[i]; // xor add theirs in
-    e3x_hash(roll,32+4+4,tempo->secret); // final secret/sync
+  // generate mesh-wide unique stream secret
+  uint8_t roll[64];
+  e3x_hash((uint8_t*)(tm->community),strlen(tm->community),roll);
+  memcpy(roll+32,hashname_bin(tm->mesh->id),32); // add ours in
+  uint8_t i, *bin = hashname_bin(to->link->id);
+  for(i=0;i<32;i++) roll[32+i] ^= bin[i]; // xor add theirs in
+  e3x_hash(roll,32+4+4,tempo->secret); // final secret/sync
 
-    LOG("new stream to %s",hashname_short(to->link->id));
-  }
-
-  // driver init for any medium changes
-  if(!tempo_medium(tempo, medium)) return tempo_free(tempo);
+  MORTY(tempo,"stream");
 
   return tempo;
 }
@@ -247,7 +230,32 @@ static tempo_t tempo_process(tempo_t tempo)
 }
 
 // find a stream to send it to for this mote
-static void mote_send(pipe_t pipe, lob_t packet, link_t link)
+mote_t mote_send(mote_t mote, lob_t packet)
+{
+  if(!mote) return LOG("bad args");
+
+  if(!mote->stream)
+  {
+    mote->stream = tempo_new(mote->tm);
+    if(!mote->stream)
+    {
+      LOG("no stream to %s, dropping packet len %lu",hashname_short(mote->link->id),lob_len(packet));
+      lob_free(packet);
+      return NULL;
+    }
+
+    mote->stream->mote = mote;
+    tempo_stream(mote->stream);
+    tempo_medium(mote->stream, mote->tm->m_stream);
+  }
+
+  util_frames_send(mote->stream->frames, packet);
+  LOG("delivering %d to mote %s total %lu",lob_len(packet),hashname_short(mote->link->id),util_frames_outlen(mote->stream->frames));
+  return mote;
+}
+
+// find a stream to send it to for this mote
+static void mote_pipe_send(pipe_t pipe, lob_t packet, link_t link)
 {
   if(!pipe || !pipe->arg || !packet || !link)
   {
@@ -256,17 +264,7 @@ static void mote_send(pipe_t pipe, lob_t packet, link_t link)
     return;
   }
 
-  mote_t mote = (mote_t)pipe->arg;
-  tempo_t stream = mote_stream(mote, 0);
-  if(!stream)
-  {
-    LOG("no stream to %s, dropping packet len %lu",hashname_short(link->id),lob_len(packet));
-    lob_free(packet);
-    return;
-  }
-
-  util_frames_send(stream->frames, packet);
-  LOG("delivering %d to mote %s total %lu",lob_len(packet),hashname_short(link->id),util_frames_outlen(stream->frames));
+  mote_send((mote_t)pipe->arg, packet);
 }
 
 static mote_t mote_free(mote_t mote)
@@ -295,7 +293,7 @@ static mote_t mote_new(tmesh_t tm, link_t link)
   // set up pipe
   if(!(mote->pipe = pipe_new("tmesh"))) return mote_free(mote);
   mote->pipe->arg = mote;
-  mote->pipe->send = mote_send;
+  mote->pipe->send = mote_pipe_send;
   
   return mote;
 }
@@ -321,11 +319,11 @@ mote_t tmesh_find(tmesh_t tm, link_t link, uint32_t m_lost)
   // create lost signal
   mote->signal = tempo_new(tm);
   mote->signal->mote = mote;
-  tempo_signal(mote->signal, m_lost);
+  tempo_signal(mote->signal);
+  tempo_medium(mote->signal, m_lost);
 
-  // create and prime stream so it's advertised
-  mote_stream(mote, tm->m_stream);
-  if(mote->stream) util_frames_send(mote->stream->frames,NULL);
+  // this will prime stream so it's advertised
+  mote_send(mote, NULL);
 
   // TODO set up link free event handler to remove this mote
   
@@ -398,8 +396,9 @@ tmesh_t tmesh_free(tmesh_t tm)
 tempo_t tmesh_signal(tmesh_t tm, uint32_t seq, uint32_t medium)
 {
   // TODO allow reset of medium
-  tm->signal = tempo_new(tm);
-  tempo_signal(tm->signal, medium);
+  if(!tm->signal) tm->signal = tempo_new(tm);
+  tempo_signal(tm->signal);
+  tempo_medium(tm->signal, medium);
   if(!seq) e3x_rand((uint8_t*)&(tm->signal->seq),4);
   else tm->signal->seq = seq;
   
@@ -473,7 +472,7 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
     if(++at >= 12){break;}else{block = &(meta[at]);}
 
     // see if there's a lost ready stream to advertise
-    tempo_t stream = mote_stream(mote, 0);
+    tempo_t stream = mote->stream;
     if(stream && stream->lost && util_frames_ready(stream->frames))
     {
       knock->syncs[syncs++] = stream; // needs to be sync'd after tx
@@ -560,17 +559,11 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, mblock_t blocks, uint8_t cou
             if(!mote) break; // invalid
             LOG("accepting stream from %s on medium %lu",hashname_short(mote->link->id),body);
             // make sure one exists, and sync it
-            tempo_t stream = mote_stream(mote, body);
-            if(!stream) break; // invalid
-            stream->tx = 0; // we default to inverted since we're accepting
-            stream->priority = 3; // little more boost
-            stream->at = knock->stopped;
-            stream->seq = mote->signal->seq; // TODO invert uint32 for unique starting point
 
             // if nothing waiting, send something to start the stream
-            if(!util_frames_outlen(stream->frames))
+            lob_t out = NULL;
+            if(!mote->stream || !util_frames_outlen(mote->stream->frames))
             {
-              lob_t out = NULL;
               if(!e3x_exchange_out(mote->link->x,0))
               {
                 // if no keys, send discovery
@@ -581,8 +574,15 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, mblock_t blocks, uint8_t cou
                 out = link_handshakes(mote->link);
                 LOG("sending handshake");
               }
-              util_frames_send(stream->frames, out);
             }
+
+            if(!mote_send(mote, out)) break; // bad juju
+            mote->stream->tx = 0; // we default to inverted since we're accepting
+            mote->stream->priority = 3; // little more boost
+            mote->stream->at = knock->stopped;
+            mote->stream->seq = mote->signal->seq; // TODO invert uint32 for unique starting point
+            tempo_medium(mote->stream, body);
+            
             break;
           default:
             LOG("unknown medium block %u: %s",block->type,util_hex((uint8_t*)block,5,NULL));
@@ -700,7 +700,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     // also check if lost encoded
     memcpy(frame,knock->frame,64);
     chacha20(tempo->secret,frame,frame+8,64-8);
-    uint32_t check = murmur4(frame+8,64-(8+4));
+    check = murmur4(frame,60);
     
     // lost encoded signal fail
     if(memcmp(&check,frame+60,4) != 0)
