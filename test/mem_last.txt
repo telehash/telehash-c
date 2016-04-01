@@ -10,5 +10,5 @@
 64	pipe_t
 104	tmesh_t
 56	mote_t
-104	tempo_t
+96	tempo_t
 144	knock_t

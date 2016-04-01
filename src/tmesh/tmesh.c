@@ -80,37 +80,6 @@ static tempo_t tempo_signal(tmesh_t tm, mote_t from, uint32_t medium)
   return tempo;
 }
 
-// sync a stream to the current signal it was paired with
-static tempo_t tempo_stream_sync(tempo_t stream, tempo_t signal, uint32_t at)
-{
-  if(!stream || !signal || !at) return LOG("bad args");
-  tmesh_t tm = stream->tm;
-
-  // always start at 0/now
-  stream->seq = 0;
-  stream->at = at;
-
-  // generate mesh-wide unique stream secret
-  uint8_t roll[64];
-  e3x_hash((uint8_t*)(tm->community),strlen(tm->community),roll);
-  memcpy(roll+32,hashname_bin(tm->mesh->id),32); // add ours in
-  uint8_t i, *bin = hashname_bin(stream->mote->link->id);
-  for(i=0;i<32;i++) roll[32+i] ^= bin[i]; // xor add theirs in
-
-  // hash shared base
-  e3x_hash(roll,64,roll);
-
-  // add in current signal uniqueness
-  memcpy(roll+32,&(signal->medium),4);
-  memcpy(roll+32+4,&(signal->seq),4);
-  
-  // final secret/sync
-  e3x_hash(roll,32+4+4,stream->secret);
-
-  MORTY(stream,"stsync");
-  return stream;
-}
-
 // get/create stream tempo 
 static tempo_t mote_stream(mote_t to, uint32_t medium)
 {
@@ -126,6 +95,15 @@ static tempo_t mote_stream(mote_t to, uint32_t medium)
     tempo->mote = to;
     tempo->frames = util_frames_new(64);
     if(!medium) medium = tm->m_stream; // default medium if none specified
+
+    // generate mesh-wide unique stream secret
+    uint8_t roll[64];
+    e3x_hash((uint8_t*)(tm->community),strlen(tm->community),roll);
+    memcpy(roll+32,hashname_bin(tm->mesh->id),32); // add ours in
+    uint8_t i, *bin = hashname_bin(to->link->id);
+    for(i=0;i<32;i++) roll[32+i] ^= bin[i]; // xor add theirs in
+    e3x_hash(roll,32+4+4,tempo->secret); // final secret/sync
+
     LOG("new stream to %s",hashname_short(to->link->id));
   }
 
@@ -328,7 +306,7 @@ mote_t tmesh_find(tmesh_t tm, link_t link, uint32_t m_lost)
   // create lost signal
   m->signal = tempo_signal(tm, m, m_lost);
 
-  // TODO set up link down event handler to remove this mote
+  // TODO set up link free event handler to remove this mote
   
   return m;
 }
@@ -351,7 +329,6 @@ pipe_t tmesh_on_path(link_t link, lob_t path)
   if(!(tm = xht_get(link->mesh->index, "tmesh"))) return NULL;
   if(util_cmp("tmesh",lob_get(path,"type"))) return NULL;
   // TODO, check for community match and add
-  // or create direct?
   return NULL;
 }
 
@@ -553,7 +530,7 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, mblock_t blocks, uint8_t cou
         switch(block->head)
         {
           case 0: // signal medium
-            // is senders or request to change ours depending on who
+            // TODO is senders or request to change ours depending on who
             break;
           case 1: // stream request
             break;
@@ -565,7 +542,8 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, mblock_t blocks, uint8_t cou
             if(!stream) break; // invalid
             stream->tx = 0; // we default to inverted since we're accepting
             stream->priority = 3; // little more boost
-            tempo_stream_sync(stream,tempo,knock->stopped);
+            stream->at = knock->stopped;
+            stream->seq = mote->signal->seq; // TODO invert uint32 for unique starting point
 
             // if nothing waiting, send something to start the stream
             if(!util_frames_outlen(stream->frames))
@@ -655,7 +633,8 @@ tmesh_t tmesh_knocked(tmesh_t tm)
       tempo_t sync = knock->syncs[syncs];
       sync->tx = 1; // we are inverted
       sync->priority = 2; // little boost
-      tempo_stream_sync(sync, tempo, knock->stopped);
+      sync->at = knock->stopped;
+      sync->seq = tempo->seq; // TODO invert uint32 for unique starting point
     }
 
     MORTY(tempo,"sigout");
