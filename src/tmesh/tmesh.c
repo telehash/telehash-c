@@ -411,39 +411,47 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
   if(!tempo) return LOG("bad args");
   mote_t mote = tempo->mote;
   tmesh_t tm = tempo->tm;
-  struct mblock_struct meta[12];
-  memset(meta,0,60);
+  uint8_t meta[60] = {0};
+  mblock_t block = NULL;
+  uint8_t at = 0;
 
   // send data frames if any
   if(!tempo->signal)
   {
     // bundle metadata about our signal in stream meta
     memcpy(meta,tm->mesh->id,5); // our short hn
-    meta[1].type = MBLOCK_MEDIUM;
-    memcpy(meta[1].body,&(tm->signal->medium),4);
-    meta[2].type = MBLOCK_AT;
-    memcpy(meta[2].body,&(tm->signal->at),4);
-    meta[3].type = MBLOCK_SEQ;
-    memcpy(meta[3].body,&(tm->signal->seq),4);
-    meta[3].done = 1;
+
+    block = (mblock_t)(meta+(++at*5));
+    block->type = MBLOCK_MEDIUM;
+    memcpy(block->body,&(tm->signal->medium),4);
+
+    block = (mblock_t)(meta+(++at*5));
+    block->type = MBLOCK_AT;
+    memcpy(block->body,&(tm->signal->at),4);
+
+    block = (mblock_t)(meta+(++at*5));
+    block->type = MBLOCK_SEQ;
+    memcpy(block->body,&(tm->signal->seq),4);
+    block->done = 1;
 
     // TODO, if they're lost suggest non-lost medium
     // TODO include other signals from suggested neighbors
 
+    LOG("META %s",util_hex(meta,60,NULL));
+
     // fill in stream frame
-    if(!util_frames_outbox(tempo->frames,knock->frame,(uint8_t*)meta))
+    if(!util_frames_outbox(tempo->frames,knock->frame,meta))
     {
       // nothing to send, force meta flush
       LOG("outbox empty, sending flush");
       util_frames_send(tempo->frames,NULL);
-      util_frames_outbox(tempo->frames,knock->frame,(uint8_t*)meta);
+      util_frames_outbox(tempo->frames,knock->frame,meta);
     }
 
     return tempo;
   }
 
   // construct signal meta blocks
-  uint8_t at = 0;
 
   // lost signal is prefixed w/ random nonce in first two blocks
   if(tempo->lost)
@@ -453,45 +461,59 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
     memcpy(meta,knock->nonce,8);
 
     // put our signal medium/seq in here for recipient to sync
-    memcpy(&(meta[2]),tm->mesh->id,5); // our short hn
-    meta[3].type = MBLOCK_MEDIUM;
-    memcpy(meta[3].body,&(tempo->medium),4);
-    meta[4].type = MBLOCK_SEQ;
-    memcpy(meta[4].body,&(tempo->seq),4);
-    meta[4].done = 1;
-    at = 5;
+    memcpy(meta+10,tm->mesh->id,5); // our short hn
+
+    block = (mblock_t)(meta+15);
+    block->type = MBLOCK_MEDIUM;
+    memcpy(block->body,&(tempo->medium),4);
+
+    block = (mblock_t)(meta+20);
+    block->type = MBLOCK_SEQ;
+    memcpy(block->body,&(tempo->seq),4);
+    block->done = 1;
+
+    at = 5; // next empty block
   }
+
+  LOG("META %u %s",at,util_hex(meta,60,NULL));
 
   // fill in meta blocks for our neighborhood
   uint8_t syncs = 0;
   // TODO, sort by priority
   for(mote=tm->motes;mote;mote = mote->next)
   {
-    mblock_t block = &(meta[at]);
-    memcpy(block,mote->link->id,5);
-    if(++at >= 12){break;}else{block = &(meta[at]);}
+    LOG("META %u %s",at,hashname_short(mote->link->id));
+    // lead w/ short hn
+    memcpy(meta+(at*5),mote->link->id,5);
 
     // see if there's a lost ready stream to advertise
     tempo_t stream = mote->stream;
     if(stream && stream->lost && util_frames_ready(stream->frames))
     {
       knock->syncs[syncs++] = stream; // needs to be sync'd after tx
+      block = (mblock_t)(meta+(++at*5));
+      if(at >= 12) break;
+
       block->type = MBLOCK_MEDIUM;
       block->head = 2; // accept
       memcpy(block->body,&(stream->medium),4);
-      if(++at >= 12){break;}else{block = &(meta[at]);}
     }
 
     // TODO fill in actual quality
+    block = (mblock_t)(meta+(++at*5));
+    if(at >= 12) break;
     block->type = MBLOCK_QUALITY;
     memcpy(block->body,&(mote->signal->last),2);
     memcpy(block->body+2,&(mote->signal->bad),2);
 
     // end this mote's blocks
     block->done = 1;
-    if(++at >= 12) break;
+    at++; // next empty block
+    if(at >= 12) break;
   }
-  
+
+  LOG("META %s",util_hex(meta,60,NULL));
+
   // copy in meta
   memcpy(knock->frame,meta,60);
 
@@ -501,7 +523,7 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
   return tempo;
 }
 
-tempo_t tempo_knocked(tempo_t tempo, knock_t knock, mblock_t blocks, uint8_t count)
+tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t at)
 {
   tmesh_t tm = tempo->tm;
   uint32_t body = 0;
@@ -518,19 +540,30 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, mblock_t blocks, uint8_t cou
 
   LOG("RX %s %u received, rssi %d/%d/%d data %d\n",tempo->signal?"signal":"stream",tempo->irx,tempo->last,tempo->best,tempo->worst,util_frames_inlen(tempo->frames));
 
-  uint8_t i;
-  for(i=0;i<count;i++)
+  for(;at < 12;at++)
   {
-    mblock_t block = &(blocks[i]);
+    mblock_t block = (mblock_t)(meta+(5*at));
+    LOG("meta block %u: %s",at,util_hex((uint8_t*)block,5,NULL));
 
+    // determine who the following blocks are about
     if(!who)
     {
       who = (uint8_t*)block;
-      mote = tmesh_mote(tm, mesh_linkid(tm->mesh, hashname_sbin(who)));
+      hashname_t id = hashname_sbin(who);
+      link_t link = mesh_linkid(tm->mesh, id);
+      if(link)
+      {
+        // might be a neighbor we know
+        mote = tmesh_mote(tm,link);
+      }else if(hashname_scmp(id,tm->mesh->id) == 0){
+        // if it's about us, use the mote we have for the sender as context
+        mote = tempo->mote;
+      }
       continue;
     }
-
+    
     memcpy(&body,block->body,4);
+    LOG("mblock %u:%u %lu %s",block->type,block->head,block->body,block->done?"done":"");
     switch(block->type)
     {
       case MBLOCK_NONE:
@@ -556,7 +589,6 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, mblock_t blocks, uint8_t cou
           case 1: // stream request
             break;
           case 2: // stream accept
-            if(!mote) break; // invalid
             LOG("accepting stream from %s on medium %lu",hashname_short(mote->link->id),body);
             // make sure one exists, and sync it
 
@@ -669,9 +701,8 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     chacha20(tempo->secret,knock->nonce,knock->frame,64);
     LOG("RX data RSSI %d frame %s\n",knock->rssi,util_hex(knock->frame,64,NULL));
 
-    struct mblock_struct meta[10];
-    memset(meta,0,50);
-    if(!util_frames_inbox(tempo->frames, knock->frame, (uint8_t*)meta))
+    uint8_t meta[50] = {0};
+    if(!util_frames_inbox(tempo->frames, knock->frame, meta))
     {
       knock->tempo->bad++;
       return LOG("bad frame: %s",util_hex(knock->frame,64,NULL));
@@ -691,8 +722,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
   memcpy(frame,knock->frame,64);
   chacha20(tempo->secret,knock->nonce,frame,64);
   uint32_t check = murmur4(frame,60);
-  mblock_t blocks;
-  uint8_t count = 0;
+  uint8_t at = 0;
 
   // did it validate
   if(memcmp(&check,frame+60,4) != 0)
@@ -715,16 +745,13 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     MORTY(tempo,"siglost");
 
     // fall through w/ meta blocks starting after nonce
-    blocks = (mblock_t)(frame+8);
-    count = 10; // 50 bytes
+    at = 2;
   }else{
     MORTY(tempo,"sigfnd");
-    blocks = (mblock_t)(frame);
-    count = 12; // 60 bytes
   }
 
   // received processing only after validation
-  tempo_knocked(tempo, knock, blocks, count);
+  tempo_knocked(tempo, knock, frame, at);
 
   return tm;
 }
