@@ -321,11 +321,9 @@ util_frames_t util_frames_ready(util_frames_t frames)
 {
   if(!frames) return LOG("bad args");
   if(frames->err) return LOG("stream broken");
-  uint8_t size = PAYLOAD(frames);
-  uint32_t len = lob_len(frames->outbox); 
   
   if(frames->flush) return frames;
-  if(len && (frames->out * size) <= len) return frames;
+  if(frames->outbox) return frames;
   return NULL;
 }
 
