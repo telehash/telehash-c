@@ -323,7 +323,9 @@ mote_t tmesh_find(tmesh_t tm, link_t link, uint32_t m_lost)
   tempo_medium(mote->signal, m_lost);
 
   // this will prime stream so it's advertised
-  mote_send(mote, NULL);
+  lob_t out = link_handshakes(mote->link);
+  if(!out && tm->discoverable) out = hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys));
+  mote_send(mote, out);
 
   // TODO set up link free event handler to remove this mote
   
@@ -460,17 +462,21 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
     e3x_rand(knock->nonce,8);
     memcpy(meta,knock->nonce,8);
 
+    LOG("meta! %s",util_hex(meta,60,NULL));
     // put our signal medium/seq in here for recipient to sync
     memcpy(meta+10,tm->mesh->id,5); // our short hn
+    LOG("meta! %s",util_hex(meta,60,NULL));
 
     block = (mblock_t)(meta+15);
     block->type = MBLOCK_MEDIUM;
     memcpy(block->body,&(tempo->medium),4);
+    LOG("meta! %s",util_hex(meta,60,NULL));
 
     block = (mblock_t)(meta+20);
     block->type = MBLOCK_SEQ;
     memcpy(block->body,&(tempo->seq),4);
     block->done = 1;
+    LOG("meta! %s",util_hex(meta,60,NULL));
 
     at = 5; // next empty block
   }
@@ -488,6 +494,7 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
 
     // see if there's a lost ready stream to advertise
     tempo_t stream = mote->stream;
+    LOG("STREAMCHECK %s %s",stream->lost?"lost":"!",util_frames_ready(stream->frames)?"ready":"!!");
     if(stream && stream->lost && util_frames_ready(stream->frames))
     {
       knock->syncs[syncs++] = stream; // needs to be sync'd after tx
@@ -563,7 +570,7 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t at)
     }
     
     memcpy(&body,block->body,4);
-    LOG("mblock %u:%u %lu %s",block->type,block->head,block->body,block->done?"done":"");
+    LOG("mblock %u:%u %lu %s",block->type,block->head,body,block->done?"done":"");
     switch(block->type)
     {
       case MBLOCK_NONE:
@@ -590,25 +597,8 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t at)
             break;
           case 2: // stream accept
             LOG("accepting stream from %s on medium %lu",hashname_short(mote->link->id),body);
-            // make sure one exists, and sync it
-
-            // if nothing waiting, send something to start the stream
-            lob_t out = NULL;
-            if(!mote->stream || !util_frames_outlen(mote->stream->frames))
-            {
-              if(!e3x_exchange_out(mote->link->x,0))
-              {
-                // if no keys, send discovery
-                if(!tm->discoverable) return LOG("no keys and not discoverable");
-                out = hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys));
-                LOG("sending bare discovery %s",lob_json(out));
-              }else{
-                out = link_handshakes(mote->link);
-                LOG("sending handshake");
-              }
-            }
-
-            if(!mote_send(mote, out)) break; // bad juju
+            // make sure one exists, is primed, and sync it
+            if(!mote_send(mote, NULL)) break; // bad juju
             mote->stream->tx = 0; // we default to inverted since we're accepting
             mote->stream->priority = 3; // little more boost
             mote->stream->at = knock->stopped;
@@ -838,7 +828,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
   memset(knock,0,sizeof(struct knock_struct));
 
   // first try seek knock if any
-  if(seek && seek->at < best->at)
+  if(seek && seek->at <= best->at)
   {
     MORTY(seek,"seekin");
 
