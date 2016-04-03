@@ -113,8 +113,8 @@ mote_t tmesh_mote(tmesh_t tm, link_t link);
 // tempo state
 struct tempo_struct
 {
-  tmesh_t tm;
-  mote_t mote; // ownership
+  tmesh_t tm; // mostly convenience
+  mote_t mote; // parent mote (except for our outgoing signal) 
   void *driver; // for driver use, set during tm->tempo()
   util_frames_t frames; // r/w frame buffers for streams
   uint32_t medium; // id
@@ -126,10 +126,10 @@ struct tempo_struct
   uint8_t secret[32];
   uint8_t miss, skip; // how many of the last rx windows were missed (nothing received) or skipped (scheduling)
   uint8_t chan; // channel of next knock
-  uint8_t signal:1; // type of tempo
-  uint8_t tx:1; // current window direction
-  uint8_t lost:1; // if currently lost
-  uint8_t hold:1; // on hold, don't schedule (requested streams)
+  uint8_t do_signal:1; // advertise this stream in a signal
+  uint8_t do_schedule:1; // active stream to be scheduled
+  uint8_t is_tx:1; // current window direction
+  uint8_t is_lost:1; // if currently lost signal
   uint8_t priority:4; // next knock priority
 };
 

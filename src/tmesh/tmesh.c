@@ -18,7 +18,7 @@ typedef struct mblock_struct {
 #define MBLOCK_SEQ      3
 #define MBLOCK_QUALITY  4
 
-#define MORTY(t,r) LOG("RICK %s\t%s %s %s [%u,%u,%u,%u,%u] at:%lu seq:%lx s:%s (%lu/%lu) m:%lu",r,t->mote?hashname_short(t->mote->link->id):"selfself",t->tx?"TX":"RX",t->signal?"signal":"stream",t->itx,t->irx,t->bad,t->miss,t->skip,t->at,t->seq,util_hex(t->secret,4,NULL),util_frames_inlen(t->frames),util_frames_outlen(t->frames),t->medium);
+#define MORTY(t,r) LOG("RICK %s\t%s %s %s [%u,%u,%u,%u,%u] at:%lu seq:%lx s:%s (%lu/%lu) m:%lu",r,t->mote?hashname_short(t->mote->link->id):"selfself",t->is_tx?"TX":"RX",t->signal?"signal":"stream",t->itx,t->irx,t->bad,t->miss,t->skip,t->at,t->seq,util_hex(t->secret,4,NULL),util_frames_inlen(t->frames),util_frames_outlen(t->frames),t->medium);
 
 static tempo_t tempo_free(tempo_t tempo)
 {
@@ -73,11 +73,11 @@ static tempo_t tempo_signal(tempo_t tempo)
   hashname_t id = NULL;
   if(tempo->mote)
   {
-    tempo->tx = 0;
+    tempo->is_tx = 0;
     tempo->priority = 2; // mid
     id = tempo->mote->link->id;
   }else{
-    tempo->tx = 1;
+    tempo->is_tx = 1;
     tempo->priority = 1; // low while lost
     id = tempo->tm->mesh->id;
   }
@@ -599,7 +599,7 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t at)
             LOG("accepting stream from %s on medium %lu",hashname_short(mote->link->id),body);
             // make sure one exists, is primed, and sync it
             if(!mote_send(mote, NULL)) break; // bad juju
-            mote->stream->tx = 0; // we default to inverted since we're accepting
+            mote->stream->is_tx = 0; // we default to inverted since we're accepting
             mote->stream->priority = 3; // little more boost
             mote->stream->at = knock->stopped;
             mote->stream->seq = mote->signal->seq; // TODO invert uint32 for unique starting point
@@ -635,7 +635,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
   if(knock->err)
   {
     // missed rx windows
-    if(!tempo->tx)
+    if(!tempo->is_tx)
     {
       // if too many missed signal rx, become lost
       tempo->miss++;
@@ -648,14 +648,14 @@ tmesh_t tmesh_knocked(tmesh_t tm)
       // if expecting data, trigger a flush
       if(util_frames_await(tempo->frames)) util_frames_send(tempo->frames,NULL);
     }
-    LOG("knock %s error, %u misses",tempo->tx?"tx":"rx",tempo->miss);
+    LOG("knock %s error, %u misses",tempo->is_tx?"tx":"rx",tempo->miss);
     return tm;
   }
   
   MORTY(tempo,"knockd");
   
   // tx just updates state things here
-  if(tempo->tx)
+  if(tempo->is_tx)
   {
     tempo->itx++;
     
@@ -675,7 +675,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     for(syncs=0;syncs<5;syncs++) if(knock->syncs[syncs])
     {
       tempo_t sync = knock->syncs[syncs];
-      sync->tx = 1; // we are inverted
+      sync->is_tx = 1; // we are inverted
       sync->priority = 2; // little boost
       sync->at = knock->stopped;
       sync->seq = tempo->seq; // TODO invert uint32 for unique starting point
@@ -853,7 +853,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
   knock->tempo = best;
 
   // do the tempo-specific work to fill in the tx frame
-  if(best->tx)
+  if(best->is_tx)
   {
     if(!tempo_knock(best, knock)) return LOG("knock tx prep failed");
     LOG("TX frame %s\n",util_hex(knock->frame,64,NULL));
