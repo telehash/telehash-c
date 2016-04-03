@@ -18,7 +18,7 @@ typedef struct mblock_struct {
 #define MBLOCK_SEQ      3
 #define MBLOCK_QUALITY  4
 
-#define MORTY(t,r) LOG("RICK %s\t%s %s %s [%u,%u,%u,%u,%u] at:%lu seq:%lx s:%s (%lu/%lu) m:%lu",r,t->mote?hashname_short(t->mote->link->id):"selfself",t->is_tx?"TX":"RX",t->signal?"signal":"stream",t->itx,t->irx,t->bad,t->miss,t->skip,t->at,t->seq,util_hex(t->secret,4,NULL),util_frames_inlen(t->frames),util_frames_outlen(t->frames),t->medium);
+#define MORTY(t,r) LOG("RICK %s\t%s %s %s [%u,%u,%u,%u,%u] at:%lu seq:%lx s:%s (%lu/%lu) m:%lu",r,t->mote?hashname_short(t->mote->link->id):"selfself",t->is_tx?"TX":"RX",t->frames?"stream":"signal",t->itx,t->irx,t->bad,t->miss,t->skip,t->at,t->seq,util_hex(t->secret,4,NULL),util_frames_inlen(t->frames),util_frames_outlen(t->frames),t->medium);
 
 static tempo_t tempo_free(tempo_t tempo)
 {
@@ -66,8 +66,6 @@ static tempo_t tempo_medium(tempo_t tempo, uint32_t medium)
 static tempo_t tempo_signal(tempo_t tempo)
 {
   if(!tempo) return LOG("bad args");
-  
-  tempo->signal = 1;
   
   // signal from someone else, or ours out
   hashname_t id = NULL;
@@ -418,7 +416,7 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
   uint8_t at = 0;
 
   // send data frames if any
-  if(!tempo->signal)
+  if(tempo->frames)
   {
     // bundle metadata about our signal in stream meta
     memcpy(meta,tm->mesh->id,5); // our short hn
@@ -545,7 +543,7 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t at)
   if(knock->rssi < tempo->worst || !tempo->worst) tempo->worst = knock->rssi;
   tempo->last = knock->rssi;
 
-  LOG("RX %s %u received, rssi %d/%d/%d data %d\n",tempo->signal?"signal":"stream",tempo->irx,tempo->last,tempo->best,tempo->worst,util_frames_inlen(tempo->frames));
+  LOG("RX %s %u received, rssi %d/%d/%d data %d\n",tempo->frames?"stream":"signal",tempo->irx,tempo->last,tempo->best,tempo->worst,util_frames_inlen(tempo->frames));
 
   for(;at < 12;at++)
   {
@@ -639,7 +637,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     {
       // if too many missed signal rx, become lost
       tempo->miss++;
-      if(tempo->signal && tempo->miss > 10 && !tempo->lost)
+      if(!tempo->frames && tempo->miss > 10 && !tempo->lost)
       {
         LOG("lost signal to %s",hashname_short(tempo->mote->link->id));
         tempo->lost = 1;
@@ -686,7 +684,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
   }
   
   // process streams first
-  if(!tempo->signal)
+  if(tempo->frames)
   {
     chacha20(tempo->secret,knock->nonce,knock->frame,64);
     LOG("RX data RSSI %d frame %s\n",knock->rssi,util_hex(knock->frame,64,NULL));
