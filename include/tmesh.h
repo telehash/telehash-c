@@ -39,6 +39,27 @@ lost streams are reset each signal
 lost signal hash is 8+50+4 w/ hash of just 50, rx can detect difference
 !signal->lost after first good rx
 must be commanded to change tx signal->lost, scheduled along w/ medium change
+
+stream hold/lost/idle states
+  * hold means don't schedule
+  * idle means don't signal, dont schedule TX but do schedule RX (if !hold)
+  * lost means signal (if !idle), hold = request, !hold || mote->signal->lost = accept
+    - TX/RX signal accept is stream resync event
+  - idle is cleared on any new send data, set after any TX/RX if !ready && !await
+  - mote_gone() called by the driver based on missed RX, sets lost if !idle, hold if idle
+
+TODO, move flags to explicit vs implicit:
+  * do_schedule and !do_schedule
+    - skip TX if !ready && !awaiting
+    - set true on any new data
+  * do_signal and !do_signal
+    - do_schedule = true if mote->signal->lost
+    - request if !do_schedule, else accept
+  * mote_gone() called by the driver based on missed RX
+    - sets do_schedule = false
+    - sets do_signal = true if ready||awaiting
+
+
 */
 
 typedef struct tmesh_struct *tmesh_t; // joined community motes/signals
