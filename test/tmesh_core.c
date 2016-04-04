@@ -83,16 +83,16 @@ int main(int argc, char **argv)
   // outgoing signal
   fail_unless(tmesh_signal(netA,0,1));
   fail_unless(netA->signal);
-  fail_unless(netA->signal->signal);
-  fail_unless(netA->signal->lost);
-  fail_unless(netA->signal->tx);
+  fail_unless(!netA->signal->frames);
+  fail_unless(netA->signal->is_lost);
+  fail_unless(netA->signal->do_tx);
   fail_unless(!netA->signal->mote);
   fail_unless(netA->signal->medium == 1);
 
   // should schedule a lost signal tx
   fail_unless(tmesh_schedule(netA,1,0));
   fail_unless(scheduled == 1);
-  fail_unless(netA->knock->ready);
+  fail_unless(netA->knock->is_active);
   fail_unless(netA->knock->tempo == netA->signal);
   fail_unless(netA->knock->tempo->at == 2);
   fail_unless(netA->knock->tempo->chan == 1);
@@ -102,7 +102,7 @@ int main(int argc, char **argv)
   fail_unless(moteB->link == linkAB);
   fail_unless(moteB->pipe);
   fail_unless(moteB->signal);
-  fail_unless(moteB->signal->lost);
+  fail_unless(moteB->signal->is_lost);
   fail_unless(moteB->signal->medium == 4);
   fail_unless(moteB->signal->driver == (void*)1);
 

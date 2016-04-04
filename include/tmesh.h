@@ -128,7 +128,7 @@ struct tempo_struct
   uint8_t chan; // channel of next knock
   uint8_t do_signal:1; // advertise this stream in a signal
   uint8_t do_schedule:1; // active stream to be scheduled
-  uint8_t is_tx:1; // current window direction
+  uint8_t do_tx:1; // current window direction
   uint8_t is_lost:1; // if currently lost signal
   uint8_t priority:4; // next knock priority
 };
@@ -144,9 +144,11 @@ struct knock_struct
   uint8_t nonce[8]; // convenience
   tempo_t syncs[5]; // max number of tempos being sync'd in this knock
   // boolean flags for state tracking, etc
-  uint8_t ready:1; // is ready to transceive
-  uint8_t err:1; // failed
-  uint8_t lost:1; // if is lost format
+  uint8_t is_active:1; // is actively transceiving
+  uint8_t is_lost:1; // if is lost format signal
+  uint8_t is_tx:1; // current window direction (copied from tempo for convenience)
+  uint8_t do_err:1; // driver sets if failed
+  uint8_t do_gone:1; // driver sets if too many rx fails
 };
 
 // mote state tracking

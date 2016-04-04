@@ -18,7 +18,7 @@ typedef struct mblock_struct {
 #define MBLOCK_SEQ      3
 #define MBLOCK_QUALITY  4
 
-#define MORTY(t,r) LOG("RICK %s\t%s %s %s [%u,%u,%u,%u,%u] at:%lu seq:%lx s:%s (%lu/%lu) m:%lu",r,t->mote?hashname_short(t->mote->link->id):"selfself",t->is_tx?"TX":"RX",t->frames?"stream":"signal",t->itx,t->irx,t->bad,t->miss,t->skip,t->at,t->seq,util_hex(t->secret,4,NULL),util_frames_inlen(t->frames),util_frames_outlen(t->frames),t->medium);
+#define MORTY(t,r) LOG("RICK %s\t%s %s %s [%u,%u,%u,%u,%u] at:%lu seq:%lx s:%s (%lu/%lu) m:%lu",r,t->mote?hashname_short(t->mote->link->id):"selfself",t->do_tx?"TX":"RX",t->frames?"stream":"signal",t->itx,t->irx,t->bad,t->miss,t->skip,t->at,t->seq,util_hex(t->secret,4,NULL),util_frames_inlen(t->frames),util_frames_outlen(t->frames),t->medium);
 
 static tempo_t tempo_free(tempo_t tempo)
 {
@@ -36,7 +36,6 @@ static tempo_t tempo_new(tmesh_t tm)
   if(!(tempo = malloc(sizeof(struct tempo_struct)))) return LOG("OOM");
   memset(tempo,0,sizeof (struct tempo_struct));
   tempo->tm = tm;
-  tempo->lost = 1;
 
   return tempo;
 }
@@ -66,16 +65,17 @@ static tempo_t tempo_medium(tempo_t tempo, uint32_t medium)
 static tempo_t tempo_signal(tempo_t tempo)
 {
   if(!tempo) return LOG("bad args");
+  tempo->is_lost = 1;
   
   // signal from someone else, or ours out
   hashname_t id = NULL;
   if(tempo->mote)
   {
-    tempo->is_tx = 0;
+    tempo->do_tx = 0;
     tempo->priority = 2; // mid
     id = tempo->mote->link->id;
   }else{
-    tempo->is_tx = 1;
+    tempo->do_tx = 1;
     tempo->priority = 1; // low while lost
     id = tempo->tm->mesh->id;
   }
@@ -97,6 +97,10 @@ static tempo_t tempo_stream(tempo_t tempo)
   if(!tempo || !tempo->mote) return LOG("bad args");
   tmesh_t tm = tempo->tm;
   mote_t to = tempo->mote;
+
+  // default flags, idle
+  tempo->do_signal = 0;
+  tempo->do_schedule = 0;
 
   util_frames_free(tempo->frames);
   tempo->frames = util_frames_new(64);
@@ -231,24 +235,27 @@ static tempo_t tempo_process(tempo_t tempo)
 mote_t mote_send(mote_t mote, lob_t packet)
 {
   if(!mote) return LOG("bad args");
+  tempo_t tempo = mote->stream;
 
-  if(!mote->stream)
+  if(!tempo)
   {
-    mote->stream = tempo_new(mote->tm);
-    if(!mote->stream)
+    tempo = mote->stream = tempo_new(mote->tm);
+    if(!tempo)
     {
       LOG("no stream to %s, dropping packet len %lu",hashname_short(mote->link->id),lob_len(packet));
       lob_free(packet);
       return NULL;
     }
 
-    mote->stream->mote = mote;
-    tempo_stream(mote->stream);
-    tempo_medium(mote->stream, mote->tm->m_stream);
+    tempo->mote = mote;
+    tempo_stream(tempo);
+    tempo_medium(tempo, mote->tm->m_stream);
   }
 
-  util_frames_send(mote->stream->frames, packet);
-  LOG("delivering %d to mote %s total %lu",lob_len(packet),hashname_short(mote->link->id),util_frames_outlen(mote->stream->frames));
+  // if not scheduled, make sure signalling
+  if(!tempo->do_schedule) tempo->do_signal = 1;
+  util_frames_send(tempo->frames, packet);
+  LOG("delivering %d to mote %s total %lu",lob_len(packet),hashname_short(mote->link->id),util_frames_outlen(tempo->frames));
   return mote;
 }
 
@@ -454,9 +461,9 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
   // construct signal meta blocks
 
   // lost signal is prefixed w/ random nonce in first two blocks
-  if(tempo->lost)
+  if(tempo->is_lost)
   {
-    knock->lost = 1;
+    knock->is_lost = 1;
     e3x_rand(knock->nonce,8);
     memcpy(meta,knock->nonce,8);
 
@@ -492,15 +499,23 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
 
     // see if there's a lost ready stream to advertise
     tempo_t stream = mote->stream;
-    LOG("STREAMCHECK %s %s",stream->lost?"lost":"!",util_frames_ready(stream->frames)?"ready":"!!");
-    if(stream && stream->lost && util_frames_ready(stream->frames))
+    if(stream && stream->do_signal)
     {
-      knock->syncs[syncs++] = stream; // needs to be sync'd after tx
       block = (mblock_t)(meta+(++at*5));
       if(at >= 12) break;
-
       block->type = MBLOCK_MEDIUM;
-      block->head = 2; // accept
+      
+      // force lost motes to accept only (can't request if lost)
+      if(mote->signal->is_lost) stream->do_schedule = 1;
+
+      if(stream->do_schedule)
+      {
+        block->head = 2; // accept
+        knock->syncs[syncs++] = stream; // needs to be sync'd after tx
+      }else{
+        block->head = 1; // request
+      }
+
       memcpy(block->body,&(stream->medium),4);
     }
 
@@ -536,7 +551,7 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t at)
   mote_t mote = NULL;
 
   // received stats first
-  tempo->lost = 0;
+  tempo->is_lost = 0;
   tempo->miss = 0;
   tempo->irx++;
   if(knock->rssi > tempo->best || !tempo->best) tempo->best = knock->rssi;
@@ -597,7 +612,7 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t at)
             LOG("accepting stream from %s on medium %lu",hashname_short(mote->link->id),body);
             // make sure one exists, is primed, and sync it
             if(!mote_send(mote, NULL)) break; // bad juju
-            mote->stream->is_tx = 0; // we default to inverted since we're accepting
+            mote->stream->do_tx = 0; // we default to inverted since we're accepting
             mote->stream->priority = 3; // little more boost
             mote->stream->at = knock->stopped;
             mote->stream->seq = mote->signal->seq; // TODO invert uint32 for unique starting point
@@ -628,32 +643,39 @@ tmesh_t tmesh_knocked(tmesh_t tm)
 
   // always clear skipped counter and ready flag
   tempo->skip = 0;
-  knock->ready = 0;
+  knock->is_active = 0;
 
-  if(knock->err)
+  // driver signal that the tempo is gone
+  if(knock->do_gone)
   {
-    // missed rx windows
-    if(!tempo->is_tx)
+    // handle gone streams/signals differently
+    if(tempo->frames)
     {
-      // if too many missed signal rx, become lost
-      tempo->miss++;
-      if(!tempo->frames && tempo->miss > 10 && !tempo->lost)
-      {
-        LOG("lost signal to %s",hashname_short(tempo->mote->link->id));
-        tempo->lost = 1;
-      }
-
-      // if expecting data, trigger a flush
-      if(util_frames_await(tempo->frames)) util_frames_send(tempo->frames,NULL);
+      tempo->do_schedule = 0;
+      // signal this stream if still busy
+      tempo->do_signal = (util_frames_ready(tempo->frames) || util_frames_await(tempo->frames)) ? 1 : 0;
+      LOG("gone stream");
+    }else{
+      tempo->is_lost = 1;
+      LOG("gone signal");
     }
-    LOG("knock %s error, %u misses",tempo->is_tx?"tx":"rx",tempo->miss);
+  }
+
+  if(knock->do_err)
+  {
+    tempo->miss++;
+
+    // if expecting data, trigger a flush
+    if(!knock->is_tx && util_frames_await(tempo->frames)) util_frames_send(tempo->frames,NULL);
+    
+    MORTY(tempo,"do_err");
     return tm;
   }
   
   MORTY(tempo,"knockd");
   
   // tx just updates state things here
-  if(tempo->is_tx)
+  if(knock->is_tx)
   {
     tempo->itx++;
     
@@ -666,14 +688,14 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     }
 
     // lost signals always sync next at time to when actually done
-    if(tempo->lost) tempo->at = knock->stopped;
+    if(tempo->is_lost) tempo->at = knock->stopped;
     
     // sync any bundled/accepted stream tempos too
     uint8_t syncs;
     for(syncs=0;syncs<5;syncs++) if(knock->syncs[syncs])
     {
       tempo_t sync = knock->syncs[syncs];
-      sync->is_tx = 1; // we are inverted
+      sync->do_tx = 1; // we are inverted
       sync->priority = 2; // little boost
       sync->at = knock->stopped;
       sync->seq = tempo->seq; // TODO invert uint32 for unique starting point
@@ -757,7 +779,7 @@ static tempo_t tempo_schedule(tempo_t tempo, uint32_t at, uint32_t rebase)
   if(rebase) tempo->at -= rebase;
 
   // already have one active, noop
-  if(tm->knock->ready) return tempo;
+  if(tm->knock->is_active) return tempo;
 
   // move ahead window(s)
   while(tempo->at <= at)
@@ -802,7 +824,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
     tempo_schedule(mote->signal, at, rebase);
     
     // only lost signals are elected for seek
-    if(mote->signal->lost) seek = tm->sort(tm, seek, mote->signal);
+    if(mote->signal->is_lost) seek = tm->sort(tm, seek, mote->signal);
     
     // any signal is elected for best
     best = tm->sort(tm, best, mote->signal);
@@ -810,16 +832,12 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
     if(!mote->stream) continue;
     tempo_schedule(mote->stream, at, rebase);
 
-    // skip held/lost streams that are idle
-    if(mote->stream->hold) continue;
-    if(mote->stream->lost && !util_frames_ready(mote->stream->frames)) continue;
-
-    // include in best schedule
-    best = tm->sort(tm, best, mote->stream);
+    // only if requested to schedule
+    if(mote->stream->do_schedule) best = tm->sort(tm, best, mote->stream);
   }
   
   // already an active knock
-  if(tm->knock->ready) return tm;
+  if(tm->knock->is_active) return tm;
   
   // try a new knock
   knock_t knock = tm->knock;
@@ -834,12 +852,11 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
     memcpy(knock->nonce,&(seek->medium),4);
     memcpy(knock->nonce+4,&(seek->seq),4);
     knock->tempo = seek;
-    knock->ready = 1;
     knock->seekto = best->at;
 
     // ask driver if it can seek, done if so, else fall through
+    knock->is_active = 1;
     if(tm->schedule(tm)) return tm;
-
     memset(knock,0,sizeof(struct knock_struct));
   }
   
@@ -851,11 +868,12 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
   knock->tempo = best;
 
   // do the tempo-specific work to fill in the tx frame
-  if(best->is_tx)
+  if(best->do_tx)
   {
     if(!tempo_knock(best, knock)) return LOG("knock tx prep failed");
+    knock->is_tx = 1;
     LOG("TX frame %s\n",util_hex(knock->frame,64,NULL));
-    if(knock->lost)
+    if(knock->is_lost)
     {
       // nonce is prepended to lost signals unciphered
       chacha20(best->secret,knock->nonce,knock->frame+8,64-8);
@@ -864,9 +882,8 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
     }
   }
 
-  knock->ready = 1;
-
   // signal driver
+  knock->is_active = 1;
   if(!tm->schedule(tm))
   {
     memset(knock,0,sizeof(struct knock_struct));
