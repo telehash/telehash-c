@@ -328,8 +328,9 @@ mote_t tmesh_find(tmesh_t tm, link_t link, uint32_t m_lost)
   tempo_medium(mote->signal, m_lost);
 
   // this will prime stream so it's advertised
-  lob_t out = link_handshakes(mote->link);
-  if(!out && tm->discoverable) out = hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys));
+  lob_t out = NULL;
+  if(tm->discoverable) out = hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys));
+  // TODO support immediate link_handshakes(mote->link);
   mote_send(mote, out);
 
   // TODO set up link free event handler to remove this mote
@@ -467,33 +468,26 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
     e3x_rand(knock->nonce,8);
     memcpy(meta,knock->nonce,8);
 
-    LOG("meta! %s",util_hex(meta,60,NULL));
     // put our signal medium/seq in here for recipient to sync
     memcpy(meta+10,tm->mesh->id,5); // our short hn
-    LOG("meta! %s",util_hex(meta,60,NULL));
 
     block = (mblock_t)(meta+15);
     block->type = MBLOCK_MEDIUM;
     memcpy(block->body,&(tempo->medium),4);
-    LOG("meta! %s",util_hex(meta,60,NULL));
 
     block = (mblock_t)(meta+20);
     block->type = MBLOCK_SEQ;
     memcpy(block->body,&(tempo->seq),4);
     block->done = 1;
-    LOG("meta! %s",util_hex(meta,60,NULL));
 
     at = 5; // next empty block
   }
-
-  LOG("META %u %s",at,util_hex(meta,60,NULL));
 
   // fill in meta blocks for our neighborhood
   uint8_t syncs = 0;
   // TODO, sort by priority
   for(mote=tm->motes;mote;mote = mote->next)
   {
-    LOG("META %u %s",at,hashname_short(mote->link->id));
     // lead w/ short hn
     memcpy(meta+(at*5),mote->link->id,5);
 
@@ -531,8 +525,6 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
     at++; // next empty block
     if(at >= 12) break;
   }
-
-  LOG("META %s",util_hex(meta,60,NULL));
 
   // copy in meta
   memcpy(knock->frame,meta,60);
@@ -648,6 +640,9 @@ tmesh_t tmesh_knocked(tmesh_t tm)
   // driver signal that the tempo is gone
   if(knock->do_gone)
   {
+    // clear misses
+    tempo->miss = 0;
+
     // handle gone streams/signals differently
     if(tempo->frames)
     {
@@ -719,7 +714,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     }
 
     // received processing only after validation
-    tempo_knocked(tempo, knock, meta, 10);
+    tempo_knocked(tempo, knock, meta, 2);
 
     // process any new packets (TODO, queue for background processing?)
     tempo_process(tempo);
