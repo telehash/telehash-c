@@ -74,14 +74,6 @@ on big endian machines, or a byte-by-byte read if the endianess is unknown.
 -----------------------------------------------------------------------------*/
 
 
-/* I used ugly type names in the header to avoid potential conflicts with
- * application or system typedefs & defines. Since I'm not including any more
- * headers below here I can rename these so that the code reads like C99 */
-#undef uint32_t
-#define uint32_t MH_UINT32
-#undef uint8_t
-#define uint8_t  MH_UINT8
-
 /* MSVC warnings we choose to ignore */
 #if defined(_MSC_VER)
   #pragma warning(disable: 4127) /* conditional expression is constant */
