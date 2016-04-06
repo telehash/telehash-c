@@ -65,7 +65,7 @@ static tempo_t tempo_medium(tempo_t tempo, uint32_t medium)
 static tempo_t tempo_signal(tempo_t tempo)
 {
   if(!tempo) return LOG("bad args");
-  tempo->is_lost = 1;
+  tempo->do_lost = 1;
   
   // signal from someone else, or ours out
   hashname_t id = NULL;
@@ -98,9 +98,10 @@ static tempo_t tempo_stream(tempo_t tempo)
   tmesh_t tm = tempo->tm;
   mote_t to = tempo->mote;
 
-  // default flags, idle
+  // default flags, idle and lost
   tempo->do_signal = 0;
   tempo->do_schedule = 0;
+  tempo->do_lost = 1;
 
   util_frames_free(tempo->frames);
   tempo->frames = util_frames_new(64);
@@ -117,86 +118,6 @@ static tempo_t tempo_stream(tempo_t tempo)
 
   return tempo;
 }
-
-/*
-// attempt to establish link from a lost stream tempo
-static tempo_t tempo_link(tempo_t tempo)
-{
-  if(!tempo) return LOG("bad args");
-  tmesh_t tm = tempo->medium->com->tm;
-
-  // can't proceed until we've flushed
-  if(util_frames_outbox(tempo->frames,NULL)) return LOG("not flushed yet: %d",util_frames_outlen(tempo->frames));
-
-  // and also have received
-  lob_t packet;
-  if(!(packet = util_frames_receive(tempo->frames))) return LOG("none received yet");
-
-  // for beacon tempos we process only handshakes here and create/sync link if good
-  link_t link = NULL;
-  do {
-    LOG("beacon packet %s",lob_json(packet));
-    
-    // only receive raw handshakes
-    if(packet->head_len == 1)
-    {
-      link = mesh_receive(tm->mesh, packet, tempo->medium->com->pipe);
-      continue;
-    }
-
-    if(tm->pubim && lob_get(packet,"1a"))
-    {
-      hashname_t id = hashname_vkey(packet,0x1a);
-      if(hashname_cmp(id,tempo->beacon) != 0)
-      {
-        printf("dropping mismatch key %s != %s\n",hashname_short(id),hashname_short(tempo->beacon));
-        tempo_reset(tempo);
-        return LOG("mismatch");
-      }
-      // if public, try new link
-      lob_t keys = lob_new();
-      lob_set_base32(keys,"1a",packet->body,packet->body_len);
-      link = link_keys(tm->mesh, keys);
-      lob_free(keys);
-      lob_free(packet);
-      continue;
-    }
-    
-    LOG("unknown packet received on beacon tempo: %s",lob_json(packet));
-    lob_free(packet);
-  } while((packet = util_frames_receive(tempo->frames)));
-  
-  // booo, start over
-  if(!link)
-  {
-    LOG("TODO: if a tempo reset its handshake may be old and rejected above, reset link?");
-    tempo_reset(tempo);
-    printf("no link\n");
-    return LOG("no link found");
-  }
-  
-  if(hashname_cmp(link->id,tempo->beacon) != 0)
-  {
-    printf("link beacon mismatch %s != %s\n",hashname_short(link->id),hashname_short(tempo->beacon));
-    tempo_reset(tempo);
-    return LOG("mismatch");
-  }
-
-  LOG("established link");
-  tempo_t linked = tmesh_link(tm, tempo->medium->com, link);
-  tempo_reset(linked);
-  linked->at = tempo->at;
-  memcpy(linked->nonce,tempo->nonce,8);
-  linked->priority = 2;
-  link_pipe(link, tempo->medium->com->pipe);
-  lob_free(link_sync(link));
-  
-  // stop private beacon, make sure link fail resets it
-  tempo->z = 0;
-
-  return linked;
-}
-*/
 
 // process new stream data on a tempo
 static tempo_t tempo_process(tempo_t tempo)
@@ -462,7 +383,7 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
   // construct signal meta blocks
 
   // lost signal is prefixed w/ random nonce in first two blocks
-  if(tempo->is_lost)
+  if(tempo->do_lost)
   {
     knock->is_lost = 1;
     e3x_rand(knock->nonce,8);
@@ -499,15 +420,16 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
       if(at >= 12) break;
       block->type = MBLOCK_MEDIUM;
       
-      // force lost motes to accept only (can't request if lost)
-      if(mote->signal->is_lost) stream->do_schedule = 1;
+      // force lost motes to direct accept (can't request if lost)
+      if(mote->signal->do_lost) stream->do_lost = 0;
 
-      if(stream->do_schedule)
+      // lost stream means send accept
+      if(stream->do_lost)
       {
+        block->head = 1; // request
+      }else{
         block->head = 2; // accept
         knock->syncs[syncs++] = stream; // needs to be sync'd after tx
-      }else{
-        block->head = 1; // request
       }
 
       memcpy(block->body,&(stream->medium),4);
@@ -542,8 +464,9 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t at)
   uint8_t *who = NULL;
   mote_t mote = NULL;
 
-  // received stats first
-  tempo->is_lost = 0;
+  // received flags/stats first
+  tempo->do_lost = 0; // we're found
+  tempo->do_signal = 0; // no more advertising
   tempo->miss = 0;
   tempo->irx++;
   if(knock->rssi > tempo->best || !tempo->best) tempo->best = knock->rssi;
@@ -599,11 +522,17 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t at)
             // TODO is senders or request to change ours depending on who
             break;
           case 1: // stream request
+            if(!mote_send(mote, NULL)) break; // make sure stream exists
+            mote->stream->do_signal = 1; // start signalling
+            mote->stream->do_schedule = 0; // hold activity
+            mote->stream->do_lost = 0; // signal an accept of sync
             break;
           case 2: // stream accept
             LOG("accepting stream from %s on medium %lu",hashname_short(mote->link->id),body);
             // make sure one exists, is primed, and sync it
             if(!mote_send(mote, NULL)) break; // bad juju
+            mote->stream->do_schedule = 1; // go
+            mote->stream->do_lost = mote->stream->do_signal = 0; // done signalling
             mote->stream->do_tx = 0; // we default to inverted since we're accepting
             mote->stream->priority = 3; // little more boost
             mote->stream->at = knock->stopped;
@@ -640,10 +569,11 @@ tmesh_t tmesh_knocked(tmesh_t tm)
   // driver signal that the tempo is gone
   if(knock->do_gone)
   {
-    // clear misses
+    // clear misses and set lost
     tempo->miss = 0;
+    tempo->do_lost = 1;
 
-    // handle gone streams/signals differently
+    // streams change additional states
     if(tempo->frames)
     {
       tempo->do_schedule = 0;
@@ -651,7 +581,6 @@ tmesh_t tmesh_knocked(tmesh_t tm)
       tempo->do_signal = (util_frames_ready(tempo->frames) || util_frames_await(tempo->frames)) ? 1 : 0;
       LOG("gone stream");
     }else{
-      tempo->is_lost = 1;
       LOG("gone signal");
     }
   }
@@ -683,13 +612,14 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     }
 
     // lost signals always sync next at time to when actually done
-    if(tempo->is_lost) tempo->at = knock->stopped;
+    if(tempo->do_lost) tempo->at = knock->stopped;
     
     // sync any bundled/accepted stream tempos too
     uint8_t syncs;
     for(syncs=0;syncs<5;syncs++) if(knock->syncs[syncs])
     {
       tempo_t sync = knock->syncs[syncs];
+      sync->do_schedule = 1; // start going
       sync->do_tx = 1; // we are inverted
       sync->priority = 2; // little boost
       sync->at = knock->stopped;
@@ -819,7 +749,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
     tempo_schedule(mote->signal, at, rebase);
     
     // only lost signals are elected for seek
-    if(mote->signal->is_lost) seek = tm->sort(tm, seek, mote->signal);
+    if(mote->signal->do_lost) seek = tm->sort(tm, seek, mote->signal);
     
     // any signal is elected for best
     best = tm->sort(tm, best, mote->signal);

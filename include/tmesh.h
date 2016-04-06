@@ -129,7 +129,7 @@ struct tempo_struct
   uint8_t do_signal:1; // advertise this stream in a signal
   uint8_t do_schedule:1; // active stream to be scheduled
   uint8_t do_tx:1; // current window direction
-  uint8_t is_lost:1; // if currently lost signal
+  uint8_t do_lost:1; // if tempo isn't likely to be in sync
   uint8_t priority:4; // next knock priority
 };
 
