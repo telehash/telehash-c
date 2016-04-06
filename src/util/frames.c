@@ -32,6 +32,16 @@ util_frame_t util_frame_free(util_frame_t frame)
   return util_frame_free(prev);
 }
 
+util_frames_t util_frames_clear(util_frames_t frames)
+{
+  if(!frames) return NULL;
+  frames->err = 0;
+  frames->inlast = frames->outbase = 42;
+  frames->in = frames->out = 0;
+  frames->cache = util_frame_free(frames->cache);
+  return frames;
+}
+
 util_frames_t util_frames_new(uint8_t size)
 {
   if(size < 16 || size > 128) return LOG("invalid size: %u",size);
@@ -42,9 +52,7 @@ util_frames_t util_frames_new(uint8_t size)
   frames->size = size;
 
   // default init hash state
-  frames->inlast = frames->outbase = 42;
-
-  return frames;
+  return util_frames_clear(frames);
 }
 
 util_frames_t util_frames_free(util_frames_t frames)
@@ -54,6 +62,12 @@ util_frames_t util_frames_free(util_frames_t frames)
   lob_freeall(frames->outbox);
   util_frame_free(frames->cache);
   free(frames);
+  return NULL;
+}
+
+util_frames_t util_frames_ok(util_frames_t frames)
+{
+  if(frames && !frames->err) return frames;
   return NULL;
 }
 

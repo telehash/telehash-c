@@ -58,4 +58,8 @@ util_frames_t util_frames_ready(util_frames_t frames);
 // is there an expectation of an incoming frame
 util_frames_t util_frames_await(util_frames_t frames);
 
+// check error state and clearing it
+util_frames_t util_frames_ok(util_frames_t frames);
+util_frames_t util_frames_clear(util_frames_t frames);
+
 #endif
