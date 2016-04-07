@@ -165,7 +165,7 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *me
     uint32_t len = lob_len(frames->outbox);
     uint32_t rxs = frames->outbase;
     uint8_t i;
-    for(i = 0;i < frames->out;i++)
+    for(i = 0;i <= frames->out;i++)
     {
       // verify/reset to last rx'd frame
       if(rxd == rxs)
@@ -209,6 +209,9 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *me
     return frames;
   }
   
+  // dedup, if identical to last received one
+  if(hash1 == frames->inlast) return frames;
+
   // full data frames must match combined w/ previous
   hash2 ^= frames->inlast;
   hash2 += frames->in;
