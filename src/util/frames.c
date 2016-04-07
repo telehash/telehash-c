@@ -282,7 +282,6 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *m
   uint32_t len = lob_len(frames->outbox); 
   
   // clear/init
-  memset(data,0,size+4);
   uint32_t hash = frames->outbase;
   
   // first get the last sent hash
@@ -300,6 +299,7 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *m
   // if flushing, just send hashes
   if(frames->flush)
   {
+    memset(data,0,size+4);
     memcpy(data,&(frames->inlast),4);
     memcpy(data+4,&(hash),4);
     if(meta) memcpy(data+10,meta,size-10);
@@ -313,6 +313,7 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *m
   if(!out || !len || (frames->out * size) > len) return NULL;
 
   // send next frame
+  memset(data,0,size+4);
   uint32_t at = frames->out * size;
   if((at + size) > len)
   {
