@@ -67,14 +67,14 @@ void util_sys_logging(int enabled)
   LOG("log output enabled");
 }
 
-void *util_sys_log(const char *file, int line, const char *function, const char * format, ...)
+void *util_sys_log(uint8_t level, const char *file, int line, const char *function, const char * format, ...)
 {
   char buffer[256];
   va_list args;
   if(!_logging) return NULL;
   va_start (args, format);
   vsnprintf (buffer, 256, format, args);
-  fprintf(stderr,"%s:%d %s() %s\n", file, line, function, buffer);
+  fprintf(stderr,"%s:%d %s(%u) %s\n",file, line, function, level, buffer);
   fflush(stderr);
   va_end (args);
   return NULL;
