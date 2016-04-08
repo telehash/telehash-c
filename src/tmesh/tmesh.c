@@ -639,8 +639,17 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     uint8_t meta[60] = {0};
     if(!util_frames_inbox(tempo->frames, knock->frame, meta))
     {
-      knock->tempo->bad++;
-      return LOG("bad frame: %s",util_hex(knock->frame,64,NULL));
+      if(util_frames_ok(tempo->frames))
+      {
+        knock->tempo->bad++;
+        return LOG("bad frame: %s",util_hex(knock->frame,64,NULL));
+      }
+      LOG("stream broken, clearing state");
+      util_frames_clear(tempo->frames);
+      if(!util_frames_inbox(tempo->frames, knock->frame, meta))
+      {
+        return LOG("err-clear-err, bad stream frame %s",util_hex(knock->frame,64,NULL));
+      }
     }
 
     // received processing only after validation

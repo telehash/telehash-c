@@ -74,7 +74,7 @@ util_frames_t util_frames_ok(util_frames_t frames)
 util_frames_t util_frames_send(util_frames_t frames, lob_t out)
 {
   if(!frames) return LOG("bad args");
-  if(frames->err) return LOG("stream broken");
+  if(frames->err) return LOG("frame state error");
   
   if(out)
   {
@@ -139,7 +139,7 @@ size_t util_frames_outlen(util_frames_t frames)
 util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *meta)
 {
   if(!frames) return LOG("bad args");
-  if(frames->err) return LOG("stream broken");
+  if(frames->err) return LOG("frame state error");
   if(!data) return (frames->inbox) ? frames : NULL;
   
   // conveniences for code readability
@@ -278,7 +278,7 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *me
 util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *meta)
 {
   if(!frames) return LOG("bad args");
-  if(frames->err) return LOG("stream broken");
+  if(frames->err) return LOG("frame state error");
   if(!data) return util_frames_ready(frames); // retain orig behavior as a check
   uint8_t size = PAYLOAD(frames);
   uint8_t *out = lob_raw(frames->outbox);
@@ -338,7 +338,7 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *m
 util_frames_t util_frames_ready(util_frames_t frames)
 {
   if(!frames) return LOG("bad args");
-  if(frames->err) return LOG("stream broken");
+  if(frames->err) return LOG("frame state error");
   
   if(frames->flush) return frames;
   if(frames->outbox) return frames;
@@ -349,6 +349,7 @@ util_frames_t util_frames_ready(util_frames_t frames)
 util_frames_t util_frames_await(util_frames_t frames)
 {
   if(!frames) return NULL;
+  if(frames->err) return LOG("frame state error");
   // need more to complete inbox
   if(frames->cache) return frames;
   // outbox is complete, awaiting flush
