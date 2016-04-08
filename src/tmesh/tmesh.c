@@ -636,7 +636,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     chacha20(tempo->secret,knock->nonce,knock->frame,64);
     LOG("RX data RSSI %d frame %s\n",knock->rssi,util_hex(knock->frame,64,NULL));
 
-    uint8_t meta[50] = {0};
+    uint8_t meta[60] = {0};
     if(!util_frames_inbox(tempo->frames, knock->frame, meta))
     {
       knock->tempo->bad++;
@@ -644,7 +644,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     }
 
     // received processing only after validation
-    tempo_knocked(tempo, knock, meta, 2);
+    tempo_knocked(tempo, knock, meta, 0);
 
     // process any new packets (TODO, queue for background processing?)
     tempo_process(tempo);
