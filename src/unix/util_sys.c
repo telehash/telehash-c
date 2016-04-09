@@ -76,15 +76,15 @@ void *util_sys_log(uint8_t level, const char *file, int line, const char *functi
   char *lstr = NULL;
   switch(level)
   {
-    case 0:
-    case 1: lstr = "ALERT "; break;
-    case 2:
-    case 3:
-    case 4: lstr = "WARN "; break;
-    case 5:
-    case 6:
-    case 7: lstr = ""; break;
-    default: lstr = "???? "; break;
+    case 0: lstr = "EMERG  "; break;
+    case 1: lstr = "ALERT  "; break;
+    case 2: lstr = "CRIT   "; break;
+    case 3: lstr = "ERROR  "; break;
+    case 4: lstr = "WARN   "; break;
+    case 5: lstr = "NOTICE "; break;
+    case 6: lstr = "INFO   "; break;
+    case 7: lstr = "DEBUG  "; break;
+    default: lstr = "?????? "; break;
   }
   va_start (args, format);
   vsnprintf (buffer, 256, format, args);
