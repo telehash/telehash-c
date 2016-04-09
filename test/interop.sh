@@ -3,7 +3,7 @@ set -o pipefail
 
 echo "interop testing"
 
-found="../../telehash-js/bin/link.js"
+found="../../telehash-js/bin/link-disabled.js"
 if [ -f "$found" ]; then
   echo "node.js"
   ./bin/test_net_link | "$found"

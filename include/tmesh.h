@@ -39,6 +39,27 @@ lost streams are reset each signal
 lost signal hash is 8+50+4 w/ hash of just 50, rx can detect difference
 !signal->lost after first good rx
 must be commanded to change tx signal->lost, scheduled along w/ medium change
+
+stream hold/lost/idle states
+  * hold means don't schedule
+  * idle means don't signal, dont schedule TX but do schedule RX (if !hold)
+  * lost means signal (if !idle), hold = request, !hold || mote->signal->lost = accept
+    - TX/RX signal accept is stream resync event
+  - idle is cleared on any new send data, set after any TX/RX if !ready && !await
+  - mote_gone() called by the driver based on missed RX, sets lost if !idle, hold if idle
+
+TODO, move flags to explicit vs implicit:
+  * do_schedule and !do_schedule
+    - skip TX if !ready && !awaiting
+    - set true on any new data
+  * do_signal and !do_signal
+    - do_schedule = true if mote->signal->lost
+    - request if !do_schedule, else accept
+  * mote_gone() called by the driver based on missed RX
+    - sets do_schedule = false
+    - sets do_signal = true if ready||awaiting
+
+
 */
 
 typedef struct tmesh_struct *tmesh_t; // joined community motes/signals
@@ -92,9 +113,8 @@ mote_t tmesh_mote(tmesh_t tm, link_t link);
 // tempo state
 struct tempo_struct
 {
-  tmesh_t tm;
-  mote_t mote; // ownership
-  tempo_t next; // for lists
+  tmesh_t tm; // mostly convenience
+  mote_t mote; // parent mote (except for our outgoing signal) 
   void *driver; // for driver use, set during tm->tempo()
   util_frames_t frames; // r/w frame buffers for streams
   uint32_t medium; // id
@@ -106,9 +126,10 @@ struct tempo_struct
   uint8_t secret[32];
   uint8_t miss, skip; // how many of the last rx windows were missed (nothing received) or skipped (scheduling)
   uint8_t chan; // channel of next knock
-  uint8_t signal:1; // type of tempo
-  uint8_t tx:1; // current window direction
-  uint8_t lost:1; // if currently lost, signal only
+  uint8_t do_signal:1; // advertise this stream in a signal
+  uint8_t do_schedule:1; // active stream to be scheduled
+  uint8_t do_tx:1; // current window direction
+  uint8_t do_lost:1; // if tempo isn't likely to be in sync
   uint8_t priority:4; // next knock priority
 };
 
@@ -123,20 +144,22 @@ struct knock_struct
   uint8_t nonce[8]; // convenience
   tempo_t syncs[5]; // max number of tempos being sync'd in this knock
   // boolean flags for state tracking, etc
-  uint8_t ready:1; // is ready to transceive
-  uint8_t err:1; // failed
+  uint8_t is_active:1; // is actively transceiving
+  uint8_t is_lost:1; // if is lost format signal
+  uint8_t is_tx:1; // current window direction (copied from tempo for convenience)
+  uint8_t do_err:1; // driver sets if failed
+  uint8_t do_gone:1; // driver sets if too many rx fails
 };
 
 // mote state tracking
 struct mote_struct
 {
-  tmesh_t tm;
-  pipe_t pipe; // one pipe per mote to start/find best stream
-  link_t link;
   mote_t next; // for lists
+  tmesh_t tm;
+  pipe_t pipe; // one pipe per mote to start stream as needed
+  link_t link;
   tempo_t signal;
-  tempo_t streams;
-  uint32_t m_req; // stream requested w/ this medium
+  tempo_t stream;
   uint32_t seen; // first seen (for debugging)
 };
 

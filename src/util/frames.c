@@ -32,6 +32,16 @@ util_frame_t util_frame_free(util_frame_t frame)
   return util_frame_free(prev);
 }
 
+util_frames_t util_frames_clear(util_frames_t frames)
+{
+  if(!frames) return NULL;
+  frames->err = 0;
+  frames->inlast = frames->outbase = 42;
+  frames->in = frames->out = 0;
+  frames->cache = util_frame_free(frames->cache);
+  return frames;
+}
+
 util_frames_t util_frames_new(uint8_t size)
 {
   if(size < 16 || size > 128) return LOG("invalid size: %u",size);
@@ -42,9 +52,7 @@ util_frames_t util_frames_new(uint8_t size)
   frames->size = size;
 
   // default init hash state
-  frames->inlast = frames->outbase = 42;
-
-  return frames;
+  return util_frames_clear(frames);
 }
 
 util_frames_t util_frames_free(util_frames_t frames)
@@ -57,10 +65,16 @@ util_frames_t util_frames_free(util_frames_t frames)
   return NULL;
 }
 
+util_frames_t util_frames_ok(util_frames_t frames)
+{
+  if(frames && !frames->err) return frames;
+  return NULL;
+}
+
 util_frames_t util_frames_send(util_frames_t frames, lob_t out)
 {
   if(!frames) return LOG("bad args");
-  if(frames->err) return LOG("stream broken");
+  if(frames->err) return LOG("frame state error");
   
   if(out)
   {
@@ -122,10 +136,10 @@ size_t util_frames_outlen(util_frames_t frames)
 }
 
 // the next frame of data in/out, if data NULL bool is just ready check
-util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data)
+util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *meta)
 {
   if(!frames) return LOG("bad args");
-  if(frames->err) return LOG("stream broken");
+  if(frames->err) return LOG("frame state error");
   if(!data) return (frames->inbox) ? frames : NULL;
   
   // conveniences for code readability
@@ -140,6 +154,10 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data)
   if(hash1 == hash2)
   {
 //    LOG("meta frame %s",util_hex(data,size+4,NULL));
+
+    // if requested, copy in metadata block
+    if(meta) memcpy(meta,data+10,size-10);
+
     // verify sender's last rx'd hash
     uint32_t rxd;
     memcpy(&rxd,data,4);
@@ -147,7 +165,7 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data)
     uint32_t len = lob_len(frames->outbox);
     uint32_t rxs = frames->outbase;
     uint8_t i;
-    for(i = 0;i < frames->out;i++)
+    for(i = 0;i <= frames->out;i++)
     {
       // verify/reset to last rx'd frame
       if(rxd == rxs)
@@ -191,6 +209,9 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data)
     return frames;
   }
   
+  // dedup, if identical to last received one
+  if(hash1 == frames->inlast) return frames;
+
   // full data frames must match combined w/ previous
   hash2 ^= frames->inlast;
   hash2 += frames->in;
@@ -254,24 +275,16 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data)
   return frames;
 }
 
-util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
+util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *meta)
 {
   if(!frames) return LOG("bad args");
-  if(frames->err) return LOG("stream broken");
+  if(frames->err) return LOG("frame state error");
+  if(!data) return util_frames_ready(frames); // retain orig behavior as a check
   uint8_t size = PAYLOAD(frames);
   uint8_t *out = lob_raw(frames->outbox);
   uint32_t len = lob_len(frames->outbox); 
   
-  // is just a check to see if there's something to send
-  if(!data)
-  {
-    if(frames->flush) return frames;
-    if(len && (frames->out * size) <= len) return frames;
-    return NULL;
-  }
-
   // clear/init
-  memset(data,0,size+4);
   uint32_t hash = frames->outbase;
   
   // first get the last sent hash
@@ -289,10 +302,12 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
   // if flushing, just send hashes
   if(frames->flush)
   {
+    memset(data,0,size+4);
     memcpy(data,&(frames->inlast),4);
     memcpy(data+4,&(hash),4);
+    if(meta) memcpy(data+10,meta,size-10);
     murmur(data,size,data+size);
-    LOG("sending meta frame inlast %lu cur %lu",frames->inlast,hash);
+//    LOG("sending meta frame inlast %lu cur %lu",frames->inlast,hash);
     frames->flush = 0;
     return frames;
   }
@@ -301,6 +316,7 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
   if(!out || !len || (frames->out * size) > len) return NULL;
 
   // send next frame
+  memset(data,0,size+4);
   uint32_t at = frames->out * size;
   if((at + size) > len)
   {
@@ -318,10 +334,22 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
   return frames;
 }
 
+  // is just a check to see if there's something to send
+util_frames_t util_frames_ready(util_frames_t frames)
+{
+  if(!frames) return LOG("bad args");
+  if(frames->err) return LOG("frame state error");
+  
+  if(frames->flush) return frames;
+  if(frames->outbox) return frames;
+  return NULL;
+}
+
 // is there an expectation of an incoming frame
 util_frames_t util_frames_await(util_frames_t frames)
 {
   if(!frames) return NULL;
+  if(frames->err) return LOG("frame state error");
   // need more to complete inbox
   if(frames->cache) return frames;
   // outbox is complete, awaiting flush
