@@ -38,14 +38,14 @@ mesh_t mesh_new(uint32_t prime)
   mesh_t mesh;
   
   // make sure we've initialized
-  if(e3x_init(NULL)) return LOG("e3x init failed");
+  if(e3x_init(NULL)) return LOG_ERROR("e3x init failed");
 
   if(!(mesh = malloc(sizeof (struct mesh_struct)))) return NULL;
   memset(mesh, 0, sizeof(struct mesh_struct));
   mesh->index = xht_new(prime?prime:MAXPRIME);
   if(!mesh->index) return mesh_free(mesh);
   
-  LOG("mesh created version %d.%d.%d",TELEHASH_VERSION_MAJOR,TELEHASH_VERSION_MINOR,TELEHASH_VERSION_PATCH);
+  LOG_INFO("mesh created version %d.%d.%d",TELEHASH_VERSION_MAJOR,TELEHASH_VERSION_MINOR,TELEHASH_VERSION_PATCH);
 
   return mesh;
 }
@@ -94,7 +94,7 @@ uint8_t mesh_load(mesh_t mesh, lob_t secrets, lob_t keys)
   if(!(mesh->self = e3x_self_new(secrets, keys))) return 2;
   mesh->keys = lob_copy(keys);
   mesh->id = hashname_dup(hashname_vkeys(mesh->keys));
-  LOG("mesh is %s",hashname_short(mesh->id));
+  LOG_INFO("mesh is %s",hashname_short(mesh->id));
   return 0;
 }
 
@@ -102,9 +102,9 @@ uint8_t mesh_load(mesh_t mesh, lob_t secrets, lob_t keys)
 lob_t mesh_generate(mesh_t mesh)
 {
   lob_t secrets;
-  if(!mesh || mesh->self) return LOG("invalid mesh");
+  if(!mesh || mesh->self) return LOG_ERROR("invalid mesh");
   secrets = e3x_generate();
-  if(!secrets) return LOG("failed to generate %s",e3x_err());
+  if(!secrets) return LOG_ERROR("failed to generate %s",e3x_err());
   if(mesh_load(mesh, secrets, lob_linked(secrets))) return lob_free(secrets);
   return secrets;
 }
@@ -113,7 +113,7 @@ lob_t mesh_generate(mesh_t mesh)
 char *mesh_uri(mesh_t mesh, char *base)
 {
   lob_t uri;
-  if(!mesh) return LOG("bad args");
+  if(!mesh) return LOG_ERROR("bad args");
 
   // TODO use a router-provided base
   uri = util_uri_parse(base?base:"link://127.0.0.1");
@@ -136,7 +136,7 @@ char *mesh_uri(mesh_t mesh, char *base)
 lob_t mesh_json(mesh_t mesh)
 {
   lob_t json, paths;
-  if(!mesh) return LOG("bad args");
+  if(!mesh) return LOG_ERROR("bad args");
 
   json = lob_new();
   lob_set(json,"hashname",hashname_char(mesh->id));
