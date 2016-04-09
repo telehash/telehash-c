@@ -22,19 +22,18 @@ void util_sys_logging(int enabled);
 // returns NULL for convenient return logging
 void *util_sys_log(uint8_t level, const char *file, int line, const char *function, const char * format, ...);
 
-// mimic syslog levels
-// 7 - DEBUG
-// 4 - WARN
-// 1 - ALERT
+// use syslog levels https://en.wikipedia.org/wiki/Syslog#Severity_level
+#define LOG_LEVEL(level, fmt, ...) util_sys_log(level, __FILE__, __LINE__, __func__, fmt, ## __VA_ARGS__)
 
+// default LOG is DEBUG level and compile-time optional
 #ifdef NOLOG
 #define LOG(...) NULL
 #else
 #define LOG(fmt, ...) util_sys_log(7, __FILE__, __LINE__, __func__, fmt, ## __VA_ARGS__)
 #endif
 
+// most things just need these two
 #define LOG_WARN(fmt, ...) util_sys_log(4, __FILE__, __LINE__, __func__, fmt, ## __VA_ARGS__)
-#define LOG_ALERT(fmt, ...) util_sys_log(1, __FILE__, __LINE__, __func__, fmt, ## __VA_ARGS__)
-#define LOG_LEVEL(level, fmt, ...) util_sys_log(level, __FILE__, __LINE__, __func__, fmt, ## __VA_ARGS__)
+#define LOG_ERROR(fmt, ...) util_sys_log(3, __FILE__, __LINE__, __func__, fmt, ## __VA_ARGS__)
 
 #endif

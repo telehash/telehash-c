@@ -72,9 +72,23 @@ void *util_sys_log(uint8_t level, const char *file, int line, const char *functi
   char buffer[256];
   va_list args;
   if(!_logging) return NULL;
+  // https://en.wikipedia.org/wiki/Syslog#Severity_level
+  char *lstr = NULL;
+  switch(level)
+  {
+    case 0:
+    case 1: lstr = "ALERT "; break;
+    case 2:
+    case 3:
+    case 4: lstr = "WARN "; break;
+    case 5:
+    case 6:
+    case 7: lstr = ""; break;
+    default: lstr = "???? "; break;
+  }
   va_start (args, format);
   vsnprintf (buffer, 256, format, args);
-  fprintf(stderr,"%s:%d %s(%u) %s\n",file, line, function, level, buffer);
+  fprintf(stderr,"%s%s:%d %s() %s\n",lstr,file, line, function, buffer);
   fflush(stderr);
   va_end (args);
   return NULL;
