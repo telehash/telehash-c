@@ -65,19 +65,20 @@ test-mem: mem_last.o bin/test_mem_last
 
 test-interop: net_link.o bin/test_net_link
 	@if ./interop.sh ; then \
-		echo "PASSED: interop.sh"; \
+		echo "PASSED interop.sh"; \
 	else \
-		echo "FAILED: interop.sh"; exit 1; \
+		echo "FAILED interop.sh"; exit 1; \
 	fi;
 
 tests: build-tests
 	@for test in $(TESTS); do \
 		chmod 0755 ./bin/test_$$test && \
+		echo && \
 		echo "=====[ running $$test ]=====" && \
 		if ./bin/test_$$test ; then \
-			echo "PASSED: $$test"; \
+			echo "PASSED $$test"; \
 		else \
-			echo "FAILED: $$test"; exit 1; \
+			echo "FAILED $$test"; exit 1; \
 		fi; \
 	done
 
