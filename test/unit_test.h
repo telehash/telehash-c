@@ -19,7 +19,7 @@ static int unit_test_pass = 0;
                 __FILE__, __LINE__, #test); \
         TEST_CLEAN_UP; \
         exit(1); \
-    }else{ fprintf(stderr, "%s:%d: passed %d tests\n", __FILE__, __LINE__, ++unit_test_pass); } } while(0)
+    }else{ fprintf(stderr, "TEST   %s:%d: passed %d tests\n", __FILE__, __LINE__, ++unit_test_pass); } } while(0)
 
 #endif
 

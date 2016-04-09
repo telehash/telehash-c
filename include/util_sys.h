@@ -32,7 +32,8 @@ void *util_sys_log(uint8_t level, const char *file, int line, const char *functi
 #define LOG(fmt, ...) util_sys_log(7, __FILE__, __LINE__, __func__, fmt, ## __VA_ARGS__)
 #endif
 
-// most things just need these two
+// most things just need these
+#define LOG_INFO(fmt, ...) util_sys_log(6, __FILE__, __LINE__, __func__, fmt, ## __VA_ARGS__)
 #define LOG_WARN(fmt, ...) util_sys_log(4, __FILE__, __LINE__, __func__, fmt, ## __VA_ARGS__)
 #define LOG_ERROR(fmt, ...) util_sys_log(3, __FILE__, __LINE__, __func__, fmt, ## __VA_ARGS__)
 
