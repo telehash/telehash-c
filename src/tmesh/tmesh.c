@@ -578,7 +578,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     {
       tempo->do_schedule = 0;
       // signal this stream if still busy
-      tempo->do_signal = (util_frames_ready(tempo->frames) || util_frames_await(tempo->frames)) ? 1 : 0;
+      tempo->do_signal = util_frames_busy(tempo->frames) ? 1 : 0;
       LOG("gone stream");
     }else{
       LOG("gone signal");
@@ -590,7 +590,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     tempo->miss++;
 
     // if expecting data, trigger a flush
-    if(!knock->is_tx && util_frames_await(tempo->frames)) util_frames_send(tempo->frames,NULL);
+    if(!knock->is_tx && util_frames_inbox(tempo->frames,NULL,NULL)) util_frames_send(tempo->frames,NULL);
     
     MORTY(tempo,"do_err");
     return tm;
