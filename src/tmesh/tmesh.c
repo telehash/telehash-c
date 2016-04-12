@@ -103,8 +103,7 @@ static tempo_t tempo_stream(tempo_t tempo)
   tempo->do_schedule = 0;
   tempo->do_lost = 1;
 
-  util_frames_free(tempo->frames);
-  tempo->frames = util_frames_new(64);
+  util_frames_clear(tempo->frames);
 
   // generate mesh-wide unique stream secret
   uint8_t roll[64];
@@ -369,13 +368,7 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
     LOG("META %s",util_hex(meta,60,NULL));
 
     // fill in stream frame
-    if(!util_frames_outbox(tempo->frames,knock->frame,meta))
-    {
-      // nothing to send, force meta flush
-      LOG("outbox empty, sending flush");
-      util_frames_send(tempo->frames,NULL);
-      util_frames_outbox(tempo->frames,knock->frame,meta);
-    }
+    util_frames_outbox(tempo->frames,knock->frame,meta);
 
     return tempo;
   }
@@ -606,6 +599,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     // did we send a data frame?
     if(tempo->frames)
     {
+      util_frames_sent(tempo->frames);
       LOG("tx frame done %lu",util_frames_outlen(tempo->frames));
 
       return tm;
