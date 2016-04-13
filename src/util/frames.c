@@ -131,7 +131,7 @@ size_t util_frames_outlen(util_frames_t frames)
   
   // subtract sent
   if(frames->outbox) len -= frames->outbox->id;
-
+  
   return len;
 }
 
@@ -365,6 +365,7 @@ util_frames_t util_frames_sent(util_frames_t frames)
   {
     frames->flush = 0;
   }else{
+    if((at + size) > len) size = len - at;
     frames->outbox->id = at + size; // track exact sent bytes
     frames->out++; // advance sent frames counter
   }
