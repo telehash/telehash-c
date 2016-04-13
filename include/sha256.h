@@ -31,7 +31,9 @@ void sha256_hmac( const unsigned char *key, size_t keylen,
                   const unsigned char *input, size_t ilen,
                   unsigned char output[32], int is224 );
 
-
+void hmac_256(const unsigned char *key, size_t keylen,
+                  const unsigned char *input, size_t ilen,
+                  unsigned char output[32]);
 
 #ifdef __cplusplus
 }

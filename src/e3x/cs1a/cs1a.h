@@ -6,9 +6,7 @@ extern "C" {
 #endif
 
 #include "telehash.h"
-#include "sha256.h"
 #include "uECC.h"
-#include "hmac.h"
 
 #ifdef __cplusplus
 }

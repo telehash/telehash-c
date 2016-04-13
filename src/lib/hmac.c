@@ -1,4 +1,4 @@
-#include "cs1a.h"
+#include "telehash.h"
 
 void hmac_256(const unsigned char *key, size_t keylen, const unsigned char *input, size_t ilen, unsigned char output[32])
 {
