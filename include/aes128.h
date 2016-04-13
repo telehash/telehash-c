@@ -37,6 +37,9 @@
 extern "C" {
 #endif
 
+// local wrapper
+void aes_128_ctr(unsigned char *key, size_t length, unsigned char nonce_counter[16], const unsigned char *input, unsigned char *output);
+
 /**
  * \brief          AES context structure
  *
