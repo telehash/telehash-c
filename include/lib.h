@@ -8,3 +8,4 @@
 #include "xht.h"
 #include "aes128.h"
 #include "sha256.h"
+#include "uECC.h"

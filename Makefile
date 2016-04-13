@@ -3,7 +3,7 @@ CFLAGS+=-g -Wall -Wextra -Wno-unused-parameter -DDEBUG
 #CFLAGS+=-Weverything -Wno-unused-macros -Wno-undef -Wno-gnu-zero-variadic-macro-arguments -Wno-padded -Wno-gnu-label-as-value -Wno-gnu-designator -Wno-missing-prototypes -Wno-format-nonliteral
 INCLUDE+=-Iinclude -Iinclude/lib -Iunix
 
-LIB = src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/lib/chacha.c src/lib/murmur.c src/lib/aes128.c src/lib/sha256.c
+LIB = src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/lib/chacha.c src/lib/murmur.c src/lib/aes128.c src/lib/sha256.c src/lib/uECC.c
 E3X = src/e3x/e3x.c src/e3x/self.c src/e3x/exchange.c src/e3x/cipher.c
 MESH = src/mesh.c src/link.c src/chan.c src/pipe.c
 EXT = src/ext/stream.c src/ext/block.c src/ext/peer.c src/ext/path.c
@@ -12,7 +12,7 @@ UTIL = src/util/util.c src/util/uri.c src/util/chunks.c src/util/frames.c src/un
 TMESH = src/tmesh/tmesh.c 
 
 # CS1a by default
-CS = src/e3x/cs1a/cs1a.c src/e3x/cs1a/uECC.c 
+CS = src/e3x/cs1a/cs1a.c 
 
 # check for CS2a deps
 ifneq ("$(wildcard node_modules/libtomcrypt-c/libtomcrypt.a)","")

@@ -9,7 +9,7 @@ CFLAGS+=-g -Wall -Wextra -Wno-unused-parameter -DDEBUG -DRADIOS_MAX=2
 INCLUDE+=-I../unix -I../include -I../include/lib
 
 
-LIB = src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/lib/chacha.c src/lib/murmur.c src/lib/socketio.c src/lib/jwt.c src/lib/base64.c src/lib/aes128.c src/lib/sha256.c
+LIB = src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/lib/chacha.c src/lib/murmur.c src/lib/socketio.c src/lib/jwt.c src/lib/base64.c src/lib/aes128.c src/lib/sha256.c src/lib/uECC.c
 E3X = src/e3x/e3x.c src/e3x/self.c src/e3x/exchange.c src/e3x/cipher.c
 MESH = src/mesh.c src/link.c src/chan.c src/pipe.c
 EXT = src/ext/stream.c src/ext/block.c src/ext/path.c src/ext/peer.c
@@ -18,7 +18,7 @@ UTIL = src/util/util.c src/util/uri.c src/util/chunks.c src/util/frames.c src/un
 TMESH = src/tmesh/tmesh.c 
 
 # CS1a by default
-CS = src/e3x/cs1a/cs1a.c src/e3x/cs1a/uECC.c
+CS = src/e3x/cs1a/cs1a.c 
 TESTS += e3x_cs1a
 
 # check for CS2a deps
