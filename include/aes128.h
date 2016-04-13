@@ -33,6 +33,8 @@
 #define MBEDTLS_ERR_AES_INVALID_KEY_LENGTH                -0x0020  /**< Invalid key length. */
 #define MBEDTLS_ERR_AES_INVALID_INPUT_LENGTH              -0x0022  /**< Invalid data input length. */
 
+#define MBEDTLS_AES_ROM_TABLES
+
 #ifdef __cplusplus
 extern "C" {
 #endif
