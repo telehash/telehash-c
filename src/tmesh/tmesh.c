@@ -18,7 +18,7 @@ typedef struct mblock_struct {
 #define MBLOCK_SEQ      3
 #define MBLOCK_QUALITY  4
 
-#define MORTY(t,r) LOG("RICK %s\t%s %s %s [%u,%u,%u,%u,%u] at:%lu seq:%lx s:%s (%lu/%lu) m:%lu",r,t->mote?hashname_short(t->mote->link->id):"selfself",t->do_tx?"TX":"RX",t->frames?"stream":"signal",t->itx,t->irx,t->bad,t->miss,t->skip,t->at,t->seq,util_hex(t->secret,4,NULL),util_frames_inlen(t->frames),util_frames_outlen(t->frames),t->medium);
+#define MORTY(t,r) LOG_DEBUG("RICK %s\t%s %s %s [%u,%u,%u,%u,%u] at:%lu seq:%lx s:%s (%lu/%lu) m:%lu",r,t->mote?hashname_short(t->mote->link->id):"selfself",t->do_tx?"TX":"RX",t->frames?"stream":"signal",t->itx,t->irx,t->bad,t->miss,t->skip,t->at,t->seq,util_hex(t->secret,4,NULL),util_frames_inlen(t->frames),util_frames_outlen(t->frames),t->medium);
 
 static tempo_t tempo_free(tempo_t tempo)
 {
@@ -30,10 +30,10 @@ static tempo_t tempo_free(tempo_t tempo)
 
 static tempo_t tempo_new(tmesh_t tm)
 {
-  if(!tm) return LOG("bad args");
+  if(!tm) return LOG_WARN("bad args");
 
   tempo_t tempo;
-  if(!(tempo = malloc(sizeof(struct tempo_struct)))) return LOG("OOM");
+  if(!(tempo = malloc(sizeof(struct tempo_struct)))) return LOG_ERROR("OOM");
   memset(tempo,0,sizeof (struct tempo_struct));
   tempo->tm = tm;
 
@@ -43,7 +43,7 @@ static tempo_t tempo_new(tmesh_t tm)
 // update medium if needed
 static tempo_t tempo_medium(tempo_t tempo, uint32_t medium)
 {
-  if(!tempo) return LOG("bad args");
+  if(!tempo) return LOG_WARN("bad args");
 
   if(!medium || tempo->medium == medium) return tempo;
 
@@ -53,7 +53,7 @@ static tempo_t tempo_medium(tempo_t tempo, uint32_t medium)
   if(!tempo->tm->init(tempo->tm, tempo))
   {
     tempo->medium = revert;
-    LOG("driver failed medium init from %lu to %lu",revert,medium);
+    LOG_WARN("driver failed medium init from %lu to %lu",revert,medium);
   }else{
     MORTY(tempo,"medium");
   }
@@ -64,7 +64,7 @@ static tempo_t tempo_medium(tempo_t tempo, uint32_t medium)
 // init lost signal tempo
 static tempo_t tempo_signal(tempo_t tempo)
 {
-  if(!tempo) return LOG("bad args");
+  if(!tempo) return LOG_WARN("bad args");
   tempo->do_lost = 1;
   
   // signal from someone else, or ours out
@@ -85,7 +85,6 @@ static tempo_t tempo_signal(tempo_t tempo)
   e3x_hash((uint8_t*)(tempo->tm->community),strlen(tempo->tm->community),roll);
   memcpy(roll+32,hashname_bin(id),32);
   e3x_hash(roll,64,tempo->secret);
-  LOG("shared signal secret %s",util_hex(tempo->secret,32,NULL));
   
   MORTY(tempo,"signal");
   return tempo;
@@ -94,7 +93,7 @@ static tempo_t tempo_signal(tempo_t tempo)
 // init stream tempo
 static tempo_t tempo_stream(tempo_t tempo)
 {
-  if(!tempo || !tempo->mote) return LOG("bad args");
+  if(!tempo || !tempo->mote) return LOG_WARN("bad args");
   tmesh_t tm = tempo->tm;
   mote_t to = tempo->mote;
 
@@ -103,8 +102,8 @@ static tempo_t tempo_stream(tempo_t tempo)
   tempo->do_schedule = 0;
   tempo->do_lost = 1;
 
-  util_frames_free(tempo->frames);
-  tempo->frames = util_frames_new(64);
+  if(!tempo->frames) tempo->frames = util_frames_new(64);
+  util_frames_clear(tempo->frames);
 
   // generate mesh-wide unique stream secret
   uint8_t roll[64];
@@ -122,21 +121,21 @@ static tempo_t tempo_stream(tempo_t tempo)
 // process new stream data on a tempo
 static tempo_t tempo_process(tempo_t tempo)
 {
-  if(!tempo) return LOG("bad args");
+  if(!tempo) return LOG_WARN("bad args");
   link_t link = tempo->mote->link;
   
   // process any packets on this tempo
   lob_t packet;
   while((packet = util_frames_receive(tempo->frames)))
   {
-    LOG("pkt %s",lob_json(packet));
+    LOG_DEBUG("pkt %s",lob_json(packet));
     // handle our compact discovery packet format
     if(lob_get(packet,"1a"))
     {
       hashname_t id = hashname_vkey(packet,0x1a);
       if(hashname_cmp(id,link->id) != 0)
       {
-        printf("dropping mismatch key %s != %s\n",hashname_short(id),hashname_short(link->id));
+        LOG_WARN("dropping mismatch key %s != %s\n",hashname_short(id),hashname_short(link->id));
         lob_free(packet);
         continue;
       }
@@ -155,7 +154,7 @@ static tempo_t tempo_process(tempo_t tempo)
 // find a stream to send it to for this mote
 mote_t mote_send(mote_t mote, lob_t packet)
 {
-  if(!mote) return LOG("bad args");
+  if(!mote) return LOG_WARN("bad args");
   tempo_t tempo = mote->stream;
 
   if(!tempo)
@@ -163,7 +162,7 @@ mote_t mote_send(mote_t mote, lob_t packet)
     tempo = mote->stream = tempo_new(mote->tm);
     if(!tempo)
     {
-      LOG("no stream to %s, dropping packet len %lu",hashname_short(mote->link->id),lob_len(packet));
+      LOG_WARN("no stream to %s, dropping packet len %lu",hashname_short(mote->link->id),lob_len(packet));
       lob_free(packet);
       return NULL;
     }
@@ -176,7 +175,7 @@ mote_t mote_send(mote_t mote, lob_t packet)
   // if not scheduled, make sure signalling
   if(!tempo->do_schedule) tempo->do_signal = 1;
   util_frames_send(tempo->frames, packet);
-  LOG("delivering %d to mote %s total %lu",lob_len(packet),hashname_short(mote->link->id),util_frames_outlen(tempo->frames));
+  LOG_DEBUG("delivering %d to mote %s total %lu",lob_len(packet),hashname_short(mote->link->id),util_frames_outlen(tempo->frames));
   return mote;
 }
 
@@ -185,7 +184,7 @@ static void mote_pipe_send(pipe_t pipe, lob_t packet, link_t link)
 {
   if(!pipe || !pipe->arg || !packet || !link)
   {
-    LOG("bad args");
+    LOG_WARN("bad args");
     lob_free(packet);
     return;
   }
@@ -201,17 +200,17 @@ static mote_t mote_free(mote_t mote)
   tempo_free(mote->stream);
   pipe_free(mote->pipe);
   free(mote);
-  return LOG("TODO");
+  return LOG_WARN("TODO list");
 }
 
 static mote_t mote_new(tmesh_t tm, link_t link)
 {
-  if(!tm || !link) return LOG("bad args");
+  if(!tm || !link) return LOG_WARN("bad args");
 
-  LOG("new mote %s",hashname_short(link->id));
+  LOG_INFO("new mote %s",hashname_short(link->id));
 
   mote_t mote;
-  if(!(mote = malloc(sizeof(struct mote_struct)))) return LOG("OOM");
+  if(!(mote = malloc(sizeof(struct mote_struct)))) return LOG_ERROR("OOM");
   memset(mote,0,sizeof (struct mote_struct));
   mote->link = link;
   mote->tm = tm;
@@ -228,16 +227,16 @@ static mote_t mote_new(tmesh_t tm, link_t link)
 mote_t tmesh_find(tmesh_t tm, link_t link, uint32_t m_lost)
 {
   mote_t mote;
-  if(!tm || !link) return LOG("bad args");
+  if(!tm || !link) return LOG_WARN("bad args");
 
-  LOG("finding %s",hashname_short(link->id));
+  LOG_DEBUG("finding %s",hashname_short(link->id));
 
   // check list of motes, add if not there
   for(mote=tm->motes;mote;mote = mote->next) if(mote->link == link) return mote;
 
-  LOG("adding %s",hashname_short(link->id));
+  LOG_INFO("adding %s",hashname_short(link->id));
 
-  if(!(mote = mote_new(tm, link))) return LOG("OOM");
+  if(!(mote = mote_new(tm, link))) return LOG_ERROR("OOM");
   mote->link = link;
   mote->next = tm->motes;
   tm->motes = mote;
@@ -262,10 +261,10 @@ mote_t tmesh_find(tmesh_t tm, link_t link, uint32_t m_lost)
 // if there's a mote for this link, return it
 mote_t tmesh_mote(tmesh_t tm, link_t link)
 {
-  if(!tm || !link) return LOG("bad args");
+  if(!tm || !link) return LOG_WARN("bad args");
   mote_t m;
   for(m=tm->motes;m;m = m->next) if(m->link == link) return m;
-  return LOG("no mote found for link %s",hashname_short(link->id));
+  return LOG_WARN("no mote found for link %s",hashname_short(link->id));
 }
 
 pipe_t tmesh_on_path(link_t link, lob_t path)
@@ -283,9 +282,9 @@ pipe_t tmesh_on_path(link_t link, lob_t path)
 tmesh_t tmesh_new(mesh_t mesh, char *name, uint32_t mediums[3])
 {
   tmesh_t tm;
-  if(!mesh || !name) return LOG("bad args");
+  if(!mesh || !name) return LOG_WARN("bad args");
 
-  if(!(tm = malloc(sizeof (struct tmesh_struct)))) return LOG("OOM");
+  if(!(tm = malloc(sizeof (struct tmesh_struct)))) return LOG_ERROR("OOM");
   memset(tm,0,sizeof (struct tmesh_struct));
   tm->knock = malloc(sizeof (struct knock_struct));
   memset(tm->knock,0,sizeof (struct knock_struct));
@@ -337,7 +336,7 @@ tempo_t tmesh_signal(tmesh_t tm, uint32_t seq, uint32_t medium)
 // fills in next tx knock
 tempo_t tempo_knock(tempo_t tempo, knock_t knock)
 {
-  if(!tempo) return LOG("bad args");
+  if(!tempo) return LOG_WARN("bad args");
   mote_t mote = tempo->mote;
   tmesh_t tm = tempo->tm;
   uint8_t meta[60] = {0};
@@ -366,16 +365,10 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
     // TODO, if they're lost suggest non-lost medium
     // TODO include other signals from suggested neighbors
 
-    LOG("META %s",util_hex(meta,60,NULL));
+    LOG_DEBUG("META %s",util_hex(meta,60,NULL));
 
     // fill in stream frame
-    if(!util_frames_outbox(tempo->frames,knock->frame,meta))
-    {
-      // nothing to send, force meta flush
-      LOG("outbox empty, sending flush");
-      util_frames_send(tempo->frames,NULL);
-      util_frames_outbox(tempo->frames,knock->frame,meta);
-    }
+    util_frames_outbox(tempo->frames,knock->frame,meta);
 
     return tempo;
   }
@@ -473,12 +466,12 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t at)
   if(knock->rssi < tempo->worst || !tempo->worst) tempo->worst = knock->rssi;
   tempo->last = knock->rssi;
 
-  LOG("RX %s %u received, rssi %d/%d/%d data %d\n",tempo->frames?"stream":"signal",tempo->irx,tempo->last,tempo->best,tempo->worst,util_frames_inlen(tempo->frames));
+  LOG_DEBUG("RX %s %u received, rssi %d/%d/%d data %d\n",tempo->frames?"stream":"signal",tempo->irx,tempo->last,tempo->best,tempo->worst,util_frames_inlen(tempo->frames));
 
   for(;at < 12;at++)
   {
     mblock_t block = (mblock_t)(meta+(5*at));
-    LOG("meta block %u: %s",at,util_hex((uint8_t*)block,5,NULL));
+    LOG_DEBUG("meta block %u: %s",at,util_hex((uint8_t*)block,5,NULL));
 
     // determine who the following blocks are about
     if(!who)
@@ -498,7 +491,7 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t at)
     }
     
     memcpy(&body,block->body,4);
-    LOG("mblock %u:%u %lu %s",block->type,block->head,body,block->done?"done":"");
+    LOG_DEBUG("mblock %u:%u %lu %s",block->type,block->head,body,block->done?"done":"");
     switch(block->type)
     {
       case MBLOCK_NONE:
@@ -513,7 +506,7 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t at)
         break;
       case MBLOCK_QUALITY:
         // TODO, use/track quality metrics
-        LOG("quality %lu for %s",body,mote?hashname_short(mote->link->id):"unknown");
+        LOG_DEBUG("quality %lu for %s",body,mote?hashname_short(mote->link->id):"unknown");
         break;
       case MBLOCK_MEDIUM:
         switch(block->head)
@@ -528,7 +521,7 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t at)
             mote->stream->do_lost = 0; // signal an accept of sync
             break;
           case 2: // stream accept
-            LOG("accepting stream from %s on medium %lu",hashname_short(mote->link->id),body);
+            LOG_INFO("accepting stream from %s on medium %lu",hashname_short(mote->link->id),body);
             // make sure one exists, is primed, and sync it
             if(!mote_send(mote, NULL)) break; // bad juju
             mote->stream->do_schedule = 1; // go
@@ -541,11 +534,11 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t at)
             
             break;
           default:
-            LOG("unknown medium block %u: %s",block->type,util_hex((uint8_t*)block,5,NULL));
+            LOG_WARN("unknown medium block %u: %s",block->type,util_hex((uint8_t*)block,5,NULL));
         }
         break;
       default:
-        LOG("unknown mblock %u: %s",block->type,util_hex((uint8_t*)block,5,NULL));
+        LOG_WARN("unknown mblock %u: %s",block->type,util_hex((uint8_t*)block,5,NULL));
     }
     
     // done w/ this who
@@ -558,7 +551,7 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t at)
 // handle a knock that has been sent/received
 tmesh_t tmesh_knocked(tmesh_t tm)
 {
-  if(!tm) return LOG("bad args");
+  if(!tm) return LOG_WARN("bad args");
   knock_t knock = tm->knock;
   tempo_t tempo = knock->tempo;
 
@@ -578,10 +571,10 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     {
       tempo->do_schedule = 0;
       // signal this stream if still busy
-      tempo->do_signal = (util_frames_ready(tempo->frames) || util_frames_await(tempo->frames)) ? 1 : 0;
-      LOG("gone stream");
+      tempo->do_signal = util_frames_busy(tempo->frames) ? 1 : 0;
+      LOG_INFO("gone stream");
     }else{
-      LOG("gone signal");
+      LOG_INFO("gone signal");
     }
   }
 
@@ -590,7 +583,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     tempo->miss++;
 
     // if expecting data, trigger a flush
-    if(!knock->is_tx && util_frames_await(tempo->frames)) util_frames_send(tempo->frames,NULL);
+    if(!knock->is_tx && util_frames_inbox(tempo->frames,NULL,NULL)) util_frames_send(tempo->frames,NULL);
     
     MORTY(tempo,"do_err");
     return tm;
@@ -606,7 +599,8 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     // did we send a data frame?
     if(tempo->frames)
     {
-      LOG("tx frame done %lu",util_frames_outlen(tempo->frames));
+      util_frames_sent(tempo->frames);
+      LOG_DEBUG("tx frame done %lu",util_frames_outlen(tempo->frames));
 
       return tm;
     }
@@ -634,7 +628,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
   if(tempo->frames)
   {
     chacha20(tempo->secret,knock->nonce,knock->frame,64);
-    LOG("RX data RSSI %d frame %s\n",knock->rssi,util_hex(knock->frame,64,NULL));
+    LOG_DEBUG("RX data RSSI %d frame %s\n",knock->rssi,util_hex(knock->frame,64,NULL));
 
     uint8_t meta[60] = {0};
     if(!util_frames_inbox(tempo->frames, knock->frame, meta))
@@ -642,13 +636,13 @@ tmesh_t tmesh_knocked(tmesh_t tm)
       if(util_frames_ok(tempo->frames))
       {
         knock->tempo->bad++;
-        return LOG("bad frame: %s",util_hex(knock->frame,64,NULL));
+        return LOG_INFO("bad frame: %s",util_hex(knock->frame,64,NULL));
       }
-      LOG("stream broken, clearing state");
+      LOG_INFO("stream broken, clearing state");
       util_frames_clear(tempo->frames);
       if(!util_frames_inbox(tempo->frames, knock->frame, meta))
       {
-        return LOG("err-clear-err, bad stream frame %s",util_hex(knock->frame,64,NULL));
+        return LOG_WARN("err-clear-err, bad stream frame %s",util_hex(knock->frame,64,NULL));
       }
     }
 
@@ -680,7 +674,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     if(memcmp(&check,frame+60,4) != 0)
     {
       tempo->bad++;
-      return LOG("signal frame validation failed: %s",util_hex(frame,64,NULL));
+      return LOG_INFO("signal frame validation failed: %s",util_hex(frame,64,NULL));
     }
     
     // always sync lost at
@@ -703,7 +697,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
 // inner logic
 static tempo_t tempo_schedule(tempo_t tempo, uint32_t at, uint32_t rebase)
 {
-  if(!tempo || !at) return LOG("bad args");
+  if(!tempo || !at) return LOG_WARN("bad args");
   tmesh_t tm = tempo->tm;
 
   // initialize to *now* if not set
@@ -729,7 +723,7 @@ static tempo_t tempo_schedule(tempo_t tempo, uint32_t at, uint32_t rebase)
     chacha20(tempo->secret,nonce,seed,64+8);
     
     // call driver to apply seed to tempo
-    if(!tm->advance(tm, tempo, seed+64)) return LOG("driver advance failed");
+    if(!tm->advance(tm, tempo, seed+64)) return LOG_WARN("driver advance failed");
   }
 
 //  MORTY(tempo,"advncd");
@@ -740,11 +734,11 @@ static tempo_t tempo_schedule(tempo_t tempo, uint32_t at, uint32_t rebase)
 // process everything based on current cycle count, returns success
 tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
 {
-  if(!tm || !at) return LOG("bad args");
-  if(!tm->sort || !tm->advance || !tm->schedule) return LOG("driver missing");
-  if(!tm->signal) return LOG("nothing to schedule");
+  if(!tm || !at) return LOG_WARN("bad args");
+  if(!tm->sort || !tm->advance || !tm->schedule) return LOG_ERROR("driver missing");
+  if(!tm->signal) return LOG_INFO("nothing to schedule");
 
-  LOG("processing for %s at %lu",hashname_short(tm->mesh->id),at);
+  LOG_DEBUG("processing for %s at %lu",hashname_short(tm->mesh->id),at);
 
   // upcheck our signal first
   tempo_t best = tempo_schedule(tm->signal, at, rebase);
@@ -804,9 +798,9 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
   // do the tempo-specific work to fill in the tx frame
   if(best->do_tx)
   {
-    if(!tempo_knock(best, knock)) return LOG("knock tx prep failed");
+    if(!tempo_knock(best, knock)) return LOG_WARN("knock tx prep failed");
     knock->is_tx = 1;
-    LOG("TX frame %s\n",util_hex(knock->frame,64,NULL));
+    LOG_DEBUG("TX frame %s\n",util_hex(knock->frame,64,NULL));
     if(knock->is_lost)
     {
       // nonce is prepended to lost signals unciphered
@@ -821,7 +815,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
   if(!tm->schedule(tm))
   {
     memset(knock,0,sizeof(struct knock_struct));
-    return LOG("driver schedule failed");
+    return LOG_WARN("driver schedule failed");
   }
 
   return tm;

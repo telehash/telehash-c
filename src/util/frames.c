@@ -135,12 +135,35 @@ size_t util_frames_outlen(util_frames_t frames)
   return len;
 }
 
+// is just a check to see if there's something to send
+static util_frames_t util_frames_ready(util_frames_t frames)
+{
+  if(!frames) return LOG("bad args");
+  if(frames->err) return LOG("frame state error");
+  
+  if(frames->flush) return frames;
+  if(frames->outbox) return frames;
+  return NULL;
+}
+
+// is there an expectation of an incoming frame
+static util_frames_t util_frames_await(util_frames_t frames)
+{
+  if(!frames) return NULL;
+  if(frames->err) return LOG("frame state error");
+  // need more to complete inbox
+  if(frames->cache) return frames;
+  // outbox is complete, awaiting flush
+  if((frames->out * PAYLOAD(frames)) > lob_len(frames->outbox)) return frames;
+  return NULL;
+}
+
 // the next frame of data in/out, if data NULL bool is just ready check
 util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *meta)
 {
   if(!frames) return LOG("bad args");
   if(frames->err) return LOG("frame state error");
-  if(!data) return (frames->inbox) ? frames : NULL;
+  if(!data) return util_frames_await(frames);
   
   // conveniences for code readability
   uint8_t size = PAYLOAD(frames);
@@ -279,7 +302,7 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *m
 {
   if(!frames) return LOG("bad args");
   if(frames->err) return LOG("frame state error");
-  if(!data) return util_frames_ready(frames); // retain orig behavior as a check
+  if(!data) return util_frames_ready(frames); // just a ready check
   uint8_t size = PAYLOAD(frames);
   uint8_t *out = lob_raw(frames->outbox);
   uint32_t len = lob_len(frames->outbox); 
@@ -288,7 +311,7 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *m
   uint32_t hash = frames->outbase;
   
   // first get the last sent hash
-  if(out && len)
+  if(len)
   {
     // safely only hash the packet size correctly
     uint32_t at, i;
@@ -299,8 +322,8 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *m
     }
   }
 
-  // if flushing, just send hashes
-  if(frames->flush)
+  // if flushing, or nothing to send, just send meta frame w/ hashes
+  if(frames->flush || !len || (frames->out * size) > len)
   {
     memset(data,0,size+4);
     memcpy(data,&(frames->inlast),4);
@@ -308,13 +331,9 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *m
     if(meta) memcpy(data+10,meta,size-10);
     murmur(data,size,data+size);
 //    LOG("sending meta frame inlast %lu cur %lu",frames->inlast,hash);
-    frames->flush = 0;
     return frames;
   }
   
-  // nothing to send
-  if(!out || !len || (frames->out * size) > len) return NULL;
-
   // send next frame
   memset(data,0,size+4);
   uint32_t at = frames->out * size;
@@ -328,32 +347,35 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *m
   hash += frames->out;
   memcpy(data+PAYLOAD(frames),&(hash),4);
   LOG("sending data frame %u %lu",frames->out,hash);
-  frames->out++; // sent frames
-  frames->outbox->id = at + size; // track exact sent bytes too
 
   return frames;
 }
 
-  // is just a check to see if there's something to send
-util_frames_t util_frames_ready(util_frames_t frames)
+// out state changes
+util_frames_t util_frames_sent(util_frames_t frames)
 {
   if(!frames) return LOG("bad args");
   if(frames->err) return LOG("frame state error");
+  uint8_t size = PAYLOAD(frames);
+  uint32_t len = lob_len(frames->outbox); 
+  uint32_t at = frames->out * size;
+
+  // we sent a meta-frame, clear flush and done, else advance payload
+  if(frames->flush || !len || at > len)
+  {
+    frames->flush = 0;
+  }else{
+    frames->outbox->id = at + size; // track exact sent bytes
+    frames->out++; // advance sent frames counter
+  }
   
-  if(frames->flush) return frames;
-  if(frames->outbox) return frames;
-  return NULL;
+  return frames;
 }
 
-// is there an expectation of an incoming frame
-util_frames_t util_frames_await(util_frames_t frames)
+// busy check, in or out
+util_frames_t util_frames_busy(util_frames_t frames)
 {
-  if(!frames) return NULL;
-  if(frames->err) return LOG("frame state error");
-  // need more to complete inbox
-  if(frames->cache) return frames;
-  // outbox is complete, awaiting flush
-  if((frames->out * PAYLOAD(frames)) > lob_len(frames->outbox)) return frames;
-  return NULL;
+  if(util_frames_ready(frames)) return frames;
+  return util_frames_await(frames);
 }
 

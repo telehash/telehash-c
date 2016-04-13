@@ -47,16 +47,17 @@ lob_t util_frames_receive(util_frames_t frames);
 size_t util_frames_inlen(util_frames_t frames);
 size_t util_frames_outlen(util_frames_t frames);
 
-// the next frame of data in/out
-// meta space is size - 14 and only swapped during meta frames, optional
-util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *meta);
-util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *meta);
+// meta space is (size - 14) and only filled when receiving a meta frame
+util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *meta); // data=NULL is ready check
 
-// is there a frame ready to be sent
-util_frames_t util_frames_ready(util_frames_t frames);
+// fills data with the next frame, if no payload available always fills w/ meta frame, safe to re-run (idempotent)
+util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *meta); // data=NULL is ready-check
 
-// is there an expectation of an incoming frame
-util_frames_t util_frames_await(util_frames_t frames);
+// this must be called immediately (no inbox interleaved) after last outbox is actually sent to advance payload or clear flush request
+util_frames_t util_frames_sent(util_frames_t frames);
+
+// are we waiting to send/receive a frame
+util_frames_t util_frames_busy(util_frames_t frames);
 
 // check error state and clearing it
 util_frames_t util_frames_ok(util_frames_t frames);
