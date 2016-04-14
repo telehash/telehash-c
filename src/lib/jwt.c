@@ -1,7 +1,5 @@
 #include <string.h>
 #include "telehash.h"
-#include "telehash.h"
-#include "telehash.h"
 
 // this lib implements basic JWT support using the crypto/lob utilities in telehash-c
 
