@@ -438,13 +438,29 @@ link_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
   
   LOG("mesh receiving %s to %s via pipe %s",outer->head_len?"handshake":"channel",hashname_short(mesh->id),pipe->id);
 
+  // redirect modern routed packets
+  if(outer->head_len == 5)
+  {
+    id = hashname_sbin(outer->head);
+    link = mesh_linkid(mesh, id);
+    if(!link)
+    {
+      LOG_WARN("unknown id for route request: %s",hashname_short(id));
+      lob_free(outer);
+      return NULL;
+    }
+
+    LOG_INFO("route forwarding to %s len %d",hashname_short(link->id),lob_len(outer));
+    return link_send(link, outer);
+  }
+
   // process handshakes
   if(outer->head_len == 1)
   {
     inner = e3x_self_decrypt(mesh->self, outer);
     if(!inner)
     {
-      LOG("%02x handshake failed %s",outer->head[0],e3x_err());
+      LOG_WARN("%02x handshake failed %s",outer->head[0],e3x_err());
       lob_free(outer);
       return NULL;
     }
