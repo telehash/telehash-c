@@ -355,6 +355,7 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
 
     block = (mblock_t)(meta+(++at*5));
     block->type = MBLOCK_AT;
+    LOG_INFO("tempo %lu signal %lu", tempo->at, tm->signal->at);
     uint32_t at_offset = tm->signal->at - tempo->at;
     memcpy(block->body,&(at_offset),4);
 
@@ -499,7 +500,7 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t at)
         return tempo;
       case MBLOCK_AT:
         if(!mote) break; // require known mote
-        mote->signal->at = (body - tempo->at); // is an offset
+        mote->signal->at = (body + tempo->at); // is an offset
         break;
       case MBLOCK_SEQ:
         if(!mote) break; // require known mote
