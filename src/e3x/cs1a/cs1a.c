@@ -5,6 +5,9 @@
 
 #include "telehash.h"
 
+#define uECC_BYTES 20
+#define curve uECC_secp160r1()
+
 // undefine the void* aliases so we can define them locally
 #undef local_t
 #undef remote_t
@@ -112,8 +115,8 @@ uint8_t cipher_generate(lob_t keys, lob_t secrets)
 {
   uint8_t secret[uECC_BYTES], key[uECC_BYTES*2], comp[uECC_BYTES+1];
 
-  if(!uECC_make_key(key, secret)) return 1;
-  uECC_compress(key,comp);
+  if(!uECC_make_key(key, secret, curve)) return 1;
+  uECC_compress(key,comp, curve);
   lob_set_base32(keys,"1a",comp,uECC_BYTES+1);
   lob_set_base32(secrets,"1a",secret,uECC_BYTES);
 
@@ -150,7 +153,7 @@ local_t local_new(lob_t keys, lob_t secrets)
   memset(local,0,sizeof (struct local_struct));
 
   // copy in key/secret data
-  uECC_decompress(key->body,local->key);
+  uECC_decompress(key->body,local->key, curve);
   memcpy(local->secret,secret->body,secret->body_len);
   lob_free(key);
   lob_free(secret);
@@ -179,8 +182,8 @@ lob_t local_decrypt(local_t local, lob_t outer)
   if(!lob_body(tmp,NULL,outer->body_len-(4+21+4))) return lob_free(tmp);
 
   // get the shared secret to create the iv+key for the open aes
-  uECC_decompress(outer->body,key);
-  if(!uECC_shared_secret(key, local->secret, shared)) return lob_free(tmp);
+  uECC_decompress(outer->body,key, curve);
+  if(!uECC_shared_secret(key, local->secret, shared, curve)) return lob_free(tmp);
   e3x_hash(shared,uECC_BYTES,hash);
   fold1(hash,hash);
   memset(iv,0,16);
@@ -213,7 +216,7 @@ lob_t local_sign(local_t local, lob_t args, uint8_t *data, size_t len)
     if(!local) return NULL;
     // hash data first, then sign it
     e3x_hash(data,len,hash);
-    uECC_sign(local->secret,hash,sig);
+    uECC_sign(local->secret,hash,32,sig, curve);
     lob_body(args,NULL,uECC_BYTES*2);
     memcpy(args->body,sig,uECC_BYTES*2);
     return args;
@@ -232,9 +235,9 @@ remote_t remote_new(lob_t key, uint8_t *token)
   memset(remote,0,sizeof (struct remote_struct));
 
   // copy in key and make ephemeral ones
-  uECC_decompress(key->body,remote->key);
-  uECC_make_key(remote->ekey, remote->esecret);
-  uECC_compress(remote->ekey, remote->ecomp);
+  uECC_decompress(key->body,remote->key, curve);
+  uECC_make_key(remote->ekey, remote->esecret, curve);
+  uECC_compress(remote->ekey, remote->ecomp, curve);
   if(token)
   {
     cipher_hash(remote->ecomp,16,hash);
@@ -260,7 +263,7 @@ uint8_t remote_verify(remote_t remote, local_t local, lob_t outer)
   if(outer->head_len != 1 || outer->head[0] != 0x1a) return 2;
 
   // generate the key for the hmac, combining the shared secret and IV
-  if(!uECC_shared_secret(remote->key, local->secret, shared)) return 3;
+  if(!uECC_shared_secret(remote->key, local->secret, shared, curve)) return 3;
   memcpy(shared+uECC_BYTES,outer->body+21,4);
 
   // verify
@@ -290,7 +293,7 @@ lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
   memcpy(outer->body, remote->ecomp, uECC_BYTES+1);
 
   // get the shared secret to create the iv+key for the open aes
-  if(!uECC_shared_secret(remote->key, remote->esecret, shared)) return lob_free(outer);
+  if(!uECC_shared_secret(remote->key, remote->esecret, shared, curve)) return lob_free(outer);
   e3x_hash(shared,uECC_BYTES,hash);
   fold1(hash,hash);
   memset(iv,0,16);
@@ -302,7 +305,7 @@ lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
   aes_128_ctr(hash,inner_len,iv,lob_raw(inner),outer->body+21+4);
 
   // generate secret for hmac
-  if(!uECC_shared_secret(remote->key, local->secret, shared)) return lob_free(outer);
+  if(!uECC_shared_secret(remote->key, local->secret, shared, curve)) return lob_free(outer);
   memcpy(shared+uECC_BYTES,outer->body+21,4); // use the IV too
 
   hmac_256(shared,uECC_BYTES+4,outer->body,21+4+inner_len,hash);
@@ -329,7 +332,7 @@ uint8_t remote_validate(remote_t remote, lob_t args, lob_t sig, uint8_t *data, s
     if(!remote || sig->body_len != uECC_BYTES*2) return 2;
     // hash data first
     e3x_hash(data,len,hash);
-    return (uECC_verify(remote->key, hash, sig->body) == 1) ? 0 : 3;
+    return (uECC_verify(remote->key, hash, 32, sig->body, curve) == 1) ? 0 : 3;
   }
 
   return 3;
@@ -354,8 +357,8 @@ ephemeral_t ephemeral_new(remote_t remote, lob_t outer)
   e3x_rand((uint8_t*)&(ephem->seq),4);
 
   // decompress the exchange key and get the shared secret
-  uECC_decompress(outer->body,ekey);
-  if(!uECC_shared_secret(ekey, remote->esecret, shared))
+  uECC_decompress(outer->body,ekey, curve);
+  if(!uECC_shared_secret(ekey, remote->esecret, shared, curve))
   {
     ephemeral_free(ephem);
     return LOG("ECDH failed");
