@@ -142,7 +142,7 @@ static void fold3(uint8_t in[32], uint8_t out[4])
 
 local_t local_new(lob_t keys, lob_t secrets)
 {
-  local_t local;
+  local_t local = NULL;
   lob_t key, secret;
 
   if(!keys) keys = lob_linked(secrets); // for convenience
