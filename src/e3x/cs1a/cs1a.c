@@ -5,7 +5,10 @@
 
 #include "telehash.h"
 
-#define uECC_BYTES 20
+#define KEY_BYTES 40
+#define COMP_BYTES 21
+#define SECRET_BYTES 21
+#define SHARED_BYTES 20
 #define curve uECC_secp160r1()
 
 // undefine the void* aliases so we can define them locally
@@ -15,13 +18,13 @@
 
 typedef struct local_struct
 {
-  uint8_t secret[uECC_BYTES], key[uECC_BYTES *2];
+  uint8_t secret[SECRET_BYTES], key[KEY_BYTES];
 } *local_t;
 
 typedef struct remote_struct
 {
-  uint8_t key[uECC_BYTES *2];
-  uint8_t esecret[uECC_BYTES], ekey[uECC_BYTES *2], ecomp[uECC_BYTES+1];
+  uint8_t key[KEY_BYTES];
+  uint8_t esecret[SECRET_BYTES], ekey[KEY_BYTES], ecomp[COMP_BYTES];
   uint32_t seq;
 } *remote_t;
 
@@ -113,12 +116,12 @@ uint8_t *cipher_err(void)
 
 uint8_t cipher_generate(lob_t keys, lob_t secrets)
 {
-  uint8_t secret[uECC_BYTES], key[uECC_BYTES*2], comp[uECC_BYTES+1];
+  uint8_t secret[SECRET_BYTES], key[KEY_BYTES], comp[COMP_BYTES];
 
   if(!uECC_make_key(key, secret, curve)) return 1;
   uECC_compress(key,comp, curve);
-  lob_set_base32(keys,"1a",comp,uECC_BYTES+1);
-  lob_set_base32(secrets,"1a",secret,uECC_BYTES);
+  lob_set_base32(keys,"1a",comp,COMP_BYTES);
+  lob_set_base32(secrets,"1a",secret,SECRET_BYTES);
 
   return 0;
 }
@@ -144,17 +147,36 @@ local_t local_new(lob_t keys, lob_t secrets)
 
   if(!keys) keys = lob_linked(secrets); // for convenience
   key = lob_get_base32(keys,"1a");
-  if(!key || key->body_len != uECC_BYTES+1) return LOG("invalid key %d != %d",(key)?key->body_len:0,uECC_BYTES+1);
+  if(!key) return LOG("invalid key");
 
   secret = lob_get_base32(secrets,"1a");
-  if(!secret || secret->body_len != uECC_BYTES) return LOG("invalid secret len %d",(secret)?secret->body_len:0);
+  if(!secret) return LOG("invalid secret");
 
-  if(!(local = malloc(sizeof(struct local_struct)))) return NULL;
-  memset(local,0,sizeof (struct local_struct));
+  if(key->body_len == COMP_BYTES && (secret->body_len == SECRET_BYTES || secret->body_len == (SECRET_BYTES-1)))
+  {
+    if((local = malloc(sizeof(struct local_struct))))
+    {
+      memset(local,0,sizeof (struct local_struct));
 
-  // copy in key/secret data
-  uECC_decompress(key->body,local->key, curve);
-  memcpy(local->secret,secret->body,secret->body_len);
+      // copy in key/secret data
+      uECC_decompress(key->body,local->key, curve);
+
+      // handle old format missing prepended null byte
+      if(secret->body_len == SECRET_BYTES-1)
+      {
+        memcpy(local->secret+1,secret->body,secret->body_len);
+      }else{
+        memcpy(local->secret,secret->body,secret->body_len);
+      }
+      
+    }else{
+      LOG("OOM");
+    }
+    
+  }else{
+    LOG("invalid sizes key %d=%d secret %d=%d",key->body_len,COMP_BYTES,secret->body_len,SECRET_BYTES);
+  }
+
   lob_free(key);
   lob_free(secret);
 
@@ -169,7 +191,7 @@ void local_free(local_t local)
 
 lob_t local_decrypt(local_t local, lob_t outer)
 {
-  uint8_t key[uECC_BYTES*2], shared[uECC_BYTES], iv[16], hash[32];
+  uint8_t key[KEY_BYTES], shared[SECRET_BYTES], iv[16], hash[32];
   lob_t inner, tmp;
 
 //  * `KEY` - 21 bytes, the sender's ephemeral exchange public key in compressed format
@@ -184,7 +206,7 @@ lob_t local_decrypt(local_t local, lob_t outer)
   // get the shared secret to create the iv+key for the open aes
   uECC_decompress(outer->body,key, curve);
   if(!uECC_shared_secret(key, local->secret, shared, curve)) return lob_free(tmp);
-  e3x_hash(shared,uECC_BYTES,hash);
+  e3x_hash(shared,SHARED_BYTES,hash);
   fold1(hash,hash);
   memset(iv,0,16);
   memcpy(iv,outer->body+21,4);
@@ -200,7 +222,7 @@ lob_t local_decrypt(local_t local, lob_t outer)
 
 lob_t local_sign(local_t local, lob_t args, uint8_t *data, size_t len)
 {
-  uint8_t hash[32], sig[uECC_BYTES*2];
+  uint8_t hash[32], sig[KEY_BYTES];
 
   if(lob_get_cmp(args,"alg","HS256") == 0)
   {
@@ -217,8 +239,8 @@ lob_t local_sign(local_t local, lob_t args, uint8_t *data, size_t len)
     // hash data first, then sign it
     e3x_hash(data,len,hash);
     uECC_sign(local->secret,hash,32,sig, curve);
-    lob_body(args,NULL,uECC_BYTES*2);
-    memcpy(args->body,sig,uECC_BYTES*2);
+    lob_body(args,NULL,KEY_BYTES);
+    memcpy(args->body,sig,KEY_BYTES);
     return args;
   }
 
@@ -229,7 +251,7 @@ remote_t remote_new(lob_t key, uint8_t *token)
 {
   uint8_t hash[32];
   remote_t remote;
-  if(!key || key->body_len != uECC_BYTES+1) return LOG("invalid key %d != %d",(key)?key->body_len:0,uECC_BYTES+1);
+  if(!key || key->body_len != COMP_BYTES) return LOG("invalid key %d != %d",(key)?key->body_len:0,COMP_BYTES);
 
   if(!(remote = malloc(sizeof(struct remote_struct)))) return NULL;
   memset(remote,0,sizeof (struct remote_struct));
@@ -257,17 +279,17 @@ void remote_free(remote_t remote)
 
 uint8_t remote_verify(remote_t remote, local_t local, lob_t outer)
 {
-  uint8_t shared[uECC_BYTES+4], hash[32];
+  uint8_t shared[SHARED_BYTES+4], hash[32];
 
   if(!remote || !local || !outer) return 1;
   if(outer->head_len != 1 || outer->head[0] != 0x1a) return 2;
 
   // generate the key for the hmac, combining the shared secret and IV
   if(!uECC_shared_secret(remote->key, local->secret, shared, curve)) return 3;
-  memcpy(shared+uECC_BYTES,outer->body+21,4);
+  memcpy(shared+SHARED_BYTES,outer->body+21,4);
 
   // verify
-  hmac_256(shared,uECC_BYTES+4,outer->body,outer->body_len-4,hash);
+  hmac_256(shared,SHARED_BYTES+4,outer->body,outer->body_len-4,hash);
   fold3(hash,hash);
   if(util_ct_memcmp(hash,outer->body+(outer->body_len-4),4) != 0)
   {
@@ -280,7 +302,7 @@ uint8_t remote_verify(remote_t remote, local_t local, lob_t outer)
 
 lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
 {
-  uint8_t shared[uECC_BYTES+4], iv[16], hash[32], csid = 0x1a;
+  uint8_t shared[SHARED_BYTES+4], iv[16], hash[32], csid = 0x1a;
   lob_t outer;
   size_t inner_len;
 
@@ -290,11 +312,11 @@ lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
   if(!lob_body(outer,NULL,21+4+inner_len+4)) return lob_free(outer);
 
   // copy in the ephemeral public key
-  memcpy(outer->body, remote->ecomp, uECC_BYTES+1);
+  memcpy(outer->body, remote->ecomp, COMP_BYTES);
 
   // get the shared secret to create the iv+key for the open aes
   if(!uECC_shared_secret(remote->key, remote->esecret, shared, curve)) return lob_free(outer);
-  e3x_hash(shared,uECC_BYTES,hash);
+  e3x_hash(shared,SHARED_BYTES,hash);
   fold1(hash,hash);
   memset(iv,0,16);
   memcpy(iv,&(remote->seq),4);
@@ -306,9 +328,9 @@ lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
 
   // generate secret for hmac
   if(!uECC_shared_secret(remote->key, local->secret, shared, curve)) return lob_free(outer);
-  memcpy(shared+uECC_BYTES,outer->body+21,4); // use the IV too
+  memcpy(shared+SHARED_BYTES,outer->body+21,4); // use the IV too
 
-  hmac_256(shared,uECC_BYTES+4,outer->body,21+4+inner_len,hash);
+  hmac_256(shared,SHARED_BYTES+4,outer->body,21+4+inner_len,hash);
   fold3(hash,outer->body+21+4+inner_len); // write into last 4 bytes
 
   return outer;
@@ -329,7 +351,7 @@ uint8_t remote_validate(remote_t remote, lob_t args, lob_t sig, uint8_t *data, s
 
   if(lob_get_cmp(args,"alg","ES160") == 0)
   {
-    if(!remote || sig->body_len != uECC_BYTES*2) return 2;
+    if(!remote || sig->body_len != KEY_BYTES) return 2;
     // hash data first
     e3x_hash(data,len,hash);
     return (uECC_verify(remote->key, hash, 32, sig->body, curve) == 1) ? 0 : 3;
@@ -340,11 +362,11 @@ uint8_t remote_validate(remote_t remote, lob_t args, lob_t sig, uint8_t *data, s
 
 ephemeral_t ephemeral_new(remote_t remote, lob_t outer)
 {
-  uint8_t ekey[uECC_BYTES*2], shared[uECC_BYTES+((uECC_BYTES+1)*2)], hash[32];
+  uint8_t ekey[KEY_BYTES], shared[SHARED_BYTES+((COMP_BYTES)*2)], hash[32];
   ephemeral_t ephem;
 
   if(!remote) return NULL;
-  if(!outer || outer->body_len < (uECC_BYTES+1)) return LOG("invalid outer");
+  if(!outer || outer->body_len < (COMP_BYTES)) return LOG("invalid outer");
 
   if(!(ephem = malloc(sizeof(struct ephemeral_struct)))) return NULL;
   memset(ephem,0,sizeof (struct ephemeral_struct));
@@ -365,14 +387,14 @@ ephemeral_t ephemeral_new(remote_t remote, lob_t outer)
   }
 
   // combine inputs to create the digest
-  memcpy(shared+uECC_BYTES,remote->ecomp,uECC_BYTES+1);
-  memcpy(shared+uECC_BYTES+uECC_BYTES+1,outer->body,uECC_BYTES+1);
-  e3x_hash(shared,uECC_BYTES+((uECC_BYTES+1)*2),hash);
+  memcpy(shared+SHARED_BYTES,remote->ecomp,COMP_BYTES);
+  memcpy(shared+SHARED_BYTES+COMP_BYTES,outer->body,COMP_BYTES);
+  e3x_hash(shared,SHARED_BYTES+((COMP_BYTES)*2),hash);
   fold1(hash,ephem->enckey);
 
-  memcpy(shared+uECC_BYTES,outer->body,uECC_BYTES+1);
-  memcpy(shared+uECC_BYTES+uECC_BYTES+1,remote->ecomp,uECC_BYTES+1);
-  e3x_hash(shared,uECC_BYTES+((uECC_BYTES+1)*2),hash);
+  memcpy(shared+SHARED_BYTES,outer->body,COMP_BYTES);
+  memcpy(shared+SHARED_BYTES+COMP_BYTES,remote->ecomp,COMP_BYTES);
+  e3x_hash(shared,SHARED_BYTES+((COMP_BYTES)*2),hash);
   fold1(hash,ephem->deckey);
 
   return ephem;
