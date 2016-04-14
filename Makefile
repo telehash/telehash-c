@@ -3,7 +3,7 @@ CFLAGS+=-g -Wall -Wextra -Wno-unused-parameter -DDEBUG
 #CFLAGS+=-Weverything -Wno-unused-macros -Wno-undef -Wno-gnu-zero-variadic-macro-arguments -Wno-padded -Wno-gnu-label-as-value -Wno-gnu-designator -Wno-missing-prototypes -Wno-format-nonliteral
 INCLUDE+=-Iinclude -Iinclude/lib -Iunix
 
-LIB = src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/lib/chacha.c src/lib/murmur.c
+LIB = src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/lib/chacha.c src/lib/murmur.c src/lib/aes128.c src/lib/sha256.c src/lib/uECC.c
 E3X = src/e3x/e3x.c src/e3x/self.c src/e3x/exchange.c src/e3x/cipher.c
 MESH = src/mesh.c src/link.c src/chan.c src/pipe.c
 EXT = src/ext/stream.c src/ext/block.c src/ext/peer.c src/ext/path.c
@@ -12,7 +12,7 @@ UTIL = src/util/util.c src/util/uri.c src/util/chunks.c src/util/frames.c src/un
 TMESH = src/tmesh/tmesh.c 
 
 # CS1a by default
-CS = src/e3x/cs1a/aes.c src/e3x/cs1a/hmac.c src/e3x/cs1a/aes128.c src/e3x/cs1a/cs1a.c src/e3x/cs1a/uECC.c src/e3x/cs1a/sha256.c
+CS = src/e3x/cs1a/cs1a.c 
 
 # check for CS2a deps
 ifneq ("$(wildcard node_modules/libtomcrypt-c/libtomcrypt.a)","")
@@ -60,23 +60,23 @@ deps:
 static: libtelehash
 	@cat $(LIB) $(E3X) $(MESH) $(EXT) $(UTIL) > telehash.c
 	@cat include/lob.h include/xht.h include/e3x_cipher.h include/e3x_self.h include/e3x_exchange.h include/hashname.h include/mesh.h include/link.h include/chan.h include/util_chunks.h include/util_frames.h include/*.h > telehash.h
-	@sed -i.bak "/#include \"/d" telehash.h
+	@sed -i.bak "/#include \".*h\"/d" telehash.h
 	@rm -f telehash.h.bak
 
 static-cs1a:
 	@echo "#include <telehash.h>" > telehash.c
-	@cat $(LIB) $(E3X) $(MESH) $(EXT) $(UTIL) src/e3x/cs1a/aes.c src/e3x/cs1a/hmac.c src/e3x/cs1a/aes128.c src/e3x/cs1a/cs1a.c src/e3x/cs1a/uECC.c src/e3x/cs1a/sha256.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c >> telehash.c
-	@sed -i '' "/#include \"/d" telehash.c
+	@cat $(LIB) $(E3X) $(MESH) $(EXT) $(UTIL) src/e3x/cs1a/cs1a.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c >> telehash.c
+	@sed -i '' "/#include \".*h\"/d" telehash.c
 	@cat include/lob.h include/xht.h include/e3x_cipher.h include/e3x_self.h include/e3x_exchange.h include/hashname.h include/mesh.h include/link.h include/chan.h include/util_chunks.h include/util_frames.h include/*.h > telehash.h
-	@sed -i.bak "/#include \"/d" telehash.h
+	@sed -i.bak "/#include \".*h\"/d" telehash.h
 	@rm -f telehash.h.bak
 
 static-tmesh:
 	@echo "#include <telehash.h>" > telehash.c
 	@cat $(LIB) $(E3X) $(MESH) $(EXT) $(UTIL) $(TMESH) >> telehash.c
-	@sed -i '' "/#include \"/d" telehash.c
+	@sed -i '' "/#include \".*h\"/d" telehash.c
 	@cat include/lob.h include/xht.h include/e3x_cipher.h include/e3x_self.h include/e3x_exchange.h include/hashname.h include/mesh.h include/link.h include/chan.h include/util_chunks.h include/util_frames.h include/*.h > telehash.h
-	@sed -i.bak "/#include \"/d" telehash.h
+	@sed -i.bak "/#include \".*h\"/d" telehash.h
 	@rm -f telehash.h.bak
 
 libtelehash: $(FULL_OBJFILES)
