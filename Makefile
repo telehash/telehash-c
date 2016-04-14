@@ -60,23 +60,23 @@ deps:
 static: libtelehash
 	@cat $(LIB) $(E3X) $(MESH) $(EXT) $(UTIL) > telehash.c
 	@cat include/lob.h include/xht.h include/e3x_cipher.h include/e3x_self.h include/e3x_exchange.h include/hashname.h include/mesh.h include/link.h include/chan.h include/util_chunks.h include/util_frames.h include/*.h > telehash.h
-	@sed -i.bak "/#include \"/d" telehash.h
+	@sed -i.bak "/#include \".*h\"/d" telehash.h
 	@rm -f telehash.h.bak
 
 static-cs1a:
 	@echo "#include <telehash.h>" > telehash.c
-	@cat $(LIB) $(E3X) $(MESH) $(EXT) $(UTIL) src/e3x/cs1a/aes.c src/e3x/cs1a/hmac.c src/e3x/cs1a/aes128.c src/e3x/cs1a/cs1a.c src/e3x/cs1a/uECC.c src/e3x/cs1a/sha256.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c >> telehash.c
-	@sed -i '' "/#include \"/d" telehash.c
+	@cat $(LIB) $(E3X) $(MESH) $(EXT) $(UTIL) src/e3x/cs1a/cs1a.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c >> telehash.c
+	@sed -i '' "/#include \".*h\"/d" telehash.c
 	@cat include/lob.h include/xht.h include/e3x_cipher.h include/e3x_self.h include/e3x_exchange.h include/hashname.h include/mesh.h include/link.h include/chan.h include/util_chunks.h include/util_frames.h include/*.h > telehash.h
-	@sed -i.bak "/#include \"/d" telehash.h
+	@sed -i.bak "/#include \".*h\"/d" telehash.h
 	@rm -f telehash.h.bak
 
 static-tmesh:
 	@echo "#include <telehash.h>" > telehash.c
 	@cat $(LIB) $(E3X) $(MESH) $(EXT) $(UTIL) $(TMESH) >> telehash.c
-	@sed -i '' "/#include \"/d" telehash.c
+	@sed -i '' "/#include \".*h\"/d" telehash.c
 	@cat include/lob.h include/xht.h include/e3x_cipher.h include/e3x_self.h include/e3x_exchange.h include/hashname.h include/mesh.h include/link.h include/chan.h include/util_chunks.h include/util_frames.h include/*.h > telehash.h
-	@sed -i.bak "/#include \"/d" telehash.h
+	@sed -i.bak "/#include \".*h\"/d" telehash.h
 	@rm -f telehash.h.bak
 
 libtelehash: $(FULL_OBJFILES)
