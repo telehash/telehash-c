@@ -355,7 +355,8 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
 
     block = (mblock_t)(meta+(++at*5));
     block->type = MBLOCK_AT;
-    memcpy(block->body,&(tm->signal->at),4);
+    uint32_t at_offset = tm->signal->at - tempo->at;
+    memcpy(block->body,&(at_offset),4);
 
     block = (mblock_t)(meta+(++at*5));
     block->type = MBLOCK_SEQ;
