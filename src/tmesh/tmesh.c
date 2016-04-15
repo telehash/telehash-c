@@ -189,7 +189,21 @@ static void mote_pipe_send(pipe_t pipe, lob_t packet, link_t link)
     return;
   }
 
-  mote_send((mote_t)pipe->arg, packet);
+  mote_t mote = (mote_t)(pipe->arg);
+
+  // send direct
+  if(!mote->via)
+  {
+    mote_send(mote, packet);
+    return;
+  }
+
+  // wrap and send via router mote
+  lob_t wrap = lob_new();
+  lob_head(wrap,hashname_bin(mote->link->id),5);
+  lob_body(wrap,lob_raw(packet),lob_len(packet));
+  lob_free(packet);
+  mote_send(mote->via, wrap);
 }
 
 static mote_t mote_free(mote_t mote)

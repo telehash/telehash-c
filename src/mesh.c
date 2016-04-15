@@ -23,16 +23,6 @@ typedef struct on_struct
 on_t on_get(mesh_t mesh, char *id);
 on_t on_free(on_t on);
 
-// internally handle list of forwarding routes for the mesh
-typedef struct route_struct
-{
-  uint8_t flag;
-  uint8_t token[8];
-  link_t link;
-  
-  struct route_struct *next;
-} *route_t;
-
 mesh_t mesh_new(uint32_t prime)
 {
   mesh_t mesh;
@@ -292,49 +282,9 @@ void mesh_on_link(mesh_t mesh, char *id, void (*link)(link_t link))
 
 void mesh_link(mesh_t mesh, link_t link)
 {
-  // set up token forwarding w/ flag
-  mesh_forward(mesh, e3x_exchange_token(link->x), link, 1);
-
   // event notifications
   on_t on;
   for(on = mesh->on; on; on = on->next) if(on->link) on->link(link);
-}
-
-mesh_t mesh_forward(mesh_t mesh, uint8_t *token, link_t link, uint8_t flag)
-{
-  // set up route for link's token
-  route_t r, empty = NULL;
-  
-  // ignore any existing routes
-  uint8_t max=0;
-  for(r=mesh->routes;r;r=r->next)
-  {
-    if(memcmp(token,r->token,8) == 0) return mesh;
-    if(flag && r->link == link) r->link = NULL; // clear any existing for this link when flagged
-    if(!empty && !r->link) empty = r;
-    max++;
-  }
-
-  // create new route
-  if(!empty)
-  {
-    if(max > 32)
-    {
-      LOG("too many routes, can't add forward (TODO: add eviction)");
-      return NULL;
-    }
-    LOG("adding new forwarding route to %s token %s",hashname_short(link->id),util_hex(token,8,NULL));
-    empty = malloc(sizeof(struct route_struct));
-    memset(empty,0,sizeof(struct route_struct));
-    empty->next = mesh->routes;
-    mesh->routes = empty;
-  }
-  
-  memcpy(empty->token,token,8);
-  empty->link = link;
-  empty->flag = flag;
-  
-  return mesh;
 }
 
 void mesh_on_open(mesh_t mesh, char *id, lob_t (*open)(link_t link, lob_t open))
@@ -479,14 +429,33 @@ link_t mesh_receive_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe)
 // processes incoming packet, it will take ownership of p
 link_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
 {
-  lob_t inner;
-  link_t link;
-  char token[17];
+  lob_t inner = NULL;
+  link_t link = NULL;
+  char token[17] = {0};
   hashname_t id;
 
   if(!mesh || !outer || !pipe) return LOG("bad args");
   
   LOG("mesh receiving %s to %s via pipe %s",outer->head_len?"handshake":"channel",hashname_short(mesh->id),pipe->id);
+
+  // redirect modern routed packets
+  if(outer->head_len == 5)
+  {
+    id = hashname_sbin(outer->head);
+    link = mesh_linkid(mesh, id);
+    if(!link)
+    {
+      LOG_WARN("unknown id for route request: %s",hashname_short(id));
+      lob_free(outer);
+      return NULL;
+    }
+
+    lob_t outer2 = lob_parse(outer->body,outer->body_len);
+    lob_free(outer);
+    LOG_INFO("route forwarding to %s len %d",hashname_short(link->id),lob_len(outer2));
+    link_send(link, outer2);
+    return NULL; // don't know the sender
+  }
 
   // process handshakes
   if(outer->head_len == 1)
@@ -494,7 +463,7 @@ link_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
     inner = e3x_self_decrypt(mesh->self, outer);
     if(!inner)
     {
-      LOG("%02x handshake failed %s",outer->head[0],e3x_err());
+      LOG_WARN("%02x handshake failed %s",outer->head[0],e3x_err());
       lob_free(outer);
       return NULL;
     }
@@ -519,22 +488,14 @@ link_t mesh_receive(mesh_t mesh, lob_t outer, pipe_t pipe)
       lob_free(outer);
       return NULL;
     }
-    
-    route_t route;
-    for(route = mesh->routes;route;route = route->next) if(memcmp(route->token,outer->body,8) == 0) break;
-    link = route ? route->link : NULL;
+
+    for(link = mesh->links;link;link = link->next) if(link->x && memcmp(link->x->token,outer->body,8) == 0) break;
+
     if(!link)
     {
-      LOG("dropping, no link for token %s",util_hex(outer->body,16,NULL));
+      LOG("no link found for token %s",util_hex(outer->body,8,NULL));
       lob_free(outer);
       return NULL;
-    }
-    
-    // forward packet
-    if(!route->flag)
-    {
-      LOG("forwarding route token %s via %s len %d",util_hex(route->token,8,NULL),hashname_short(link->id),lob_len(outer));
-      return link_send(link, outer);
     }
     
     inner = e3x_exchange_receive(link->x, outer);
