@@ -489,7 +489,7 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t at)
   for(;at < 12;at++)
   {
     mblock_t block = (mblock_t)(meta+(5*at));
-    LOG_DEBUG("meta block %u: %s",at,util_hex((uint8_t*)block,5,NULL));
+//    LOG_DEBUG("meta block %u: %s",at,util_hex((uint8_t*)block,5,NULL));
 
     // determine who the following blocks are about
     if(!who)
@@ -505,43 +505,52 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t at)
         // if it's about us, use the mote we have for the sender as context
         mote = tempo->mote;
       }
+      LOG_DEBUG("BLOCK >>> %s",hashname_short(id));
       continue;
     }
     
     memcpy(&body,block->body,4);
-    LOG_DEBUG("mblock %u:%u %lu %s",block->type,block->head,body,block->done?"done":"");
+//    LOG_DEBUG("mblock %u:%u %lu %s",block->type,block->head,body,block->done?"done":"");
     switch(block->type)
     {
       case MBLOCK_NONE:
+        LOG_DEBUG("^^^ NONE error");
         return tempo;
       case MBLOCK_AT:
         if(!mote) break; // require known mote
+        LOG_DEBUG("^^^ AT %lu, was %lu set to %lu",body,mote->signal->at,(body + tempo->at));
         mote->signal->at = (body + tempo->at); // is an offset
         break;
       case MBLOCK_SEQ:
         if(!mote) break; // require known mote
+        LOG_DEBUG("^^^ SEQ %lu was %lu",body,mote->signal->seq);
         mote->signal->seq = body;
         break;
       case MBLOCK_QUALITY:
         // TODO, use/track quality metrics
-        LOG_DEBUG("quality %lu for %s",body,mote?hashname_short(mote->link->id):"unknown");
+        LOG_DEBUG("^^^ QUALITY %lu",body);
         break;
       case MBLOCK_MEDIUM:
+        if(!mote) break; // require known mote
         switch(block->head)
         {
           case 0: // signal medium
             // TODO is senders or request to change ours depending on who
+            LOG_DEBUG("^^^ MEDIUM signal %lu",body);
             break;
           case 1: // stream request
             if(!mote_send(mote, NULL)) break; // make sure stream exists
+            LOG_DEBUG("^^^ MEDIUM stream request using %lu",body);
+            tempo_medium(mote->stream, body);
             mote->stream->do_signal = 1; // start signalling
             mote->stream->do_schedule = 0; // hold activity
             mote->stream->do_lost = 0; // signal an accept of sync
             break;
           case 2: // stream accept
-            LOG_INFO("accepting stream from %s on medium %lu",hashname_short(mote->link->id),body);
             // make sure one exists, is primed, and sync it
             if(!mote_send(mote, NULL)) break; // bad juju
+            LOG_DEBUG("^^^ MEDIUM stream accept using %lu",body);
+            LOG_INFO("accepting stream from %s on medium %lu",hashname_short(mote->link->id),body);
             mote->stream->do_schedule = 1; // go
             mote->stream->do_lost = mote->stream->do_signal = 0; // done signalling
             mote->stream->do_tx = 0; // we default to inverted since we're accepting
