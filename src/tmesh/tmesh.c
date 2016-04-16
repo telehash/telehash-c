@@ -384,7 +384,7 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
     LOG_DEBUG("META %s",util_hex(meta,60,NULL));
 
     // fill in stream frame
-    util_frames_outbox(tempo->frames,knock->frame,meta);
+    if(!util_frames_outbox(tempo->frames,knock->frame,meta)) return LOG_WARN("frames failed");
 
     return tempo;
   }
@@ -456,6 +456,8 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
     at++; // next empty block
     if(at >= 12) break;
   }
+
+  LOG_DEBUG("signal meta: %s",util_hex(meta,60,NULL));
 
   // copy in meta
   memcpy(knock->frame,meta,60);
@@ -599,7 +601,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     tempo->miss++;
 
     // if expecting data, trigger a flush
-    if(!knock->is_tx && util_frames_inbox(tempo->frames,NULL,NULL)) util_frames_send(tempo->frames,NULL);
+    if(!knock->is_tx && tempo->frames && util_frames_inbox(tempo->frames,NULL,NULL)) util_frames_send(tempo->frames,NULL);
     
     MORTY(tempo,"do_err");
     return tm;
@@ -649,6 +651,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     uint8_t meta[60] = {0};
     if(!util_frames_inbox(tempo->frames, knock->frame, meta))
     {
+      // if inbox failed but frames still ok, was just mangled bytes
       if(util_frames_ok(tempo->frames))
       {
         knock->tempo->bad++;
@@ -658,6 +661,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
       util_frames_clear(tempo->frames);
       if(!util_frames_inbox(tempo->frames, knock->frame, meta))
       {
+        util_frames_clear(tempo->frames);
         return LOG_WARN("err-clear-err, bad stream frame %s",util_hex(knock->frame,64,NULL));
       }
     }

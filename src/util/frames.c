@@ -330,7 +330,7 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *m
     memcpy(data+4,&(hash),4);
     if(meta) memcpy(data+10,meta,size-10);
     murmur(data,size,data+size);
-//    LOG("sending meta frame inlast %lu cur %lu",frames->inlast,hash);
+    LOG("sending meta frame inlast %lu cur %lu",frames->inlast,hash);
     return frames;
   }
   
