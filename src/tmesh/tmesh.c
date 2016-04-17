@@ -18,7 +18,7 @@ typedef struct mblock_struct {
 #define MBLOCK_SEQ      3
 #define MBLOCK_QUALITY  4
 
-#define MORTY(t,r) LOG_DEBUG("RICK %s\t%s %s %s [%u,%u,%u,%u,%u] at:%lu seq:%lx s:%s (%lu/%lu) m:%lu",r,t->mote?hashname_short(t->mote->link->id):"selfself",t->do_tx?"TX":"RX",t->frames?"stream":"signal",t->itx,t->irx,t->bad,t->miss,t->skip,t->at,t->seq,util_hex(t->secret,4,NULL),util_frames_inlen(t->frames),util_frames_outlen(t->frames),t->medium);
+#define MORTY(t,r) LOG_DEBUG("RICK %s %s %s %s [%u,%u,%u,%u,%u] %lu+%lx (%lu/%lu) %u%u%u %lu",r,t->mote?hashname_short(t->mote->link->id):"selfself",t->do_tx?"TX":"RX",t->frames?"str":"sig",t->itx,t->irx,t->bad,t->miss,t->skip,t->at,t->seq,util_frames_inlen(t->frames),util_frames_outlen(t->frames),t->do_lost,t->do_schedule,t->do_signal,t->medium);
 
 static tempo_t tempo_free(tempo_t tempo)
 {
@@ -101,6 +101,7 @@ static tempo_t tempo_stream(tempo_t tempo)
   tempo->do_signal = 0;
   tempo->do_schedule = 0;
   tempo->do_lost = 1;
+  tempo->seq = 0;
 
   if(!tempo->frames) tempo->frames = util_frames_new(64);
   util_frames_clear(tempo->frames);
@@ -381,8 +382,6 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
     // TODO, if they're lost suggest non-lost medium
     // TODO include other signals from suggested neighbors
 
-    LOG_DEBUG("META %s",util_hex(meta,60,NULL));
-
     // fill in stream frame
     if(!util_frames_outbox(tempo->frames,knock->frame,meta)) return LOG_WARN("frames failed");
 
@@ -430,10 +429,10 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
       block->type = MBLOCK_MEDIUM;
       
       // force lost motes to direct accept (can't request if lost)
-      if(mote->signal->do_lost) stream->do_lost = 0;
+      if(mote->signal->do_lost) stream->seq++;
 
       // lost stream means send accept
-      if(stream->do_lost)
+      if(!stream->seq)
       {
         block->head = 1; // request
       }else{
@@ -441,6 +440,7 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
         knock->syncs[syncs++] = stream; // needs to be sync'd after tx
       }
 
+      LOG_DEBUG("signalling %s about a stream %s",hashname_short(mote->link->id),(block->head == 1)?"request":"accept");
       memcpy(block->body,&(stream->medium),4);
     }
 
@@ -456,8 +456,6 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
     at++; // next empty block
     if(at >= 12) break;
   }
-
-  LOG_DEBUG("signal meta: %s",util_hex(meta,60,NULL));
 
   // copy in meta
   memcpy(knock->frame,meta,60);
@@ -478,7 +476,7 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t at)
   // received flags/stats first
   tempo->do_lost = 0; // we're found
   tempo->do_signal = 0; // no more advertising
-  tempo->miss = 0;
+  tempo->miss = 0; // clear any missed counter
   tempo->irx++;
   if(knock->rssi > tempo->best || !tempo->best) tempo->best = knock->rssi;
   if(knock->rssi < tempo->worst || !tempo->worst) tempo->worst = knock->rssi;
@@ -542,9 +540,9 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t at)
             if(!mote_send(mote, NULL)) break; // make sure stream exists
             LOG_DEBUG("^^^ MEDIUM stream request using %lu",body);
             tempo_medium(mote->stream, body);
-            mote->stream->do_signal = 1; // start signalling
-            mote->stream->do_schedule = 0; // hold activity
-            mote->stream->do_lost = 0; // signal an accept of sync
+            mote->stream->do_signal = 1; // start signalling this stream
+            mote->stream->do_schedule = 0; // hold stream scheduling activity
+            mote->stream->seq++; // any seq signals a stream accept
             break;
           case 2: // stream accept
             // make sure one exists, is primed, and sync it
@@ -552,7 +550,7 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t at)
             LOG_DEBUG("^^^ MEDIUM stream accept using %lu",body);
             LOG_INFO("accepting stream from %s on medium %lu",hashname_short(mote->link->id),body);
             mote->stream->do_schedule = 1; // go
-            mote->stream->do_lost = mote->stream->do_signal = 0; // done signalling
+            mote->stream->do_signal = 0; // done signalling
             mote->stream->do_tx = 0; // we default to inverted since we're accepting
             mote->stream->priority = 3; // little more boost
             mote->stream->at = knock->stopped;
@@ -599,7 +597,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
       tempo->do_schedule = 0;
       // signal this stream if still busy
       tempo->do_signal = util_frames_busy(tempo->frames) ? 1 : 0;
-      LOG_INFO("gone stream");
+      LOG_INFO("gone stream, signal %u",tempo->do_signal);
     }else{
       LOG_INFO("gone signal");
     }
@@ -643,6 +641,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
       sync->do_schedule = 1; // start going
       sync->do_tx = 1; // we are inverted
       sync->priority = 2; // little boost
+      LOG_DEBUG("advertised stream reset from %lu to %lu",sync->at,knock->stopped);
       sync->at = knock->stopped;
       sync->seq = tempo->seq; // TODO invert uint32 for unique starting point
     }
