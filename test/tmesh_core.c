@@ -90,7 +90,7 @@ int main(int argc, char **argv)
   fail_unless(netA->signal->medium == 1);
 
   // should schedule a lost signal tx
-  fail_unless(tmesh_schedule(netA,1,0));
+  fail_unless(tmesh_schedule(netA,1));
   fail_unless(scheduled == 1);
   fail_unless(netA->knock->is_active);
   fail_unless(netA->knock->tempo == netA->signal);

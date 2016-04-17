@@ -723,19 +723,13 @@ tmesh_t tmesh_knocked(tmesh_t tm)
 }
 
 // inner logic
-static tempo_t tempo_schedule(tempo_t tempo, uint32_t at, uint32_t rebase)
+static tempo_t tempo_schedule(tempo_t tempo, uint32_t at)
 {
   if(!tempo || !at) return LOG_WARN("bad args");
   tmesh_t tm = tempo->tm;
 
   // initialize to *now* if not set
-  if(!tempo->at) tempo->at = at + rebase;
-
-  // first rebase cycle count if requested
-  if(rebase) tempo->at -= rebase;
-
-  // already have one active, noop
-  if(tm->knock->is_active) return tempo;
+  if(!tempo->at) tempo->at = at;
 
   // move ahead window(s)
   while(tempo->at <= at)
@@ -760,16 +754,20 @@ static tempo_t tempo_schedule(tempo_t tempo, uint32_t at, uint32_t rebase)
 }
 
 // process everything based on current cycle count, returns success
-tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
+tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
 {
   if(!tm || !at) return LOG_WARN("bad args");
   if(!tm->sort || !tm->advance || !tm->schedule) return LOG_ERROR("driver missing");
   if(!tm->signal) return LOG_INFO("nothing to schedule");
+  if(tm->knock->is_active) return LOG_WARN("invalid usage, busy knock");
+
+  if(at < tm->at) return LOG_WARN("invalid at in the past");
+  tm->at = at;
 
   LOG_DEBUG("processing for %s at %lu",hashname_short(tm->mesh->id),at);
 
   // upcheck our signal first
-  tempo_t best = tempo_schedule(tm->signal, at, rebase);
+  tempo_t best = tempo_schedule(tm->signal, at);
   tempo_t seek = NULL;
 
   // walk all the tempos for next best knock
@@ -777,7 +775,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
   for(mote=tm->motes;mote;mote=mote->next)
   {
     // advance
-    tempo_schedule(mote->signal, at, rebase);
+    tempo_schedule(mote->signal, at);
     
     // only lost signals are elected for seek
     if(mote->signal->do_lost) seek = tm->sort(tm, seek, mote->signal);
@@ -786,14 +784,11 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
     best = tm->sort(tm, best, mote->signal);
     
     if(!mote->stream) continue;
-    tempo_schedule(mote->stream, at, rebase);
+    tempo_schedule(mote->stream, at);
 
     // only if requested to schedule
     if(mote->stream->do_schedule) best = tm->sort(tm, best, mote->stream);
   }
-  
-  // already an active knock
-  if(tm->knock->is_active) return tm;
   
   // try a new knock
   knock_t knock = tm->knock;
@@ -848,3 +843,25 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase)
 
   return tm;
 }
+
+tmesh_t tmesh_rebase(tmesh_t tm, uint32_t at)
+{
+  if(!tm || !at) return LOG_WARN("bad args");
+  if(at > tm->at) return LOG_WARN("invalid at in the future");
+  if(!tm->signal) return LOG_INFO("nothing to rebase");
+  if(tm->knock->is_active) return LOG_WARN("invalid usage, busy knock");
+
+  LOG_DEBUG("rebasing for %s at %lu",hashname_short(tm->mesh->id),at);
+
+  tm->signal->at -= at;
+
+  mote_t mote;
+  for(mote=tm->motes;mote;mote=mote->next)
+  {
+    mote->signal->at -= at;
+    if(mote->stream) mote->stream->at -= at;
+  }
+  
+  return tm;
+}
+  

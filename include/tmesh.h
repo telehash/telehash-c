@@ -71,6 +71,7 @@ typedef struct knock_struct *knock_t; // single txrx action
 struct tmesh_struct
 {
   mesh_t mesh;
+  uint32_t at; // last known
   
   // community deets
   char *community;
@@ -101,8 +102,11 @@ tempo_t tmesh_signal(tmesh_t tm, uint32_t seq, uint32_t medium);
 // process knock that has been completed by a driver
 tmesh_t tmesh_knocked(tmesh_t tm);
 
-//  based on current cycle count, optional rebase cycles
-tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at, uint32_t rebase);
+// at based on current cycle count since start or last rebase
+tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at);
+
+// call before a schedule to rebase (subtract) given cycles off all at's (to prevent overflow)
+tmesh_t tmesh_rebase(tmesh_t tm, uint32_t at);
 
 // start looking for this link in this community
 mote_t tmesh_find(tmesh_t tm, link_t link, uint32_t m_lost);
