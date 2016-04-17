@@ -2,7 +2,7 @@ TESTS = tmesh_core lib_base32 lib_lob lib_hashname lib_murmur lib_chunks lib_fra
 		e3x_core e3x_self e3x_exchange \
 		mesh_core net_loopback net_udp4 net_tcp4 ext_stream lib_chacha \
 		ext_block lib_uri net_handshake lib_socketio lib_jwt lib_base64 \
-		ext_path ext_peer net_serial chan_core net_bulk 
+		ext_path net_serial chan_core net_bulk 
 
 CC=gcc
 CFLAGS+=-g -Wall -Wextra -Wno-unused-parameter -DDEBUG -DRADIOS_MAX=2
@@ -12,7 +12,7 @@ INCLUDE+=-I../unix -I../include -I../include/lib
 LIB = src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/lib/chacha.c src/lib/murmur.c src/lib/socketio.c src/lib/jwt.c src/lib/base64.c src/lib/aes128.c src/lib/sha256.c src/lib/uECC.c
 E3X = src/e3x/e3x.c src/e3x/self.c src/e3x/exchange.c src/e3x/cipher.c
 MESH = src/mesh.c src/link.c src/chan.c src/pipe.c
-EXT = src/ext/stream.c src/ext/block.c src/ext/path.c src/ext/peer.c
+EXT = src/ext/stream.c src/ext/block.c src/ext/path.c
 NET = src/net/loopback.c src/net/udp4.c src/net/tcp4.c src/net/serial.c
 UTIL = src/util/util.c src/util/uri.c src/util/chunks.c src/util/frames.c src/unix/util.c src/unix/util_sys.c
 TMESH = src/tmesh/tmesh.c 

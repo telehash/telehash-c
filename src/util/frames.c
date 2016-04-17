@@ -188,7 +188,7 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *me
     uint32_t len = lob_len(frames->outbox);
     uint32_t rxs = frames->outbase;
     uint8_t i;
-    for(i = 0;i <= frames->out;i++)
+    for(i = 0;i < frames->out;i++)
     {
       // verify/reset to last rx'd frame
       if(rxd == rxs)
@@ -330,7 +330,7 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *m
     memcpy(data+4,&(hash),4);
     if(meta) memcpy(data+10,meta,size-10);
     murmur(data,size,data+size);
-//    LOG("sending meta frame inlast %lu cur %lu",frames->inlast,hash);
+    LOG("sending meta frame inlast %lu cur %lu",frames->inlast,hash);
     return frames;
   }
   
