@@ -466,7 +466,7 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
   return tempo;
 }
 
-tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t at)
+tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t mblock_pos)
 {
   tmesh_t tm = tempo->tm;
   uint32_t body = 0;
@@ -484,9 +484,9 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t at)
 
   LOG_DEBUG("RX %s %u received, rssi %d/%d/%d data %d\n",tempo->frames?"stream":"signal",tempo->irx,tempo->last,tempo->best,tempo->worst,util_frames_inlen(tempo->frames));
 
-  for(;at < 12;at++)
+  for(;mblock_pos < 12;mblock_pos++)
   {
-    mblock_t block = (mblock_t)(meta+(5*at));
+    mblock_t block = (mblock_t)(meta+(5*mblock_pos));
 //    LOG_DEBUG("meta block %u: %s",at,util_hex((uint8_t*)block,5,NULL));
 
     // determine who the following blocks are about
@@ -688,7 +688,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
   memcpy(frame,knock->frame,64);
   chacha20(tempo->secret,knock->nonce,frame,64);
   uint32_t check = murmur4(frame,60);
-  uint8_t at = 0;
+  uint8_t mblock_pos = 0;
 
   // did it validate
   if(memcmp(&check,frame+60,4) != 0)
@@ -711,13 +711,13 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     MORTY(tempo,"siglost");
 
     // fall through w/ meta blocks starting after nonce
-    at = 2;
+    mblock_pos = 2;
   }else{
     MORTY(tempo,"sigfnd");
   }
 
   // received processing only after validation
-  tempo_knocked(tempo, knock, frame, at);
+  tempo_knocked(tempo, knock, frame, mblock_pos);
 
   return tm;
 }
