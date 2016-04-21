@@ -119,39 +119,6 @@ static tempo_t tempo_stream(tempo_t tempo)
   return tempo;
 }
 
-// process new stream data on a tempo
-static tempo_t tempo_process(tempo_t tempo)
-{
-  if(!tempo) return LOG_WARN("bad args");
-  link_t link = tempo->mote->link;
-  
-  // process any packets on this tempo
-  lob_t packet;
-  while((packet = util_frames_receive(tempo->frames)))
-  {
-    LOG_DEBUG("pkt %s",lob_json(packet));
-    // handle our compact discovery packet format
-    if(lob_get(packet,"1a"))
-    {
-      hashname_t id = hashname_vkey(packet,0x1a);
-      if(hashname_cmp(id,link->id) != 0)
-      {
-        LOG_WARN("dropping mismatch key %s != %s\n",hashname_short(id),hashname_short(link->id));
-        lob_free(packet);
-        continue;
-      }
-      // update link keys and trigger handshake
-      link_load(link,0x1a,packet);
-      util_frames_send(tempo->frames, link_handshakes(link));
-      continue;
-    }
-    
-    mesh_receive(link->mesh, packet, tempo->mote->pipe);
-  }
-  
-  return tempo;
-}
-
 // find a stream to send it to for this mote
 mote_t mote_send(mote_t mote, lob_t packet)
 {
@@ -573,8 +540,8 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t mbloc
   return tempo;
 }
 
-// handle a knock that has been sent/received
-tmesh_t tmesh_knocked(tmesh_t tm)
+// handle a knock that has been sent/received, return mote if packets waiting
+mote_t tmesh_knocked(tmesh_t tm)
 {
   if(!tm) return LOG_WARN("bad args");
   knock_t knock = tm->knock;
@@ -611,7 +578,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     if(!knock->is_tx && tempo->frames && util_frames_inbox(tempo->frames,NULL,NULL)) util_frames_send(tempo->frames,NULL);
     
     MORTY(tempo,"do_err");
-    return tm;
+    return NULL;
   }
   
   MORTY(tempo,"knockd");
@@ -627,7 +594,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
       util_frames_sent(tempo->frames);
       LOG_DEBUG("tx frame done %lu",util_frames_outlen(tempo->frames));
 
-      return tm;
+      return NULL;
     }
 
     // lost signals always sync next at time to when actually done
@@ -647,7 +614,7 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     }
 
     MORTY(tempo,"sigout");
-    return tm;
+    return NULL;
   }
   
   // process streams first
@@ -677,10 +644,8 @@ tmesh_t tmesh_knocked(tmesh_t tm)
     // received processing only after validation
     tempo_knocked(tempo, knock, meta, 0);
 
-    // process any new packets (TODO, queue for background processing?)
-    tempo_process(tempo);
-
-    return tm;
+    if(util_frames_inlen(tempo->frames) && tempo->frames->inbox) return tempo->mote;
+    return NULL;
   }
 
   // decode/validate signal safely
@@ -719,7 +684,8 @@ tmesh_t tmesh_knocked(tmesh_t tm)
   // received processing only after validation
   tempo_knocked(tempo, knock, frame, mblock_pos);
 
-  return tm;
+  if(util_frames_inlen(tempo->frames) && tempo->frames->inbox) return tempo->mote;
+  return NULL;
 }
 
 // inner logic

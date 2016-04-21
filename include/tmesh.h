@@ -100,7 +100,8 @@ tmesh_t tmesh_free(tmesh_t tm);
 tempo_t tmesh_signal(tmesh_t tm, uint32_t seq, uint32_t medium);
 
 // process knock that has been completed by a driver
-tmesh_t tmesh_knocked(tmesh_t tm);
+// returns a mote if there's new packets available in its stream
+mote_t tmesh_knocked(tmesh_t tm);
 
 // at based on current cycle count since start or last rebase
 tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at);
