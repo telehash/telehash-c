@@ -167,11 +167,20 @@ static void mote_pipe_send(pipe_t pipe, lob_t packet, link_t link)
   }
 
   // wrap and send via router mote
+
+  // first wrap routed w/ a head 6 sender, body is orig
   lob_t wrap = lob_new();
-  lob_head(wrap,hashname_bin(mote->link->id),5);
+  lob_head(wrap,hashname_bin(mote->link->id),6); // head is recipient, extra 1 just means is sender
   lob_body(wrap,lob_raw(packet),lob_len(packet));
   lob_free(packet);
-  mote_send(mote->via, wrap);
+
+  // next wrap w/ intended recipient in header
+  lob_t wrap2 = lob_new();
+  lob_head(wrap2,hashname_bin(mote->link->id),5); // head is recipient
+  lob_body(wrap2,lob_raw(wrap),lob_len(wrap));
+  lob_free(wrap);
+
+  mote_send(mote->via, wrap2);
 }
 
 static mote_t mote_free(mote_t mote)
