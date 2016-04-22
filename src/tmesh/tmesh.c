@@ -214,6 +214,30 @@ static mote_t mote_new(tmesh_t tm, link_t link)
   return mote;
 }
 
+// find/link this id, send intro via this mote
+mote_t tmesh_intro(tmesh_t tm, hashname_t id, mote_t router)
+{
+  // check list of motes, add if none
+  mote_t mote;
+  for(mote=tm->motes;mote;mote = mote->next) if(hashname_scmp(mote->link->id,id) == 0) break;
+  if(!mote)
+  {
+    link_t link = mesh_linkid(tm->mesh,id);
+    if(!link)
+    {
+      // TODO make link
+    }
+    if(!(mote = mote_new(tm, link))) return LOG_ERROR("OOM");
+    mote->next = tm->motes;
+    tm->motes = mote;
+    // TODO associate pipe from router
+  }
+  
+  // TODO send intro
+
+  return LOG("TODO!");
+}
+
 // add a link known to be in this community
 mote_t tmesh_find(tmesh_t tm, link_t link, uint32_t m_lost)
 {
@@ -228,7 +252,6 @@ mote_t tmesh_find(tmesh_t tm, link_t link, uint32_t m_lost)
   LOG_INFO("adding %s",hashname_short(link->id));
 
   if(!(mote = mote_new(tm, link))) return LOG_ERROR("OOM");
-  mote->link = link;
   mote->next = tm->motes;
   tm->motes = mote;
 
@@ -478,6 +501,10 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t mbloc
       }else if(hashname_scmp(id,tm->mesh->id) == 0){
         // if it's about us, use the mote we have for the sender as context
         mote = tempo->mote;
+      }else{
+        // route them a discovery handshake
+        LOG("new neighbor, saying hello to %s",hashname_short(id));
+        mote = tmesh_intro(tm, id, tempo->mote);
       }
       LOG_DEBUG("BLOCK >>> %s",hashname_short(id));
       continue;
