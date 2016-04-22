@@ -148,9 +148,9 @@ mote_t mote_send(mote_t mote, lob_t packet)
 }
 
 // find a stream to send it to for this mote
-static void mote_pipe_send(pipe_t pipe, lob_t packet, link_t link)
+void mote_pipe_send(pipe_t pipe, lob_t packet, link_t recip)
 {
-  if(!pipe || !pipe->arg || !packet || !link)
+  if(!pipe || !pipe->arg || !packet || !recip)
   {
     LOG_WARN("bad args");
     lob_free(packet);
@@ -160,27 +160,28 @@ static void mote_pipe_send(pipe_t pipe, lob_t packet, link_t link)
   mote_t mote = (mote_t)(pipe->arg);
 
   // send direct
-  if(!mote->via)
+  if(mote->link == recip)
   {
     mote_send(mote, packet);
     return;
   }
 
-  // wrap and send via router mote
+  // mote is router, wrap and send to recip via it 
+  LOG_DEBUG("routing packet to %s via %s",hashname_short(recip->id),hashname_short(mote->link->id));
 
   // first wrap routed w/ a head 6 sender, body is orig
   lob_t wrap = lob_new();
-  lob_head(wrap,hashname_bin(mote->link->id),6); // head is recipient, extra 1 just means is sender
+  lob_head(wrap,hashname_bin(recip->mesh->id),6); // head is sender, extra 1
   lob_body(wrap,lob_raw(packet),lob_len(packet));
   lob_free(packet);
 
   // next wrap w/ intended recipient in header
   lob_t wrap2 = lob_new();
-  lob_head(wrap2,hashname_bin(mote->link->id),5); // head is recipient
+  lob_head(wrap2,hashname_bin(recip->id),5); // head is recipient
   lob_body(wrap2,lob_raw(wrap),lob_len(wrap));
   lob_free(wrap);
 
-  mote_send(mote->via, wrap2);
+  mote_send(mote, wrap2);
 }
 
 static mote_t mote_free(mote_t mote)
@@ -222,20 +223,22 @@ mote_t tmesh_intro(tmesh_t tm, hashname_t id, mote_t router)
   for(mote=tm->motes;mote;mote = mote->next) if(hashname_scmp(mote->link->id,id) == 0) break;
   if(!mote)
   {
+    // get existing or make a barebones link
     link_t link = mesh_linkid(tm->mesh,id);
-    if(!link)
-    {
-      // TODO make link
-    }
+    if(!link) link = link_get(tm->mesh, id);
+    
     if(!(mote = mote_new(tm, link))) return LOG_ERROR("OOM");
     mote->next = tm->motes;
     tm->motes = mote;
-    // TODO associate pipe from router
+
+    // associate pipe from router as link default
+    link_pipe(link, router->pipe);
   }
   
-  // TODO send intro
+  // send open intro via router
+  mote_pipe_send(router->pipe, hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys)), mote->link);
 
-  return LOG("TODO!");
+  return mote;
 }
 
 // add a link known to be in this community
