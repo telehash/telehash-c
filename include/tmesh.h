@@ -59,6 +59,25 @@ TODO, move flags to explicit vs implicit:
     - sets do_schedule = false
     - sets do_signal = true if ready||awaiting
 
+beacon > lost
+  * tm->beacon alongside tm->signal
+  * beacon is a stream, always starts w/ meta frame
+    * meta contains sender nickname to ignore once linked (just for now, future is random id)
+  * when no motes, beacon uses fast medium, if any other mote it goes slow
+  * signal is off or slow when beaconing
+  * only beacon open rx seeks
+  * when mote looses signal it drops entirely, beacon goes fast
+    * if stream request is not accepted in X signals, also drop
+  * streams just go idle (not lost), low priori rx skip tx
+  * after beacon stream exchanges handshake
+    * start our signal
+    * create mote
+    * move beacon to mote as stream
+    * reset beacon after link is up
+  * when routed packet is requested on a stream
+    * cache from who on outgoing stream
+    * include orig sender's full blocks in stream meta
+    * faster way to establish signal to neighbor than waiting for slow beacon
 
 */
 
