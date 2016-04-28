@@ -70,10 +70,11 @@ beacon > lost
     * if stream request is not accepted in X signals, also drop
   * streams just go idle (not lost), low priori rx skip tx
   * after beacon stream exchanges handshake
-    * start our signal
+    * start our signal to include in stream
     * create mote
     * move beacon to mote as stream
     * reset beacon after link is up
+    * create their signal once received in stream meta
   * when routed packet is requested on a stream
     * cache from who on outgoing stream
     * include orig sender's full blocks in stream meta
@@ -94,9 +95,11 @@ struct tmesh_struct
   
   // community deets
   char *community;
+  char *password; // optional
   mote_t motes;
   tempo_t signal; 
-  uint32_t m_lost, m_signal, m_stream; // default mediums
+  tempo_t beacon; 
+  uint32_t m_beacon, m_signal, m_stream; // default mediums
 
   // driver interface
   tempo_t (*sort)(tmesh_t tm, tempo_t a, tempo_t b);
@@ -128,9 +131,6 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at);
 // call before a schedule to rebase (subtract) given cycles off all at's (to prevent overflow)
 tmesh_t tmesh_rebase(tmesh_t tm, uint32_t at);
 
-// start looking for this link in this community
-mote_t tmesh_find(tmesh_t tm, link_t link, uint32_t m_lost);
-
 // returns an existing mote for this link (if any)
 mote_t tmesh_mote(tmesh_t tm, link_t link);
 
@@ -151,9 +151,8 @@ struct tempo_struct
   uint8_t miss, skip; // how many of the last rx windows were missed (nothing received) or skipped (scheduling)
   uint8_t chan; // channel of next knock
   uint8_t do_signal:1; // advertise this stream in a signal
-  uint8_t do_schedule:1; // active stream to be scheduled
   uint8_t do_tx:1; // current window direction
-  uint8_t do_lost:1; // if tempo isn't likely to be in sync
+  uint8_t is_idle:1; // idled means skip tx
   uint8_t priority:4; // next knock priority
 };
 
@@ -169,7 +168,7 @@ struct knock_struct
   tempo_t syncs[5]; // max number of tempos being sync'd in this knock
   // boolean flags for state tracking, etc
   uint8_t is_active:1; // is actively transceiving
-  uint8_t is_lost:1; // if is lost format signal
+  uint8_t is_beacon:1; // if is first beacon frame
   uint8_t is_tx:1; // current window direction (copied from tempo for convenience)
   uint8_t do_err:1; // driver sets if failed
   uint8_t do_gone:1; // driver sets if too many rx fails
