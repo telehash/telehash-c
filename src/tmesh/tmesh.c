@@ -495,6 +495,9 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t mbloc
     if(!who)
     {
       who = (uint8_t*)block;
+      if (who[0] == 0 && who[1] == 0 && who[2] == 0 && who[3] == 0 && who[4] == 0) {
+        continue;
+      }
       hashname_t id = hashname_sbin(who);
       link_t link = mesh_linkid(tm->mesh, id);
       if(link)
@@ -541,6 +544,10 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t mbloc
           case 0: // signal medium
             // TODO is senders or request to change ours depending on who
             LOG_DEBUG("^^^ MEDIUM signal %lu",body);
+            if (tm->signal->do_lost) {
+              tempo_medium(tm->signal, body);
+              tm->signal->do_lost  = false;
+            }
             break;
           case 1: // stream request
             if(!mote_send(mote, NULL)) break; // make sure stream exists
@@ -593,6 +600,10 @@ mote_t tmesh_knocked(tmesh_t tm)
   // driver signal that the tempo is gone
   if(knock->do_gone)
   {
+    LOG_INFO("Mote gone, was tx(%d) stream(%d%d%d) signal(%d%d%d)", knock->is_tx, tempo->mote->stream->do_lost, tempo->mote->stream->do_schedule, tempo->mote->stream->do_signal, tempo->mote->signal->do_lost, tempo->mote->signal->do_schedule, tempo->mote->signal->do_signal);
+    
+    bool was_lost = tempo->do_lost;
+    
     // clear misses and set lost
     tempo->miss = 0;
     tempo->do_lost = 1;
@@ -604,9 +615,29 @@ mote_t tmesh_knocked(tmesh_t tm)
       // signal this stream if still busy
       tempo->do_signal = util_frames_busy(tempo->frames) ? 1 : 0;
       LOG_INFO("gone stream, signal %u",tempo->do_signal);
+      if (!was_lost && tempo->do_signal && util_frames_outlen(tempo->frames) <= 0) {
+        LOG_INFO("Sending a new handshake");
+        util_frames_clear(tempo->frames);
+        if (tempo->frames && tempo->frames->outbox != NULL) {
+          lob_freeall(tempo->frames->outbox);
+          tempo->frames->outbox = NULL;
+        }
+        util_frames_send(tempo->frames, link_handshakes(tempo->mote->link));
+      }
     }else{
-      LOG_INFO("gone signal");
+      LOG_INFO("Might be full gone");
+      if (!knock->is_tx && !was_lost && knock->do_gone && tempo && !tempo->mote->signal->do_signal) {
+        LOG_INFO("gone signal");
+        LOG_INFO("Sending a new signal handshake");
+        util_frames_clear(tempo->frames);
+        if (tempo->frames && tempo->frames->outbox != NULL) {
+          lob_freeall(tempo->frames->outbox);
+          tempo->frames->outbox = NULL;
+        }
+        util_frames_send(tempo->frames, link_handshakes(tempo->mote->link));
+      }
     }
+    LOG_INFO("Mote is now stream(%d%d%d) signal(%d%d%d)", tempo->mote->stream->do_lost, tempo->mote->stream->do_schedule, tempo->mote->stream->do_signal, tempo->mote->signal->do_lost, tempo->mote->signal->do_schedule, tempo->mote->signal->do_signal);
   }
 
   if(knock->do_err)
@@ -677,6 +708,11 @@ mote_t tmesh_knocked(tmesh_t tm)
       {
         util_frames_clear(tempo->frames);
         return LOG_WARN("err-clear-err, bad stream frame %s",util_hex(knock->frame,64,NULL));
+      }
+      // If we have no out frames let's go ahead and try to reconnect
+      if (util_frames_outlen(tempo->frames) <= 0) {
+        LOG_INFO("Sending a new handshake for reset");
+        util_frames_send(tempo->frames, link_handshakes(tempo->mote->link));
       }
     }
 
