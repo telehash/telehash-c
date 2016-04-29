@@ -99,10 +99,9 @@ static tempo_t tempo_stream(tempo_t tempo)
   tmesh_t tm = tempo->tm;
   mote_t to = tempo->mote;
 
-  // default flags, idle and lost
+  // reset default flags
   tempo->do_signal = 0;
   tempo->do_schedule = 0;
-  tempo->do_lost = 1;
   tempo->seq = 0;
 
   if(!tempo->frames) tempo->frames = util_frames_new(64);
@@ -271,40 +270,6 @@ mote_t tmesh_intro(tmesh_t tm, hashname_t id, mote_t router)
   return mote;
 }
 
-// add a link known to be in this community
-mote_t tmesh_find(tmesh_t tm, link_t link, uint32_t m_beacon)
-{
-  mote_t mote;
-  if(!tm || !link) return LOG_WARN("bad args");
-
-  LOG_DEBUG("finding %s",hashname_short(link->id));
-
-  // check list of motes, add if not there
-  for(mote=tm->motes;mote;mote = mote->next) if(mote->link == link) return mote;
-
-  LOG_INFO("adding %s",hashname_short(link->id));
-
-  if(!(mote = mote_new(tm, link))) return LOG_ERROR("OOM");
-  mote->next = tm->motes;
-  tm->motes = mote;
-
-  // create lost signal
-  mote->signal = tempo_new(tm);
-  mote->signal->mote = mote;
-  tempo_signal(mote->signal);
-  tempo_medium(mote->signal, m_lost);
-
-  // this will prime stream so it's advertised
-  lob_t out = NULL;
-  if(tm->discoverable) out = hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys));
-  // TODO support immediate link_handshakes(mote->link);
-  mote_send(mote, out);
-
-  // TODO set up link free event handler to remove this mote
-  
-  return mote;
-}
-
 // if there's a mote for this link, return it
 mote_t tmesh_mote(tmesh_t tm, link_t link)
 {
@@ -397,11 +362,6 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
   mblock_t block = NULL;
   uint8_t at = 0;
 
-  if(tempo == tm->beacon)
-  {
-    // TODO simple
-  }
-
   // send data frames if any
   if(tempo->frames)
   {
@@ -423,8 +383,7 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
     memcpy(block->body,&(tm->signal->seq),4);
     block->done = 1;
 
-    // TODO, if they're lost suggest non-lost medium
-    // TODO include other signals from suggested neighbors
+    // TODO include signal blocks from last routed-from mote
 
     // fill in stream frame
     if(!util_frames_outbox(tempo->frames,knock->frame,meta)) return LOG_WARN("frames failed");
@@ -432,16 +391,15 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
     return tempo;
   }
 
-  // construct signal meta blocks
 
-  // lost signal is prefixed w/ random nonce in first two blocks
-  if(tempo->do_lost)
+  // beacon is prefixed w/ random nonce in first two blocks
+  if(tempo == tm->beacon)
   {
-    knock->is_lost = 1;
+    knock->is_beacon = 1;
     e3x_rand(knock->nonce,8);
     memcpy(meta,knock->nonce,8);
 
-    // put our signal medium/seq in here for recipient to sync
+    // put our stream medium/seq in here for recipient to sync
     memcpy(meta+10,tm->mesh->id,5); // our short hn
 
     block = (mblock_t)(meta+15);
@@ -454,6 +412,8 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
     block->done = 1;
 
     at = 5; // next empty block
+    
+    // TODO done here
   }
 
   // fill in meta blocks for our neighborhood
@@ -464,7 +424,7 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
     // lead w/ short hn
     memcpy(meta+(at*5),mote->link->id,5);
 
-    // see if there's a lost ready stream to advertise
+    // see if there's a ready stream to advertise
     tempo_t stream = mote->stream;
     if(stream && stream->do_signal)
     {
@@ -472,10 +432,7 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
       if(at >= 12) break;
       block->type = MBLOCK_MEDIUM;
       
-      // force lost motes to direct accept (can't request if lost)
-      if(mote->signal->do_lost) stream->seq++;
-
-      // lost stream means send accept
+      // initial stream means send accept
       if(!stream->seq)
       {
         block->head = 1; // request
@@ -518,7 +475,6 @@ tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t mbloc
   mote_t mote = NULL;
 
   // received flags/stats first
-  tempo->do_lost = 0; // we're found
   tempo->do_signal = 0; // no more advertising
   tempo->miss = 0; // clear any missed counter
   tempo->irx++;
@@ -635,9 +591,10 @@ mote_t tmesh_knocked(tmesh_t tm)
   // driver signal that the tempo is gone
   if(knock->do_gone)
   {
-    // clear misses and set lost
+    // TODO refactor from lost logic, streams start advertising, signals drop mote!
+    
+    // reset miss counter
     tempo->miss = 0;
-    tempo->do_lost = 1;
 
     // streams change additional states
     if(tempo->frames)
@@ -678,8 +635,8 @@ mote_t tmesh_knocked(tmesh_t tm)
       return NULL;
     }
 
-    // lost signals always sync next at time to when actually done
-    if(tempo->do_lost) tempo->at = knock->stopped;
+    // TODO beacons always sync next at to when done and become stream
+//    if(tempo->do_lost) tempo->at = knock->stopped;
     
     // sync any bundled/accepted stream tempos too
     uint8_t syncs;
@@ -739,22 +696,22 @@ mote_t tmesh_knocked(tmesh_t tm)
   // did it validate
   if(memcmp(&check,frame+60,4) != 0)
   {
-    // also check if lost encoded
+    // also check if beacon encoded
     memcpy(frame,knock->frame,64);
     chacha20(tempo->secret,frame,frame+8,64-8);
     check = murmur4(frame,60);
     
-    // lost encoded signal fail
+    // beacon encoded signal fail
     if(memcmp(&check,frame+60,4) != 0)
     {
       tempo->bad++;
       return LOG_INFO("signal frame validation failed: %s",util_hex(frame,64,NULL));
     }
     
-    // always sync lost at
+    // always sync beacon at
     tempo->at = knock->stopped;
 
-    MORTY(tempo,"siglost");
+    MORTY(tempo,"sigbkn");
 
     // fall through w/ meta blocks starting after nonce
     mblock_pos = 2;
