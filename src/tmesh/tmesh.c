@@ -224,22 +224,51 @@ static mote_t mote_free(mote_t mote)
   return LOG_WARN("TODO list");
 }
 
-static mote_t mote_new(tmesh_t tm, link_t link)
+// bootstraps mote from a connected stream
+static mote_t mote_new(tmesh_t tm, link_t link, tempo_t stream)
 {
-  if(!tm || !link) return LOG_WARN("bad args");
+  if(!tm || !link || !stream) return LOG_WARN("bad args");
+  mote_t mote = tmesh_mote(tm, link);
+  
+  // failsafe
+  if(mote)
+  {
+    LOG_DEBUG("mote_new on existing mote to %s",hashname_short(link->id));
+    tempo_free(mote->stream);
+    mote->stream = stream;
+    return mote;
+  }
 
   LOG_INFO("new mote %s",hashname_short(link->id));
 
-  mote_t mote;
   if(!(mote = malloc(sizeof(struct mote_struct)))) return LOG_ERROR("OOM");
   memset(mote,0,sizeof (struct mote_struct));
   mote->link = link;
   mote->tm = tm;
-  
+  mote->stream = stream;
+
   // set up pipe
   if(!(mote->pipe = pipe_new("tmesh"))) return mote_free(mote);
   mote->pipe->arg = mote;
   mote->pipe->send = mote_pipe_send;
+  
+  return mote;
+}
+
+// ensures mote->signal exists and updates to any of these settings
+static mote_t mote_signal(mote_t mote, uint32_t medium, uint32_t seq, uint32_t at)
+{
+  if(!mote) return LOG_WARN("bad args");
+
+  if(!mote->signal)
+  {
+    mote->signal = tempo_new();
+    tempo_signal(mote->signal);
+  }
+  
+  if(medium) tempo_medium(mote->signal, medium);
+  if(seq) mote->signal->seq = seq;
+  if(at) mote->signal->at = at;
   
   return mote;
 }
@@ -277,6 +306,12 @@ mote_t tmesh_mote(tmesh_t tm, link_t link)
   mote_t m;
   for(m=tm->motes;m;m = m->next) if(m->link == link) return m;
   return LOG_WARN("no mote found for link %s",hashname_short(link->id));
+}
+
+// drops and free's this mote (link just goes to down state if no other paths)
+tmesh_t tmesh_demote(tmesh_t tm, mote_t mote)
+{
+  return LOG_WARN("TODO!");
 }
 
 pipe_t tmesh_on_path(link_t link, lob_t path)
@@ -467,7 +502,45 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
   return tempo;
 }
 
-tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t mblock_pos)
+// breakout for a dropped tempo
+static tempo_t tempo_gone(tempo_t tempo, knock_t knock)
+{
+  tmesh_t tm = tempo->tm;
+  mote_t mote = tempo->mote;
+
+  // reset miss counter
+  tempo->miss = 0;
+  
+  // gone stream w/o signal or gone signal == reset their world
+  if(!mote->signal || mote->signal == tempo)
+  {
+    tmesh_demote(tm, mote);
+    return LOG_DEBUG("mote dropped");
+  }
+
+  // drop a gone stream
+  mote->stream = tempo_free(tempo->stream);
+  
+  return LOG_DEBUG("mote stream dropped");
+}
+
+// breakout for any missed/errored knock for this tempo
+static tempo_t tempo_err(tempo_t tempo, knock_t knock)
+{
+  tmesh_t tm = tempo->tm;
+
+  tempo->miss++;
+
+  // if expecting data, trigger a flush
+  if(!knock->is_tx && tempo->frames && util_frames_inbox(tempo->frames,NULL,NULL)) util_frames_send(tempo->frames,NULL);
+  
+  MORTY(tempo,"do_err");
+
+  return tempo;
+}
+
+// breakout for a successful knock on this tempo
+static tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t mblock_pos)
 {
   tmesh_t tm = tempo->tm;
   uint32_t body = 0;
@@ -591,32 +664,14 @@ mote_t tmesh_knocked(tmesh_t tm)
   // driver signal that the tempo is gone
   if(knock->do_gone)
   {
-    // TODO refactor from lost logic, streams start advertising, signals drop mote!
-    
-    // reset miss counter
-    tempo->miss = 0;
-
-    // streams change additional states
-    if(tempo->frames)
-    {
-      tempo->do_schedule = 0;
-      // signal this stream if still busy
-      tempo->do_signal = util_frames_busy(tempo->frames) ? 1 : 0;
-      LOG_INFO("gone stream, signal %u",tempo->do_signal);
-    }else{
-      LOG_INFO("gone signal");
-    }
+    tempo_gone(tempo, knock);
+    return LOG_DEBUG("processed tempo gone");
   }
 
   if(knock->do_err)
   {
-    tempo->miss++;
-
-    // if expecting data, trigger a flush
-    if(!knock->is_tx && tempo->frames && util_frames_inbox(tempo->frames,NULL,NULL)) util_frames_send(tempo->frames,NULL);
-    
-    MORTY(tempo,"do_err");
-    return NULL;
+    tempo_err(tempo, knock);
+    return LOG_DEBUG("processed knock err");
   }
   
   MORTY(tempo,"knockd");
