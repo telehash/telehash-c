@@ -59,6 +59,7 @@ static tempo_t tempo_medium(tempo_t tempo, uint32_t medium)
 static tempo_t tempo_signal(tempo_t tempo)
 {
   if(!tempo) return LOG_WARN("bad args");
+  tmesh_t tm = tempo->tm;
   
   tempo->priority = 2; // mid
 
@@ -128,7 +129,7 @@ static tempo_t tempo_beacon(tempo_t tempo)
   tempo->seq = 0;
 
   // frames must be empty to start
-  if(tempo->frames) util_frames_free(tempo->frame);
+  if(tempo->frames) util_frames_free(tempo->frames);
   tempo->frames = util_frames_new(64);
 
   // beacons are mesh-wide shared stream secret
@@ -240,6 +241,7 @@ static mote_t mote_new(tmesh_t tm, link_t link, tempo_t stream)
   mote->link = link;
   mote->tm = tm;
   mote->stream = stream;
+  mote->signal = tempo_stream(tempo_new(tm));
 
   // set up pipe
   if(!(mote->pipe = pipe_new("tmesh"))) return mote_free(mote);
@@ -256,7 +258,7 @@ static mote_t mote_signal(mote_t mote, uint32_t medium, uint32_t seq, uint32_t a
 
   if(!mote->signal)
   {
-    mote->signal = tempo_new();
+    mote->signal = tempo_new(mote->tm);
     tempo_signal(mote->signal);
   }
   
@@ -264,32 +266,6 @@ static mote_t mote_signal(mote_t mote, uint32_t medium, uint32_t seq, uint32_t a
   if(seq) mote->signal->seq = seq;
   if(at) mote->signal->at = at;
   
-  return mote;
-}
-
-// find/link this id, send intro via this mote
-mote_t tmesh_intro(tmesh_t tm, hashname_t id, mote_t router)
-{
-  // check list of motes, add if none
-  mote_t mote;
-  for(mote=tm->motes;mote;mote = mote->next) if(hashname_scmp(mote->link->id,id) == 0) break;
-  if(!mote)
-  {
-    // get existing or make a barebones link
-    link_t link = mesh_linkid(tm->mesh,id);
-    if(!link) link = link_get(tm->mesh, id);
-    
-    if(!(mote = mote_new(tm, link))) return LOG_ERROR("OOM");
-    mote->next = tm->motes;
-    tm->motes = mote;
-
-    // associate pipe from router as link default
-    link_pipe(link, router->pipe);
-  }
-  
-  // send open intro via router
-  mote_pipe_send(router->pipe, hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys)), mote->link);
-
   return mote;
 }
 
@@ -345,7 +321,7 @@ tmesh_t tmesh_new(mesh_t mesh, char *name, char *pass, uint32_t mediums[3])
   tm->beacon = tempo_new(tm);
   tempo_beacon(tm->beacon);
   tempo_medium(tm->beacon, tm->m_beacon);
-  e3x_rand(tm->beacon_id,4); // always random id
+  e3x_rand((uint8_t*)&(tm->beacon_id),4); // always random id
   
   return tm;
 }
@@ -395,29 +371,29 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
   // send data frames if any
   if(tempo->frames)
   {
-    // first blocks are about us, always send stream
+    // first blocks are about us, always send our signal
 
-    block = (mblock_t)(meta+(++at*5));
+    block = (mblock_t)(blocks);
     block->type = tmesh_block_medium;
     memcpy(block->body,&(tm->signal->medium),4);
 
-    block = (mblock_t)(meta+(++at*5));
+    block = (mblock_t)(blocks+(++at*5));
     block->type = tmesh_block_at;
     uint32_t at_offset = tm->signal->at - tempo->at;
     memcpy(block->body,&(at_offset),4);
 
-    block = (mblock_t)(meta+(++at*5));
+    block = (mblock_t)(blocks+(++at*5));
     block->type = tmesh_block_seq;
     memcpy(block->body,&(tm->signal->seq),4);
 
     // send stream quality in this context
-    block = (mblock_t)(meta+(++at*5));
+    block = (mblock_t)(blocks+(++at*5));
     block->type = tmesh_block_quality;
     memcpy(block->body,&(tempo->quality),4);
     
     if(tm->app)
     {
-      block = (mblock_t)(meta+(++at*5));
+      block = (mblock_t)(blocks+(++at*5));
       block->type = tmesh_block_app;
       memcpy(block->body,&(tm->app),4);
     }
@@ -427,7 +403,7 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
     // TODO include signal blocks from last routed-from mote
 
     // fill in stream frame
-    if(!util_frames_outbox(tempo->frames,knock->frame,meta)) return LOG_WARN("frames failed");
+    if(!util_frames_outbox(tempo->frames,knock->frame,blocks)) return LOG_WARN("frames failed");
 
     return tempo;
   }
@@ -442,10 +418,10 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
     memcpy(knock->frame,knock->nonce,8);
     
     // then include current random id so others can ignore it
-    memcpy(knock->frame+8,&(tm->beacon_id));
+    memcpy(knock->frame+8,&(tm->beacon_id),4);
     
     // then include the medium to switch to to start the stream
-    memcpy(knock->frame+12,&(tm->m_stream));
+    memcpy(knock->frame+12,&(tm->m_stream),4);
 
     // check hash at end
     murmur(knock->frame,60,knock->frame+60);
@@ -453,24 +429,35 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
     return tempo;
   }
 
-  // fill in our outgoing blocks
-  // TODO paused here
+  // fill in our outgoing blocks, first with ours
+  block = (mblock_t)(blocks);
+  block->type = tmesh_block_beacon;
+  memcpy(block->body,&(tm->beacon_id),4);
 
-  // fill in meta blocks for our neighborhood
+  if(tm->app)
+  {
+    block = (mblock_t)(blocks+(++at*5));
+    block->type = tmesh_block_app;
+    memcpy(block->body,&(tm->app),4);
+  }
+
+  block->done = 1;
+
+  // fill in blocks for our neighborhood
   uint8_t syncs = 0;
   // TODO, sort by priority
-  for(mote=tm->motes;mote;mote = mote->next)
+  for(mote=tm->motes;mote && at < 10;mote = mote->next) // must be at least enough space for two blocks
   {
     // lead w/ short hn
-    memcpy(meta+(at*5),mote->link->id,5);
+    memcpy(blocks+(++at*5),mote->link->id,5);
 
     // see if there's a ready stream to advertise
     tempo_t stream = mote->stream;
     if(stream && stream->do_signal)
     {
-      block = (mblock_t)(meta+(++at*5));
+      block = (mblock_t)(blocks+(++at*5));
       if(at >= 12) break;
-      block->type = MBLOCK_MEDIUM;
+      block->type = tmesh_block_medium;
       
       // initial stream means send accept
       if(!stream->seq)
@@ -485,21 +472,28 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
       memcpy(block->body,&(stream->medium),4);
     }
 
-    // TODO fill in actual quality
-    block = (mblock_t)(meta+(++at*5));
-    if(at >= 12) break;
-    block->type = MBLOCK_QUALITY;
-    memcpy(block->body,&(mote->signal->last),2);
-    memcpy(block->body+2,&(mote->signal->bad),2);
+    // fill in optional quality and app blocks
+    if(mote->signal)
+    {
+      block = (mblock_t)(blocks+(++at*5));
+      if(at >= 12) break;
+      block->type = tmesh_block_quality;
+      memcpy(block->body,&(mote->stream->quality),4);
+    }
+    if(mote->app)
+    {
+      block = (mblock_t)(blocks+(++at*5));
+      if(at >= 12) break;
+      block->type = tmesh_block_app;
+      memcpy(block->body,&(mote->app),4);
+    }
 
     // end this mote's blocks
     block->done = 1;
-    at++; // next empty block
-    if(at >= 12) break;
   }
 
-  // copy in meta
-  memcpy(knock->frame,meta,60);
+  // copy in blocks
+  memcpy(knock->frame,blocks,60);
 
   // check hash at end
   murmur(knock->frame,60,knock->frame+60);
@@ -524,7 +518,7 @@ static tempo_t tempo_gone(tempo_t tempo, knock_t knock)
   }
 
   // drop a gone stream
-  mote->stream = tempo_free(tempo->stream);
+  mote->stream = tempo_free(mote->stream);
   
   return LOG_DEBUG("mote stream dropped");
 }
@@ -532,8 +526,6 @@ static tempo_t tempo_gone(tempo_t tempo, knock_t knock)
 // breakout for any missed/errored knock for this tempo
 static tempo_t tempo_err(tempo_t tempo, knock_t knock)
 {
-  tmesh_t tm = tempo->tm;
-
   if(knock->is_tx)
   {
     // failed TX, might be bad if too many?
@@ -550,12 +542,9 @@ static tempo_t tempo_err(tempo_t tempo, knock_t knock)
 }
 
 // breakout for a successful knock on this tempo
-static tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_t mblock_pos)
+static tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *blocks)
 {
   tmesh_t tm = tempo->tm;
-  uint32_t body = 0;
-  uint8_t *who = NULL;
-  mote_t mote = NULL;
 
   // received flags/stats first
   tempo->do_signal = 0; // no more advertising
@@ -567,94 +556,95 @@ static tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *meta, uint8_
 
   LOG_DEBUG("RX %s %u received, rssi %d/%d/%d data %d\n",tempo->frames?"stream":"signal",tempo->irx,tempo->last,tempo->best,tempo->worst,util_frames_inlen(tempo->frames));
 
-  for(;mblock_pos < 12;mblock_pos++)
+  mote_t mote = NULL;
+  hashname_t id = NULL;
+  uint8_t at;
+  for(at = 0;at < 12;at++)
   {
-    mblock_t block = (mblock_t)(meta+(5*mblock_pos));
-//    LOG_DEBUG("meta block %u: %s",at,util_hex((uint8_t*)block,5,NULL));
+    // initial context is always sender
+    if(!at)
+    {
+      mote = tempo->mote;
+      id = NULL;
+    }else{
+      // check given short hash, load mote if known
+      hashname_t id = hashname_sbin(blocks+(5*at));
+      mote = tmesh_mote(tm,mesh_linkid(tm->mesh, id));
+      at++;
+    }
 
-    // determine who the following blocks are about
-    if(!who)
+    // loop through blocks for above id/mote
+    for(;at < 12;at++)
     {
-      who = (uint8_t*)block;
-      hashname_t id = hashname_sbin(who);
-      link_t link = mesh_linkid(tm->mesh, id);
-      if(link)
+      mblock_t block = (mblock_t)(blocks+(5*at));
+      uint32_t body;
+      memcpy(&body,block->body,4);
+
+      switch(block->type)
       {
-        // might be a neighbor we know
-        mote = tmesh_mote(tm,link);
-      }else if(hashname_scmp(id,tm->mesh->id) == 0){
-        // if it's about us, use the mote we have for the sender as context
-        mote = tempo->mote;
-      }else{
-        // route them a discovery handshake
-        LOG("new neighbor, saying hello to %s",hashname_short(id));
-        mote = tmesh_intro(tm, id, tempo->mote);
+        case tmesh_block_end:
+          LOG_DEBUG("^^^ NONE");
+          return tempo;
+        case tmesh_block_at:
+          if(!mote) break; // require known mote
+          LOG_DEBUG("^^^ AT %lu, was %lu set to %lu",body,mote->signal->at,(body + tempo->at));
+          mote->signal->at = (body + tempo->at); // is an offset from this tempo
+          break;
+        case tmesh_block_seq:
+          if(!mote) break; // require known mote
+          LOG_DEBUG("^^^ SEQ %lu was %lu",body,mote->signal->seq);
+          mote->signal->seq = body;
+          break;
+        case tmesh_block_quality:
+          // update for known motes, or let app know for unknown motes
+          if(mote) mote->signal->quality = body;
+          else if(tm->nearby) tm->nearby(tm, id, block->type, body);
+          LOG_DEBUG("^^^ QUALITY %lu",body);
+          break;
+        case tmesh_block_app:
+          if(mote) mote->app = body;
+          else if(tm->nearby) tm->nearby(tm, id, block->type, body);
+          LOG_DEBUG("^^^ APP %lu",body);
+          break;
+        case tmesh_block_beacon:
+          if(mote) mote->beacon_id = body;
+          LOG_DEBUG("^^^ BEACON %lu",body);
+          break;
+        case tmesh_block_medium:
+          if(!mote) break; // require known mote
+          switch(block->head)
+          {
+            case 1: // stream request
+              if(!mote_send(mote, NULL)) break; // make sure stream exists
+              LOG_DEBUG("^^^ MEDIUM stream request using %lu",body);
+              tempo_medium(mote->stream, body);
+              mote->stream->do_signal = 1; // start signalling this stream
+              mote->stream->do_schedule = 0; // hold stream scheduling activity
+              mote->stream->seq++; // any seq signals a stream accept
+              break;
+            case 2: // stream accept
+              // make sure one exists, is primed, and sync it
+              if(!mote_send(mote, NULL)) break; // bad juju
+              LOG_INFO("accepting stream from %s on medium %lu",hashname_short(mote->link->id),body);
+              mote->stream->do_schedule = 1; // go
+              mote->stream->do_signal = 0; // done signalling
+              mote->stream->do_tx = 0; // we default to inverted since we're accepting
+              mote->stream->priority = 3; // little more boost
+              mote->stream->at = knock->stopped;
+              mote->stream->seq = mote->signal->seq; // TODO invert uint32 for unique starting point
+              tempo_medium(mote->stream, body);
+              break;
+            default:
+              LOG_WARN("unknown medium block %u: %s",block->type,util_hex((uint8_t*)block,5,NULL));
+          }
+          break;
+        default:
+          LOG_WARN("unknown block %u: %s",block->type,util_hex((uint8_t*)block,5,NULL));
       }
-      LOG_DEBUG("BLOCK >>> %s",hashname_short(id));
-      continue;
-    }
     
-    memcpy(&body,block->body,4);
-//    LOG_DEBUG("mblock %u:%u %lu %s",block->type,block->head,body,block->done?"done":"");
-    switch(block->type)
-    {
-      case MBLOCK_NONE:
-        LOG_DEBUG("^^^ NONE error");
-        return tempo;
-      case MBLOCK_AT:
-        if(!mote) break; // require known mote
-        LOG_DEBUG("^^^ AT %lu, was %lu set to %lu",body,mote->signal->at,(body + tempo->at));
-        mote->signal->at = (body + tempo->at); // is an offset
-        break;
-      case MBLOCK_SEQ:
-        if(!mote) break; // require known mote
-        LOG_DEBUG("^^^ SEQ %lu was %lu",body,mote->signal->seq);
-        mote->signal->seq = body;
-        break;
-      case MBLOCK_QUALITY:
-        // TODO, use/track quality metrics
-        LOG_DEBUG("^^^ QUALITY %lu",body);
-        break;
-      case MBLOCK_MEDIUM:
-        if(!mote) break; // require known mote
-        switch(block->head)
-        {
-          case 0: // signal medium
-            // TODO is senders or request to change ours depending on who
-            LOG_DEBUG("^^^ MEDIUM signal %lu",body);
-            break;
-          case 1: // stream request
-            if(!mote_send(mote, NULL)) break; // make sure stream exists
-            LOG_DEBUG("^^^ MEDIUM stream request using %lu",body);
-            tempo_medium(mote->stream, body);
-            mote->stream->do_signal = 1; // start signalling this stream
-            mote->stream->do_schedule = 0; // hold stream scheduling activity
-            mote->stream->seq++; // any seq signals a stream accept
-            break;
-          case 2: // stream accept
-            // make sure one exists, is primed, and sync it
-            if(!mote_send(mote, NULL)) break; // bad juju
-            LOG_DEBUG("^^^ MEDIUM stream accept using %lu",body);
-            LOG_INFO("accepting stream from %s on medium %lu",hashname_short(mote->link->id),body);
-            mote->stream->do_schedule = 1; // go
-            mote->stream->do_signal = 0; // done signalling
-            mote->stream->do_tx = 0; // we default to inverted since we're accepting
-            mote->stream->priority = 3; // little more boost
-            mote->stream->at = knock->stopped;
-            mote->stream->seq = mote->signal->seq; // TODO invert uint32 for unique starting point
-            tempo_medium(mote->stream, body);
-            
-            break;
-          default:
-            LOG_WARN("unknown medium block %u: %s",block->type,util_hex((uint8_t*)block,5,NULL));
-        }
-        break;
-      default:
-        LOG_WARN("unknown mblock %u: %s",block->type,util_hex((uint8_t*)block,5,NULL));
+      // done w/ this mote's blocks
+      if(block->done) break;
     }
-    
-    // done w/ this who
-    if(block->done) who = NULL;
   }
   
   return tempo;
@@ -699,10 +689,21 @@ mote_t tmesh_knocked(tmesh_t tm)
 
       return NULL;
     }
-
-    // TODO beacons always sync next at to when done and become stream
-//    if(tempo->do_lost) tempo->at = knock->stopped;
     
+    // sent beacons become a stream now, primed w/ a discovery
+    if(knock->is_beacon)
+    {
+      tempo->at = knock->stopped;
+      tempo->do_signal = 0;
+      tempo->do_schedule = 1;
+      tempo->seq = 0;
+      tempo->do_tx = 0;
+      tempo->frames = util_frames_new(64);
+      util_frames_send(tempo->frames,hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys)));
+
+      return NULL;
+    }
+
     // sync any bundled/accepted stream tempos too
     uint8_t syncs;
     for(syncs=0;syncs<5;syncs++) if(knock->syncs[syncs])
@@ -745,10 +746,10 @@ mote_t tmesh_knocked(tmesh_t tm)
     }
 
     // received processing only after validation
-    tempo_knocked(tempo, knock, meta, 0);
+    tempo_knocked(tempo, knock, meta);
 
-    if(util_frames_inlen(tempo->frames) && tempo->frames->inbox) return tempo->mote;
-    return NULL;
+    // signal back if there's full packets waiting
+    return (tempo->frames->inbox)?tempo->mote:NULL;
   }
 
   // decode/validate signal safely
@@ -756,7 +757,6 @@ mote_t tmesh_knocked(tmesh_t tm)
   memcpy(frame,knock->frame,64);
   chacha20(tempo->secret,knock->nonce,frame,64);
   uint32_t check = murmur4(frame,60);
-  uint8_t mblock_pos = 0;
 
   // did it validate
   if(memcmp(&check,frame+60,4) != 0)
@@ -778,17 +778,34 @@ mote_t tmesh_knocked(tmesh_t tm)
 
     MORTY(tempo,"sigbkn");
 
-    // fall through w/ meta blocks starting after nonce
-    mblock_pos = 2;
-  }else{
-    MORTY(tempo,"sigfnd");
+    uint32_t beacon_id;
+    memcpy(&beacon_id,knock->frame+8,4);
+    mote_t m;
+    for(m = tm->motes;m;m=m->next) if(m->beacon_id == beacon_id)
+    {
+      return LOG_DEBUG("skipping known beacon from %s",hashname_short(m->link->id));
+    }
+    
+    uint32_t medium;
+    memcpy(&medium,knock->frame+12,4);
+    if(!medium) return LOG_WARN("no medium on beacon");
+    
+    // tempo becomes a stream, send discovery
+    tempo->do_signal = 0;
+    tempo->do_schedule = 1;
+    tempo->seq = 0;
+    tempo->do_tx = 1; // inverted
+    tempo->frames = util_frames_new(64);
+    util_frames_send(tempo->frames,hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys)));
+
+    return LOG_DEBUG("beacon initiated stream");
   }
 
   // received processing only after validation
-  tempo_knocked(tempo, knock, frame, mblock_pos);
+  tempo_knocked(tempo, knock, frame);
 
-  if(util_frames_inlen(tempo->frames) && tempo->frames->inbox) return tempo->mote;
-  return NULL;
+  // signal any full packets waiting
+  return (tempo->frames && tempo->frames->inbox)?tempo->mote:NULL;
 }
 
 // inner logic
@@ -864,7 +881,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   // first try beacon seekin ;)
   if(tm->beacon)
   {
-    MORTY(seek,"beacon");
+    MORTY(tm->beacon,"beacon");
 
     // copy nonce parts in, nothing to prep since is just RX
     memcpy(knock->nonce,&(tm->beacon->medium),4);

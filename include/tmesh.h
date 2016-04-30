@@ -111,7 +111,7 @@ struct tmesh_struct
   tempo_t signal; // only exists when motes does
   tempo_t beacon; 
   uint32_t m_beacon, m_signal, m_stream; // default mediums
-  uint32_t app; // outgoing app block
+  uint32_t app; // available for app to use to send custom block
   uint32_t beacon_id; // random id in beacon
 
   // driver interface
@@ -129,11 +129,8 @@ struct tmesh_struct
 };
 
 // join a new tmesh community
-tmesh_t tmesh_new(mesh_t mesh, char *name, uint32_t mediums[3]);
+tmesh_t tmesh_new(mesh_t mesh, char *name, char *pass, uint32_t mediums[3]);
 tmesh_t tmesh_free(tmesh_t tm);
-
-// start/reset our outgoing signal
-tempo_t tmesh_signal(tmesh_t tm, uint32_t seq, uint32_t medium);
 
 // process knock that has been completed by a driver
 // returns a mote if there's new packets available in its stream
@@ -169,6 +166,7 @@ struct tempo_struct
   uint8_t miss, skip; // how many of the last rx windows were missed (nothing received) or skipped (scheduling)
   uint8_t chan; // channel of next knock
   uint8_t do_signal:1; // advertise this stream in a signal
+  uint8_t do_schedule:1; // include in scheduling
   uint8_t do_tx:1; // current window direction
   uint8_t is_idle:1; // idled means skip tx
   uint8_t priority:4; // next knock priority
@@ -205,6 +203,7 @@ struct mote_struct
   uint32_t q_signal; // most recent quality block about us from them
   uint32_t q_stream; // most recent quality block about us from them
   uint32_t app; // most recent app block from them
+  uint32_t beacon_id; // to skip incoming beacons
   uint32_t seen; // first seen (for debugging)
 };
 
