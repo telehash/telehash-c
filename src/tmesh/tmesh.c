@@ -6,17 +6,11 @@
 
 // 5-byte blocks for mesh meta values
 typedef struct mblock_struct {
-  uint8_t type:3; // medium, at, seq, quality
+  tmesh_block_t type:3; // medium, at, seq, quality, app
   uint8_t head:4; // per-type
-  uint8_t done:1; // last one
+  uint8_t done:1; // last one for cur context
   uint8_t body[4]; // payload
 } *mblock_t;
-
-#define MBLOCK_NONE     0
-#define MBLOCK_MEDIUM   1
-#define MBLOCK_AT       2
-#define MBLOCK_SEQ      3
-#define MBLOCK_QUALITY  4
 
 #define MORTY(t,r) LOG_DEBUG("RICK %s %s %s %s [%u,%u,%u,%u,%u] %lu+%lx (%lu/%lu) %u%u %lu",r,t->mote?hashname_short(t->mote->link->id):"selfself",t->do_tx?"TX":"RX",t->frames?"str":"sig",t->itx,t->irx,t->bad,t->miss,t->skip,t->at,t->seq,util_frames_inlen(t->frames),util_frames_outlen(t->frames),t->is_idle,t->do_signal,t->medium);
 
@@ -351,6 +345,7 @@ tmesh_t tmesh_new(mesh_t mesh, char *name, char *pass, uint32_t mediums[3])
   tm->beacon = tempo_new(tm);
   tempo_beacon(tm->beacon);
   tempo_medium(tm->beacon, tm->m_beacon);
+  e3x_rand(tm->beacon_id,4); // always random id
   
   return tm;
 }
@@ -393,29 +388,40 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
   if(!tempo) return LOG_WARN("bad args");
   mote_t mote = tempo->mote;
   tmesh_t tm = tempo->tm;
-  uint8_t meta[60] = {0};
+  uint8_t blocks[60] = {0};
   mblock_t block = NULL;
   uint8_t at = 0;
 
   // send data frames if any
   if(tempo->frames)
   {
-    // bundle metadata about our signal in stream meta
-    memcpy(meta,tm->mesh->id,5); // our short hn
+    // first blocks are about us, always send stream
 
     block = (mblock_t)(meta+(++at*5));
-    block->type = MBLOCK_MEDIUM;
+    block->type = tmesh_block_medium;
     memcpy(block->body,&(tm->signal->medium),4);
 
     block = (mblock_t)(meta+(++at*5));
-    block->type = MBLOCK_AT;
-    LOG_INFO("tempo %lu signal %lu", tempo->at, tm->signal->at);
+    block->type = tmesh_block_at;
     uint32_t at_offset = tm->signal->at - tempo->at;
     memcpy(block->body,&(at_offset),4);
 
     block = (mblock_t)(meta+(++at*5));
-    block->type = MBLOCK_SEQ;
+    block->type = tmesh_block_seq;
     memcpy(block->body,&(tm->signal->seq),4);
+
+    // send stream quality in this context
+    block = (mblock_t)(meta+(++at*5));
+    block->type = tmesh_block_quality;
+    memcpy(block->body,&(tempo->quality),4);
+    
+    if(tm->app)
+    {
+      block = (mblock_t)(meta+(++at*5));
+      block->type = tmesh_block_app;
+      memcpy(block->body,&(tm->app),4);
+    }
+
     block->done = 1;
 
     // TODO include signal blocks from last routed-from mote
@@ -427,29 +433,28 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
   }
 
 
-  // beacon is prefixed w/ random nonce in first two blocks
+  // beacon is special
   if(tempo == tm->beacon)
   {
+    // first is nonce (unciphered prefixed)
     knock->is_beacon = 1;
     e3x_rand(knock->nonce,8);
-    memcpy(meta,knock->nonce,8);
-
-    // put our stream medium/seq in here for recipient to sync
-    memcpy(meta+10,tm->mesh->id,5); // our short hn
-
-    block = (mblock_t)(meta+15);
-    block->type = MBLOCK_MEDIUM;
-    memcpy(block->body,&(tempo->medium),4);
-
-    block = (mblock_t)(meta+20);
-    block->type = MBLOCK_SEQ;
-    memcpy(block->body,&(tempo->seq),4);
-    block->done = 1;
-
-    at = 5; // next empty block
+    memcpy(knock->frame,knock->nonce,8);
     
-    // TODO done here
+    // then include current random id so others can ignore it
+    memcpy(knock->frame+8,&(tm->beacon_id));
+    
+    // then include the medium to switch to to start the stream
+    memcpy(knock->frame+12,&(tm->m_stream));
+
+    // check hash at end
+    murmur(knock->frame,60,knock->frame+60);
+    
+    return tempo;
   }
+
+  // fill in our outgoing blocks
+  // TODO paused here
 
   // fill in meta blocks for our neighborhood
   uint8_t syncs = 0;
@@ -529,12 +534,17 @@ static tempo_t tempo_err(tempo_t tempo, knock_t knock)
 {
   tmesh_t tm = tempo->tm;
 
-  tempo->miss++;
-
-  // if expecting data, trigger a flush
-  if(!knock->is_tx && tempo->frames && util_frames_inbox(tempo->frames,NULL,NULL)) util_frames_send(tempo->frames,NULL);
-  
-  MORTY(tempo,"do_err");
+  if(knock->is_tx)
+  {
+    // failed TX, might be bad if too many?
+    tempo->skip++;
+    LOG_WARN("failed TX, skip at %lu",tempo->skip);
+  }else{
+    tempo->miss++;
+    LOG_DEBUG("failed RX, miss at %lu",tempo->miss);
+    // if expecting data, missed RX triggers a flush
+    if(tempo->frames && util_frames_inbox(tempo->frames,NULL,NULL)) util_frames_send(tempo->frames,NULL);
+  }
 
   return tempo;
 }
