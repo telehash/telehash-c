@@ -65,7 +65,7 @@ int main(int argc, char **argv)
   link_t linkAB = link_get(meshA,hnB);
   fail_unless(linkAB);
   
-  netA = tmesh_new(meshA, "test",(uint32_t[3]){1,2,3});
+  netA = tmesh_new(meshA, "test", NULL, (uint32_t[3]){1,2,3});
   fail_unless(netA);
   
   netA->sort = driver_sort;
@@ -74,42 +74,33 @@ int main(int argc, char **argv)
   netA->init = driver_init;
   netA->free = driver_free;
   
-  fail_unless(netA->m_lost == 1);
+  fail_unless(netA->m_beacon == 1);
   fail_unless(netA->m_signal == 2);
   fail_unless(netA->m_stream == 3);
   fail_unless(netA->knock);
   fail_unless(strcmp(netA->community,"test") == 0);
 
-  // outgoing signal
-  fail_unless(tmesh_signal(netA,0,1));
-  fail_unless(netA->signal);
-  fail_unless(!netA->signal->frames);
-  fail_unless(netA->signal->do_lost);
-  fail_unless(netA->signal->do_tx);
-  fail_unless(!netA->signal->mote);
-  fail_unless(netA->signal->medium == 1);
-
-  // should schedule a lost signal tx
+  // create outgoing beacon
   fail_unless(tmesh_schedule(netA,1));
+  fail_unless(netA->beacon);
+  fail_unless(!netA->beacon->frames);
+  fail_unless(!netA->beacon->mote);
+  fail_unless(netA->beacon->medium == 1);
+
+  // should have schedule a beacon rx
   fail_unless(scheduled == 1);
   fail_unless(netA->knock->is_active);
-  fail_unless(netA->knock->tempo == netA->signal);
+  fail_unless(netA->knock->tempo == netA->beacon);
   fail_unless(netA->knock->tempo->at == 2);
   fail_unless(netA->knock->tempo->chan == 1);
 
-  mote_t moteB = tmesh_find(netA, linkAB, 4);
+  mote_t moteB = tmesh_mote(netA, linkAB, NULL);
   fail_unless(moteB);
   fail_unless(moteB->link == linkAB);
   fail_unless(moteB->pipe);
   fail_unless(moteB->signal);
-  fail_unless(moteB->signal->do_lost);
-  fail_unless(moteB->signal->medium == 4);
+  fail_unless(moteB->signal->medium == 2);
   fail_unless(moteB->signal->driver == (void*)1);
-
-  // created when signalled
-  fail_unless(moteB->stream);
-  fail_unless(moteB->stream->medium == 3);
-  fail_unless(moteB->stream->at == 0);
 
   /*
   cmnty_t c = tmesh_join(netA,"qzjb5f4t","foo");

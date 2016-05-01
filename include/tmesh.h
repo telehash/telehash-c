@@ -142,8 +142,8 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at);
 // call before a schedule to rebase (subtract) given cycles off all at's (to prevent overflow)
 tmesh_t tmesh_rebase(tmesh_t tm, uint32_t at);
 
-// returns an existing mote for this link (if any)
-mote_t tmesh_mote(tmesh_t tm, link_t link);
+// returns mote for this link, creating one if a stream is provided
+mote_t tmesh_mote(tmesh_t tm, link_t link, tempo_t stream);
 
 // drops and free's this mote (link just goes to down state if no other paths)
 tmesh_t tmesh_demote(tmesh_t tm, mote_t mote);
