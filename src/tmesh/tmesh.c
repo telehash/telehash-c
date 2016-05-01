@@ -387,9 +387,42 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
 // breakout for a dropped tempo
 static tempo_t tempo_gone(tempo_t tempo, knock_t knock)
 {
-  tmesh_t tm = tempo->tm;
   mote_t mote = tempo->mote;
 
+  
+  return LOG_DEBUG("mote stream dropped");
+}
+
+// breakout for any missed/errored knock for this tempo
+static tempo_t tempo_err(tempo_t tempo, knock_t knock)
+{
+
+  return tempo;
+}
+
+// breakout for a tx knock on this tempo
+static tempo_t tempo_knocked_tx(tempo_t tempo, knock_t knock)
+{
+  tmesh_t tm = tempo->tm;
+  
+  if(tempo->is_signal)
+  {
+    LOG_DEBUG("signal %s",(tempo == tm->beacon)?"beacon":((tempo == tm->signal)?"out":"in"));
+    if(tempo == tm->beacon){
+    }else if(tempo == tm->signal){ // shared outgoing signal
+    }else if(tempo->mote){ // incoming signal for a mote
+    }else{ // bad
+    }
+  }else{
+    LOG_DEBUG("stream %s",(tempo == tm->stream)?"shared":"private");
+    if(tempo == tm->stream){ // shared stream
+    }else if(tempo->mote){ // private stream
+    }else{ // bad
+    }
+  }
+  
+  // WAS GONE
+  
   // reset miss counter
   tempo->miss = 0;
 
@@ -412,12 +445,7 @@ static tempo_t tempo_gone(tempo_t tempo, knock_t knock)
   // drop a gone stream
   mote->stream = tempo_free(mote->stream);
   
-  return LOG_DEBUG("mote stream dropped");
-}
-
-// breakout for any missed/errored knock for this tempo
-static tempo_t tempo_err(tempo_t tempo, knock_t knock)
-{
+  // WAS ERR
   if(knock->is_tx)
   {
     // failed TX, might be bad if too many?
@@ -430,33 +458,12 @@ static tempo_t tempo_err(tempo_t tempo, knock_t knock)
     if(tempo->frames && util_frames_inbox(tempo->frames,NULL,NULL)) util_frames_send(tempo->frames,NULL);
   }
 
-  return tempo;
-}
-
-// breakout for a tx knock on this tempo
-static tempo_t tempo_knocked_tx(tempo_t tempo, knock_t knock)
-{
-  if(tempo->is_signal)
-  {
-    LOG_DEBUG("signal %s",(tempo == tm->beacon)?"beacon":((tempo == tm->signal)?"out":"in"));
-    if(tempo == tm->beacon){
-    }else if(tempo == tm->signal){ // shared outgoing signal
-    }else if(tempo->mote){ // incoming signal for a mote
-    }else{ // bad
-    }
-  }else{
-    LOG_DEBUG("stream %s",(tempo == tm->stream)?"shared":"private");
-    if(tempo == tm->stream){ // shared stream
-    }else if(tempo->mote){ // private stream
-    }else{ // bad
-    }
-  }
-  
 }
 
 // process incoming blocks from this tempo
 static tempo_t tempo_blocks(tempo_t tempo, uint8_t *blocks)
 {
+  tmesh_t tm = tempo->tm;
   mote_t mote = NULL;
   hashname_t id = NULL;
   uint8_t at;
@@ -594,23 +601,18 @@ mote_t tmesh_knocked(tmesh_t tm)
   tempo->skip = 0;
   knock->is_active = 0;
 
+  if(knock->is_tx)
+  {
+    tempo_knocked_tx(tempo, knock);
+  }else{
+    tempo_knocked_rx(tempo, knock);
+  }
+
+  // signal any full packets waiting
+  return (tempo->frames && tempo->frames->inbox)?tempo->mote:NULL;
+
   // WIP HERE, MIGRATE ALL UPWARD TO BREAKOUTS
 
-  // driver signal that the tempo is gone
-  if(knock->do_gone)
-  {
-    tempo_gone(tempo, knock);
-    return LOG_DEBUG("processed tempo gone");
-  }
-
-  if(knock->do_err)
-  {
-    tempo_err(tempo, knock);
-    return LOG_DEBUG("processed knock err");
-  }
-  
-  MORTY(tempo,"knockd");
-  
   // tx just updates state things here
   if(knock->is_tx)
   {
