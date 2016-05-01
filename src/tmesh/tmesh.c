@@ -238,226 +238,147 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
   {
     LOG_DEBUG("signal %s",(tempo == tm->beacon)?"beacon":((tempo == tm->signal)?"out":"in"));
     if(tempo == tm->beacon){
-    }else if(tempo == tm->signal){ // shared outgoing signal
-    }else if(tempo->mote){ // incoming signal for a mote
-    }else{ // bad
-    }
-  }else{
-    LOG_DEBUG("stream %s",(tempo == tm->stream)?"shared":"private");
-    if(tempo == tm->stream){ // shared stream
-    }else if(tempo->mote){ // private stream
-    }else{ // bad
-    }
-  }
 
-  // send data frames if any
-  if(tempo->frames)
-  {
-    // first blocks are about us, always send our signal (TODO, dont need to do this on beacon stream)
-
-    block = (mblock_t)(blocks);
-    block->type = tmesh_block_medium;
-    memcpy(block->body,&(tm->signal->medium),4);
-
-    block = (mblock_t)(blocks+(++at*5));
-    block->type = tmesh_block_at;
-    uint32_t at_offset = tm->signal->at - tempo->at;
-    memcpy(block->body,&(at_offset),4);
-
-    block = (mblock_t)(blocks+(++at*5));
-    block->type = tmesh_block_seq;
-    memcpy(block->body,&(tm->signal->seq),4);
-
-    // send stream quality in this context
-    block = (mblock_t)(blocks+(++at*5));
-    block->type = tmesh_block_quality;
-    memcpy(block->body,&(tempo->quality),4);
-    
-    if(tm->app)
-    {
-      block = (mblock_t)(blocks+(++at*5));
-      block->type = tmesh_block_app;
-      memcpy(block->body,&(tm->app),4);
-    }
-
-    block->done = 1;
-
-    // TODO include signal blocks from last routed-from mote
-
-    // fill in stream frame
-    if(!util_frames_outbox(tempo->frames,knock->frame,blocks)) return LOG_WARN("frames failed");
-
-    return tempo;
-  }
-
-
-  // beacon is special
-  if(tempo == tm->beacon)
-  {
-    // first is nonce (unciphered prefixed)
-    knock->is_beacon = 1;
-    knock->is_tx = 1;
-    e3x_rand(knock->nonce,8);
-    memcpy(knock->frame,knock->nonce,8);
-    
-    // then include current random id so others can ignore it
-    memcpy(knock->frame+8,&(tm->beacon_id),4);
-    
-    // then include the medium to switch to to start the stream
-    memcpy(knock->frame+12,&(tm->m_stream),4);
-
-    // check hash at end
-    murmur(knock->frame,60,knock->frame+60);
-    
-    return tempo;
-  }
-
-  // fill in our outgoing blocks, first with ours
-  block = (mblock_t)(blocks);
-  block->type = tmesh_block_beacon;
-  memcpy(block->body,&(tm->beacon_id),4);
-
-  if(tm->app)
-  {
-    block = (mblock_t)(blocks+(++at*5));
-    block->type = tmesh_block_app;
-    memcpy(block->body,&(tm->app),4);
-  }
-
-  block->done = 1;
-
-  // fill in blocks for our neighborhood
-  uint8_t syncs = 0;
-  // TODO, sort by priority
-  for(mote=tm->motes;mote && at < 10;mote = mote->next) // must be at least enough space for two blocks
-  {
-    // lead w/ short hn
-    memcpy(blocks+(++at*5),mote->link->id,5);
-
-    // see if there's a ready stream to advertise
-    tempo_t stream = mote->stream;
-    if(stream && stream->do_signal)
-    {
-      block = (mblock_t)(blocks+(++at*5));
-      if(at >= 12) break;
-      block->type = tmesh_block_medium;
+      // first is nonce (unciphered prefixed)
+      knock->is_beacon = 1;
+      knock->is_tx = 1;
+      memcpy(knock->nonce,&(tm->beacon_id),4); // half is the stable beacon id
+      e3x_rand(knock->nonce+4,4); // half is random
+      memcpy(knock->frame,knock->nonce,8);
       
-      // initial stream means send accept
-      if(!stream->seq)
+      // then blocks about our shared stream
+      tempo_t about = tm->stream;
+      block = (mblock_t)(blocks);
+      block->type = tmesh_block_medium;
+      memcpy(block->body,&(about->medium),4);
+      block = (mblock_t)(blocks+(++at*5));
+      block->type = tmesh_block_at;
+      uint32_t at_offset = about->at - tempo->at;
+      memcpy(block->body,&(at_offset),4);
+      block = (mblock_t)(blocks+(++at*5));
+      block->type = tmesh_block_seq;
+      memcpy(block->body,&(about->seq),4);
+      
+      block->done = 1;
+
+    }else if(tempo == tm->signal){ // shared outgoing signal
+
+      // fill in our outgoing blocks, first with ours
+      block = (mblock_t)(blocks);
+      block->type = tmesh_block_beacon;
+      memcpy(block->body,&(tm->beacon_id),4);
+
+      if(tm->app)
       {
-        block->head = 1; // request
-      }else{
-        block->head = 2; // accept
-        knock->syncs[syncs++] = stream; // needs to be sync'd after tx
+        block = (mblock_t)(blocks+(++at*5));
+        block->type = tmesh_block_app;
+        memcpy(block->body,&(tm->app),4);
       }
 
-      LOG_DEBUG("signalling %s about a stream %s",hashname_short(mote->link->id),(block->head == 1)?"request":"accept");
-      memcpy(block->body,&(stream->medium),4);
-    }
+      block->done = 1;
 
-    // fill in optional quality and app blocks
-    if(mote->signal)
-    {
-      block = (mblock_t)(blocks+(++at*5));
-      if(at >= 12) break;
-      block->type = tmesh_block_quality;
-      memcpy(block->body,&(mote->stream->quality),4);
-    }
-    if(mote->app)
-    {
-      block = (mblock_t)(blocks+(++at*5));
-      if(at >= 12) break;
-      block->type = tmesh_block_app;
-      memcpy(block->body,&(mote->app),4);
-    }
+      // fill in blocks for our neighborhood
+      uint8_t syncs = 0;
+      // TODO, sort by priority
+      for(mote=tm->motes;mote && at < 10;mote = mote->next) // must be at least enough space for two blocks
+      {
+        // lead w/ short hn
+        memcpy(blocks+(++at*5),mote->link->id,5);
 
-    // end this mote's blocks
-    block->done = 1;
-  }
+        // see if there's a ready stream to advertise
+        tempo_t stream = mote->stream;
+        if(stream && stream->do_signal)
+        {
+          block = (mblock_t)(blocks+(++at*5));
+          if(at >= 12) break;
+          block->type = tmesh_block_medium;
+      
+          // initial stream means send accept
+          if(!stream->seq)
+          {
+            block->head = 1; // request
+          }else{
+            block->head = 2; // accept
+            knock->syncs[syncs++] = stream; // needs to be sync'd after tx
+          }
 
-  // copy in blocks
-  memcpy(knock->frame,blocks,60);
+          LOG_DEBUG("signalling %s about a stream %s",hashname_short(mote->link->id),(block->head == 1)?"request":"accept");
+          memcpy(block->body,&(stream->medium),4);
+        }
 
-  // check hash at end
-  murmur(knock->frame,60,knock->frame+60);
+        // fill in optional quality and app blocks
+        if(mote->signal)
+        {
+          block = (mblock_t)(blocks+(++at*5));
+          if(at >= 12) break;
+          block->type = tmesh_block_quality;
+          memcpy(block->body,&(mote->stream->quality),4);
+        }
+        if(mote->app)
+        {
+          block = (mblock_t)(blocks+(++at*5));
+          if(at >= 12) break;
+          block->type = tmesh_block_app;
+          memcpy(block->body,&(mote->app),4);
+        }
 
-  return tempo;
-}
+        // end this mote's blocks
+        block->done = 1;
+      }
 
-// breakout for a dropped tempo
-static tempo_t tempo_gone(tempo_t tempo, knock_t knock)
-{
-  mote_t mote = tempo->mote;
-
-  
-  return LOG_DEBUG("mote stream dropped");
-}
-
-// breakout for any missed/errored knock for this tempo
-static tempo_t tempo_err(tempo_t tempo, knock_t knock)
-{
-
-  return tempo;
-}
-
-// breakout for a tx knock on this tempo
-static tempo_t tempo_knocked_tx(tempo_t tempo, knock_t knock)
-{
-  tmesh_t tm = tempo->tm;
-  
-  if(tempo->is_signal)
-  {
-    LOG_DEBUG("signal %s",(tempo == tm->beacon)?"beacon":((tempo == tm->signal)?"out":"in"));
-    if(tempo == tm->beacon){
-    }else if(tempo == tm->signal){ // shared outgoing signal
     }else if(tempo->mote){ // incoming signal for a mote
     }else{ // bad
+      return LOG_WARN("unknown stream state");
     }
+    
+    // all signals: copy in blocks and check-hash
+    memcpy(knock->frame,blocks,60);
+    murmur(knock->frame,60,knock->frame+60);
+    
   }else{
     LOG_DEBUG("stream %s",(tempo == tm->stream)?"shared":"private");
     if(tempo == tm->stream){ // shared stream
+      // no blocks
     }else if(tempo->mote){ // private stream
+
+      // first blocks are about us, always send our signal
+      tempo_t about = tm->stream;
+      block = (mblock_t)(blocks);
+      block->type = tmesh_block_medium;
+      memcpy(block->body,&(about->medium),4);
+      block = (mblock_t)(blocks+(++at*5));
+      block->type = tmesh_block_at;
+      uint32_t at_offset = about->at - tempo->at;
+      memcpy(block->body,&(at_offset),4);
+      block = (mblock_t)(blocks+(++at*5));
+      block->type = tmesh_block_seq;
+      memcpy(block->body,&(about->seq),4);
+
+      // send stream quality in this context
+      block = (mblock_t)(blocks+(++at*5));
+      block->type = tmesh_block_quality;
+      memcpy(block->body,&(tempo->quality),4);
+    
+      if(tm->app)
+      {
+        block = (mblock_t)(blocks+(++at*5));
+        block->type = tmesh_block_app;
+        memcpy(block->body,&(tm->app),4);
+      }
+
+      block->done = 1;
+
+      // TODO include signal blocks from last routed-from mote
     }else{ // bad
+      return LOG_WARN("unknown stream state");
     }
-  }
-  
-  // WAS GONE
-  
-  // reset miss counter
-  tempo->miss = 0;
 
-  // this is the beacon, reset it
-  if(!mote)
-  {
-    tempo_beacon(tempo);
-    tempo_medium(tempo, tm->m_beacon);
-    tempo->frames = util_frames_free(tempo->frames);
-    return LOG_DEBUG("beacon reset");
-  }
-  
-  // gone signal == reset their world
-  if(mote->signal == tempo)
-  {
-    tmesh_demote(tm, mote);
-    return LOG_DEBUG("mote dropped");
+    // all streams: fill in frame
+    if(!util_frames_outbox(tempo->frames,knock->frame,blocks)) return LOG_WARN("frames failed");
+    
   }
 
-  // drop a gone stream
-  mote->stream = tempo_free(mote->stream);
-  
-  // WAS ERR
-  if(knock->is_tx)
-  {
-    // failed TX, might be bad if too many?
-    tempo->skip++;
-    LOG_WARN("failed TX, skip at %lu",tempo->skip);
-  }else{
-    tempo->miss++;
-    LOG_DEBUG("failed RX, miss at %lu",tempo->miss);
-    // if expecting data, missed RX triggers a flush
-    if(tempo->frames && util_frames_inbox(tempo->frames,NULL,NULL)) util_frames_send(tempo->frames,NULL);
-  }
-
+  return tempo;
 }
 
 // process incoming blocks from this tempo
@@ -556,6 +477,108 @@ static tempo_t tempo_blocks(tempo_t tempo, uint8_t *blocks)
   }  
 }
 
+// breakout for a tx knock on this tempo
+static tempo_t tempo_knocked_tx(tempo_t tempo, knock_t knock)
+{
+  tmesh_t tm = tempo->tm;
+
+  if(!knock->do_err) tempo->itx++;
+
+  if(tempo->is_signal)
+  {
+    LOG_DEBUG("signal %s",(tempo == tm->beacon)?"beacon":((tempo == tm->signal)?"out":"in"));
+    if(tempo == tm->beacon){
+    }else if(tempo == tm->signal){ // shared outgoing signal
+    }else if(tempo->mote){ // incoming signal for a mote
+    }else{ // bad
+    }
+  }else{
+    LOG_DEBUG("stream %s",(tempo == tm->stream)?"shared":"private");
+    if(tempo == tm->stream){ // shared stream
+    }else if(tempo->mote){ // private stream
+    }else{ // bad
+    }
+  }
+  
+  // WAS GONE
+  
+  // reset miss counter
+  tempo->miss = 0;
+
+  // this is the beacon, reset it
+  if(!mote)
+  {
+    tempo_beacon(tempo);
+    tempo_medium(tempo, tm->m_beacon);
+    tempo->frames = util_frames_free(tempo->frames);
+    return LOG_DEBUG("beacon reset");
+  }
+  
+  // gone signal == reset their world
+  if(mote->signal == tempo)
+  {
+    tmesh_demote(tm, mote);
+    return LOG_DEBUG("mote dropped");
+  }
+
+  // drop a gone stream
+  mote->stream = tempo_free(mote->stream);
+  
+  // WAS ERR
+  if(knock->is_tx)
+  {
+    // failed TX, might be bad if too many?
+    tempo->skip++;
+    LOG_WARN("failed TX, skip at %lu",tempo->skip);
+  }else{
+    tempo->miss++;
+    LOG_DEBUG("failed RX, miss at %lu",tempo->miss);
+    // if expecting data, missed RX triggers a flush
+    if(tempo->frames && util_frames_inbox(tempo->frames,NULL,NULL)) util_frames_send(tempo->frames,NULL);
+  }
+
+  // WAS GOOD
+
+  // did we send a data frame?
+  if(tempo->frames)
+  {
+    util_frames_sent(tempo->frames);
+    LOG_DEBUG("tx frame done %lu",util_frames_outlen(tempo->frames));
+
+    return NULL;
+  }
+  
+  // sent beacons become a stream now, primed w/ a discovery
+  if(knock->is_beacon)
+  {
+    tempo->at = knock->stopped;
+    tempo->do_signal = 0;
+    tempo->do_schedule = 1;
+    tempo->seq = 0;
+    tempo->do_tx = 0;
+    tempo->frames = util_frames_new(64);
+    util_frames_send(tempo->frames,hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys)));
+
+    return NULL;
+  }
+
+  // sync any bundled/accepted stream tempos too
+  uint8_t syncs;
+  for(syncs=0;syncs<5;syncs++) if(knock->syncs[syncs])
+  {
+    tempo_t sync = knock->syncs[syncs];
+    sync->do_schedule = 1; // start going
+    sync->do_tx = 1; // we are inverted
+    sync->priority = 2; // little boost
+    LOG_DEBUG("advertised stream reset from %lu to %lu",sync->at,knock->stopped);
+    sync->at = knock->stopped;
+    sync->seq = tempo->seq; // TODO invert uint32 for unique starting point
+  }
+
+  MORTY(tempo,"sigout");
+  return NULL;
+}
+
 // breakout for a rx knock on this tempo
 static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock, uint8_t *blocks)
 {
@@ -587,77 +610,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock, uint8_t *blocks)
 
   LOG_DEBUG("RX %s %u received, rssi %d/%d/%d data %d\n",tempo->frames?"stream":"signal",tempo->irx,tempo->last,tempo->best,tempo->worst,util_frames_inlen(tempo->frames));
 
-  return tempo;
-}
-
-// handle a knock that has been sent/received, return mote if packets waiting
-mote_t tmesh_knocked(tmesh_t tm)
-{
-  if(!tm) return LOG_WARN("bad args");
-  knock_t knock = tm->knock;
-  tempo_t tempo = knock->tempo;
-
-  // always clear skipped counter and ready flag
-  tempo->skip = 0;
-  knock->is_active = 0;
-
-  if(knock->is_tx)
-  {
-    tempo_knocked_tx(tempo, knock);
-  }else{
-    tempo_knocked_rx(tempo, knock);
-  }
-
-  // signal any full packets waiting
-  return (tempo->frames && tempo->frames->inbox)?tempo->mote:NULL;
-
-  // WIP HERE, MIGRATE ALL UPWARD TO BREAKOUTS
-
-  // tx just updates state things here
-  if(knock->is_tx)
-  {
-    tempo->itx++;
-    
-    // did we send a data frame?
-    if(tempo->frames)
-    {
-      util_frames_sent(tempo->frames);
-      LOG_DEBUG("tx frame done %lu",util_frames_outlen(tempo->frames));
-
-      return NULL;
-    }
-    
-    // sent beacons become a stream now, primed w/ a discovery
-    if(knock->is_beacon)
-    {
-      tempo->at = knock->stopped;
-      tempo->do_signal = 0;
-      tempo->do_schedule = 1;
-      tempo->seq = 0;
-      tempo->do_tx = 0;
-      tempo->frames = util_frames_new(64);
-      util_frames_send(tempo->frames,hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys)));
-
-      return NULL;
-    }
-
-    // sync any bundled/accepted stream tempos too
-    uint8_t syncs;
-    for(syncs=0;syncs<5;syncs++) if(knock->syncs[syncs])
-    {
-      tempo_t sync = knock->syncs[syncs];
-      sync->do_schedule = 1; // start going
-      sync->do_tx = 1; // we are inverted
-      sync->priority = 2; // little boost
-      LOG_DEBUG("advertised stream reset from %lu to %lu",sync->at,knock->stopped);
-      sync->at = knock->stopped;
-      sync->seq = tempo->seq; // TODO invert uint32 for unique starting point
-    }
-
-    MORTY(tempo,"sigout");
-    return NULL;
-  }
-  
+  // MIGRATE BELOW
   // process streams first
   if(tempo->frames)
   {
@@ -773,7 +726,8 @@ mote_t tmesh_knocked(tmesh_t tm)
   tempo->frames = util_frames_new(64);
   util_frames_send(tempo->frames,hashname_im(tm->mesh->keys, hashname_id(tm->mesh->keys,tm->mesh->keys)));
 
-  return LOG_DEBUG("beacon initiated stream");
+  
+  return tempo;
 }
 
 // inner logic
@@ -802,9 +756,29 @@ static tempo_t tempo_schedule(tempo_t tempo, uint32_t at)
     if(!tm->advance(tm, tempo, seed+64)) return LOG_WARN("driver advance failed");
   }
 
-//  MORTY(tempo,"advncd");
-
   return tempo;
+}
+
+// handle a knock that has been sent/received, return mote if packets waiting
+mote_t tmesh_knocked(tmesh_t tm)
+{
+  if(!tm) return LOG_WARN("bad args");
+  knock_t knock = tm->knock;
+  tempo_t tempo = knock->tempo;
+
+  // always clear skipped counter and ready flag
+  tempo->skip = 0;
+  knock->is_active = 0;
+
+  if(knock->is_tx)
+  {
+    tempo_knocked_tx(tempo, knock);
+  }else{
+    tempo_knocked_rx(tempo, knock);
+  }
+
+  // signal any full packets waiting
+  return (tempo->frames && tempo->frames->inbox)?tempo->mote:NULL;
 }
 
 // process everything based on current cycle count, returns success
