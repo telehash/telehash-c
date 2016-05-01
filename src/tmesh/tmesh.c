@@ -55,28 +55,32 @@ static tempo_t tempo_medium(tempo_t tempo, uint32_t medium)
   return tempo;
 }
 
-/////////////////////////////////////////////////////////////////////////////////
-// standard breakdown based on tempo type
+/*/////////////////////////////////////////////////////////////////
+// standard breakdown based on tempo character
 if(tempo->is_signal)
 {
+  LOG_DEBUG("signal %s",(tempo == tm->beacon)?"beacon":((tempo == tm->signal)?"out":"in"));
   if(tempo == tm->beacon){
   }else if(tempo == tm->signal){ // shared outgoing signal
   }else if(tempo->mote){ // incoming signal for a mote
   }else{ // bad
   }
-}else{ // is stream
+}else{
+  LOG_DEBUG("stream %s",(tempo == tm->stream)?"shared":"private");
   if(tempo == tm->stream){ // shared stream
   }else if(tempo->mote){ // private stream
   }else{ // bad
   }
 }
+/*//////////////////////////////////////////////////////////////////
 
-// init any tempo
+// init any tempo, only called once
 static tempo_t tempo_init(tempo_t tempo)
 {
   if(!tempo) return LOG_WARN("bad args");
   tmesh_t tm = tempo->tm;
   uint8_t roll[64] = {0};
+  if(memcmp(tempo->secret,roll,32)) return LOG_WARN("tempo already initialized");
 
   // common base secret from community
   e3x_hash((uint8_t*)(tempo->tm->community),strlen(tempo->tm->community),tempo->secret);
@@ -85,124 +89,62 @@ static tempo_t tempo_init(tempo_t tempo)
   // standard breakdown based on tempo type
   if(tempo->is_signal)
   {
+
+    LOG_DEBUG("signal %s",(tempo == tm->beacon)?"beacon":((tempo == tm->signal)?"out":"in"));
     tempo_medium(tempo, tm->m_signal);
     if(tempo == tm->beacon)
     {
       tempo->priority = 1; // low
       tempo->do_tx = 1;
-      tempo_medium(tempo, tm->motes?tm->m_signal:tm->m_stream); // slower if connected
+      if(!tm->motes) tempo_medium(tempo, tm->m_beacon); // faster when alone
+      // nothing extra to add, just copy for roll
+      memcpy(roll+32,roll,32);
     }else if(tempo == tm->signal){ // shared outgoing signal
       tempo->priority = 10; // high
       tempo->do_tx = 1;
-
+      // our hashname in rollup
+      memcpy(roll+32,hashname_bin(tm->mesh->id),32);
     }else if(tempo->mote){ // incoming signal for a mote
       tempo->priority = 8; // pretty high
       tempo->do_tx = 0;
-      
+      // their hashname in rollup
+      memcpy(roll+32,hashname_bin(tempo->mote->link->id),32);
     }else{
       return LOG_WARN("unknown signal state");
     }
+
   }else{ // is stream
+
+    LOG_DEBUG("stream %s",(tempo == tm->stream)?"shared":"private");
+
+    tempo->frames = util_frames_new(64);
     if(tempo == tm->stream) // shared stream
     {
-      
+      // the beacon id in the rollup to make shared stream more unique
+      memcpy(roll+32,&(tm->beacon_id),4);
+    }else if(tempo->mote){
+      // combine both hashnames xor'd in rollup
+      memcpy(roll+32,hashname_bin(tm->mesh->id),32); // add ours in
+      uint8_t i, *bin = hashname_bin(tempo->mote->link->id);
+      for(i=0;i<32;i++) roll[32+i] ^= bin[i]; // xor add theirs in
     }else{
-      
+      return LOG_WARN("unknown stream state");
     }
+
   }
+  // above states filled in second half of rollup, roll now
+  e3x_hash(roll,64,tempo->secret);
+  memcpy(roll,tempo->secret,32);
   
   // last roll includes password or fill
-  if(tm->password) e3x_hash((uint8_t*)(tm->password),strlen(tm->password),roll+32);
-  else memset(roll+32,0x42,32);
-  e3x_hash(roll,64,tempo->secret);
-  
-  return tempo;
-}
-
-// init signal tempo
-static tempo_t tempo_signal(tempo_t tempo)
-{
-  if(!tempo) return LOG_WARN("bad args");
-  tmesh_t tm = tempo->tm;
-  
-  tempo->priority = 2; // mid
-
-  // signal from someone else, or ours out
-  hashname_t id = NULL;
-  if(tempo->mote)
+  if(tm->password)
   {
-    tempo->do_tx = 0;
-    id = tempo->mote->link->id;
+    e3x_hash((uint8_t*)(tm->password),strlen(tm->password),roll+32);
+    e3x_hash(roll,64,tempo->secret);
   }else{
-    tempo->do_tx = 1;
-    id = tempo->tm->mesh->id;
+    e3x_hash(roll,32,tempo->secret);
   }
-
-  // base secret from community name then one hashname
-  uint8_t roll[64] = {0};
-  e3x_hash((uint8_t*)(tempo->tm->community),strlen(tempo->tm->community),roll);
-  if(tm->password) e3x_hash((uint8_t*)(tm->password),strlen(tm->password),roll+32);
-  e3x_hash(roll,64,tempo->secret);
-  memcpy(roll,tempo->secret,32);
-  memcpy(roll+32,hashname_bin(id),32);
-  e3x_hash(roll,64,tempo->secret);
   
-  MORTY(tempo,"signal");
-  return tempo;
-}
-
-// init stream tempo
-static tempo_t tempo_stream(tempo_t tempo)
-{
-  if(!tempo || !tempo->mote) return LOG_WARN("bad args");
-  tmesh_t tm = tempo->tm;
-  mote_t to = tempo->mote;
-
-  // reset default flags
-  tempo->do_signal = 0;
-  tempo->do_schedule = 0;
-  tempo->seq = 0;
-
-  if(!tempo->frames) tempo->frames = util_frames_new(64);
-  util_frames_clear(tempo->frames);
-
-  // generate mesh-wide unique stream secret
-  uint8_t roll[64] = {0};
-  e3x_hash((uint8_t*)(tm->community),strlen(tm->community),roll);
-  if(tm->password) e3x_hash((uint8_t*)(tm->password),strlen(tm->password),roll+32);
-  e3x_hash(roll,64,tempo->secret);
-  memcpy(roll,tempo->secret,32);
-  memcpy(roll+32,hashname_bin(tm->mesh->id),32); // add ours in
-  uint8_t i, *bin = hashname_bin(to->link->id);
-  for(i=0;i<32;i++) roll[32+i] ^= bin[i]; // xor add theirs in
-  e3x_hash(roll,64,tempo->secret); // final secret/sync
-
-  MORTY(tempo,"stream");
-
-  return tempo;
-}
-
-// (re)init beacon tempo
-static tempo_t tempo_beacon(tempo_t tempo)
-{
-  if(!tempo || tempo->mote) return LOG_WARN("bad args");
-  tmesh_t tm = tempo->tm;
-
-  // default flags
-  tempo->do_schedule = 1;
-  tempo->seq = 0;
-
-  // no frames to start
-  tempo->frames = util_frames_free(tempo->frames);
-
-  // beacons are mesh-wide shared stream secret
-  uint8_t roll[64] = {0};
-  e3x_hash((uint8_t*)(tm->community),strlen(tm->community),roll);
-  if(tm->password) e3x_hash((uint8_t*)(tm->password),strlen(tm->password),roll+32);
-  e3x_hash(roll,64,tempo->secret); // final secret/sync
-
-  MORTY(tempo,"beacon");
-
   return tempo;
 }
 

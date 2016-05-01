@@ -130,7 +130,7 @@ struct tmesh_struct
   knock_t knock;
 };
 
-// join a new tmesh community
+// join a new tmesh community, pass optional, mediums are {beacon, signal, stream}
 tmesh_t tmesh_new(mesh_t mesh, char *name, char *pass, uint32_t mediums[3]);
 tmesh_t tmesh_free(tmesh_t tm);
 
@@ -176,7 +176,7 @@ struct tempo_struct
   uint8_t is_signal:1; // == no frames, !is_signal == stream (frames)
 };
 
-// a single knock request ready to go
+// a single convenient knock request ready to go
 struct knock_struct
 {
   tempo_t tempo;
@@ -188,7 +188,7 @@ struct knock_struct
   tempo_t syncs[5]; // max number of tempos being sync'd in this knock
   // boolean flags for state tracking, etc
   uint8_t is_active:1; // is actively transceiving
-  uint8_t is_beacon:1; // if is first beacon frame
+  uint8_t is_beacon:1; // if is beacon signal
   uint8_t is_tx:1; // current window direction (copied from tempo for convenience)
   uint8_t do_err:1; // driver sets if failed
   uint8_t do_gone:1; // driver sets if too many rx fails
@@ -204,11 +204,10 @@ struct mote_struct
   link_t link;
   tempo_t signal; // tracks their signal
   tempo_t stream; // is a private stream, optionally can track their shared stream (TODO)
-  uint32_t q_signal; // most recent quality block about us from them
-  uint32_t q_stream; // most recent quality block about us from them
+  uint32_t q_signal; // most recent quality block about us from their signal
+  uint32_t q_stream; // most recent quality block about us from their stream
   uint32_t app; // most recent app block from them
   uint32_t beacon_id; // to skip incoming beacons
-  uint32_t seen; // first seen (for debugging)
 };
 
 #endif
