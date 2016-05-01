@@ -80,6 +80,11 @@ beacon > lost
     * include orig sender's full blocks in stream meta
     * faster way to establish signal to neighbor than waiting for slow beacon
 
+... more notes
+  * beacon (signal) advertises its shared stream
+  * shared stream uses beacon id in secret to be unique
+  * all tempo keys roll community name + other stuff + password
+
 */
 
 typedef struct tmesh_struct *tmesh_t; // joined community motes/signals
@@ -108,8 +113,9 @@ struct tmesh_struct
   char *community;
   char *password; // optional
   mote_t motes;
-  tempo_t signal; // only exists when motes does
-  tempo_t beacon; 
+  tempo_t signal; // only exists when motes do, unique to us
+  tempo_t stream; // have an always-running shared stream, keyed from beacon for handshakes, RX for alerts
+  tempo_t beacon; // only one of these, advertises our shared stream
   uint32_t m_beacon, m_signal, m_stream; // default mediums
   uint32_t app; // available for app to use to send custom block
   uint32_t beacon_id; // random id in beacon
@@ -122,10 +128,6 @@ struct tmesh_struct
   tmesh_t (*nearby)(tmesh_t tm, hashname_t id, tmesh_block_t type, uint32_t val); // process blocks overheard about nearby motes
   tmesh_t (*free)(tmesh_t tm, tempo_t tempo); // driver can free any associated tempo resources
   knock_t knock;
-  
-  // config/tuning flags
-  uint8_t discoverable:1;
-
 };
 
 // join a new tmesh community
@@ -165,11 +167,13 @@ struct tempo_struct
   uint8_t secret[32];
   uint8_t miss, skip; // how many of the last rx windows were missed (nothing received) or skipped (scheduling)
   uint8_t chan; // channel of next knock
-  uint8_t do_signal:1; // advertise this stream in a signal
+  uint8_t priority; // next knock priority
+  // boolean bit flags
+  uint8_t do_request:1; // advertise stream request in signal
+  uint8_t do_accept:1; // advertise stream accept in signal
   uint8_t do_schedule:1; // include in scheduling
   uint8_t do_tx:1; // current window direction
-  uint8_t is_idle:1; // idled means skip tx
-  uint8_t priority:4; // next knock priority
+  uint8_t is_signal:1; // == no frames, !is_signal == stream (frames)
 };
 
 // a single knock request ready to go
@@ -198,8 +202,8 @@ struct mote_struct
   tmesh_t tm;
   pipe_t pipe; // one pipe per mote to start stream as needed
   link_t link;
-  tempo_t signal;
-  tempo_t stream;
+  tempo_t signal; // tracks their signal
+  tempo_t stream; // is a private stream, optionally can track their shared stream (TODO)
   uint32_t q_signal; // most recent quality block about us from them
   uint32_t q_stream; // most recent quality block about us from them
   uint32_t app; // most recent app block from them

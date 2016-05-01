@@ -55,6 +55,70 @@ static tempo_t tempo_medium(tempo_t tempo, uint32_t medium)
   return tempo;
 }
 
+/////////////////////////////////////////////////////////////////////////////////
+// standard breakdown based on tempo type
+if(tempo->is_signal)
+{
+  if(tempo == tm->beacon){
+  }else if(tempo == tm->signal){ // shared outgoing signal
+  }else if(tempo->mote){ // incoming signal for a mote
+  }else{ // bad
+  }
+}else{ // is stream
+  if(tempo == tm->stream){ // shared stream
+  }else if(tempo->mote){ // private stream
+  }else{ // bad
+  }
+}
+
+// init any tempo
+static tempo_t tempo_init(tempo_t tempo)
+{
+  if(!tempo) return LOG_WARN("bad args");
+  tmesh_t tm = tempo->tm;
+  uint8_t roll[64] = {0};
+
+  // common base secret from community
+  e3x_hash((uint8_t*)(tempo->tm->community),strlen(tempo->tm->community),tempo->secret);
+  memcpy(roll,tempo->secret,32);
+
+  // standard breakdown based on tempo type
+  if(tempo->is_signal)
+  {
+    tempo_medium(tempo, tm->m_signal);
+    if(tempo == tm->beacon)
+    {
+      tempo->priority = 1; // low
+      tempo->do_tx = 1;
+      tempo_medium(tempo, tm->motes?tm->m_signal:tm->m_stream); // slower if connected
+    }else if(tempo == tm->signal){ // shared outgoing signal
+      tempo->priority = 10; // high
+      tempo->do_tx = 1;
+
+    }else if(tempo->mote){ // incoming signal for a mote
+      tempo->priority = 8; // pretty high
+      tempo->do_tx = 0;
+      
+    }else{
+      return LOG_WARN("unknown signal state");
+    }
+  }else{ // is stream
+    if(tempo == tm->stream) // shared stream
+    {
+      
+    }else{
+      
+    }
+  }
+  
+  // last roll includes password or fill
+  if(tm->password) e3x_hash((uint8_t*)(tm->password),strlen(tm->password),roll+32);
+  else memset(roll+32,0x42,32);
+  e3x_hash(roll,64,tempo->secret);
+  
+  return tempo;
+}
+
 // init signal tempo
 static tempo_t tempo_signal(tempo_t tempo)
 {
