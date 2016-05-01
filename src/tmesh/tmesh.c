@@ -14,6 +14,82 @@ typedef struct mblock_struct {
 
 #define MORTY(t,r) LOG_DEBUG("RICK %s %s %s %s [%u,%u,%u,%u,%u] %lu+%lx (%lu/%lu) %u%u %lu",r,t->mote?hashname_short(t->mote->link->id):"selfself",t->do_tx?"TX":"RX",t->frames?"str":"sig",t->itx,t->irx,t->bad,t->miss,t->skip,t->at,t->seq,util_frames_inlen(t->frames),util_frames_outlen(t->frames),t->is_idle,t->do_signal,t->medium);
 
+// find a stream to send it to for this mote
+mote_t mote_send(mote_t mote, lob_t packet)
+{
+  if(!mote) return LOG_WARN("bad args");
+  tempo_t tempo = mote->stream;
+
+  if(!tempo)
+  {
+    tempo = mote->stream = tempo_new(mote->tm);
+    if(!tempo)
+    {
+      LOG_WARN("no stream to %s, dropping packet len %lu",hashname_short(mote->link->id),lob_len(packet));
+      lob_free(packet);
+      return NULL;
+    }
+
+    tempo->mote = mote;
+    tempo_stream(tempo);
+    tempo_medium(tempo, mote->tm->m_stream);
+  }
+
+  // if not scheduled, make sure signalling
+  if(!tempo->do_schedule) tempo->do_signal = 1;
+  util_frames_send(tempo->frames, packet);
+  LOG_DEBUG("delivering %d to mote %s total %lu",lob_len(packet),hashname_short(mote->link->id),util_frames_outlen(tempo->frames));
+  return mote;
+}
+
+// find a stream to send it to for this mote
+void mote_pipe_send(pipe_t pipe, lob_t packet, link_t recip)
+{
+  if(!pipe || !pipe->arg || !packet || !recip)
+  {
+    LOG_WARN("bad args");
+    lob_free(packet);
+    return;
+  }
+
+  mote_t mote = (mote_t)(pipe->arg);
+
+  // send direct
+  if(mote->link == recip)
+  {
+    mote_send(mote, packet);
+    return;
+  }
+
+  // mote is router, wrap and send to recip via it 
+  LOG_DEBUG("routing packet to %s via %s",hashname_short(recip->id),hashname_short(mote->link->id));
+
+  // first wrap routed w/ a head 6 sender, body is orig
+  lob_t wrap = lob_new();
+  lob_head(wrap,hashname_bin(recip->mesh->id),6); // head is sender, extra 1
+  lob_body(wrap,lob_raw(packet),lob_len(packet));
+  lob_free(packet);
+
+  // next wrap w/ intended recipient in header
+  lob_t wrap2 = lob_new();
+  lob_head(wrap2,hashname_bin(recip->id),5); // head is recipient
+  lob_body(wrap2,lob_raw(wrap),lob_len(wrap));
+  lob_free(wrap);
+
+  mote_send(mote, wrap2);
+}
+
+static mote_t mote_free(mote_t mote)
+{
+  if(!mote) return NULL;
+  // free signal and stream
+  tempo_free(mote->signal);
+  tempo_free(mote->stream);
+  pipe_free(mote->pipe); // notifies links
+  free(mote);
+  return LOG_DEBUG("mote free'd");
+}
+
 static tempo_t tempo_free(tempo_t tempo)
 {
   if(!tempo) return NULL;
@@ -148,197 +224,8 @@ static tempo_t tempo_init(tempo_t tempo)
   return tempo;
 }
 
-// find a stream to send it to for this mote
-mote_t mote_send(mote_t mote, lob_t packet)
-{
-  if(!mote) return LOG_WARN("bad args");
-  tempo_t tempo = mote->stream;
-
-  if(!tempo)
-  {
-    tempo = mote->stream = tempo_new(mote->tm);
-    if(!tempo)
-    {
-      LOG_WARN("no stream to %s, dropping packet len %lu",hashname_short(mote->link->id),lob_len(packet));
-      lob_free(packet);
-      return NULL;
-    }
-
-    tempo->mote = mote;
-    tempo_stream(tempo);
-    tempo_medium(tempo, mote->tm->m_stream);
-  }
-
-  // if not scheduled, make sure signalling
-  if(!tempo->do_schedule) tempo->do_signal = 1;
-  util_frames_send(tempo->frames, packet);
-  LOG_DEBUG("delivering %d to mote %s total %lu",lob_len(packet),hashname_short(mote->link->id),util_frames_outlen(tempo->frames));
-  return mote;
-}
-
-// find a stream to send it to for this mote
-void mote_pipe_send(pipe_t pipe, lob_t packet, link_t recip)
-{
-  if(!pipe || !pipe->arg || !packet || !recip)
-  {
-    LOG_WARN("bad args");
-    lob_free(packet);
-    return;
-  }
-
-  mote_t mote = (mote_t)(pipe->arg);
-
-  // send direct
-  if(mote->link == recip)
-  {
-    mote_send(mote, packet);
-    return;
-  }
-
-  // mote is router, wrap and send to recip via it 
-  LOG_DEBUG("routing packet to %s via %s",hashname_short(recip->id),hashname_short(mote->link->id));
-
-  // first wrap routed w/ a head 6 sender, body is orig
-  lob_t wrap = lob_new();
-  lob_head(wrap,hashname_bin(recip->mesh->id),6); // head is sender, extra 1
-  lob_body(wrap,lob_raw(packet),lob_len(packet));
-  lob_free(packet);
-
-  // next wrap w/ intended recipient in header
-  lob_t wrap2 = lob_new();
-  lob_head(wrap2,hashname_bin(recip->id),5); // head is recipient
-  lob_body(wrap2,lob_raw(wrap),lob_len(wrap));
-  lob_free(wrap);
-
-  mote_send(mote, wrap2);
-}
-
-static mote_t mote_free(mote_t mote)
-{
-  if(!mote) return NULL;
-  // free signal and stream
-  tempo_free(mote->signal);
-  tempo_free(mote->stream);
-  pipe_free(mote->pipe); // notifies links
-  free(mote);
-  return LOG_DEBUG("mote free'd");
-}
-
-// if there's a mote for this link, return it
-mote_t tmesh_mote(tmesh_t tm, link_t link, tempo_t stream)
-{
-  if(!tm || !link) return LOG_WARN("bad args");
-
-  // look for existing and reset stream if given
-  mote_t mote;
-  for(mote=tm->motes;mote;mote = mote->next) if(mote->link == link)
-  {
-    if(!stream) return mote;
-    if(mote->stream) LOG_WARN("replacing stream for %s",hashname_short(link->id));
-    tempo_free(mote->stream);
-    mote->stream = stream;
-    return mote;
-  }
-
-  LOG_INFO("new mote %s",hashname_short(link->id));
-
-  if(!(mote = malloc(sizeof(struct mote_struct)))) return LOG_ERROR("OOM");
-  memset(mote,0,sizeof (struct mote_struct));
-  mote->link = link;
-  mote->tm = tm;
-  mote->stream = stream;
-  mote->signal = tempo_signal(tempo_new(tm));
-  tempo_medium(mote->signal,tm->m_signal);
-
-  // set up pipe
-  if(!(mote->pipe = pipe_new("tmesh"))) return mote_free(mote);
-  mote->pipe->arg = mote;
-  mote->pipe->send = mote_pipe_send;
-  
-  return mote;
-  
-}
-
-// drops and free's this mote (link just goes to down state if no other paths)
-tmesh_t tmesh_demote(tmesh_t tm, mote_t mote)
-{
-  if(!tm || !mote) return LOG_WARN("bad args");
-
-  // first remove from list of motes
-  if(mote == tm->motes)
-  {
-    tm->motes = mote->next;
-  }else{
-    mote_t m;
-    for(m=tm->motes;m->next && m->next != mote;m = m->next);
-    if(m->next != mote) LOG_WARN("mote %s wasn't in list, this is bad",hashname_short(mote->link->id));
-    m->next = mote->next;
-  }
-
-  mote_free(mote);
-  return tm;
-}
-
-pipe_t tmesh_on_path(link_t link, lob_t path)
-{
-  tmesh_t tm;
-
-  // just sanity check the path first
-  if(!link || !path) return NULL;
-  if(!(tm = xht_get(link->mesh->index, "tmesh"))) return NULL;
-  if(util_cmp("tmesh",lob_get(path,"type"))) return NULL;
-  // TODO, check for community match and add
-  return NULL;
-}
-
-tmesh_t tmesh_new(mesh_t mesh, char *name, char *pass, uint32_t mediums[3])
-{
-  tmesh_t tm;
-  if(!mesh || !name) return LOG_WARN("bad args");
-
-  if(!(tm = malloc(sizeof (struct tmesh_struct)))) return LOG_ERROR("OOM");
-  memset(tm,0,sizeof (struct tmesh_struct));
-  tm->knock = malloc(sizeof (struct knock_struct));
-  memset(tm->knock,0,sizeof (struct knock_struct));
-
-  tm->community = strdup(name);
-  if(pass) tm->password = strdup(pass);
-  tm->m_beacon = mediums[0];
-  tm->m_signal = mediums[1];
-  tm->m_stream = mediums[2];
-  tm->discoverable = 1; // default true for now
-
-  // connect us to this mesh
-  tm->mesh = mesh;
-  xht_set(mesh->index, "tmesh", tm);
-
-  // seed random beacon id
-  e3x_rand((uint8_t*)&(tm->beacon_id),4);
-  
-  return tm;
-}
-
-tmesh_t tmesh_free(tmesh_t tm)
-{
-  if(!tm) return NULL;
-  while(tm->motes)
-  {
-    mote_t m = tm->motes;
-    tm->motes = tm->motes->next;
-    mote_free(m);
-  }
-  tempo_free(tm->signal);
-  tempo_free(tm->beacon);
-  free(tm->community);
-  if(tm->password) free(tm->password);
-  xht_set(tm->mesh->index, "tmesh", NULL);
-  free(tm->knock);
-  free(tm);
-  return NULL;
-}
-
 // fills in next tx knock
-tempo_t tempo_knock(tempo_t tempo, knock_t knock)
+tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
 {
   if(!tempo) return LOG_WARN("bad args");
   mote_t mote = tempo->mote;
@@ -346,6 +233,22 @@ tempo_t tempo_knock(tempo_t tempo, knock_t knock)
   uint8_t blocks[60] = {0};
   mblock_t block = NULL;
   uint8_t at = 0;
+
+  if(tempo->is_signal)
+  {
+    LOG_DEBUG("signal %s",(tempo == tm->beacon)?"beacon":((tempo == tm->signal)?"out":"in"));
+    if(tempo == tm->beacon){
+    }else if(tempo == tm->signal){ // shared outgoing signal
+    }else if(tempo->mote){ // incoming signal for a mote
+    }else{ // bad
+    }
+  }else{
+    LOG_DEBUG("stream %s",(tempo == tm->stream)?"shared":"private");
+    if(tempo == tm->stream){ // shared stream
+    }else if(tempo->mote){ // private stream
+    }else{ // bad
+    }
+  }
 
   // send data frames if any
   if(tempo->frames)
@@ -530,21 +433,30 @@ static tempo_t tempo_err(tempo_t tempo, knock_t knock)
   return tempo;
 }
 
-// breakout for a successful knock on this tempo
-static tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *blocks)
+// breakout for a tx knock on this tempo
+static tempo_t tempo_knocked_tx(tempo_t tempo, knock_t knock)
 {
-  tmesh_t tm = tempo->tm;
+  if(tempo->is_signal)
+  {
+    LOG_DEBUG("signal %s",(tempo == tm->beacon)?"beacon":((tempo == tm->signal)?"out":"in"));
+    if(tempo == tm->beacon){
+    }else if(tempo == tm->signal){ // shared outgoing signal
+    }else if(tempo->mote){ // incoming signal for a mote
+    }else{ // bad
+    }
+  }else{
+    LOG_DEBUG("stream %s",(tempo == tm->stream)?"shared":"private");
+    if(tempo == tm->stream){ // shared stream
+    }else if(tempo->mote){ // private stream
+    }else{ // bad
+    }
+  }
+  
+}
 
-  // received flags/stats first
-  tempo->do_signal = 0; // no more advertising
-  tempo->miss = 0; // clear any missed counter
-  tempo->irx++;
-  if(knock->rssi > tempo->best || !tempo->best) tempo->best = knock->rssi;
-  if(knock->rssi < tempo->worst || !tempo->worst) tempo->worst = knock->rssi;
-  tempo->last = knock->rssi;
-
-  LOG_DEBUG("RX %s %u received, rssi %d/%d/%d data %d\n",tempo->frames?"stream":"signal",tempo->irx,tempo->last,tempo->best,tempo->worst,util_frames_inlen(tempo->frames));
-
+// process incoming blocks from this tempo
+static tempo_t tempo_blocks(tempo_t tempo, uint8_t *blocks)
+{
   mote_t mote = NULL;
   hashname_t id = NULL;
   uint8_t at;
@@ -634,8 +546,40 @@ static tempo_t tempo_knocked(tempo_t tempo, knock_t knock, uint8_t *blocks)
       // done w/ this mote's blocks
       if(block->done) break;
     }
+  }  
+}
+
+// breakout for a rx knock on this tempo
+static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock, uint8_t *blocks)
+{
+  tmesh_t tm = tempo->tm;
+
+  if(tempo->is_signal)
+  {
+    LOG_DEBUG("signal %s",(tempo == tm->beacon)?"beacon":((tempo == tm->signal)?"out":"in"));
+    if(tempo == tm->beacon){
+    }else if(tempo == tm->signal){ // shared outgoing signal
+    }else if(tempo->mote){ // incoming signal for a mote
+    }else{ // bad
+    }
+  }else{
+    LOG_DEBUG("stream %s",(tempo == tm->stream)?"shared":"private");
+    if(tempo == tm->stream){ // shared stream
+    }else if(tempo->mote){ // private stream
+    }else{ // bad
+    }
   }
-  
+
+  // received flags/stats first
+  tempo->do_signal = 0; // no more advertising
+  tempo->miss = 0; // clear any missed counter
+  tempo->irx++;
+  if(knock->rssi > tempo->best || !tempo->best) tempo->best = knock->rssi;
+  if(knock->rssi < tempo->worst || !tempo->worst) tempo->worst = knock->rssi;
+  tempo->last = knock->rssi;
+
+  LOG_DEBUG("RX %s %u received, rssi %d/%d/%d data %d\n",tempo->frames?"stream":"signal",tempo->irx,tempo->last,tempo->best,tempo->worst,util_frames_inlen(tempo->frames));
+
   return tempo;
 }
 
@@ -649,6 +593,8 @@ mote_t tmesh_knocked(tmesh_t tm)
   // always clear skipped counter and ready flag
   tempo->skip = 0;
   knock->is_active = 0;
+
+  // WIP HERE, MIGRATE ALL UPWARD TO BREAKOUTS
 
   // driver signal that the tempo is gone
   if(knock->do_gone)
@@ -982,4 +928,104 @@ tmesh_t tmesh_rebase(tmesh_t tm, uint32_t at)
   
   return tm;
 }
+
+// if there's a mote for this link, return it, else create
+mote_t tmesh_mote(tmesh_t tm, link_t link, tempo_t stream)
+{
+  if(!tm || !link) return LOG_WARN("bad args");
+
+  // look for existing and reset stream if given
+  mote_t mote;
+  for(mote=tm->motes;mote;mote = mote->next) if(mote->link == link)
+  {
+    if(!stream) return mote;
+    if(mote->stream) LOG_WARN("replacing stream for %s",hashname_short(link->id));
+    tempo_free(mote->stream);
+    mote->stream = stream;
+    return mote;
+  }
+
+  LOG_INFO("new mote %s",hashname_short(link->id));
+
+  if(!(mote = malloc(sizeof(struct mote_struct)))) return LOG_ERROR("OOM");
+  memset(mote,0,sizeof (struct mote_struct));
+  mote->link = link;
+  mote->tm = tm;
+  mote->stream = stream;
+  mote->signal = tempo_signal(tempo_new(tm));
+  tempo_medium(mote->signal,tm->m_signal);
+
+  // set up pipe
+  if(!(mote->pipe = pipe_new("tmesh"))) return mote_free(mote);
+  mote->pipe->arg = mote;
+  mote->pipe->send = mote_pipe_send;
   
+  return mote;
+  
+}
+
+// drops and free's this mote (link just goes to down state if no other paths)
+tmesh_t tmesh_demote(tmesh_t tm, mote_t mote)
+{
+  if(!tm || !mote) return LOG_WARN("bad args");
+
+  // first remove from list of motes
+  if(mote == tm->motes)
+  {
+    tm->motes = mote->next;
+  }else{
+    mote_t m;
+    for(m=tm->motes;m->next && m->next != mote;m = m->next);
+    if(m->next != mote) LOG_WARN("mote %s wasn't in list, this is bad",hashname_short(mote->link->id));
+    m->next = mote->next;
+  }
+
+  mote_free(mote);
+  return tm;
+}
+
+// just the basics ma'am
+tmesh_t tmesh_new(mesh_t mesh, char *name, char *pass, uint32_t mediums[3])
+{
+  tmesh_t tm;
+  if(!mesh || !name) return LOG_WARN("bad args");
+
+  if(!(tm = malloc(sizeof (struct tmesh_struct)))) return LOG_ERROR("OOM");
+  memset(tm,0,sizeof (struct tmesh_struct));
+
+  if(!(tm->knock = malloc(sizeof (struct knock_struct)))) return LOG_ERROR("OOM");
+  memset(tm->knock,0,sizeof (struct knock_struct));
+
+  tm->mesh = mesh;
+  tm->community = strdup(name);
+  if(pass) tm->password = strdup(pass);
+  tm->m_beacon = mediums[0];
+  tm->m_signal = mediums[1];
+  tm->m_stream = mediums[2];
+
+  // seed random beacon id
+  e3x_rand((uint8_t*)&(tm->beacon_id),4);
+  
+  // NOTE: don't create any tempos yet since driver has to add callbacks after this
+
+  return tm;
+}
+
+tmesh_t tmesh_free(tmesh_t tm)
+{
+  if(!tm) return NULL;
+  while(tm->motes)
+  {
+    mote_t m = tm->motes;
+    tm->motes = tm->motes->next;
+    mote_free(m);
+  }
+  tempo_free(tm->stream);
+  tempo_free(tm->signal);
+  tempo_free(tm->beacon);
+  free(tm->community);
+  if(tm->password) free(tm->password);
+  free(tm->knock);
+  free(tm);
+  return NULL;
+}
