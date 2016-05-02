@@ -113,7 +113,7 @@ struct tmesh_struct
   char *community;
   char *password; // optional
   mote_t motes;
-  tempo_t signal; // only exists when motes do, unique to us
+  tempo_t signal; // outgoing signal, unique to us
   tempo_t stream; // have an always-running shared stream, keyed from beacon for handshakes, RX for alerts
   tempo_t beacon; // only one of these, advertises our shared stream
   uint32_t m_beacon, m_signal, m_stream; // default mediums
