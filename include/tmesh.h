@@ -185,7 +185,6 @@ struct knock_struct
   int16_t rssi; // set by driver only after rx
   uint8_t frame[64];
   uint8_t nonce[8]; // convenience
-  tempo_t syncs[5]; // max number of tempos being sync'd in this knock
   // boolean flags for state tracking, etc
   uint8_t is_active:1; // is actively transceiving
   uint8_t is_beacon:1; // if is beacon signal
