@@ -92,17 +92,6 @@ typedef struct mote_struct *mote_t; // local link info, signal and list of strea
 typedef struct tempo_struct *tempo_t; // single tempo, is a signal or stream
 typedef struct knock_struct *knock_t; // single txrx action
 
-// blocks are 32bit mesh metadata exchanged opportunistically
-typedef enum {
-  tmesh_block_end = 0, // no more blocks
-  tmesh_block_medium, // internal, current signal medium
-  tmesh_block_at, // internal, next signal time from now
-  tmesh_block_seq, // internal, next signal sequence#
-  tmesh_block_beacon, // internal, random beacon id to ignore
-  tmesh_block_quality, // external, last known signal quality
-  tmesh_block_app // external, app defined
-} tmesh_block_t;
-
 // overall tmesh manager
 struct tmesh_struct
 {
@@ -118,14 +107,13 @@ struct tmesh_struct
   tempo_t beacon; // only one of these, advertises our shared stream
   uint32_t m_beacon, m_signal, m_stream; // default mediums
   uint32_t app; // available for app to use to send custom block
-  uint32_t beacon_id; // random id in beacon
 
   // driver interface
   tempo_t (*sort)(tmesh_t tm, tempo_t a, tempo_t b);
   tmesh_t (*schedule)(tmesh_t tm); // called whenever a new knock is ready to be scheduled
   tmesh_t (*advance)(tmesh_t tm, tempo_t tempo, uint8_t seed[8]); // advances tempo to next window
   tmesh_t (*init)(tmesh_t tm, tempo_t tempo); // driver can initialize a new tempo
-  tmesh_t (*nearby)(tmesh_t tm, hashname_t id, tmesh_block_t type, uint32_t val); // process blocks overheard about nearby motes
+  tmesh_t (*accept)(tmesh_t tm, hashname_t id, uint32_t app); // driver handles new neighbors, returns tm to continue or NULL to ignore
   tmesh_t (*free)(tmesh_t tm, tempo_t tempo); // driver can free any associated tempo resources
   knock_t knock;
 };
@@ -206,7 +194,6 @@ struct mote_struct
   uint32_t q_signal; // most recent quality block about us from their signal
   uint32_t q_stream; // most recent quality block about us from their stream
   uint32_t app; // most recent app block from them
-  uint32_t beacon_id; // to skip incoming beacons
 };
 
 #endif

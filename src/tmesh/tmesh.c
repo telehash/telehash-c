@@ -4,6 +4,16 @@
 #include "telehash.h"
 #include "tmesh.h"
 
+// blocks are 32bit mesh metadata exchanged opportunistically
+typedef enum {
+  tmesh_block_end = 0, // no more blocks
+  tmesh_block_medium, // current signal medium
+  tmesh_block_at, // next signal time from now
+  tmesh_block_seq, // next signal sequence#
+  tmesh_block_quality, // last known signal quality
+  tmesh_block_app // app defined
+} tmesh_block_t;
+
 // 5-byte blocks for mesh meta values
 typedef struct mblock_struct {
   tmesh_block_t type:3; // medium, at, seq, quality, app
@@ -203,8 +213,8 @@ static tempo_t tempo_init(tempo_t tempo)
     tempo->frames = util_frames_new(64);
     if(tempo == tm->stream) // shared stream
     {
-      // the beacon id in the rollup to make shared stream more unique
-      memcpy(roll+32,&(tm->beacon_id),4);
+      // our short hash in the rollup to make shared stream more unique
+      memcpy(roll+32,hashname_bin(tm->mesh->id),5);
     }else if(tempo->mote){
       // combine both hashnames xor'd in rollup
       memcpy(roll+32,hashname_bin(tm->mesh->id),32); // add ours in
@@ -252,10 +262,13 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
       e3x_rand(knock->nonce,8); // random nonce each time
       memcpy(knock->frame,knock->nonce,8);
 
-      // first block is always the beacon id
-      block = (mblock_t)(blocks);
-      block->type = tmesh_block_beacon;
-      memcpy(block->body,&(tm->beacon_id),4);
+      // first block is always our short hashname
+      memcpy(blocks,hashname_bin(tm->mesh->id),5);
+
+      // then our current app value
+      block = (mblock_t)(blocks+(++at*5));
+      block->type = tmesh_block_app;
+      memcpy(block->body,&(tm->app),4);
       
       // then blocks about our shared stream, just medium/seq
       tempo_t about = tm->stream;
@@ -270,17 +283,10 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
 
     }else if(tempo == tm->signal){ // shared outgoing signal
 
-      // fill in our outgoing blocks, first with ours
+      // fill in our outgoing blocks, just cur app value for now
       block = (mblock_t)(blocks);
-      block->type = tmesh_block_beacon;
-      memcpy(block->body,&(tm->beacon_id),4);
-
-      if(tm->app)
-      {
-        block = (mblock_t)(blocks+(++at*5));
-        block->type = tmesh_block_app;
-        memcpy(block->body,&(tm->app),4);
-      }
+      block->type = tmesh_block_app;
+      memcpy(block->body,&(tm->app),4);
 
       block->done = 1;
 
@@ -436,19 +442,17 @@ static tempo_t tempo_blocks(tempo_t tempo, uint8_t *blocks)
           mote->signal->seq = body;
           break;
         case tmesh_block_quality:
-          // update for known motes, or let app know for unknown motes
           if(mote) mote->signal->quality = body;
-          else if(tm->nearby) tm->nearby(tm, id, block->type, body);
           LOG_DEBUG("^^^ QUALITY %lu",body);
           break;
         case tmesh_block_app:
           if(mote) mote->app = body;
-          else if(tm->nearby) tm->nearby(tm, id, block->type, body);
+          else if(tm->accept && tm->accept(tm, id, body))
+          {
+            // TODO mote w/ via
+            LOG_WARN("TODO route via");
+          }
           LOG_DEBUG("^^^ APP %lu",body);
-          break;
-        case tmesh_block_beacon:
-          if(mote) mote->beacon_id = body;
-          LOG_DEBUG("^^^ BEACON %lu",body);
           break;
         case tmesh_block_medium:
           if(!mote) break; // require known mote
@@ -578,22 +582,23 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
         return LOG_INFO("received beacon frame validation failed: %s",util_hex(frame,64,NULL));
       }
 
-      // process blocks directly
-      block = (mblock_t)(blocks);
-      uint32_t beacon_id;
-      memcpy(&beacon_id,block->body,4);
-      mote_t m;
-      for(m = tm->motes;m;m=m->next) if(m->beacon_id == beacon_id)
-      {
-        return LOG_DEBUG("skipping known beacon from %s",hashname_short(m->link->id));
-      }
-  
+      // process blocks directly, first sender nickname
+      hashname_t id = hashname_sbin(blocks);
+      if(mesh_linkid(tm->mesh,id)) LOG_DEBUG("skipping known beacon from %s",hashname_short(id));
+
       block = (mblock_t)(blocks+5);
+      uint32_t app;
+      memcpy(&app,block->body,4);
+      
+      // see if driver accepts the new mote
+      if(tm->accept && !tm->accept(tm, id, app)) return LOG_INFO("driver rejected beacon from %s",hashname_short(id));
+  
+      block = (mblock_t)(blocks+5+5);
       uint32_t medium;
       memcpy(&medium,block->body,4);
       if(!medium) return LOG_WARN("no medium on beacon");
 
-      block = (mblock_t)(blocks+5+5);
+      block = (mblock_t)(blocks+5+5+5);
       uint32_t seq;
       memcpy(&seq,block->body,4);
 
@@ -992,9 +997,6 @@ tmesh_t tmesh_new(mesh_t mesh, char *name, char *pass, uint32_t mediums[3])
   tm->m_signal = mediums[1];
   tm->m_stream = mediums[2];
 
-  // seed random beacon id
-  e3x_rand((uint8_t*)&(tm->beacon_id),4);
-  
   // NOTE: don't create any tempos yet since driver has to add callbacks after this
 
   return tm;
