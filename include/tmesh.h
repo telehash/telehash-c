@@ -85,6 +85,9 @@ beacon > lost
   * shared stream uses beacon id in secret to be unique
   * all tempo keys roll community name + other stuff + password
 
+SECURITY TODOs
+  * generate a temp hashname on boot, use that to do all beacon and shared stream handling
+
 */
 
 typedef struct tmesh_struct *tmesh_t; // joined community motes/signals
