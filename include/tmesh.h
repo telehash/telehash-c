@@ -145,15 +145,15 @@ struct tempo_struct
   mote_t mote; // parent mote (except for our outgoing signal) 
   void *driver; // for driver use, set during tm->tempo()
   util_frames_t frames; // r/w frame buffers for streams
-  uint32_t quality; // last quality reported from sender
+  uint32_t q_remote, q_local; // last qualities from/about this tempo
   uint32_t medium; // id
   uint32_t at; // cycles until next knock in current window
   uint32_t seq; // window increment part of nonce
-  uint16_t itx, irx; // current counts
-  uint16_t bad; // dropped bad frames
+  uint16_t c_tx, c_rx; // current counts
+  uint16_t c_bad; // dropped bad frames
   int16_t last, best, worst; // rssi
   uint8_t secret[32];
-  uint8_t miss, skip; // how many of the last rx windows were missed (nothing received) or skipped (scheduling)
+  uint8_t c_miss, c_skip; // how many of the last rx windows were missed (nothing received) or skipped (scheduling)
   uint8_t chan; // channel of next knock
   uint8_t priority; // next knock priority
   // boolean bit flags

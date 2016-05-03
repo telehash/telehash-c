@@ -22,7 +22,7 @@ typedef struct mblock_struct {
   uint8_t body[4]; // payload
 } *mblock_t;
 
-#define MORTY(t,r) LOG_DEBUG("RICK %s %s %s %s [%u,%u,%u,%u,%u] %lu+%lx (%lu/%lu) %lu",r,t->mote?hashname_short(t->mote->link->id):"selfself",t->do_tx?"TX":"RX",t->frames?"str":"sig",t->itx,t->irx,t->bad,t->miss,t->skip,t->at,t->seq,util_frames_inlen(t->frames),util_frames_outlen(t->frames),t->medium);
+#define MORTY(t,r) LOG_DEBUG("RICK %s %s %s %s [%u,%u,%u,%u,%u] %lu+%lx (%lu/%lu) %lu",r,t->mote?hashname_short(t->mote->link->id):"selfself",t->do_tx?"TX":"RX",t->frames?"str":"sig",t->c_tx,t->c_rx,t->c_bad,t->c_miss,t->c_skip,t->at,t->seq,util_frames_inlen(t->frames),util_frames_outlen(t->frames),t->medium);
 
 // forward-ho
 static tempo_t tempo_new(tmesh_t tm);
@@ -329,7 +329,7 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
           block = (mblock_t)(blocks+(++at*5));
           if(at >= 12) break;
           block->type = tmesh_block_quality;
-          memcpy(block->body,&(mote->stream->quality),4);
+          memcpy(block->body,&(mote->stream->q_local),4);
         }
         if(mote->app)
         {
@@ -374,7 +374,7 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
       // send stream quality in this context
       block = (mblock_t)(blocks+(++at*5));
       block->type = tmesh_block_quality;
-      memcpy(block->body,&(tempo->quality),4);
+      memcpy(block->body,&(tempo->q_local),4);
     
       if(tm->app)
       {
@@ -442,7 +442,7 @@ static tempo_t tempo_blocks(tempo_t tempo, uint8_t *blocks)
           mote->signal->seq = body;
           break;
         case tmesh_block_quality:
-          if(mote) mote->signal->quality = body;
+          if(!id) tempo->q_remote = body;
           LOG_DEBUG("^^^ QUALITY %lu",body);
           break;
         case tmesh_block_app:
@@ -503,12 +503,12 @@ static tempo_t tempo_knocked_tx(tempo_t tempo, knock_t knock)
   if(knock->do_err)
   {
     // failed TX, might be bad if too many?
-    tempo->skip++;
-    return LOG_WARN("failed TX, skip at %lu",tempo->skip);
+    tempo->c_skip++;
+    return LOG_WARN("failed TX, skip at %lu",tempo->c_skip);
   }
   
   // stats
-  tempo->itx++;
+  tempo->c_tx++;
 
   if(!tempo->is_signal)
   {
@@ -549,13 +549,13 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
   // if error just increment stats and fail
   if(knock->do_err)
   {
-    tempo->miss++;
-    return LOG_DEBUG("failed RX, miss at %lu",tempo->miss);
+    tempo->c_miss++;
+    return LOG_DEBUG("failed RX, miss at %lu",tempo->c_miss);
   }
 
   // always update RX flags/stats first
-  tempo->miss = 0; // clear any missed counter
-  tempo->irx++;
+  tempo->c_miss = 0; // clear any missed counter
+  tempo->c_rx++;
   if(knock->rssi > tempo->best || !tempo->best) tempo->best = knock->rssi;
   if(knock->rssi < tempo->worst || !tempo->worst) tempo->worst = knock->rssi;
   tempo->last = knock->rssi;
@@ -578,7 +578,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
       // beacon encoded signal fail
       if(memcmp(&check,frame+60,4) != 0)
       {
-        tempo->bad++;
+        tempo->c_bad++;
         return LOG_INFO("received beacon frame validation failed: %s",util_hex(frame,64,NULL));
       }
 
@@ -624,7 +624,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
       // must validate
       if(memcmp(&check,frame+60,4) != 0)
       {
-        tempo->bad++;
+        tempo->c_bad++;
         return LOG_INFO("received signal frame validation failed: %s",util_hex(frame,64,NULL));
       }
       
@@ -646,7 +646,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
       // if inbox failed but frames still ok, was just mangled bytes
       if(util_frames_ok(tempo->frames))
       {
-        tempo->bad++;
+        tempo->c_bad++;
         return LOG_INFO("bad frame: %s",util_hex(frame,64,NULL));
       }
       knock->do_gone = 1;
@@ -710,7 +710,7 @@ static tempo_t tempo_gone(tempo_t tempo)
       // reset stream and deschedule it
       tempo->do_schedule = 0;
       tempo->priority = 0;
-      tempo->itx = tempo->irx = tempo->bad = tempo->skip = tempo->miss = 0;
+      tempo->c_tx = tempo->c_rx = tempo->c_bad = tempo->c_skip = tempo->c_miss = 0;
       tempo->last = tempo->worst = tempo->best = 0;
       tempo->frames = util_frames_free(tempo->frames);
     }else if(tempo->mote){ // private stream
@@ -741,7 +741,7 @@ static tempo_t tempo_schedule(tempo_t tempo, uint32_t at)
   while(tempo->at <= at)
   {
     tempo->seq++;
-    tempo->skip++; // counts missed windows, cleared after knocked
+    tempo->c_skip++; // counts missed windows, cleared after knocked
 
     // use encrypted seed (follows frame)
     uint8_t seed[64+8] = {0};
@@ -765,7 +765,7 @@ mote_t tmesh_knocked(tmesh_t tm)
   tempo_t tempo = knock->tempo;
 
   // always clear skipped counter and ready flag
-  tempo->skip = 0;
+  tempo->c_skip = 0;
   knock->is_active = 0;
 
   if(knock->is_tx)
