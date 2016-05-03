@@ -170,7 +170,7 @@ struct knock_struct
   tempo_t tempo;
   uint32_t seekto; // when is the next knock if seeking
   uint32_t started, stopped; // actual times
-  int16_t rssi; // set by driver only after rx
+  int16_t rssi, snr; // set by driver only after rx
   uint8_t frame[64];
   uint8_t nonce[8]; // convenience
   // boolean flags for state tracking, etc
@@ -178,7 +178,7 @@ struct knock_struct
   uint8_t is_beacon:1; // if is beacon signal
   uint8_t is_tx:1; // current window direction (copied from tempo for convenience)
   uint8_t do_err:1; // driver sets if failed
-  uint8_t do_gone:1; // driver sets if too many rx fails
+  uint8_t do_gone:1; // driver sets to fail the signal/stream
 };
 
 // mote state tracking
