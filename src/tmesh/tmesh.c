@@ -267,7 +267,7 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
       memcpy(blocks,hashname_bin(tm->mesh->id),5);
 
       // then our current app value
-      block = (mblock_t)(blocks+(++at*5));
+      block = (mblock_t)(blocks+5);
       block->type = tmesh_block_app;
       memcpy(block->body,&(tm->app),4);
       
@@ -282,10 +282,10 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
 
       // then blocks about our shared stream, just medium/seq
       tempo_t about = tm->stream;
-      block = (mblock_t)(blocks+(++at*5));
+      block = (mblock_t)(blocks+5+5);
       block->type = tmesh_block_medium;
       memcpy(block->body,&(about->medium),4);
-      block = (mblock_t)(blocks+(++at*5));
+      block = (mblock_t)(blocks+5+5+5);
       block->type = tmesh_block_seq;
       memcpy(block->body,&(about->seq),4);
       
@@ -354,9 +354,6 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
     
     // all signals check-hash
     murmur(knock->frame,60,knock->frame+60);
-    
-    LOG_WARN("SEKRT %s",util_hex(tempo->secret,32,NULL));
-    LOG_WARN("NONCE %s",util_hex(knock->nonce,8,NULL));
     
   }else{
     LOG_DEBUG("stream %s",(tempo == tm->stream)?"shared":"private");
@@ -581,16 +578,11 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
 
     if(tempo == tm->beacon){
 
-      LOG_WARN("SEKRT %s",util_hex(tempo->secret,32,NULL));
-      LOG_WARN("NONCE %s",util_hex(knock->frame,8,NULL));
-
       // RX beacon, validate is beacon format
       memcpy(frame,knock->frame,64);
       chacha20(tempo->secret,frame,frame+8,64-8);
       check = murmur4(frame,60);
   
-      uint32_t tmp; memcpy(&tmp,frame+60,4);
-      LOG_WARN("memcmp %d check %lu against %lu",memcmp(&check,frame+60,4),check,tmp);
       // beacon encoded signal fail
       if(memcmp(&check,frame+60,4) != 0)
       {
