@@ -261,7 +261,6 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
 
       // first is nonce (unciphered prefixed)
       knock->is_beacon = 1;
-      knock->is_tx = 1;
       e3x_rand(knock->nonce,8); // random nonce each time
       memcpy(knock->frame,knock->nonce,8);
 
@@ -329,7 +328,7 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
             stream->do_accept = 0; // accepted
             stream->do_schedule = 1; // start going
             stream->do_tx = 0; // we are inverted
-            stream->priority = 2; // little boost
+            stream->priority = 3; // little boost
             stream->at = tempo->at;
             stream->seq = tempo->seq; // TODO invert uint32 for unique starting point
           }
@@ -471,13 +470,13 @@ static tempo_t tempo_blocks(tempo_t tempo, uint8_t *blocks)
               mote->stream->do_schedule = 0; // hold stream scheduling activity
               mote->stream->seq++; // any seq signals a stream accept
               break;
-            case 2: // stream accept
+            case 2: // stream accept (FUTURE, this is where driver checks resources/acceptibility first)
               // make sure one exists, is primed, and sync it
               if(!mote_send(mote, NULL)) break; // bad juju
               LOG_INFO("accepting stream from %s on medium %lu",hashname_short(mote->link->id),body);
               mote->stream->do_schedule = 1; // go
               mote->stream->do_request = 0; // done signalling
-              mote->stream->do_tx = 0; // we default to inverted since we're accepting
+              mote->stream->do_tx = 1; // we default to inverted since we're accepting
               mote->stream->priority = 3; // little more boost
               mote->stream->at = mote->signal->at; // same reference sync
               mote->stream->seq = mote->signal->seq; // TODO invert uint32 for unique starting point
@@ -522,9 +521,9 @@ static tempo_t tempo_knocked_tx(tempo_t tempo, knock_t knock)
     if(tempo == tm->beacon){
 
       // make sure shared stream always has a discovery primed after sending a beacon
-      if(!tm->stream->frames->outbox) util_frames_send(tm->stream->frames,hashname_im(tm->mesh->keys, 0x1a));
+      util_frames_send(tm->stream->frames,hashname_im(tm->mesh->keys, 0x1a));
       
-      // RESYNC STREAM TX
+      // sync shared stream to when beacon sent
       tm->stream->at = knock->stopped;
       tm->stream->do_schedule = 1;
       tm->stream->do_tx = 1;
@@ -584,7 +583,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
     if(tempo == tm->beacon){
 
       LOG_WARN("SEKRT %s",util_hex(tempo->secret,32,NULL));
-      LOG_WARN("NONCE %s",util_hex(frame,8,NULL));
+      LOG_WARN("NONCE %s",util_hex(knock->frame,8,NULL));
 
       // RX beacon, validate is beacon format
       memcpy(frame,knock->frame,64);
@@ -639,6 +638,9 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
       // shared stream always has a discovery primed after receiving a beacon
       util_frames_send(stream->frames,hashname_im(tm->mesh->keys, 0x1a));
       
+      // quiet beacon
+      tm->signal->do_schedule = 0;
+
     }else if(tempo->mote){ // incoming signal for a mote
 
       // decode/validate signal safely
@@ -878,9 +880,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   {
     MORTY(tm->beacon,"beacon");
 
-    // copy nonce parts in, nothing to prep since is just RX
-    memcpy(knock->nonce,&(tm->beacon->medium),4);
-    memcpy(knock->nonce+4,&(tm->beacon->seq),4);
+    // basics
     knock->tempo = tm->beacon;
     knock->seekto = best->at;
 
@@ -900,8 +900,8 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   // do the tempo-specific work to fill in the tx frame
   if(best->do_tx)
   {
-    if(!tempo_knock_tx(best, knock)) return LOG_WARN("knock tx prep failed");
     knock->is_tx = 1;
+    if(!tempo_knock_tx(best, knock)) return LOG_WARN("knock tx prep failed");
     LOG_DEBUG("TX frame %s\n",util_hex(knock->frame,64,NULL));
     if(knock->is_beacon)
     {
