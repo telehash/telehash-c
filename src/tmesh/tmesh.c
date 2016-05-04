@@ -260,7 +260,6 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
     if(tempo == tm->beacon){
 
       // first is nonce (unciphered prefixed)
-      knock->is_beacon = 1;
       e3x_rand(knock->nonce,8); // random nonce each time
       memcpy(knock->frame,knock->nonce,8);
 
@@ -903,10 +902,10 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
     knock->is_tx = 1;
     if(!tempo_knock_tx(best, knock)) return LOG_WARN("knock tx prep failed");
     LOG_DEBUG("TX frame %s\n",util_hex(knock->frame,64,NULL));
-    if(knock->is_beacon)
+    if(best == tm->beacon)
     {
       // nonce is prepended to beacons unciphered
-      chacha20(best->secret,knock->nonce,knock->frame+8,64-8);
+      chacha20(best->secret,knock->frame,knock->frame+8,64-8);
     }else{
       chacha20(best->secret,knock->nonce,knock->frame,64);
     }

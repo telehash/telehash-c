@@ -178,7 +178,6 @@ struct knock_struct
   uint8_t nonce[8]; // convenience
   // boolean flags for state tracking, etc
   uint8_t is_active:1; // is actively transceiving
-  uint8_t is_beacon:1; // if is beacon signal
   uint8_t is_tx:1; // current window direction (copied from tempo for convenience)
   uint8_t do_err:1; // driver sets if failed
   uint8_t do_gone:1; // driver sets to fail the signal/stream
