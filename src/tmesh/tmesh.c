@@ -596,7 +596,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
         return LOG_WARN("beacon received while processing another, shouldn't happen");
       }
 
-      // process blocks directly, first sender nickname
+      // process blocks directly, first sender nickname NOTE: can this be done in tempo_blocks somehow?
       memcpy(blocks,frame+10,50);
       hashname_t id = hashname_sbin(blocks);
       if(mesh_linkid(tm->mesh,id)) LOG_DEBUG("skipping known beacon from %s",hashname_short(id));
@@ -632,6 +632,8 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
       
       // quiet beacon
       tm->signal->do_schedule = 0;
+      
+      return tempo; 
 
     }else if(tempo->mote){ // incoming signal for a mote
 
