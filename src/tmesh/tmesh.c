@@ -253,6 +253,7 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
   mblock_t block = NULL;
   uint8_t at = 0;
 
+  memset(knock->frame,0,64);
   if(tempo->is_signal)
   {
     LOG_DEBUG("signal %s",(tempo == tm->beacon)?"beacon":((tempo == tm->signal)?"out":"in"));
@@ -291,6 +292,8 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
       memcpy(block->body,&(about->seq),4);
       
       block->done = 1;
+
+      memcpy(knock->frame+10,blocks,50);
 
     }else if(tempo == tm->signal){ // shared outgoing signal
 
@@ -344,14 +347,18 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
         block->done = 1;
       }
 
+      memcpy(knock->frame,blocks,60);
+
     }else if(tempo->mote){ // incoming signal for a mote
     }else{ // bad
       return LOG_WARN("unknown stream state");
     }
     
-    // all signals: copy in blocks and check-hash
-    memcpy(knock->frame,blocks,60);
+    // all signals check-hash
     murmur(knock->frame,60,knock->frame+60);
+    
+    LOG_WARN("SEKRT %s",util_hex(tempo->secret,32,NULL));
+    LOG_WARN("NONCE %s",util_hex(knock->nonce,8,NULL));
     
   }else{
     LOG_DEBUG("stream %s",(tempo == tm->stream)?"shared":"private");
@@ -576,11 +583,16 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
 
     if(tempo == tm->beacon){
 
+      LOG_WARN("SEKRT %s",util_hex(tempo->secret,32,NULL));
+      LOG_WARN("NONCE %s",util_hex(frame,8,NULL));
+
       // RX beacon, validate is beacon format
       memcpy(frame,knock->frame,64);
       chacha20(tempo->secret,frame,frame+8,64-8);
       check = murmur4(frame,60);
   
+      uint32_t tmp; memcpy(&tmp,frame+60,4);
+      LOG_WARN("memcmp %d check %lu against %lu",memcmp(&check,frame+60,4),check,tmp);
       // beacon encoded signal fail
       if(memcmp(&check,frame+60,4) != 0)
       {
@@ -806,7 +818,6 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   // create core tempos first time
   if(!tm->beacon)
   {
-    // TODO WIP HERE
     tm->beacon = tempo_new(tm);
     tm->beacon->is_signal = 1;
     tm->beacon->do_schedule = 1;
@@ -815,14 +826,25 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
     tm->signal = tempo_new(tm);
     tm->signal->is_signal = 1;
     tempo_init(tm->signal);
-
   }
   
   // start w/ beacon
-  tempo_t best = tempo_schedule(tm->beacon, at);
+  tempo_t best = NULL;
+  if(tm->beacon->do_schedule)
+  {
+    tempo_schedule(tm->beacon, at);
+    best = tm->sort(tm, best, tm->beacon);
+  }
+  
+  // and shared stream (may not exist)
+  if(tm->stream && tm->stream->do_schedule)
+  {
+    tempo_schedule(tm->stream, at);
+    best = tm->sort(tm, best, tm->stream);
+  }
 
   // upcheck our signal
-  if(tm->signal)
+  if(tm->signal->do_schedule)
   {
     tempo_schedule(tm->signal, at);
     best = tm->sort(tm, best, tm->signal);
@@ -839,8 +861,8 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
       best = tm->sort(tm, best, mote->signal);
     }
     
-    // advance stream too, election depends on state (rx or !idle)
-    if(mote->stream->do_schedule)
+    // advance stream too
+    if(mote->stream && mote->stream->do_schedule)
     {
       tempo_schedule(mote->stream, at);
       best = tm->sort(tm, best, mote->stream);
@@ -852,7 +874,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   memset(knock,0,sizeof(struct knock_struct));
 
   // first try beacon seekin ;)
-  if(tm->beacon && tm->beacon->do_schedule)
+  if(tm->beacon->do_schedule)
   {
     MORTY(tm->beacon,"beacon");
 
