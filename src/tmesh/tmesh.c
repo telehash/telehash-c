@@ -27,7 +27,7 @@ typedef struct mblock_struct {
 // forward-ho
 static tempo_t tempo_new(tmesh_t tm);
 static tempo_t tempo_free(tempo_t tempo);
-static tempo_t tempo_init(tempo_t tempo);
+static tempo_t tempo_init(tempo_t tempo, hashname_t id_shared);
 static tempo_t tempo_medium(tempo_t tempo, uint32_t medium);
 
 // find a stream to send it to for this mote
@@ -47,7 +47,7 @@ mote_t mote_send(mote_t mote, lob_t packet)
     }
 
     tempo->mote = mote;
-    tempo_init(tempo);
+    tempo_init(tempo, NULL);
   }
 
   // if not scheduled, make sure signalling
@@ -166,7 +166,7 @@ if(tempo->is_signal)
 /*//////////////////////////////////////////////////////////////////
 
 // init any tempo, only called once
-static tempo_t tempo_init(tempo_t tempo)
+static tempo_t tempo_init(tempo_t tempo, hashname_t id_shared)
 {
   if(!tempo) return LOG_WARN("bad args");
   tmesh_t tm = tempo->tm;
@@ -215,8 +215,8 @@ static tempo_t tempo_init(tempo_t tempo)
     if(tempo == tm->stream) // shared stream
     {
       e3x_rand((uint8_t*)&(tempo->seq),4); // random sequence
-      // our short hash in the rollup to make shared stream more unique
-      memcpy(roll+32,hashname_bin(tm->mesh->id),5);
+      // include given id in the rollup to make shared stream more unique
+      memcpy(roll+32,hashname_bin(id_shared),5);
     }else if(tempo->mote){
       // combine both hashnames xor'd in rollup
       memcpy(roll+32,hashname_bin(tm->mesh->id),32); // add ours in
@@ -278,16 +278,15 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
         tm->stream = tempo_free(tm->stream);
       }
       tm->stream = tempo_new(tm);
-      tempo_init(tm->stream);
+      tempo_init(tm->stream, tm->mesh->id);
 
       // then blocks about our shared stream, just medium/seq
-      tempo_t about = tm->stream;
       block = (mblock_t)(blocks+5+5);
       block->type = tmesh_block_medium;
-      memcpy(block->body,&(about->medium),4);
+      memcpy(block->body,&(tm->stream->medium),4);
       block = (mblock_t)(blocks+5+5+5);
       block->type = tmesh_block_seq;
-      memcpy(block->body,&(about->seq),4);
+      memcpy(block->body,&(tm->stream->seq),4);
       
       block->done = 1;
 
@@ -619,7 +618,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
 
       // new shared stream
       tempo_t stream = tm->stream = tempo_new(tm);
-      tempo_init(stream);
+      tempo_init(stream, hashname_sbin(blocks));
       stream->do_schedule = 1;
       stream->at = knock->stopped;
       stream->seq = seq;
@@ -631,7 +630,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
       util_frames_send(stream->frames,hashname_im(tm->mesh->keys, 0x1a));
       
       // quiet beacon
-      tm->signal->do_schedule = 0;
+      tm->beacon->do_schedule = 0;
       
       return tempo; 
 
@@ -817,11 +816,11 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
     tm->beacon = tempo_new(tm);
     tm->beacon->is_signal = 1;
     tm->beacon->do_schedule = 1;
-    tempo_init(tm->beacon);
+    tempo_init(tm->beacon, NULL);
 
     tm->signal = tempo_new(tm);
     tm->signal->is_signal = 1;
-    tempo_init(tm->signal);
+    tempo_init(tm->signal, NULL);
   }
   
   // start w/ beacon
@@ -962,7 +961,7 @@ mote_t tmesh_mote(tmesh_t tm, link_t link, tempo_t stream)
   mote->tm = tm;
   mote->signal = tempo_new(tm);
   mote->signal->is_signal = 1;
-  tempo_init(mote->signal);
+  tempo_init(mote->signal, NULL);
 
   // bootstrap from running stream
   if(stream)
