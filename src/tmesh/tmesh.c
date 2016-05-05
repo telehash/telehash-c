@@ -39,13 +39,6 @@ mote_t mote_send(mote_t mote, lob_t packet)
   if(!tempo)
   {
     tempo = mote->stream = tempo_new(mote->tm);
-    if(!tempo)
-    {
-      LOG_WARN("no stream to %s, dropping packet len %lu",hashname_short(mote->link->id),lob_len(packet));
-      lob_free(packet);
-      return NULL;
-    }
-
     tempo->mote = mote;
     tempo_init(tempo, NULL);
   }
@@ -103,6 +96,31 @@ static mote_t mote_free(mote_t mote)
   pipe_free(mote->pipe); // notifies links
   free(mote);
   return LOG_DEBUG("mote free'd");
+}
+
+static mote_t mote_new(tmesh_t tm, link_t link)
+{
+  mote_t mote;
+  if(!(mote = malloc(sizeof(struct mote_struct)))) return LOG_ERROR("OOM");
+  memset(mote,0,sizeof (struct mote_struct));
+  mote->link = link;
+  mote->tm = tm;
+  
+  LOG_INFO("new mote %s",hashname_short(link->id));
+  
+  // bind new signal
+  mote->signal = tempo_new(tm);
+  mote->signal->is_signal = 1;
+  mote->signal->mote = mote;
+  tempo_init(mote->signal, NULL);
+
+  // set up pipe
+  if(!(mote->pipe = pipe_new("tmesh"))) return mote_free(mote);
+  mote->pipe->arg = mote;
+  mote->pipe->send = mote_pipe_send;
+  link_pipe(link, mote->pipe);
+  
+  return mote;
 }
 
 static tempo_t tempo_free(tempo_t tempo)
@@ -414,7 +432,7 @@ static tempo_t tempo_blocks(tempo_t tempo, uint8_t *blocks)
     }else{
       // check given short hash, load mote if known
       hashname_t id = hashname_sbin(blocks+(5*at));
-      mote = tmesh_mote(tm,mesh_linkid(tm->mesh, id),NULL);
+      mote = tmesh_mote(tm,mesh_linkid(tm->mesh, id));
       at++;
     }
 
@@ -586,7 +604,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
       if(memcmp(&check,frame+60,4) != 0)
       {
         tempo->c_bad++;
-        return LOG_INFO("received beacon frame validation failed: %s",util_hex(frame,64,NULL));
+        return LOG_DEBUG("beacon received unknown frame: %s",util_hex(frame,64,NULL));
       }
       
       // might be busy receiving already
@@ -677,17 +695,25 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
 
       lob_t packet = util_frames_receive(tempo->frames);
       if(!packet) return NULL;
+      
+      // TODO, make sure id matches orig beacon
 
       // upon receiving an id, create mote and move stream there
-      mote_t mote = tmesh_mote(tm, link_key(tm->mesh,packet,0x1a), tempo);
+      mote_t mote = tmesh_mote(tm, link_key(tm->mesh,packet,0x1a));
       if(!mote) return LOG_WARN("unknown packet received from beacon: %s",lob_json(packet));
+      if(mote->stream) LOG_WARN("replacing existing stream for %s",hashname_short(mote->link->id));
+      mote->stream = tempo_free(mote->stream);
+
+      // bond together
+      mote->stream = tempo;
+      tempo->mote = mote;
       tm->stream = NULL; // mote took it over
       
-      // ensure signal is running
+      // ensure signal is also running
       tm->signal->do_schedule = 1;
 
       // follow w/ handshake
-      util_frames_send(tempo->frames, link_handshakes(mote->link));
+      util_frames_send(mote->stream->frames, link_handshakes(mote->link));
 
       // once a link is formed use slower medium
       tempo_medium(tm->beacon, tm->m_signal);
@@ -729,6 +755,8 @@ static tempo_t tempo_gone(tempo_t tempo)
     if(tempo == tm->stream){ // shared stream
       tm->stream = tempo_free(tempo);
       tm->beacon->do_schedule = 1;
+      // use different medium based on if we're alone
+      tempo_medium(tm->beacon, tm->motes?tm->m_signal:tm->m_beacon);
     }else if(tempo->mote){ // private stream
       mote_t mote = tempo->mote;
       // idle it
@@ -938,43 +966,33 @@ tmesh_t tmesh_rebase(tmesh_t tm, uint32_t at)
 }
 
 // if there's a mote for this link, return it, else create
-mote_t tmesh_mote(tmesh_t tm, link_t link, tempo_t stream)
+mote_t tmesh_mote(tmesh_t tm, link_t link)
 {
   if(!tm || !link) return LOG_WARN("bad args");
 
+  // ensure our signal is running
+  tm->signal->do_schedule = 1;
+
   // look for existing and reset stream if given
   mote_t mote;
-  for(mote=tm->motes;mote;mote = mote->next) if(mote->link == link)
-  {
-    if(!stream) return mote;
-    if(mote->stream) LOG_WARN("replacing stream for %s",hashname_short(link->id));
-    tempo_free(mote->stream);
-    mote->stream = stream;
-    return mote;
-  }
+  for(mote=tm->motes;mote;mote = mote->next) if(mote->link == link) break;
 
-  LOG_INFO("new mote %s",hashname_short(link->id));
+  if(!mote) mote = mote_new(tm, link);
 
-  if(!(mote = malloc(sizeof(struct mote_struct)))) return LOG_ERROR("OOM");
-  memset(mote,0,sizeof (struct mote_struct));
-  mote->link = link;
-  mote->tm = tm;
-  mote->signal = tempo_new(tm);
-  mote->signal->is_signal = 1;
-  tempo_init(mote->signal, NULL);
+  // only continue if there's a stream to subsume into this mote (NOTE, need to match hashname)
+  if(!tm->stream || !tm->stream->c_rx) return mote;
 
-  // bootstrap from running stream
-  if(stream)
-  {
-    mote->stream = stream; // take-over as-is
-    stream->mote = mote;
-  }
+  if(mote->stream) LOG_WARN("replacing existing stream for %s",hashname_short(mote->link->id));
+  mote->stream = tempo_free(mote->stream);
 
-  // set up pipe
-  if(!(mote->pipe = pipe_new("tmesh"))) return mote_free(mote);
-  mote->pipe->arg = mote;
-  mote->pipe->send = mote_pipe_send;
+  // bond together
+  mote->stream = tm->stream;
+  mote->stream->mote = mote;
+  tm->stream = NULL; // mote took it over
   
+  // follow w/ handshake
+  util_frames_send(mote->stream->frames, link_handshakes(mote->link));
+
   return mote;
   
 }

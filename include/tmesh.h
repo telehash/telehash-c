@@ -136,7 +136,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at);
 tmesh_t tmesh_rebase(tmesh_t tm, uint32_t at);
 
 // returns mote for this link, creating one if a stream is provided
-mote_t tmesh_mote(tmesh_t tm, link_t link, tempo_t stream);
+mote_t tmesh_mote(tmesh_t tm, link_t link);
 
 // drops and free's this mote (link just goes to down state if no other paths)
 tmesh_t tmesh_demote(tmesh_t tm, mote_t mote);
