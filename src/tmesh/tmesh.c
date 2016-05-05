@@ -569,8 +569,8 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
   if(knock->do_err)
   {
     tempo->c_miss++;
-    // shared streams force down on the first missed rx
-    if(tempo == tm->stream && !tempo->c_rx)
+    // shared streams force down with low tolerance for misses (NOTE this logic could be more efficienter)
+    if(tempo == tm->stream && !tempo->c_rx && tempo->c_miss > 3)
     {
       LOG_DEBUG("beacon'd stream no response");
       knock->do_gone = 1; 
@@ -691,40 +691,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
       return LOG_INFO("stream broken, flagging gone for full reset");
     }
     
-    if(tempo == tm->stream){ // shared stream
-
-      lob_t packet = util_frames_receive(tempo->frames);
-      if(!packet) return NULL;
-      
-      // TODO, make sure id matches orig beacon
-
-      // upon receiving an id, create mote and move stream there
-      mote_t mote = tmesh_mote(tm, link_key(tm->mesh,packet,0x1a));
-      if(!mote) return LOG_WARN("unknown packet received from beacon: %s",lob_json(packet));
-      if(mote->stream) LOG_WARN("replacing existing stream for %s",hashname_short(mote->link->id));
-      mote->stream = tempo_free(mote->stream);
-
-      // bond together
-      mote->stream = tempo;
-      tempo->mote = mote;
-      tm->stream = NULL; // mote took it over
-      
-      // ensure signal is also running
-      tm->signal->do_schedule = 1;
-
-      // follow w/ handshake
-      util_frames_send(mote->stream->frames, link_handshakes(mote->link));
-
-      // once a link is formed use slower medium
-      tempo_medium(tm->beacon, tm->m_signal);
-
-      lob_free(packet);
-
-    }else if(tempo->mote){ // private stream
-      // driver/app will consume packets
-    }else{ // bad
-      return LOG_WARN("unknown stream state");
-    }
+    // app handles processing received stream data
   }
 
   // process any blocks
@@ -802,7 +769,7 @@ static tempo_t tempo_schedule(tempo_t tempo, uint32_t at)
 }
 
 // handle a knock that has been sent/received, return mote if packets waiting
-mote_t tmesh_knocked(tmesh_t tm)
+tempo_t tmesh_knocked(tmesh_t tm)
 {
   if(!tm) return LOG_WARN("bad args");
   knock_t knock = tm->knock;
@@ -820,10 +787,10 @@ mote_t tmesh_knocked(tmesh_t tm)
   }
   
   // if anyone says this tempo is gone, handle it
-  if(knock->do_gone) return (mote_t)tempo_gone(tempo);
+  if(knock->do_gone) return tempo_gone(tempo);
 
-  // signal any full packets waiting
-  return (tempo->frames && tempo->frames->inbox)?tempo->mote:NULL;
+  // return stream with any full packets waiting (NOTE, don't like having to return a raw tempo)
+  return (tempo->frames && tempo->frames->inbox)?tempo:NULL;
 }
 
 // process everything based on current cycle count, returns success

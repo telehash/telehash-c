@@ -126,8 +126,8 @@ tmesh_t tmesh_new(mesh_t mesh, char *name, char *pass, uint32_t mediums[3]);
 tmesh_t tmesh_free(tmesh_t tm);
 
 // process knock that has been completed by a driver
-// returns a mote if there's new packets available in its stream
-mote_t tmesh_knocked(tmesh_t tm);
+// returns a stream if there's new packets available
+tempo_t tmesh_knocked(tmesh_t tm);
 
 // at based on current cycle count since start or last rebase
 tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at);
