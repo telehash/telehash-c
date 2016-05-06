@@ -235,6 +235,8 @@ static tempo_t tempo_init(tempo_t tempo, hashname_t id_shared)
       e3x_rand((uint8_t*)&(tempo->seq),4); // random sequence
       // include given id in the rollup to make shared stream more unique
       memcpy(roll+32,hashname_bin(id_shared),5);
+      // shared stream always has a discovery primed
+      util_frames_send(tempo->frames,hashname_im(tm->mesh->keys, 0x1a));
     }else if(tempo->mote){
       // combine both hashnames xor'd in rollup
       memcpy(roll+32,hashname_bin(tm->mesh->id),32); // add ours in
@@ -533,9 +535,6 @@ static tempo_t tempo_knocked_tx(tempo_t tempo, knock_t knock)
     LOG_DEBUG("signal %s",(tempo == tm->beacon)?"beacon":((tempo == tm->signal)?"out":"in"));
     if(tempo == tm->beacon){
 
-      // make sure shared stream always has a discovery primed after sending a beacon
-      util_frames_send(tm->stream->frames,hashname_im(tm->mesh->keys, 0x1a));
-      
       // sync shared stream to when beacon sent
       tm->stream->at = knock->stopped;
       tm->stream->do_schedule = 1;
@@ -644,9 +643,6 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
       stream->priority = 2;
       tempo_medium(stream, medium);
 
-      // shared stream always has a discovery primed after receiving a beacon
-      util_frames_send(stream->frames,hashname_im(tm->mesh->keys, 0x1a));
-      
       // quiet beacon
       tm->beacon->do_schedule = 0;
       
