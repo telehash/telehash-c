@@ -105,6 +105,8 @@ static mote_t mote_new(tmesh_t tm, link_t link)
   memset(mote,0,sizeof (struct mote_struct));
   mote->link = link;
   mote->tm = tm;
+  mote->next = tm->motes;
+  tm->motes = mote;
   
   LOG_INFO("new mote %s",hashname_short(link->id));
   
