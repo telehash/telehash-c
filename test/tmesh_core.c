@@ -94,7 +94,7 @@ int main(int argc, char **argv)
   fail_unless(netA->knock->tempo->at == 2);
   fail_unless(netA->knock->tempo->chan == 1);
 
-  mote_t moteB = tmesh_mote(netA, linkAB, NULL);
+  mote_t moteB = tmesh_mote(netA, linkAB);
   fail_unless(moteB);
   fail_unless(moteB->link == linkAB);
   fail_unless(moteB->pipe);
