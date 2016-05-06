@@ -325,6 +325,7 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *m
   // if flushing, or nothing to send, just send meta frame w/ hashes
   if(frames->flush || !len || (frames->out * size) > len)
   {
+    frames->flush = 1; // so _sent() does us proper
     memset(data,0,size+4);
     memcpy(data,&(frames->inlast),4);
     memcpy(data+4,&(hash),4);
