@@ -435,8 +435,18 @@ static tempo_t tempo_blocks(tempo_t tempo, uint8_t *blocks)
       id = NULL;
     }else{
       // check given short hash, load mote if known
-      hashname_t id = hashname_sbin(blocks+(5*at));
-      mote = tmesh_mote(tm,mesh_linkid(tm->mesh, id));
+      uint8_t* pos = blocks + (5 * at);
+      bool isNull = true;
+      for (int i = 0; i < 5; ++i) {
+        if (pos[i] != 0) isNull = false;
+      }
+      if (!isNull) {
+        // check given short hash, load mote if known
+        hashname_t id = hashname_sbin(blocks+(5*at));
+        printf("*** CHECKING MOTE for %s\n", hashname_short(id));
+        mote = tmesh_mote(tm,mesh_linkid(tm->mesh, id));
+      }
+
       at++;
     }
 
