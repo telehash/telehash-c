@@ -29,6 +29,7 @@ static tempo_t tempo_new(tmesh_t tm);
 static tempo_t tempo_free(tempo_t tempo);
 static tempo_t tempo_init(tempo_t tempo, hashname_t id_shared);
 static tempo_t tempo_medium(tempo_t tempo, uint32_t medium);
+static tempo_t tempo_gone(tempo_t tempo);
 
 // find a stream to send it to for this mote
 mote_t mote_send(mote_t mote, lob_t packet)
@@ -213,7 +214,7 @@ static tempo_t tempo_init(tempo_t tempo, hashname_t id_shared)
       // nothing extra to add, just copy for roll
       memcpy(roll+32,roll,32);
     }else if(tempo == tm->signal){ // shared outgoing signal
-      tempo->priority = 10; // high
+      tempo->priority = 7; // high
       tempo->do_tx = 1;
       // our hashname in rollup
       memcpy(roll+32,hashname_bin(tm->mesh->id),32);
@@ -411,6 +412,11 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
       return LOG_WARN("unknown stream state");
     }
 
+    if (util_frames_outlen(tempo->frames) <= 0 && tempo->mote ) {
+      printf("**** No data in the frames to actually send, sending meta\n");
+      tempo_gone(tempo);
+      return NULL;
+    }
     // all streams: fill in frame
     if(!util_frames_outbox(tempo->frames,knock->frame,blocks)) return LOG_WARN("frames failed");
     
@@ -443,7 +449,6 @@ static tempo_t tempo_blocks(tempo_t tempo, uint8_t *blocks)
       if (!isNull) {
         // check given short hash, load mote if known
         hashname_t id = hashname_sbin(blocks+(5*at));
-        printf("*** CHECKING MOTE for %s\n", hashname_short(id));
         mote = tmesh_mote(tm,mesh_linkid(tm->mesh, id));
       }
 
@@ -656,7 +661,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
       tempo_medium(stream, medium);
 
       // quiet beacon
-      tm->beacon->do_schedule = 0;
+      tm->beacon->do_schedule = 1;
       
       return tempo; 
 
@@ -963,6 +968,7 @@ mote_t tmesh_mote(tmesh_t tm, link_t link)
   // bond together
   mote->stream = tm->stream;
   mote->stream->mote = mote;
+  mote->signal->do_schedule = 1;
   tm->stream = NULL; // mote took it over
   
   // follow w/ handshake
