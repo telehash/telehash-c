@@ -412,11 +412,6 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
       return LOG_WARN("unknown stream state");
     }
 
-    if (util_frames_outlen(tempo->frames) <= 0 && tempo->mote ) {
-      printf("**** No data in the frames to actually send, sending meta\n");
-      tempo_gone(tempo);
-      return NULL;
-    }
     // all streams: fill in frame
     if(!util_frames_outbox(tempo->frames,knock->frame,blocks)) return LOG_WARN("frames failed");
     
@@ -589,6 +584,12 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
     if(tempo == tm->stream && !tempo->c_rx && tempo->c_miss > 3)
     {
       LOG_DEBUG("beacon'd stream no response");
+      knock->do_gone = 1; 
+    }
+    // idle mote stream rx fail is a goner
+    if(tempo->mote && !tempo->is_signal && !tempo->do_tx && !util_frames_busy(tempo->frames))
+    {
+      LOG_DEBUG("dropping idle tempo stream");
       knock->do_gone = 1; 
     }
     return LOG_DEBUG("failed RX, miss at %lu",tempo->c_miss);
@@ -868,6 +869,11 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
     if(mote->stream && mote->stream->do_schedule)
     {
       tempo_schedule(mote->stream, at);
+      if(mote->stream->do_tx && !util_frames_busy(mote->stream->frames))
+      {
+        LOG_DEBUG("stream has nothing to send, skipping");
+        continue;
+      }
       best = tm->sort(tm, best, mote->stream);
     }
   }
