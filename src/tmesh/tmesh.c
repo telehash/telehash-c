@@ -975,7 +975,7 @@ mote_t tmesh_mote(tmesh_t tm, link_t link)
   // bond together
   mote->stream = tm->stream;
   mote->stream->mote = mote;
-  mote->signal->do_schedule = 1;
+  mote->signal->do_schedule = 1; // start listening for their signal
   tm->stream = NULL; // mote took it over
   
   // follow w/ handshake
