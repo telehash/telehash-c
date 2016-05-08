@@ -13,7 +13,7 @@ util_frames_t util_frame_new(util_frames_t frames)
   util_frame_t frame;
   size_t size = sizeof (struct util_frame_struct);
   size += PAYLOAD(frames);
-  if(!(frame = malloc(size))) return LOG("OOM");
+  if(!(frame = malloc(size))) return LOG_WARN("OOM");
   memset(frame,0,size);
   
   // add to inbox
@@ -44,10 +44,10 @@ util_frames_t util_frames_clear(util_frames_t frames)
 
 util_frames_t util_frames_new(uint8_t size)
 {
-  if(size < 16 || size > 128) return LOG("invalid size: %u",size);
+  if(size < 16 || size > 128) return LOG_ERROR("invalid size: %u",size);
 
   util_frames_t frames;
-  if(!(frames = malloc(sizeof (struct util_frames_struct)))) return LOG("OOM");
+  if(!(frames = malloc(sizeof (struct util_frames_struct)))) return LOG_WARN("OOM");
   memset(frames,0,sizeof (struct util_frames_struct));
   frames->size = size;
 
@@ -73,8 +73,8 @@ util_frames_t util_frames_ok(util_frames_t frames)
 
 util_frames_t util_frames_send(util_frames_t frames, lob_t out)
 {
-  if(!frames) return LOG("bad args");
-  if(frames->err) return LOG("frame state error");
+  if(!frames) return LOG_WARN("bad args");
+  if(frames->err) return LOG_WARN("frame state error");
   
   if(out)
   {
@@ -138,8 +138,8 @@ size_t util_frames_outlen(util_frames_t frames)
 // is just a check to see if there's something to send
 static util_frames_t util_frames_ready(util_frames_t frames)
 {
-  if(!frames) return LOG("bad args");
-  if(frames->err) return LOG("frame state error");
+  if(!frames) return LOG_WARN("bad args");
+  if(frames->err) return LOG_WARN("frame state error");
   
   if(frames->flush) return frames;
   if(frames->outbox) return frames;
@@ -150,7 +150,7 @@ static util_frames_t util_frames_ready(util_frames_t frames)
 static util_frames_t util_frames_await(util_frames_t frames)
 {
   if(!frames) return NULL;
-  if(frames->err) return LOG("frame state error");
+  if(frames->err) return LOG_WARN("frame state error");
   // need more to complete inbox
   if(frames->cache) return frames;
   // outbox is complete, awaiting flush
@@ -161,8 +161,8 @@ static util_frames_t util_frames_await(util_frames_t frames)
 // the next frame of data in/out, if data NULL bool is just ready check
 util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *meta)
 {
-  if(!frames) return LOG("bad args");
-  if(frames->err) return LOG("frame state error");
+  if(!frames) return LOG_WARN("bad args");
+  if(frames->err) return LOG_WARN("frame state error");
   if(!data) return util_frames_await(frames);
   
   // conveniences for code readability
@@ -204,7 +204,7 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *me
     }
     if(rxd != rxs)
     {
-      LOG("invalid received frame hash %lu check %lu",rxd,rxs);
+      LOG_WARN("invalid received frame hash %lu check %lu",rxd,rxs);
       frames->err = 1;
       return NULL;
     }
@@ -226,7 +226,7 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *me
       frames->flush = 0;
     }else{
       frames->flush = 1;
-      LOG("flushing mismatch, last %lu",frames->inlast);
+      LOG_DEBUG("flushing mismatch, last %lu",frames->inlast);
     }
     
     return frames;
@@ -240,7 +240,7 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *me
   hash2 += frames->in;
   if(hash1 == hash2)
   {
-    if(!util_frame_new(frames)) return LOG("OOM");
+    if(!util_frame_new(frames)) return LOG_WARN("OOM");
     // append, update inlast, continue
     memcpy(frames->cache->data,data,size);
     frames->flush = 0;
@@ -254,7 +254,7 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *me
   if(tail >= size)
   {
     frames->flush = 1;
-    return LOG("invalid frame data length: %u %s",tail,util_hex(data+(size-4),8,NULL));
+    return LOG_DEBUG("invalid frame data length: %u %s",tail,util_hex(data+(size-4),8,NULL));
   }
   
   // hash must match
@@ -264,7 +264,7 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *me
   if(hash1 != hash2)
   {
     frames->flush = 1;
-    return LOG("invalid frame %u tail (%u) hash %lu != %lu last %lu",frames->in,tail,hash1,hash2,frames->inlast);
+    return LOG_DEBUG("invalid frame %u tail (%u) hash %lu != %lu last %lu",frames->in,tail,hash1,hash2,frames->inlast);
   }
   
   // process full packet w/ tail, update inlast, set flush
@@ -276,7 +276,7 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *me
 
   // TODO make a lob_new that creates space to prevent double-copy here
   uint8_t *buf = malloc(tlen);
-  if(!buf) return LOG("OOM");
+  if(!buf) return LOG_WARN("OOM");
   
   // copy in tail
   memcpy(buf+(frames->in * size), data, tail);
@@ -292,7 +292,7 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *me
   frames->cache = util_frame_free(frames->cache);
   
   lob_t packet = lob_parse(buf,tlen);
-  if(!packet) LOG("packet parsing failed: %s",util_hex(buf,tlen,NULL));
+  if(!packet) LOG_WARN("packet parsing failed: %s",util_hex(buf,tlen,NULL));
   free(buf);
   frames->inbox = lob_push(frames->inbox,packet);
   return frames;
@@ -300,8 +300,8 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *me
 
 util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *meta)
 {
-  if(!frames) return LOG("bad args");
-  if(frames->err) return LOG("frame state error");
+  if(!frames) return LOG_WARN("bad args");
+  if(frames->err) return LOG_WARN("frame state error");
   if(!data) return util_frames_ready(frames); // just a ready check
   uint8_t size = PAYLOAD(frames);
   uint8_t *out = lob_raw(frames->outbox);
@@ -331,7 +331,7 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *m
     memcpy(data+4,&(hash),4);
     if(meta) memcpy(data+10,meta,size-10);
     murmur(data,size,data+size);
-    LOG("sending meta frame inlast %lu cur %lu",frames->inlast,hash);
+    LOG_CRAZY("sending meta frame inlast %lu cur %lu",frames->inlast,hash);
     return frames;
   }
   
@@ -347,7 +347,7 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *m
   hash ^= murmur4(data,size);
   hash += frames->out;
   memcpy(data+PAYLOAD(frames),&(hash),4);
-  LOG("sending data frame %u %lu",frames->out,hash);
+  LOG_CRAZY("sending data frame %u %lu",frames->out,hash);
 
   return frames;
 }
@@ -355,8 +355,8 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *m
 // out state changes
 util_frames_t util_frames_sent(util_frames_t frames)
 {
-  if(!frames) return LOG("bad args");
-  if(frames->err) return LOG("frame state error");
+  if(!frames) return LOG_WARN("bad args");
+  if(frames->err) return LOG_WARN("frame state error");
   uint8_t size = PAYLOAD(frames);
   uint32_t len = lob_len(frames->outbox); 
   uint32_t at = frames->out * size;
