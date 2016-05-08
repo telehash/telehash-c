@@ -551,8 +551,9 @@ static tempo_t tempo_knocked_tx(tempo_t tempo, knock_t knock)
       tm->stream->at = knock->stopped;
       tm->stream->do_schedule = 1;
       tm->stream->do_tx = 1;
-      tm->stream->priority = 2;
+      tm->stream->priority = 4;
       
+      // quiet beacon while shared stream is active
       tm->beacon->do_schedule = 0;
       
     }else if(tempo == tm->signal){ // shared outgoing signal
@@ -661,8 +662,8 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
       stream->priority = 2;
       tempo_medium(stream, medium);
 
-      // quiet beacon
-      tm->beacon->do_schedule = 1;
+      // quiet beacon while shared stream is active
+      tm->beacon->do_schedule = 0;
       
       return tempo; 
 
