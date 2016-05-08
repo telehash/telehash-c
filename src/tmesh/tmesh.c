@@ -198,7 +198,7 @@ static tempo_t tempo_init(tempo_t tempo, hashname_t id_shared)
   if(!tempo) return LOG_WARN("bad args");
   tmesh_t tm = tempo->tm;
   uint8_t roll[64] = {0};
-  if(memcmp(tempo->secret,roll,32)) return LOG_WARN("tempo already initialized");
+  if(memcmp(tempo->secret,roll,32) != 0) return LOG_WARN("tempo already initialized");
 
   // common base secret from community
   e3x_hash((uint8_t*)(tempo->tm->community),strlen(tempo->tm->community),tempo->secret);
@@ -461,7 +461,7 @@ static tempo_t tempo_blocks_rx(tempo_t tempo, uint8_t *blocks)
 
       // is it about us?
       link_t link;
-      if(hashname_scmp(id,tm->mesh->id))
+      if(hashname_scmp(id,tm->mesh->id) == 0)
       {
         from = tempo->mote;
       }else if((link = mesh_linkid(tm->mesh, id))){
