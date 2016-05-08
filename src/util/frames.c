@@ -138,7 +138,7 @@ size_t util_frames_outlen(util_frames_t frames)
 // is just a check to see if there's something to send
 static util_frames_t util_frames_ready(util_frames_t frames)
 {
-  if(!frames) return LOG_WARN("bad args");
+  if(!frames) return NULL;
   if(frames->err) return LOG_WARN("frame state error");
   
   if(frames->flush) return frames;
@@ -377,6 +377,7 @@ util_frames_t util_frames_sent(util_frames_t frames)
 // busy check, in or out
 util_frames_t util_frames_busy(util_frames_t frames)
 {
+  if(!frames) return NULL;
   if(util_frames_ready(frames)) return frames;
   return util_frames_await(frames);
 }

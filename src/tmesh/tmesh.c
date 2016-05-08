@@ -22,7 +22,7 @@ typedef struct mblock_struct {
   uint8_t body[4]; // payload
 } *mblock_t;
 
-#define STATED(t) util_sys_log(7, "", __LINE__, t->mote?hashname_short(t->mote->link->id):"selfself", "%s %u %03d %s %u %s %u", t->is_signal?(t->mote?"<-":"->"):"<>", t->medium, t->last, t->do_schedule?"+":"-", t->priority, t->do_request?"r":(t->do_accept?"a":(util_frames_busy(t->frames)?"b":"i")), util_frames_outlen(t->frames));
+#define STATED(t) util_sys_log(6, "", __LINE__, t->mote?hashname_short(t->mote->link->id):"selfself", "#### %s %u %04d %s%u %s %d", t->is_signal?(t->mote?"<-":"->"):"<>", t->medium, t->last, t->do_schedule?"++":"--", t->priority, t->do_request?"R":(t->do_accept?"A":(util_frames_busy(t->frames)?"B":"I")), t->frames?util_frames_outlen(t->frames):-1);
 
 
 // forward-ho
@@ -393,24 +393,24 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
     }else if(tempo->mote){ // private stream
 
       // only blocks are about us, always send our signal
-      tempo_t about = tm->stream;
+      tempo_t about = tm->signal;
       block = (mblock_t)(blocks);
       block->type = tmesh_block_medium;
       memcpy(block->body,&(about->medium),4);
-      block = (mblock_t)(blocks+(++at*5));
+      block = (mblock_t)(blocks+(5));
       block->type = tmesh_block_at;
       uint32_t at_offset = about->at - tempo->at;
       memcpy(block->body,&(at_offset),4);
-      block = (mblock_t)(blocks+(++at*5));
+      block = (mblock_t)(blocks+(5+5));
       block->type = tmesh_block_seq;
       memcpy(block->body,&(about->seq),4);
 
       // send stream quality in this context
-      block = (mblock_t)(blocks+(++at*5));
+      block = (mblock_t)(blocks+(5+5+5));
       block->type = tmesh_block_quality;
       memcpy(block->body,&(tempo->q_local),4);
     
-      block = (mblock_t)(blocks+(++at*5));
+      block = (mblock_t)(blocks+(5+5+5+5));
       block->type = tmesh_block_app;
       memcpy(block->body,&(tm->app),4);
 
@@ -488,6 +488,9 @@ static tempo_t tempo_blocks(tempo_t tempo, uint8_t *blocks)
           if(!mote) break; // require known mote
           switch(block->head)
           {
+            case 0: // signal medium
+              tempo_medium(mote->signal,body);
+              break;
             case 1: // stream request
               if(!mote_send(mote, NULL)) break; // make sure stream exists
               LOG_CRAZY("stream request from %s on medium %lu",hashname_short(mote->link->id),body);
@@ -509,7 +512,7 @@ static tempo_t tempo_blocks(tempo_t tempo, uint8_t *blocks)
               tempo_medium(mote->stream, body);
               break;
             default:
-              LOG_WARN("unknown medium block %u: %s",block->type,util_hex((uint8_t*)block,5,NULL));
+              LOG_WARN("unknown medium block %u: %s",block->head,util_hex((uint8_t*)block,5,NULL));
           }
           STATED(mote->stream);
           break;
@@ -584,7 +587,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
   {
     tempo->c_miss++;
     // shared streams force down with low tolerance for misses (NOTE this logic could be more efficienter)
-    if(tempo == tm->stream && !tempo->c_rx && tempo->c_miss > 3)
+    if(tempo == tm->stream && !tempo->c_rx && tempo->c_miss > 1)
     {
       LOG_CRAZY("beacon'd stream no response");
       knock->do_gone = 1; 
