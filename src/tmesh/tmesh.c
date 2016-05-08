@@ -655,7 +655,8 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
       // might be busy receiving already
       if(tm->stream)
       {
-        return LOG_WARN("beacon received while processing another, shouldn't happen");
+        LOG_DEBUG("beacon received while processing another, switching");
+        tm->stream = tempo_free(tm->stream);
       }
 
       // process blocks directly, first sender nickname NOTE: can this be done in tempo_blocks somehow?
@@ -767,8 +768,8 @@ static tempo_t tempo_gone(tempo_t tempo)
     if(tempo == tm->stream){ // shared stream
       tm->stream = tempo_free(tempo);
       tm->beacon->do_schedule = 1;
-      // use different medium based on if we're alone
-      tempo_medium(tm->beacon, tm->motes?tm->m_signal:tm->m_beacon);
+      // use slower beacon medium if connected
+      tempo_medium(tm->beacon, tm->motes?tm->m_beacon2:tm->m_beacon);
       STATED(tm->beacon);
     }else if(tempo->mote){ // private stream
       mote_t mote = tempo->mote;
@@ -1044,7 +1045,7 @@ tmesh_t tmesh_demote(tmesh_t tm, mote_t mote)
 }
 
 // just the basics ma'am
-tmesh_t tmesh_new(mesh_t mesh, char *name, char *pass, uint32_t mediums[3])
+tmesh_t tmesh_new(mesh_t mesh, char *name, char *pass, uint32_t mediums[4])
 {
   tmesh_t tm;
   if(!mesh || !name) return LOG_WARN("bad args");
@@ -1059,8 +1060,9 @@ tmesh_t tmesh_new(mesh_t mesh, char *name, char *pass, uint32_t mediums[3])
   tm->community = strdup(name);
   if(pass) tm->password = strdup(pass);
   tm->m_beacon = mediums[0];
-  tm->m_signal = mediums[1];
-  tm->m_stream = mediums[2];
+  tm->m_beacon2 = mediums[1];
+  tm->m_signal = mediums[2];
+  tm->m_stream = mediums[3];
 
   // NOTE: don't create any tempos yet since driver has to add callbacks after this
 

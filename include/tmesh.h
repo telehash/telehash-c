@@ -108,7 +108,7 @@ struct tmesh_struct
   tempo_t signal; // outgoing signal, unique to us
   tempo_t stream; // have an always-running shared stream, keyed from beacon for handshakes, RX for alerts
   tempo_t beacon; // only one of these, advertises our shared stream
-  uint32_t m_beacon, m_signal, m_stream; // default mediums
+  uint32_t m_beacon, m_beacon2, m_signal, m_stream; // default mediums
   uint32_t app; // available for app to use to send custom block
 
   // driver interface
@@ -122,7 +122,7 @@ struct tmesh_struct
 };
 
 // join a new tmesh community, pass optional, mediums are {beacon, signal, stream}
-tmesh_t tmesh_new(mesh_t mesh, char *name, char *pass, uint32_t mediums[3]);
+tmesh_t tmesh_new(mesh_t mesh, char *name, char *pass, uint32_t mediums[4]);
 tmesh_t tmesh_free(tmesh_t tm);
 
 // process knock that has been completed by a driver

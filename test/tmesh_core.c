@@ -65,7 +65,7 @@ int main(int argc, char **argv)
   link_t linkAB = link_get(meshA,hnB);
   fail_unless(linkAB);
   
-  netA = tmesh_new(meshA, "test", NULL, (uint32_t[3]){1,2,3});
+  netA = tmesh_new(meshA, "test", NULL, (uint32_t[4]){1,2,2,3});
   fail_unless(netA);
   
   netA->sort = driver_sort;
