@@ -9,11 +9,6 @@
 // how many csids can be used to make a hashname
 #define MAX_CSIDS 8
 
-struct hashname_struct
-{
-  uint8_t bin[32];
-};
-
 // v* methods return this
 static struct hashname_struct hn_vtmp;
 
