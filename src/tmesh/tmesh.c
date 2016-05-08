@@ -22,7 +22,8 @@ typedef struct mblock_struct {
   uint8_t body[4]; // payload
 } *mblock_t;
 
-#define MORTY(t,r) LOG_DEBUG("RICK %s %s %s %s [%u,%u,%u,%u,%u] %lu+%lx (%lu/%lu) %lu",r,t->mote?hashname_short(t->mote->link->id):"selfself",t->do_tx?"TX":"RX",t->frames?"str":"sig",t->c_tx,t->c_rx,t->c_bad,t->c_miss,t->c_skip,t->at,t->seq,util_frames_inlen(t->frames),util_frames_outlen(t->frames),t->medium);
+#define STATED(t) util_sys_log(7, "", __LINE__, t->mote?hashname_short(t->mote->link->id):"selfself", "%s %u %03d %s %u %s %u", t->is_signal?(t->mote?"<-":"->"):"<>", t->medium, t->last, t->do_schedule?"+":"-", t->priority, t->do_request?"r":(t->do_accept?"a":(util_frames_busy(t->frames)?"b":"i")), util_frames_outlen(t->frames));
+
 
 // forward-ho
 static tempo_t tempo_new(tmesh_t tm);
@@ -47,7 +48,10 @@ mote_t mote_send(mote_t mote, lob_t packet)
   // if not scheduled, make sure signalling
   if(!tempo->do_schedule) tempo->do_request = 1;
   util_frames_send(tempo->frames, packet);
+
   LOG_CRAZY("delivering %d to mote %s total %lu",lob_len(packet),hashname_short(mote->link->id),util_frames_outlen(tempo->frames));
+  STATED(tempo);
+
   return mote;
 }
 
@@ -123,12 +127,16 @@ static mote_t mote_new(tmesh_t tm, link_t link)
   mote->pipe->send = mote_pipe_send;
   link_pipe(link, mote->pipe);
   
+  STATED(mote->signal);
+
   return mote;
 }
 
 static tempo_t tempo_free(tempo_t tempo)
 {
   if(!tempo) return NULL;
+  tempo->medium = tempo->do_schedule = tempo->priority = 0;
+  STATED(tempo);
   util_frames_free(tempo->frames);
   free(tempo);
   return NULL;
@@ -160,8 +168,6 @@ static tempo_t tempo_medium(tempo_t tempo, uint32_t medium)
   {
     tempo->medium = revert;
     LOG_WARN("driver failed medium init from %lu to %lu",revert,medium);
-  }else{
-    MORTY(tempo,"medium");
   }
 
   return tempo;
@@ -263,6 +269,8 @@ static tempo_t tempo_init(tempo_t tempo, hashname_t id_shared)
     e3x_hash(roll,32,tempo->secret);
   }
   
+  STATED(tempo);
+  
   return tempo;
 }
 
@@ -352,6 +360,7 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
             stream->priority = 3; // little boost
             stream->at = tempo->at;
             stream->seq = tempo->seq; // TODO invert uint32 for unique starting point
+            STATED(tempo);
           }
 
           LOG_CRAZY("signalling %s about a stream %s",hashname_short(mote->link->id),(block->head == 1)?"request":"accept");
@@ -435,17 +444,12 @@ static tempo_t tempo_blocks(tempo_t tempo, uint8_t *blocks)
       mote = tempo->mote;
       id = NULL;
     }else{
+      uint8_t zeros[5] = {0};
+      if(memcmp(zeros,blocks+(5*at),5) == 0) return tempo; // all done
+
       // check given short hash, load mote if known
-      uint8_t* pos = blocks + (5 * at);
-      bool isNull = true;
-      for (int i = 0; i < 5; ++i) {
-        if (pos[i] != 0) isNull = false;
-      }
-      if (!isNull) {
-        // check given short hash, load mote if known
-        hashname_t id = hashname_sbin(blocks+(5*at));
-        mote = tmesh_mote(tm,mesh_linkid(tm->mesh, id));
-      }
+      hashname_t id = hashname_sbin(blocks+(5*at));
+      mote = tmesh_mote(tm,mesh_linkid(tm->mesh, id));
 
       at++;
     }
@@ -507,6 +511,7 @@ static tempo_t tempo_blocks(tempo_t tempo, uint8_t *blocks)
             default:
               LOG_WARN("unknown medium block %u: %s",block->type,util_hex((uint8_t*)block,5,NULL));
           }
+          STATED(mote->stream);
           break;
         default:
           LOG_WARN("unknown block %u: %s",block->type,util_hex((uint8_t*)block,5,NULL));
@@ -547,9 +552,11 @@ static tempo_t tempo_knocked_tx(tempo_t tempo, knock_t knock)
       tm->stream->do_schedule = 1;
       tm->stream->do_tx = 1;
       tm->stream->priority = 4;
+      STATED(tm->stream);
       
       // quiet beacon while shared stream is active
       tm->beacon->do_schedule = 0;
+      STATED(tm->beacon);
       
     }else if(tempo == tm->signal){ // shared outgoing signal
       
@@ -656,9 +663,11 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
       stream->do_tx = 0; // inverted
       stream->priority = 2;
       tempo_medium(stream, medium);
+      STATED(stream);
 
       // quiet beacon while shared stream is active
       tm->beacon->do_schedule = 0;
+      STATED(tm->beacon);
       
       return tempo; 
 
@@ -706,6 +715,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
 
   // process any blocks
   tempo_blocks(tempo, blocks);
+  STATED(tempo);
 
   return tempo;
 }
@@ -734,13 +744,19 @@ static tempo_t tempo_gone(tempo_t tempo)
       tm->beacon->do_schedule = 1;
       // use different medium based on if we're alone
       tempo_medium(tm->beacon, tm->motes?tm->m_signal:tm->m_beacon);
+      STATED(tm->beacon);
     }else if(tempo->mote){ // private stream
       mote_t mote = tempo->mote;
       // idle it
       tempo->do_schedule = 0;
       // if data, re-request, else poof
-      if(util_frames_busy(tempo->frames)) tempo->do_request = 1;
-      else mote->stream = tempo_free(tempo);
+      if(util_frames_busy(tempo->frames))
+      {
+        tempo->do_request = 1;
+        STATED(tempo);
+      }else{
+        mote->stream = tempo_free(tempo);
+      }
     }else{ // bad
       return LOG_WARN("invalid stream state");
     }
@@ -822,10 +838,12 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
     tm->beacon->is_signal = 1;
     tm->beacon->do_schedule = 1;
     tempo_init(tm->beacon, NULL);
+    STATED(tm->beacon);
 
     tm->signal = tempo_new(tm);
     tm->signal->is_signal = 1;
     tempo_init(tm->signal, NULL);
+    STATED(tm->signal);
   }
   
   // start w/ beacon
@@ -881,8 +899,6 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   // first try beacon seekin ;)
   if(tm->beacon->do_schedule)
   {
-    MORTY(tm->beacon,"beacon");
-
     // basics
     knock->tempo = tm->beacon;
     knock->seekto = best->at;
@@ -893,8 +909,6 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
     memset(knock,0,sizeof(struct knock_struct));
   }
   
-  MORTY(best,"schdld");
-
   // copy nonce parts in first
   memcpy(knock->nonce,&(best->medium),4);
   memcpy(knock->nonce+4,&(best->seq),4);
@@ -953,7 +967,11 @@ mote_t tmesh_mote(tmesh_t tm, link_t link)
   if(!tm || !link) return LOG_WARN("bad args");
 
   // ensure our signal is running
-  tm->signal->do_schedule = 1;
+  if(!tm->signal->do_schedule)
+  {
+    tm->signal->do_schedule = 1;
+    STATED(tm->signal);
+  }
 
   // look for existing and reset stream if given
   mote_t mote;
@@ -975,6 +993,9 @@ mote_t tmesh_mote(tmesh_t tm, link_t link)
   
   // follow w/ handshake
   util_frames_send(mote->stream->frames, link_handshakes(mote->link));
+
+  STATED(mote->stream);
+  STATED(mote->signal);
 
   return mote;
   
