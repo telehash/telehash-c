@@ -22,13 +22,14 @@ typedef struct mblock_struct {
   uint8_t body[4]; // payload
 } *mblock_t;
 
-#define STATED(t) util_sys_log(6, "", __LINE__, t->mote?hashname_short(t->mote->link->id):"selfself", \
-      "\t\t%s %u %04d %s%u %s %d", \
+#define STATED(t) util_sys_log(6, "", __LINE__, __func__, \
+      "\t%s %s %u %04d %s%u %s %d", \
+        t->mote?hashname_short(t->mote->link->id):"selfself", \
         t->is_signal?(t->mote?"<-":"->"):"<>", \
         t->medium, t->last, \
         t->do_schedule?"++":"--", \
         t->priority, \
-        t->do_request?"R":(t->do_accept?"A":(util_frames_busy(t->frames)?"B":"I")), \
+        t->do_accept?"A":(t->do_request?"R":(util_frames_busy(t->frames)?"B":"I")), \
         t->frames?util_frames_outlen(t->frames):-1);
 
 
@@ -355,7 +356,7 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
           block->type = tmesh_block_medium;
       
           // request/accept a bit different
-          if(stream->do_request)
+          if(stream->do_request && !stream->do_accept)
           {
             block->head = 1;
           }else{
@@ -370,7 +371,7 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
             STATED(tempo);
           }
 
-          LOG_CRAZY("signalling %s about a stream %s",hashname_short(mote->link->id),(block->head == 1)?"request":"accept");
+          LOG_INFO("signalling %s about a stream %s",hashname_short(mote->link->id),(block->head == 1)?"request":"accept");
           memcpy(block->body,&(stream->medium),4);
         }
 
@@ -523,7 +524,7 @@ static tempo_t tempo_blocks_rx(tempo_t tempo, uint8_t *blocks)
             case 1: // stream request
               if(!from || !from->link) break; // must be to us
               if(!mote_send(from, NULL)) break; // make sure stream exists
-              LOG_CRAZY("stream request from %s on medium %lu",hashname_short(from->link->id),body);
+              LOG_INFO("stream request from %s on medium %lu",hashname_short(from->link->id),body);
               from->stream->do_accept = 1; // start signalling accept stream
               from->stream->do_schedule = 0; // hold stream scheduling activity
               tempo_medium(from->stream, body);
