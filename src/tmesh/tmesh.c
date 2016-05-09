@@ -22,7 +22,14 @@ typedef struct mblock_struct {
   uint8_t body[4]; // payload
 } *mblock_t;
 
-#define STATED(t) util_sys_log(6, "", __LINE__, t->mote?hashname_short(t->mote->link->id):"selfself", "\t\t%s %u %04d %s%u %s %d", t->is_signal?(t->mote?"<-":"->"):"<>", t->medium, t->last, t->do_schedule?"++":"--", t->priority, t->do_request?"R":(t->do_accept?"A":(util_frames_busy(t->frames)?"B":"I")), t->frames?util_frames_outlen(t->frames):-1);
+#define STATED(t) util_sys_log(6, "", __LINE__, t->mote?hashname_short(t->mote->link->id):"selfself", \
+      "\t\t%s %u %04d %s%u %s %d", \
+        t->is_signal?(t->mote?"<-":"->"):"<>", \
+        t->medium, t->last, \
+        t->do_schedule?"++":"--", \
+        t->priority, \
+        t->do_request?"R":(t->do_accept?"A":(util_frames_busy(t->frames)?"B":"I")), \
+        t->frames?util_frames_outlen(t->frames):-1);
 
 
 // forward-ho
