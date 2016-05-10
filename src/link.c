@@ -560,12 +560,21 @@ link_t link_down(link_t link)
   return link;
 }
 
+// recursive to handle deletes
+chan_t link_process_chan(chan_t c, uint32_t now)
+{
+  if(!c) return NULL;
+  chan_t next = link_process_chan(chan_next(c), now);
+  if(!chan_process(c, now)) return next;
+  c->next = next;
+  return c;
+}
+
 // process any channel timeouts based on the current/given time
 link_t link_process(link_t link, uint32_t now)
 {
-  chan_t c;
   if(!link || !now) return LOG("bad args");
-  for(c = link->chans;c;c = chan_next(c)) chan_process(c, now);
+  link->chans = link_process_chan(link->chans, now);
   if(link->csid) return link;
   
   // flagged to remove, do that now
