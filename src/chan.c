@@ -51,7 +51,6 @@ chan_t chan_free(chan_t c)
   // free any other queued packets
   lob_freeall(c->in);
   lob_freeall(c->sent);
-  LOG("TODO remove from link->chans");
   free(c);
   return NULL;
 }
@@ -348,7 +347,11 @@ chan_t chan_process(chan_t c, uint32_t now)
   // if we need to generate an ack/miss yet, do that
   if(c->ack != c->acked) chan_send(c,chan_oob(c));
   
-  if(c->state == CHAN_ENDED) LOG("TODO channel is now ended, free it");
+  if(c->state == CHAN_ENDED)
+  {
+    LOG("channel is now ended, freeing it");
+    c = chan_free(c);
+  }
   
   return c;
 }
