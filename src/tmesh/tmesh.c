@@ -22,7 +22,7 @@ typedef struct mblock_struct {
   uint8_t body[4]; // payload
 } *mblock_t;
 
-#define STATED(t) util_sys_log(6, "", __LINE__, __func__, \
+#define STATED(t) util_sys_log(6, "", __LINE__, "", \
       "\t%s %s %u %04d %s%u %s %d", \
         t->mote?hashname_short(t->mote->link->id):"selfself", \
         t->is_signal?(t->mote?"<-":"->"):"<>", \
@@ -749,7 +749,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
 
   // process any blocks
   tempo_blocks_rx(tempo, blocks);
-  STATED(tempo);
+//  STATED(tempo);
 
   return tempo;
 }
