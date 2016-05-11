@@ -141,6 +141,9 @@ mote_t tmesh_mote(tmesh_t tm, link_t link);
 // drops and free's this mote (link just goes to down state if no other paths)
 tmesh_t tmesh_demote(tmesh_t tm, mote_t mote);
 
+// returns mote for this id if one exists
+mote_t tmesh_moted(tmesh_t tm, hashname_t id);
+
 // tempo state
 struct tempo_struct
 {

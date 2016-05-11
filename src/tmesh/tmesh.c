@@ -625,7 +625,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
     // idle mote stream rx fail is a goner
     if(tempo->mote && !tempo->is_signal && !tempo->do_tx && !util_frames_busy(tempo->frames))
     {
-      LOG_CRAZY("dropping idle tempo stream");
+      LOG_CRAZY("dropping idle mote stream");
       knock->do_gone = 1; 
     }
     return LOG_CRAZY("failed RX, miss at %lu",tempo->c_miss);
@@ -670,7 +670,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
       // process blocks directly, first sender nickname NOTE: can this be done in tempo_blocks somehow?
       memcpy(blocks,frame+10,50);
       hashname_t id = hashname_sbin(blocks);
-      if(mesh_linkid(tm->mesh,id)) LOG_CRAZY("skipping known beacon from %s",hashname_short(id));
+      if(tmesh_moted(tm,id)) LOG_DEBUG("skipping beacon from known neighbor %s",hashname_short(id));
 
       block = (mblock_t)(blocks+5);
       uint32_t app;
@@ -1033,6 +1033,15 @@ tmesh_t tmesh_demote(tmesh_t tm, mote_t mote)
 
   mote_free(mote);
   return tm;
+}
+
+// returns mote for this id if one exists
+mote_t tmesh_moted(tmesh_t tm, hashname_t id)
+{
+  if(!tm || !id) return LOG_WARN("bad args");
+  mote_t mote;
+  for(mote=tm->motes;mote;mote = mote->next) if(hashname_scmp(mote->link->id,id) == 0) return mote;
+  return NULL;
 }
 
 // just the basics ma'am
