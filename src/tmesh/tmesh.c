@@ -218,6 +218,7 @@ static tempo_t tempo_init(tempo_t tempo, hashname_t id_shared)
 
     LOG_CRAZY("signal %s",(tempo == tm->beacon)?"beacon":((tempo == tm->signal)?"out":"in"));
     tempo_medium(tempo, tm->m_signal);
+    tempo->do_schedule = 1; // signals always are scheduled
 
     if(tempo == tm->beacon)
     {
@@ -497,7 +498,6 @@ static tempo_t tempo_blocks_rx(tempo_t tempo, uint8_t *blocks)
         case tmesh_block_at:
           if(!about) break; // require known mote
           about->signal->at = (body + tempo->at); // is an offset from this tempo
-          about->signal->do_schedule = 1; // make sure we're listening
           break;
         case tmesh_block_seq:
           if(!about) break; // require known mote
@@ -775,7 +775,7 @@ static tempo_t tempo_gone(tempo_t tempo)
     LOG_CRAZY("stream %s",(tempo == tm->stream)?"shared":"private");
     if(tempo == tm->stream){ // shared stream
       tm->stream = tempo_free(tempo);
-      tm->beacon->do_schedule = 1;
+      tm->beacon->do_schedule = 1; // re-enable beacon
       // use slower beacon medium if connected
       tempo_medium(tm->beacon, tm->motes?tm->m_beacon2:tm->m_beacon);
       STATED(tm->beacon);
@@ -870,7 +870,6 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   {
     tm->beacon = tempo_new(tm);
     tm->beacon->is_signal = 1;
-    tm->beacon->do_schedule = 1;
     tempo_init(tm->beacon, NULL);
     STATED(tm->beacon);
 
@@ -883,10 +882,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   // start w/ beacon
   tempo_t best = NULL;
   tempo_schedule(tm->beacon, at);
-  if(tm->beacon->do_schedule)
-  {
-    best = tm->sort(tm, best, tm->beacon);
-  }
+  if(tm->beacon->do_schedule) best = tm->sort(tm, best, tm->beacon);
   
   // and shared stream (may not exist)
   if(tm->stream && tm->stream->do_schedule)
@@ -896,11 +892,8 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   }
 
   // upcheck our signal
-  if(tm->signal->do_schedule)
-  {
-    tempo_schedule(tm->signal, at);
-    best = tm->sort(tm, best, tm->signal);
-  }
+  tempo_schedule(tm->signal, at);
+  if(tm->signal->do_schedule) best = tm->sort(tm, best, tm->signal);
 
   // walk all the tempos for next best knock
   mote_t mote;
@@ -908,10 +901,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   {
     // advance signal, always elected for best
     tempo_schedule(mote->signal, at);
-    if(mote->signal->do_schedule)
-    {
-      best = tm->sort(tm, best, mote->signal);
-    }
+    if(mote->signal->do_schedule) best = tm->sort(tm, best, mote->signal);
     
     // advance stream too
     if(mote->stream && mote->stream->do_schedule)
@@ -997,13 +987,6 @@ tmesh_t tmesh_rebase(tmesh_t tm, uint32_t at)
 mote_t tmesh_mote(tmesh_t tm, link_t link)
 {
   if(!tm || !link) return LOG_WARN("bad args");
-
-  // ensure our signal is running
-  if(!tm->signal->do_schedule)
-  {
-    tm->signal->do_schedule = 1;
-    STATED(tm->signal);
-  }
 
   // look for existing and reset stream if given
   mote_t mote;
