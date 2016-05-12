@@ -202,7 +202,6 @@ static tempo_t tempo_init(tempo_t tempo, hashname_t id_shared)
   if(!tempo) return LOG_WARN("bad args");
   tmesh_t tm = tempo->tm;
   uint8_t roll[64] = {0};
-  if(memcmp(tempo->secret,roll,32) != 0) return LOG_WARN("tempo already initialized");
 
   // common base secret from community
   e3x_hash((uint8_t*)(tempo->tm->community),strlen(tempo->tm->community),tempo->secret);
@@ -240,6 +239,7 @@ static tempo_t tempo_init(tempo_t tempo, hashname_t id_shared)
 
     LOG_CRAZY("stream %s",(tempo == tm->stream)?"shared":"private");
 
+    if(tempo->frames) util_frames_free(tempo->frames);
     tempo->frames = util_frames_new(64);
     if(tempo == tm->stream) // shared stream
     {
@@ -421,7 +421,6 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
 
       block->done = 1;
 
-      LOG_INFO("STREAM META >>%s",util_hex(blocks,50,NULL));
       // TODO include signal blocks from last routed-from mote
     }else{ // bad
       return LOG_WARN("unknown stream state");
@@ -444,7 +443,7 @@ static tempo_t tempo_blocks_rx(tempo_t tempo, uint8_t *blocks)
   struct hashname_struct hn_val;
   hashname_t seen;
   uint8_t at;
-  if(tempo->mote && !tempo->is_signal) LOG_INFO("STREAM META <<%s",util_hex(blocks,50,NULL));
+
   for(at = 0;at < 12;at++)
   {
     about = from = NULL;
