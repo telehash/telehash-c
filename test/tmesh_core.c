@@ -34,9 +34,10 @@ tmesh_t driver_advance(tmesh_t tm, tempo_t tempo, uint8_t seed[8])
   return tm;
 }
 
-tmesh_t driver_init(tmesh_t tm, tempo_t tempo)
+tmesh_t driver_medium(tmesh_t tm, tempo_t tempo, uint32_t medium)
 {
   tempo->driver = (void*)1; // flag for test check
+  tempo->medium = medium?medium:1;
   return tm;
 }
 
@@ -65,18 +66,15 @@ int main(int argc, char **argv)
   link_t linkAB = link_get(meshA,hnB);
   fail_unless(linkAB);
   
-  netA = tmesh_new(meshA, "test", NULL, (uint32_t[4]){1,2,2,3});
+  netA = tmesh_new(meshA, "test", NULL);
   fail_unless(netA);
   
   netA->sort = driver_sort;
   netA->schedule = driver_schedule;
   netA->advance = driver_advance;
-  netA->init = driver_init;
+  netA->medium = driver_medium;
   netA->free = driver_free;
   
-  fail_unless(netA->m_beacon == 1);
-  fail_unless(netA->m_signal == 2);
-  fail_unless(netA->m_stream == 3);
   fail_unless(netA->knock);
   fail_unless(strcmp(netA->community,"test") == 0);
 
@@ -99,7 +97,7 @@ int main(int argc, char **argv)
   fail_unless(moteB->link == linkAB);
   fail_unless(moteB->pipe);
   fail_unless(moteB->signal);
-  fail_unless(moteB->signal->medium == 2);
+  fail_unless(moteB->signal->medium == 1);
   fail_unless(moteB->signal->driver == (void*)1);
 
   /*

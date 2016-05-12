@@ -166,17 +166,13 @@ static tempo_t tempo_new(tmesh_t tm)
 static tempo_t tempo_medium(tempo_t tempo, uint32_t medium)
 {
   if(!tempo) return LOG_WARN("bad args");
+  tmesh_t tm = tempo->tm;
+  if(!tm->medium) return LOG_ERROR("driver missing");
 
-  if(!medium || tempo->medium == medium) return tempo;
+  // no-op if medium is set and no change is requested
+  if(tempo->medium && (tempo->medium == medium || !medium)) return tempo;
 
-  // driver init for any medium changes
-  uint32_t revert = tempo->medium;
-  tempo->medium = medium;
-  if(!tempo->tm->init(tempo->tm, tempo))
-  {
-    tempo->medium = revert;
-    LOG_WARN("driver failed medium init from %lu to %lu",revert,medium);
-  }
+  if(!tm->medium(tm, tempo, medium)) return LOG_WARN("driver failed medium %lu",medium);
 
   return tempo;
 }
@@ -217,14 +213,12 @@ static tempo_t tempo_init(tempo_t tempo, hashname_t id_shared)
   {
 
     LOG_CRAZY("signal %s",(tempo == tm->beacon)?"beacon":((tempo == tm->signal)?"out":"in"));
-    tempo_medium(tempo, tm->m_signal);
     tempo->do_schedule = 1; // signals always are scheduled
 
     if(tempo == tm->beacon)
     {
       tempo->priority = 1; // low
       tempo->do_tx = 1;
-      tempo_medium(tempo, tm->m_beacon); // faster starting
       e3x_rand((uint8_t*)&(tempo->seq),4); // random sequence
       // nothing extra to add, just copy for roll
       memcpy(roll+32,roll,32);
@@ -245,7 +239,6 @@ static tempo_t tempo_init(tempo_t tempo, hashname_t id_shared)
   }else{ // is stream
 
     LOG_CRAZY("stream %s",(tempo == tm->stream)?"shared":"private");
-    tempo_medium(tempo, tm->m_stream);
 
     tempo->frames = util_frames_new(64);
     if(tempo == tm->stream) // shared stream
@@ -277,6 +270,9 @@ static tempo_t tempo_init(tempo_t tempo, hashname_t id_shared)
   }else{
     e3x_hash(roll,32,tempo->secret);
   }
+  
+  // tell driver to set the medium
+  tempo_medium(tempo, 0);
   
   STATED(tempo);
   
@@ -778,10 +774,7 @@ static tempo_t tempo_gone(tempo_t tempo)
     LOG_CRAZY("stream %s",(tempo == tm->stream)?"shared":"private");
     if(tempo == tm->stream){ // shared stream
       tm->stream = tempo_free(tempo);
-      tm->beacon->do_schedule = 1; // re-enable beacon
-      // use slower beacon medium if connected
-      tempo_medium(tm->beacon, tm->motes?tm->m_beacon2:tm->m_beacon);
-      STATED(tm->beacon);
+      tempo_init(tm->beacon, NULL); // re-initialize beacon
     }else if(tempo->mote){ // private stream
       mote_t mote = tempo->mote;
       // idle it
@@ -1007,6 +1000,8 @@ mote_t tmesh_mote(tmesh_t tm, link_t link)
   mote->stream = tm->stream;
   mote->stream->mote = mote;
   tm->stream = NULL; // mote took it over
+  tempo_init(tm->beacon, NULL); // re-initialize beacon
+  
   
   // follow w/ handshake
   util_frames_send(mote->stream->frames, link_handshakes(mote->link));
@@ -1048,7 +1043,7 @@ mote_t tmesh_moted(tmesh_t tm, hashname_t id)
 }
 
 // just the basics ma'am
-tmesh_t tmesh_new(mesh_t mesh, char *name, char *pass, uint32_t mediums[4])
+tmesh_t tmesh_new(mesh_t mesh, char *name, char *pass)
 {
   tmesh_t tm;
   if(!mesh || !name) return LOG_WARN("bad args");
@@ -1062,10 +1057,6 @@ tmesh_t tmesh_new(mesh_t mesh, char *name, char *pass, uint32_t mediums[4])
   tm->mesh = mesh;
   tm->community = strdup(name);
   if(pass) tm->password = strdup(pass);
-  tm->m_beacon = mediums[0];
-  tm->m_beacon2 = mediums[1];
-  tm->m_signal = mediums[2];
-  tm->m_stream = mediums[3];
 
   // NOTE: don't create any tempos yet since driver has to add callbacks after this
 

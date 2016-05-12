@@ -108,21 +108,20 @@ struct tmesh_struct
   tempo_t signal; // outgoing signal, unique to us
   tempo_t stream; // have an always-running shared stream, keyed from beacon for handshakes, RX for alerts
   tempo_t beacon; // only one of these, advertises our shared stream
-  uint32_t m_beacon, m_beacon2, m_signal, m_stream; // default mediums
   uint32_t app; // available for app to use to send custom block
 
   // driver interface
   tempo_t (*sort)(tmesh_t tm, tempo_t a, tempo_t b);
   tmesh_t (*schedule)(tmesh_t tm); // called whenever a new knock is ready to be scheduled
   tmesh_t (*advance)(tmesh_t tm, tempo_t tempo, uint8_t seed[8]); // advances tempo to next window
-  tmesh_t (*init)(tmesh_t tm, tempo_t tempo); // driver can initialize a new tempo
+  tmesh_t (*medium)(tmesh_t tm, tempo_t tempo, uint32_t medium); // driver can initialize/update a tempo's medium
   tmesh_t (*accept)(tmesh_t tm, hashname_t id, uint32_t app); // driver handles new neighbors, returns tm to continue or NULL to ignore
   tmesh_t (*free)(tmesh_t tm, tempo_t tempo); // driver can free any associated tempo resources
   knock_t knock;
 };
 
-// join a new tmesh community, pass optional, mediums are {beacon, signal, stream}
-tmesh_t tmesh_new(mesh_t mesh, char *name, char *pass, uint32_t mediums[4]);
+// join a new tmesh community, pass optional
+tmesh_t tmesh_new(mesh_t mesh, char *name, char *pass);
 tmesh_t tmesh_free(tmesh_t tm);
 
 // process knock that has been completed by a driver
