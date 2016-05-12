@@ -615,13 +615,16 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
   // if error just increment stats and fail
   if(knock->do_err)
   {
-    tempo->c_miss++;
+    // beacon rx is seek only, everyone else is a miss count
+    if(tempo != tm->beacon) tempo->c_miss++;
+
     // shared streams force down with low tolerance for misses (NOTE this logic could be more efficienter)
     if(tempo == tm->stream && !tempo->c_rx && tempo->c_miss > 1)
     {
       LOG_CRAZY("beacon'd stream no response");
       knock->do_gone = 1; 
     }
+
     // idle mote stream rx fail is a goner
     if(tempo->mote && !tempo->is_signal && !tempo->do_tx && !util_frames_busy(tempo->frames))
     {
