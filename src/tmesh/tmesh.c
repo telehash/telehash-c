@@ -170,7 +170,7 @@ static tempo_t tempo_medium(tempo_t tempo, uint32_t medium)
   if(!tm->medium) return LOG_ERROR("driver missing");
 
   // no-op if medium is set and no change is requested
-  if(tempo->medium && (tempo->medium == medium || !medium)) return tempo;
+  if(tempo->medium && (tempo->medium == medium)) return tempo;
 
   if(!tm->medium(tm, tempo, medium)) return LOG_WARN("driver failed medium %lu",medium);
 
@@ -579,7 +579,7 @@ static tempo_t tempo_knocked_tx(tempo_t tempo, knock_t knock)
       tm->stream->at = knock->stopped;
       tm->stream->do_schedule = 1;
       tm->stream->do_tx = 1;
-      tm->stream->priority = 4;
+      tm->stream->priority = 2;
       STATED(tm->stream);
       
       // quiet beacon while shared stream is active
@@ -661,14 +661,14 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
       // might be busy receiving already
       if(tm->stream)
       {
-        LOG_DEBUG("beacon received while processing another, switching");
+        if(tm->stream->c_rx) LOG_DEBUG("beacon received while processing another, switching");
         tm->stream = tempo_free(tm->stream);
       }
 
       // process blocks directly, first sender nickname NOTE: can this be done in tempo_blocks somehow?
       memcpy(blocks,frame+10,50);
       hashname_t id = hashname_sbin(blocks);
-      if(tmesh_moted(tm,id)) LOG_DEBUG("skipping beacon from known neighbor %s",hashname_short(id));
+      if(tmesh_moted(tm,id)) return LOG_DEBUG("skipping beacon from known neighbor %s",hashname_short(id));
 
       block = (mblock_t)(blocks+5);
       uint32_t app;
@@ -1002,8 +1002,9 @@ mote_t tmesh_mote(tmesh_t tm, link_t link)
   tempo_init(tm->beacon, NULL); // re-initialize beacon
   
   
-  // follow w/ handshake
+  // follow w/ handshake and bump priority
   util_frames_send(mote->stream->frames, link_handshakes(mote->link));
+  mote->stream->priority = 4;
 
   STATED(mote->stream);
   STATED(mote->signal);
