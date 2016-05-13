@@ -63,6 +63,30 @@ mote_t mote_send(mote_t mote, lob_t packet)
   return mote;
 }
 
+// send this packet to this id via this router
+mote_t mote_route(mote_t router, hashname_t to, lob_t packet)
+{
+  if(!router || !to || !packet) return LOG_WARN("bad args");
+  tmesh_t tm = router->tm;
+
+  // mote is router, wrap and send to recip via it 
+  LOG_CRAZY("routing packet to %s via %s",hashname_short(to),hashname_short(router->link->id));
+
+  // first wrap routed w/ a head 6 sender, body is orig
+  lob_t wrap = lob_new();
+  lob_head(wrap,hashname_bin(tm->mesh->id),6); // head is sender, extra 1
+  lob_body(wrap,lob_raw(packet),lob_len(packet));
+  lob_free(packet);
+
+  // next wrap w/ intended recipient in header
+  lob_t wrap2 = lob_new();
+  lob_head(wrap2,hashname_bin(to),5); // head is recipient
+  lob_body(wrap2,lob_raw(wrap),lob_len(wrap));
+  lob_free(wrap);
+
+  return mote_send(router, wrap2);
+}
+
 // find a stream to send it to for this mote
 void mote_pipe_send(pipe_t pipe, lob_t packet, link_t recip)
 {
@@ -75,29 +99,10 @@ void mote_pipe_send(pipe_t pipe, lob_t packet, link_t recip)
 
   mote_t mote = (mote_t)(pipe->arg);
 
-  // send direct
-  if(mote->link == recip)
-  {
-    mote_send(mote, packet);
-    return;
-  }
+  // send along direct or routed
+  if(mote->link == recip) mote_send(mote, packet);
+  else mote_route(mote, recip->id, packet);
 
-  // mote is router, wrap and send to recip via it 
-  LOG_CRAZY("routing packet to %s via %s",hashname_short(recip->id),hashname_short(mote->link->id));
-
-  // first wrap routed w/ a head 6 sender, body is orig
-  lob_t wrap = lob_new();
-  lob_head(wrap,hashname_bin(recip->mesh->id),6); // head is sender, extra 1
-  lob_body(wrap,lob_raw(packet),lob_len(packet));
-  lob_free(packet);
-
-  // next wrap w/ intended recipient in header
-  lob_t wrap2 = lob_new();
-  lob_head(wrap2,hashname_bin(recip->id),5); // head is recipient
-  lob_body(wrap2,lob_raw(wrap),lob_len(wrap));
-  lob_free(wrap);
-
-  mote_send(mote, wrap2);
 }
 
 static mote_t mote_free(mote_t mote)
@@ -470,7 +475,7 @@ static tempo_t tempo_blocks_rx(tempo_t tempo, uint8_t *blocks)
         from = tempo->mote;
       }else if((link = mesh_linkid(tm->mesh, id))){
         // about a neighbor
-        about = tmesh_mote(tm, link); // if we have a link, we should have a mote
+        about = tmesh_moted(tm, link->id); // if we have a link, we may have a mote
       }else{
         // about a neighbor's neighbor, store local copy
         seen = &hn_val;
@@ -506,8 +511,8 @@ static tempo_t tempo_blocks_rx(tempo_t tempo, uint8_t *blocks)
           if(about) about->app = body;
           else if(seen && tempo->mote && tm->accept && tm->accept(tm, seen, body))
           {
-            // TODO mote w/ via
-            LOG_WARN("TODO add route to %s via %s",hashname_short(seen),hashname_short(tempo->mote->link->id));
+            LOG_INFO("routing a link probe to %s via %s",hashname_short(seen),hashname_short(tempo->mote->link->id));
+            mote_route(tempo->mote, seen, hashname_im(tm->mesh->keys, 0x1a));
           }
           break;
         case tmesh_block_medium:
