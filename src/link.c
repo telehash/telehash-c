@@ -476,7 +476,7 @@ lob_t link_sync(link_t link)
   LOG("link sync requested at %d from %s to %s",at,hashname_short(link->mesh->id),link->handle);
   for(seen = link->pipes;seen;seen = seen->next)
   {
-    if(!seen->pipe || seen->at == at) continue;
+    if(!seen->pipe || (at && seen->at == at)) continue;
 
     // only create if we have to
     if(!handshakes) handshakes = link_handshakes(link);
