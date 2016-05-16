@@ -151,7 +151,11 @@ link_t link_load(link_t link, uint8_t csid, lob_t key)
   lob_t copy;
 
   if(!link || !csid || !key) return LOG("bad args");
-  if(link->x) return link;
+  if(link->x)
+  {
+    link->csid = link->x->csid; // repair in case mesh_unlink was called, any better place?
+    return link;
+  }
 
   LOG("adding %x key to link %s",csid,link->handle);
   
@@ -472,11 +476,11 @@ lob_t link_sync(link_t link)
   if(!link) return LOG("bad args");
   if(!link->x) return LOG("no exchange");
 
-  at = e3x_exchange_out(link->x,0);
+  at = e3x_exchange_out(link->x,1);
   LOG("link sync requested at %d from %s to %s",at,hashname_short(link->mesh->id),link->handle);
   for(seen = link->pipes;seen;seen = seen->next)
   {
-    if(!seen->pipe || (at && seen->at == at)) continue;
+    if(!seen->pipe || (seen->at == at)) continue;
 
     // only create if we have to
     if(!handshakes) handshakes = link_handshakes(link);
