@@ -189,7 +189,7 @@ link_t mesh_add(mesh_t mesh, lob_t json, pipe_t pipe)
   if(!link) link = link_keys(mesh, keys);
   if(!link) LOG("no hashname");
   
-  LOG("loading keys/paths");
+  LOG("loading keys from %s",lob_json(keys));
   if(keys && (csid = hashname_id(mesh->keys,keys))) link_load(link, csid, keys);
 
   // handle any pipe/paths

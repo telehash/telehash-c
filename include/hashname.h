@@ -5,7 +5,10 @@
 #include "lob.h"
 
 // overall type
-typedef struct hashname_struct *hashname_t;
+typedef struct hashname_struct
+{
+  uint8_t bin[32];
+} *hashname_t;
 
 // only things that actually malloc/free
 hashname_t hashname_dup(hashname_t hn);
