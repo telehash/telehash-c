@@ -55,6 +55,12 @@ mote_t mote_send(mote_t mote, lob_t packet)
 
   // if not scheduled, make sure signalling
   if(!tempo->do_schedule) tempo->do_request = 1;
+
+  if(util_frames_outlen(tempo->frames) > 1000)
+  {
+    lob_free(packet);
+    return LOG_WARN("stream outbox full (%lu), dropping packet",util_frames_outlen(tempo->frames));
+  }
   util_frames_send(tempo->frames, packet);
 
   LOG_CRAZY("delivering %d to mote %s total %lu",lob_len(packet),hashname_short(mote->link->id),util_frames_outlen(tempo->frames));
