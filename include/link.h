@@ -10,8 +10,8 @@ struct link_struct
   hashname_t id;
   e3x_exchange_t x;
   mesh_t mesh;
-  lob_t key;
-  lob_t handshakes;
+  lob_t key; // XO move to bin
+  lob_t handshakes; // XO
   chan_t chans;
   
   // these are for internal link management only

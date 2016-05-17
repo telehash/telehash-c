@@ -13,14 +13,14 @@ struct chan_struct
   chan_t next; // links keep lists
   uint32_t id; // wire id (not unique)
   char *type;
-  lob_t open; // cached for convenience
+  lob_t open; // cached for convenience XO
   uint32_t capacity, max; // totals for windowing
 
   // timer stuff
   uint32_t tsent, trecv; // last send, recv at
   uint32_t timeout; // when in the future to trigger timeout
   
-  // reliable tracking
+  // reliable tracking XO
   lob_t sent;
   lob_t in;
   uint32_t seq, ack, acked, window;
