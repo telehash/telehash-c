@@ -10,8 +10,7 @@ struct link_struct
   hashname_t id;
   e3x_exchange_t x;
   mesh_t mesh;
-  lob_t key; // XO move to bin
-  lob_t handshakes; // XO
+  lob_t key;
   chan_t chans;
   
   // these are for internal link management only
@@ -45,9 +44,6 @@ link_t link_pipe(link_t link, pipe_t pipe);
 // iterate through existing pipes for a link
 pipe_t link_pipes(link_t link, pipe_t after);
 
-// add a custom outgoing handshake packet for this link
-link_t link_handshake(link_t link, lob_t handshake);
-
 // process a decrypted channel packet
 link_t link_receive(link_t link, lob_t inner, pipe_t pipe);
 
@@ -57,8 +53,8 @@ link_t link_receive_handshake(link_t link, lob_t handshake, pipe_t pipe);
 // try to deliver this packet to the best pipe
 link_t link_send(link_t link, lob_t inner);
 
-// return current handshake(s)
-lob_t link_handshakes(link_t link);
+// return current handshake (caller free's)
+lob_t link_handshake(link_t link);
 
 // send current handshake(s) to all pipes and return them
 lob_t link_sync(link_t link);

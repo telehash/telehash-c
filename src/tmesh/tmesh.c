@@ -1014,7 +1014,7 @@ mote_t tmesh_mote(tmesh_t tm, link_t link)
   
   
   // follow w/ handshake and bump priority
-  util_frames_send(mote->stream->frames, link_handshakes(mote->link));
+  util_frames_send(mote->stream->frames, link_handshake(mote->link));
   mote->stream->priority = 4;
 
   STATED(mote->stream);

@@ -76,7 +76,6 @@ void link_free(link_t link)
     e3x_exchange_free(link->x);
   }
   lob_free(link->key);
-  lob_free(link->handshakes);
   free(link);
 }
 
@@ -287,14 +286,6 @@ link_t link_up(link_t link)
   return link;
 }
 
-// add a custom outgoing handshake packet
-link_t link_handshake(link_t link, lob_t handshake)
-{
-  if(!link) return NULL;
-  link->handshakes = lob_link(handshake, link->handshakes);
-  return link;
-}
-
 // process an incoming handshake
 link_t link_receive_handshake(link_t link, lob_t inner, pipe_t pipe)
 {
@@ -422,49 +413,23 @@ link_t link_send(link_t link, lob_t outer)
   return link;
 }
 
-lob_t link_handshakes(link_t link)
+lob_t link_handshake(link_t link)
 {
-  uint32_t i;
-  uint8_t csid;
-  char *key;
-  lob_t tmp, hs = NULL, handshakes = NULL;
   if(!link) return NULL;
+  if(!link->x) return LOG_DEBUG("no exchange");
   
-  // no keys means we have to generate a handshake for each key
-  if(!link->x)
-  {
-    for(i=0;(key = lob_get_index(link->mesh->keys,i));i+=2)
-    {
-      util_unhex(key,2,&csid);
-      hs = lob_new();
-      tmp = hashname_im(link->mesh->keys, csid);
-      lob_body(hs, lob_raw(tmp), lob_len(tmp));
-      lob_free(tmp);
-      handshakes = lob_link(hs, handshakes);
-    }
-  }else{ // generate one just for this csid
-    handshakes = lob_new();
-    tmp = hashname_im(link->mesh->keys, link->csid);
-    lob_body(handshakes, lob_raw(tmp), lob_len(tmp));
-    lob_free(tmp);
-  }
-
-  // add any custom per-link
-  for(hs = link->handshakes; hs; hs = lob_linked(hs)) handshakes = lob_link(lob_copy(hs), handshakes);
-
-  // add any mesh-wide handshakes
-  for(hs = link->mesh->handshakes; hs; hs = lob_linked(hs)) handshakes = lob_link(lob_copy(hs), handshakes);
+  lob_t handshake = lob_new();
+  lob_t tmp = hashname_im(link->mesh->keys, link->csid);
+  lob_body(handshake, lob_raw(tmp), lob_len(tmp));
+  lob_free(tmp);
   
-  // encrypt them if we can
-  if(link->x)
-  {
-    tmp = handshakes;
-    handshakes = NULL;
-    for(hs = tmp; hs; hs = lob_linked(hs)) handshakes = lob_link(e3x_exchange_handshake(link->x, hs), handshakes);
-    lob_free(tmp);
-  }
 
-  return handshakes;
+  // encrypt it
+  tmp = handshake;
+  handshake = e3x_exchange_handshake(link->x, tmp);
+  lob_free(tmp);
+
+  return handshake;
 }
 
 // make sure all pipes have the current handshake
@@ -472,7 +437,7 @@ lob_t link_sync(link_t link)
 {
   uint32_t at;
   seen_t seen;
-  lob_t handshakes = NULL, hs = NULL;
+  lob_t handshake = NULL;
   if(!link) return LOG("bad args");
   if(!link->x) return LOG("no exchange");
 
@@ -483,14 +448,14 @@ lob_t link_sync(link_t link)
     if(!seen->pipe || (seen->at == at)) continue;
 
     // only create if we have to
-    if(!handshakes) handshakes = link_handshakes(link);
+    if(!handshake) handshake = link_handshake(link);
 
     seen->at = at;
-    for(hs = handshakes; hs; hs = lob_linked(hs)) pipe_send(seen->pipe, lob_copy(hs), link);
+    pipe_send(seen->pipe, lob_copy(handshake), link);
   }
 
   // caller can re-use and must free
-  return handshakes;
+  return handshake;
 }
 
 // trigger a new exchange sync
