@@ -14,15 +14,11 @@ struct chan_struct
   uint32_t id; // wire id (not unique)
   char *type;
   uint32_t capacity, max; // totals for windowing
+  lob_t in;
 
   // timer stuff
   uint32_t tsent, trecv; // last send, recv at
   uint32_t timeout; // when in the future to trigger timeout
-  
-  // reliable tracking XO
-  lob_t sent;
-  lob_t in;
-  uint32_t seq, ack, acked, window;
   
   // direct handler
   void *arg;
