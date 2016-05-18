@@ -13,7 +13,6 @@ struct chan_struct
   chan_t next; // links keep lists
   uint32_t id; // wire id (not unique)
   char *type;
-  lob_t open; // cached for convenience XO
   uint32_t capacity, max; // totals for windowing
 
   // timer stuff
@@ -62,7 +61,6 @@ chan_t chan_handle(chan_t c, void (*handle)(chan_t c, void *arg), void *arg);
 // convenience functions, accessors
 chan_t chan_next(chan_t c); // c->next
 uint32_t chan_id(chan_t c); // c->id
-lob_t chan_open(chan_t c); // c->open
 enum chan_states chan_state(chan_t c);
 
 

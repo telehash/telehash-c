@@ -21,7 +21,6 @@ chan_t chan_new(lob_t open)
   memset(c,0,sizeof (struct chan_struct));
   c->state = CHAN_OPENING;
   c->id = id;
-  c->open = lob_copy(open);
   c->type = lob_get(open,"type");
   c->capacity = 1024*1024; // 1MB total default
 
@@ -46,8 +45,6 @@ chan_t chan_free(chan_t c)
     c->handle(c, c->arg);
   }
 
-  // free cached packet
-  lob_free(c->open);
   // free any other queued packets
   lob_freeall(c->in);
   lob_freeall(c->sent);
@@ -72,13 +69,6 @@ uint32_t chan_timeout(chan_t c, uint32_t at)
 
   c->timeout = at;
   return c->timeout;
-}
-
-// returns the open packet (always cached)
-lob_t chan_open(chan_t c)
-{
-  if(!c) return NULL;
-  return c->open;
 }
 
 chan_t chan_next(chan_t c)

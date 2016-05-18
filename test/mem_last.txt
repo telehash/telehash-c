@@ -6,7 +6,7 @@
 48	e3x_self_t
 152	e3x_cipher_t
 88	e3x_exchange_t
-120	chan_t
+112	chan_t
 64	pipe_t
 128	tmesh_t
 72	mote_t
