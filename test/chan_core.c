@@ -23,7 +23,7 @@ int main(int argc, char **argv)
   fail_unless(chan);
   fail_unless(chan_state(chan) == CHAN_OPENING);
   fail_unless(chan_id(chan) == 1);
-  fail_unless(chan_size(chan,0) == 0);
+  fail_unless(chan_size(chan) == 0);
   
   // test timeout erroring
   fail_unless(chan_timeout(chan,1) == 1);

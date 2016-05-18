@@ -29,7 +29,7 @@ lob_t bulk_on_open(link_t link, lob_t open)
   lob_t reply = lob_new();
   lob_set(reply,"c",lob_get(open,"c"));
   chan_receive(chan,open); // consumes the open
-  printf("Done setting up channel: %d\n", chan_size(chan,0));
+  printf("Done setting up channel: %d\n", chan_size(chan));
 
   link_direct(link,reply,NULL);
 

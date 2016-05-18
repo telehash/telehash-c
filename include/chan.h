@@ -13,7 +13,6 @@ struct chan_struct
   chan_t next; // links keep lists
   uint32_t id; // wire id (not unique)
   char *type;
-  uint32_t capacity, max; // totals for windowing
   lob_t in;
 
   // timer stuff
@@ -34,8 +33,8 @@ chan_t chan_free(chan_t c);
 // sets when in the future this channel should timeout auto-error from no receive, returns current timeout
 uint32_t chan_timeout(chan_t c, uint32_t at);
 
-// sets the max size (in bytes) of all buffered data in or out, returns current usage, can pass 0 just to check
-uint32_t chan_size(chan_t c, uint32_t max); // will actively signal incoming window size depending on capacity left
+// returns current inbox cache
+uint32_t chan_size(chan_t c);
 
 // incoming packets
 chan_t chan_receive(chan_t c, lob_t inner); // process into receiving queue

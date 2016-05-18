@@ -22,7 +22,6 @@ chan_t chan_new(lob_t open)
   c->state = CHAN_OPENING;
   c->id = id;
   c->type = lob_get(open,"type");
-  c->capacity = 1024*1024; // 1MB total default
 
   LOG("new channel %d %s",id,type);
   return c;
@@ -202,14 +201,11 @@ chan_t chan_process(chan_t c, uint32_t now)
 }
 
 // size (in bytes) of buffered data in or out
-uint32_t chan_size(chan_t c, uint32_t max)
+uint32_t chan_size(chan_t c)
 {
   uint32_t size = 0;
   lob_t cur;
   if(!c) return 0;
-
-  // update max capacity if given
-  if(max) c->capacity = max;
 
   // add up the sizes of the in and out buffers
   cur = c->in;
