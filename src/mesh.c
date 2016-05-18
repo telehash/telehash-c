@@ -68,7 +68,6 @@ mesh_t mesh_free(mesh_t mesh)
   lob_free(mesh->paths);
   hashname_free(mesh->id);
   e3x_self_free(mesh->self);
-  if(mesh->uri) free(mesh->uri);
   if(mesh->ipv4_local) free(mesh->ipv4_local);
   if(mesh->ipv4_public) free(mesh->ipv4_public);
 
@@ -96,29 +95,6 @@ lob_t mesh_generate(mesh_t mesh)
   if(!secrets) return LOG_ERROR("failed to generate %s",e3x_err());
   if(mesh_load(mesh, secrets, lob_linked(secrets))) return lob_free(secrets);
   return secrets;
-}
-
-// return the best current URI to this endpoint, optional base uri
-char *mesh_uri(mesh_t mesh, char *base)
-{
-  lob_t uri;
-  if(!mesh) return LOG_ERROR("bad args");
-
-  // TODO use a router-provided base
-  uri = util_uri_parse(base?base:"link://127.0.0.1");
-
-  // set best current values
-  util_uri_add_keys(uri, mesh->keys);
-  if(mesh->port_local) lob_set_uint(uri, "port", mesh->port_local);
-  if(mesh->port_public) lob_set_uint(uri, "port", mesh->port_public);
-  if(mesh->ipv4_local) lob_set(uri, "hostname", mesh->ipv4_local);
-  if(mesh->ipv4_public) lob_set(uri, "hostname", mesh->ipv4_public);
-
-  // save/return new encoded output
-  if(mesh->uri) free(mesh->uri);
-  mesh->uri = strdup(util_uri_format(uri));
-  lob_free(uri);
-  return mesh->uri;
 }
 
 // generate json of mesh keys and current paths
