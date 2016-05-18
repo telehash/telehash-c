@@ -12,6 +12,10 @@
 #pragma GCC diagnostic ignored "-Winitializer-overrides"
 #pragma GCC diagnostic ignored "-Woverride-init"
 
+#ifndef RODATA_SEGMENT_CONSTANT
+#define RODATA_SEGMENT_CONSTANT
+#endif
+
 // only at depth 1, track start pointers to match key/value
 #define PUSH(i) if(depth == 1) { if(!index) { val = cur+i; }else{ if(klen && index == 1) start = cur+i; else index--; } }
 
@@ -26,7 +30,7 @@ char *js0n(char *key, size_t klen, char *json, size_t jlen, size_t *vlen)
 	size_t index = 1;
 	int depth = 0;
 	int utf8_remain = 0;
-	static void *gostruct[] = 
+	static void *gostruct[] RODATA_SEGMENT_CONSTANT = 
 	{
 		[0 ... 255] = &&l_bad,
 		['\t'] = &&l_loop, [' '] = &&l_loop, ['\r'] = &&l_loop, ['\n'] = &&l_loop,
@@ -38,7 +42,7 @@ char *js0n(char *key, size_t klen, char *json, size_t jlen, size_t *vlen)
 		[65 ... 90] = &&l_bare, // A-Z
 		[97 ... 122] = &&l_bare // a-z
 	};
-	static void *gobare[] = 
+	static void *gobare[] RODATA_SEGMENT_CONSTANT = 
 	{
 		[0 ... 31] = &&l_bad,
 		[32 ... 126] = &&l_loop, // could be more pedantic/validation-checking
@@ -46,7 +50,7 @@ char *js0n(char *key, size_t klen, char *json, size_t jlen, size_t *vlen)
 		[','] = &&l_unbare, [']'] = &&l_unbare, ['}'] = &&l_unbare, [':'] = &&l_unbare,
 		[127 ... 255] = &&l_bad
 	};
-	static void *gostring[] = 
+	static void *gostring[] RODATA_SEGMENT_CONSTANT = 
 	{
 		[0 ... 31] = &&l_bad, [127] = &&l_bad,
 		[32 ... 126] = &&l_loop,
@@ -57,13 +61,13 @@ char *js0n(char *key, size_t klen, char *json, size_t jlen, size_t *vlen)
 		[240 ... 247] = &&l_utf8_4,
 		[248 ... 255] = &&l_bad
 	};
-	static void *goutf8_continue[] =
+	static void *goutf8_continue[] RODATA_SEGMENT_CONSTANT =
 	{
 		[0 ... 127] = &&l_bad,
 		[128 ... 191] = &&l_utf_continue,
 		[192 ... 255] = &&l_bad
 	};
-	static void *goesc[] = 
+	static void *goesc[] RODATA_SEGMENT_CONSTANT = 
 	{
 		[0 ... 255] = &&l_bad,
 		['"'] = &&l_unesc, ['\\'] = &&l_unesc, ['/'] = &&l_unesc, ['b'] = &&l_unesc,
