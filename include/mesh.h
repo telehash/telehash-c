@@ -26,7 +26,6 @@ struct mesh_struct
   // shared network info
   uint16_t port_local, port_public;
   char *ipv4_local, *ipv4_public;
-  lob_t handshakes, cached; // handshakes
   link_t links;
 };
 
@@ -58,12 +57,6 @@ link_t mesh_linkid(mesh_t mesh, hashname_t id); // TODO, clean this up
 
 // remove this link, will event it down and clean up during next process()
 mesh_t mesh_unlink(link_t link);
-
-// add a custom outgoing handshake packet to all links
-mesh_t mesh_handshake(mesh_t mesh, lob_t handshake);
-
-// query the cache of handshakes for a matching one with a specific type
-lob_t mesh_handshakes(mesh_t mesh, lob_t handshake, char *type);
 
 // processes incoming packet, it will take ownership of packet, returns link delivered to if success
 link_t mesh_receive(mesh_t mesh, lob_t packet, pipe_t pipe);

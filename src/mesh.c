@@ -66,7 +66,6 @@ mesh_t mesh_free(mesh_t mesh)
   xht_free(mesh->index);
   lob_free(mesh->keys);
   lob_free(mesh->paths);
-  lob_freeall(mesh->cached);
   hashname_free(mesh->id);
   e3x_self_free(mesh->self);
   if(mesh->uri) free(mesh->uri);
@@ -159,17 +158,6 @@ mesh_t mesh_process(mesh_t mesh, uint32_t now)
   {
     next = link->next;
     link_process(link, now);
-  }
-  
-  // cull/gc the cache for anything older than 5 seconds
-  lob_t iter = mesh->cached;
-  while(iter)
-  {
-    lob_t tmp = iter;
-    iter = lob_next(iter);
-    if(tmp->id >= (now-5)) continue; // 5 seconds
-    mesh->cached = lob_splice(mesh->cached, tmp);
-    lob_free(tmp);
   }
   
   return mesh;
@@ -313,31 +301,6 @@ void mesh_discover(mesh_t mesh, lob_t discovered, pipe_t pipe)
   for(on = mesh->on; on; on = on->next) if(on->discover) on->discover(mesh, discovered, pipe);
 }
 
-// add a custom outgoing handshake packet to all links
-mesh_t mesh_handshake(mesh_t mesh, lob_t handshake)
-{
-  if(!mesh) return NULL;
-  if(handshake && !lob_get(handshake,"type")) return LOG("handshake missing a type: %s",lob_json(handshake));
-  mesh->handshakes = lob_link(handshake, mesh->handshakes);
-  return mesh;
-}
-
-// query the cache of handshakes for a matching one with a specific type
-lob_t mesh_handshakes(mesh_t mesh, lob_t handshake, char *type)
-{
-  lob_t matched;
-  char *id;
-  
-  if(!mesh || !type || !(id = lob_get(handshake,"id"))) return LOG("bad args");
-  
-  for(matched = mesh->cached;matched;matched = lob_match(matched->next,"id",id))
-  {
-    if(lob_get_cmp(matched,"type",type) == 0) return matched;
-  }
-  
-  return NULL;
-}
-
 // process any unencrypted handshake packet
 link_t mesh_receive_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe)
 {
@@ -416,9 +379,6 @@ link_t mesh_receive_handshake(mesh_t mesh, lob_t handshake, pipe_t pipe)
       free(paths);
     }
   }
-
-  // always add to the front of the cached list if needed in the future
-  mesh->cached = lob_unshift(mesh->cached, handshake);
 
   // tell anyone listening about the newly discovered handshake
   mesh_discover(mesh, handshake, pipe);

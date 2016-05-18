@@ -1,5 +1,5 @@
 8	void*
-104	mesh_t
+88	mesh_t
 72	link_t
 88	lob_t
 16	util_chunk_t
