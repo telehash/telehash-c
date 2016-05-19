@@ -17,7 +17,6 @@ link_t link_new(mesh_t mesh, hashname_t id)
   link->id = hashname_dup(id);
   link->csid = 0x01; // default state
   link->mesh = mesh;
-  memcpy(link->handle,hashname_short(link->id),9);
   link->next = mesh->links;
   mesh->links = link;
 
@@ -28,7 +27,7 @@ void link_free(link_t link)
 {
   if(!link) return;
 
-  LOG("dropping link %s",link->handle);
+  LOG("dropping link %s",hashname_short(link->id));
   mesh_t mesh = link->mesh;
   if(mesh->links == link)
   {
@@ -138,7 +137,7 @@ link_t link_load(link_t link, uint8_t csid, lob_t key)
     return link;
   }
 
-  LOG("adding %x key to link %s",csid,link->handle);
+  LOG("adding %x key to link %s",csid,hashname_short(link->id));
   
   // key must be bin
   if(key->body_len)
@@ -161,7 +160,7 @@ link_t link_load(link_t link, uint8_t csid, lob_t key)
   link->key = copy;
   
   e3x_exchange_out(link->x, util_sys_seconds());
-  LOG("new exchange session to %s",link->handle);
+  LOG("new exchange session to %s",hashname_short(link->id));
 
   return link;
 }
@@ -206,7 +205,7 @@ link_t link_receive_handshake(link_t link, lob_t inner)
     if(!link_load(link, csid, inner))
     {
       lob_free(inner);
-      return LOG("load key failed for %s %u %s",link->handle,csid,util_hex(inner->body,inner->body_len,NULL));
+      return LOG("load key failed for %s %u %s",hashname_short(link->id),csid,util_hex(inner->body,inner->body_len,NULL));
     }
   }
 

@@ -21,7 +21,6 @@ struct link_struct
   // these are for internal link management only
   link_t next;
   uint8_t csid;
-  char handle[9]; // b32 hashname_short
 };
 
 // these all create or return existing one from the mesh
