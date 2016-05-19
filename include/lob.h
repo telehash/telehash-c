@@ -98,12 +98,6 @@ lob_t lob_get_json(lob_t p, char *key); // creates new packet from key:object va
 lob_t lob_get_array(lob_t p, char *key); // list of packet->next from key:[object,object]
 lob_t lob_get_base32(lob_t p, char *key); // decoded binary is the return body
 
-// handles cloaking conveniently, len is lob_len()+(8*rounds)
-uint8_t *lob_cloak(lob_t p, uint8_t rounds);
-
-// decloaks and parses
-lob_t lob_decloak(uint8_t *cloaked, size_t len);
-
 // TODO, this would be handy, js syntax to get a json value
 // char *lob_eval(lob_t p, "foo.bar[0]['zzz']");
 
