@@ -95,7 +95,6 @@ int main(int argc, char **argv)
   mote_t moteB = tmesh_mote(netA, linkAB);
   fail_unless(moteB);
   fail_unless(moteB->link == linkAB);
-  fail_unless(moteB->pipe);
   fail_unless(moteB->signal);
   fail_unless(moteB->signal->medium == 1);
   fail_unless(moteB->signal->driver == (void*)1);

@@ -7,7 +7,8 @@ LIB = src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base
 E3X = src/e3x/e3x.c src/e3x/self.c src/e3x/exchange.c src/e3x/cipher.c
 MESH = src/mesh.c src/link.c src/chan.c
 EXT = src/ext/block.c
-NET = src/net/loopback.c src/net/udp4.c src/net/tcp4.c src/net/serial.c
+#NET = src/net/loopback.c src/net/udp4.c src/net/tcp4.c src/net/serial.c
+NET = src/net/loopback.c 
 UTIL = src/util/util.c src/util/chunks.c src/util/frames.c src/unix/util.c src/unix/util_sys.c
 TMESH = src/tmesh/tmesh.c 
 
@@ -103,8 +104,9 @@ TAGS:
 idgen: $(IDGEN_OBJFILES)
 	$(CC) $(CFLAGS) -o bin/idgen $(IDGEN_OBJFILES) $(LDFLAGS)
 
-ping: $(PING_OBJFILES)
-	$(CC) $(CFLAGS) -o bin/ping $(PING_OBJFILES) $(LDFLAGS)
+ping:
+#ping: $(PING_OBJFILES)
+#	$(CC) $(CFLAGS) -o bin/ping $(PING_OBJFILES) $(LDFLAGS)
 
 router: $(ROUTER_OBJFILES)
 	$(CC) $(CFLAGS) -o bin/router $(ROUTER_OBJFILES) $(LDFLAGS)

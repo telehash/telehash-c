@@ -1,18 +1,15 @@
 #include "mesh.h"
 #include "unit_test.h"
 
-void net_send(pipe_t pipe, lob_t packet, link_t link)
+link_t net_send(link_t link, lob_t packet, void *arg)
 {
-  
+  return link;
 }
 
-pipe_t net_test(link_t link, lob_t path)
+link_t net_test(link_t link, lob_t path)
 {
   fail_unless(path);
-  pipe_t pipe = pipe_new("test");
-  pipe->path = lob_copy(path);
-  pipe->send = &net_send;
-  return pipe;
+  return link_pipe(link, net_send, NULL);
 }
 
 int main(int argc, char **argv)
@@ -45,19 +42,11 @@ int main(int argc, char **argv)
   fail_unless(chan);
   lob_free(open);
 
-  pipe_t pipe = pipe_new("test");
-  fail_unless(pipe);
-  pipe_free(pipe);
-
   mesh_on_path(mesh, "test", net_test);
-  pipe = link_path(link,lob_set(lob_new(),"type","test"));
-  fail_unless(pipe);
-  fail_unless(util_cmp(pipe->type,"test") == 0);
-  fail_unless(link->pipes);
-  fail_unless(link_pipes(link,NULL) == pipe);
-  fail_unless(link_pipes(link,pipe) == NULL);
+  link = mesh_path(mesh,link,lob_set(lob_new(),"type","test"));
+  fail_unless(link);
   
-  fail_unless(strlen(lob_json(mesh_json(mesh))) > 100);
+  fail_unless(strlen(lob_json(mesh_json(mesh))) > 10);
   LOG("json %s",lob_json(lob_array(mesh_links(mesh))));
   fail_unless(strlen(lob_json(lob_array(mesh_links(mesh)))) > 10);
 

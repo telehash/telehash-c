@@ -177,7 +177,7 @@ link_t link_pipe(link_t link, link_t (*send)(link_t link, lob_t packet, void *ar
   link->send_arg = arg;
   
   // empty flush
-  return link_deliver(link, NULL);
+  return link_send(link, NULL);
 }
 
 // is the link ready/available
@@ -294,7 +294,7 @@ link_t link_receive(link_t link, lob_t inner)
 }
 
 // deliver this packet
-link_t link_deliver(link_t link, lob_t outer)
+link_t link_send(link_t link, lob_t outer)
 {
   if(!link || !link->send_cb)
   {
@@ -307,7 +307,7 @@ link_t link_deliver(link_t link, lob_t outer)
   {
     lob_t first = link->send_wait;
     link->send_wait = NULL;
-    link_deliver(link, first);
+    link_send(link, first);
   }
 
   if(!link->send_cb(link, outer, link->send_arg))
@@ -423,6 +423,14 @@ link_t link_down(link_t link)
     cnext = chan_next(c);
     chan_err(c, "disconnected");
     chan_process(c, 0);
+  }
+
+  // remove pipe
+  if(link->send_cb)
+  {
+    link->send_cb(link, NULL, link->send_arg); // notify jic
+    link->send_cb = NULL;
+    link->send_arg = NULL;
   }
 
   return link;

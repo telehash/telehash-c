@@ -378,7 +378,7 @@ link_t mesh_receive(mesh_t mesh, lob_t outer)
     lob_t outer2 = lob_parse(outer->body,outer->body_len);
     lob_free(outer);
     LOG_INFO("route forwarding to %s len %d",hashname_short(link->id),lob_len(outer2));
-    link_deliver(link, outer2);
+    link_send(link, outer2);
     return NULL; // don't know the sender
   }
 

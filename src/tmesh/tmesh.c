@@ -94,21 +94,21 @@ mote_t mote_route(mote_t router, hashname_t to, lob_t packet)
 }
 
 // find a stream to send it to for this mote
-void mote_pipe_send(pipe_t pipe, lob_t packet, link_t recip)
+link_t mote_pipe_send(link_t recip, lob_t packet, void *arg)
 {
-  if(!pipe || !pipe->arg || !packet || !recip)
+  if(!recip || !arg || !packet)
   {
-    LOG_WARN("bad args");
     lob_free(packet);
-    return;
+    return LOG_WARN("bad args");
   }
 
-  mote_t mote = (mote_t)(pipe->arg);
+  mote_t mote = (mote_t)(arg);
 
   // send along direct or routed
   if(mote->link == recip) mote_send(mote, packet);
   else mote_route(mote, recip->id, packet);
 
+  return recip;
 }
 
 static mote_t mote_free(mote_t mote)
@@ -117,7 +117,7 @@ static mote_t mote_free(mote_t mote)
   // free signal and stream
   tempo_free(mote->signal);
   tempo_free(mote->stream);
-  pipe_free(mote->pipe); // notifies links
+  link_down(mote->link);
   free(mote);
   return LOG_CRAZY("mote free'd");
 }
@@ -141,10 +141,7 @@ static mote_t mote_new(tmesh_t tm, link_t link)
   tempo_init(mote->signal, NULL);
 
   // set up pipe
-  if(!(mote->pipe = pipe_new("tmesh"))) return mote_free(mote);
-  mote->pipe->arg = mote;
-  mote->pipe->send = mote_pipe_send;
-  link_pipe(link, mote->pipe);
+  link_pipe(link, mote_pipe_send, mote);
   
   STATED(mote->signal);
 

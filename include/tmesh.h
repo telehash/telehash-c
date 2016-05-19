@@ -191,7 +191,6 @@ struct mote_struct
   mote_t next; // for lists
   mote_t via; // router mote
   tmesh_t tm;
-  pipe_t pipe; // one pipe per mote to start stream as needed
   link_t link;
   tempo_t signal; // tracks their signal
   tempo_t stream; // is a private stream, optionally can track their shared stream (TODO)

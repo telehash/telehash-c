@@ -48,7 +48,7 @@ link_t link_receive(link_t link, lob_t inner);
 link_t link_receive_handshake(link_t link, lob_t handshake);
 
 // try to deliver this encrypted packet
-link_t link_deliver(link_t link, lob_t outer);
+link_t link_send(link_t link, lob_t outer);
 
 // encrypt and send this packet
 link_t link_direct(link_t link, lob_t inner);
