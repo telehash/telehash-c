@@ -11,9 +11,6 @@
 // this is the overall holder for each cipher set, function pointers to cs specific implementations
 typedef struct e3x_cipher_struct
 {
-  uint8_t id, csid;
-  char hex[3], *alg;
-
   // these are common functions each one needs to support
   uint8_t *(*rand)(uint8_t *bytes, size_t len); // write len random bytes, returns bytes as well for convenience
   uint8_t *(*hash)(uint8_t *in, size_t len, uint8_t *out32); // sha256's the in, out32 must be [32] from caller
@@ -40,6 +37,9 @@ typedef struct e3x_cipher_struct
   void (*ephemeral_free)(ephemeral_t ephemeral);
   lob_t (*ephemeral_encrypt)(ephemeral_t ephemeral, lob_t inner);
   lob_t (*ephemeral_decrypt)(ephemeral_t ephemeral, lob_t outer);
+
+  uint8_t id, csid;
+  char hex[3], *alg;
 } *e3x_cipher_t;
 
 
