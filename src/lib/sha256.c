@@ -279,13 +279,6 @@ SHA256_Transform(uint32_t * state, const unsigned char block[64])
 	t0 = t1 = 0;
 }
 
-static unsigned char PAD[64] = {
-	0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-};
-
 /* SHA-256 initialization.  Begins a SHA-256 operation. */
 void
 SHA256_Init(SHA256_CTX * ctx)
@@ -354,6 +347,13 @@ SHA256_Pad(SHA256_CTX * ctx)
 {
 	unsigned char len[8];
 	uint32_t r, plen;
+  unsigned char PAD[64] = {
+  	0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+  };
+
 
 	/*
 	 * Convert length to a vector of bytes -- we do this now rather
