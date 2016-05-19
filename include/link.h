@@ -12,11 +12,14 @@ struct link_struct
   mesh_t mesh;
   lob_t key;
   chan_t chans;
+
+  // transport plumbing
+  void *send_arg;
+  link_t (*send_cb)(link_t link, lob_t packet, void *arg);
+  lob_t send_wait; // waiting packet
   
   // these are for internal link management only
-  struct seen_struct *pipes;
   link_t next;
-
   uint8_t csid;
   char handle[9]; // b32 hashname_short
 };
@@ -35,32 +38,29 @@ void link_free(link_t link);
 // load in the key to existing link
 link_t link_load(link_t link, uint8_t csid, lob_t key);
 
-// try to turn a path into a pipe and add it to the link
-pipe_t link_path(link_t link, lob_t path);
-
-// just manage a pipe directly, removes if pipe->down, else adds
-link_t link_pipe(link_t link, pipe_t pipe);
-
-// iterate through existing pipes for a link
-pipe_t link_pipes(link_t link, pipe_t after);
+// add a delivery pipe to this link
+link_t link_pipe(link_t link, link_t (*send)(link_t link, lob_t packet, void *arg), void *arg);
 
 // process a decrypted channel packet
-link_t link_receive(link_t link, lob_t inner, pipe_t pipe);
+link_t link_receive(link_t link, lob_t inner);
 
 // process an incoming handshake
-link_t link_receive_handshake(link_t link, lob_t handshake, pipe_t pipe);
+link_t link_receive_handshake(link_t link, lob_t handshake);
 
-// try to deliver this packet to the best pipe
-link_t link_send(link_t link, lob_t inner);
+// try to deliver this encrypted packet
+link_t link_deliver(link_t link, lob_t outer);
+
+// encrypt and send this packet
+link_t link_direct(link_t link, lob_t inner);
 
 // return current handshake (caller free's)
 lob_t link_handshake(link_t link);
 
-// send current handshake(s) to all pipes and return them
-lob_t link_sync(link_t link);
+// send current handshake(s) 
+link_t link_sync(link_t link);
 
-// generate new encrypted handshake(s) and sync
-lob_t link_resync(link_t link);
+// force generate new encrypted handshake(s) and sync
+link_t link_resync(link_t link);
 
 // is the other endpoint connected and the link available, NULL if not
 link_t link_up(link_t link);
@@ -70,9 +70,6 @@ link_t link_down(link_t link);
 
 // create/track a new channel for this open
 chan_t link_chan(link_t link, lob_t open);
-
-// encrypt and send this one packet on this pipe
-link_t link_direct(link_t link, lob_t inner, pipe_t pipe);
 
 // process any channel timeouts based on the current/given time
 link_t link_process(link_t link, uint32_t now);

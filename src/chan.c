@@ -145,7 +145,7 @@ chan_t chan_send(chan_t c, lob_t inner)
     return LOG("dropping packet, no link");
   }
 
-  link_send(c->link, e3x_exchange_send(c->link->x, inner));
+  link_deliver(c->link, e3x_exchange_send(c->link->x, inner));
 
   lob_free(inner);
 
