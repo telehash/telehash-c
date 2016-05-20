@@ -296,6 +296,7 @@ link_t link_receive(link_t link, lob_t inner)
 // deliver this packet
 link_t link_send(link_t link, lob_t outer)
 {
+  if(!outer) return LOG_INFO("send packet missing");
   if(!link || !link->send_cb)
   {
     lob_free(outer);
