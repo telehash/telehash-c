@@ -74,7 +74,7 @@ net_serial_t net_serial_send(net_serial_t net, const char *name, lob_t packet)
   return net;
 }
 
-pipe_t net_serial_add(net_serial_t net, const char *name, int (*read)(void), int (*write)(uint8_t *buf, size_t len), uint8_t buffer)
+net_serial_t net_serial_add(net_serial_t net, const char *name, int (*read)(void), int (*write)(uint8_t *buf, size_t len), uint8_t buffer)
 {
   pipe_t pipe;
   pipe_serial_t to;
@@ -108,7 +108,7 @@ pipe_t net_serial_add(net_serial_t net, const char *name, int (*read)(void), int
   to->read = read;
   to->write = write;
 
-  return pipe;
+  return net;
 }
 
 net_serial_t net_serial_new(mesh_t mesh, lob_t options)

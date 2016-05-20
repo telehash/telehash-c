@@ -254,7 +254,7 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *me
   if(tail >= size)
   {
     frames->flush = 1;
-    return LOG_DEBUG("invalid frame data length: %u %s",tail,util_hex(data+(size-4),8,NULL));
+    return LOG_DEBUG("invalid frame %u tail (%u) hash %lu != %lu last %lu",frames->in,tail,hash1,hash2,frames->inlast);
   }
   
   // hash must match

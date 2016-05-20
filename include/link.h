@@ -16,7 +16,6 @@ struct link_struct
   // transport plumbing
   void *send_arg;
   link_t (*send_cb)(link_t link, lob_t packet, void *arg);
-  lob_t send_wait; // waiting packet
   
   // these are for internal link management only
   link_t next;

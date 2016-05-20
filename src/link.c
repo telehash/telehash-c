@@ -170,13 +170,14 @@ link_t link_pipe(link_t link, link_t (*send)(link_t link, lob_t packet, void *ar
 {
   if(!link || !send) return NULL;
 
+  if(send == link->send_cb) return link; // noop
   if(link->send_cb) LOG_INFO("replacing existing pipe on link");
 
   link->send_cb = send;
   link->send_arg = arg;
   
-  // empty flush
-  return link_send(link, NULL);
+  // flush handshake
+  return link_sync(link);
 }
 
 // is the link ready/available
@@ -301,14 +302,6 @@ link_t link_send(link_t link, lob_t outer)
     return LOG_WARN("no network");
   }
   
-  // may be a packet waiting (usu handshake)
-  if(link->send_wait)
-  {
-    lob_t first = link->send_wait;
-    link->send_wait = NULL;
-    link_send(link, first);
-  }
-
   if(!link->send_cb(link, outer, link->send_arg))
   {
     lob_free(outer);
@@ -341,15 +334,9 @@ link_t link_sync(link_t link)
 {
   if(!link) return LOG("bad args");
   if(!link->x) return LOG("no exchange");
+  if(!link->send_cb) return LOG("no network");
 
-  lob_t handshake = link_handshake(link);
-  if(link->send_cb) return link_send(link, handshake);
-  
-  // cache it for whenever added
-  link->send_wait = lob_free(link->send_wait);
-  link->send_wait = handshake;
-
-  return link;
+  return link_send(link, link_handshake(link));
 }
 
 // trigger a new exchange sync
