@@ -1,7 +1,7 @@
 TESTS = tmesh_core lib_base32 lib_lob lib_hashname lib_murmur lib_chunks lib_frames lib_util lib_xht \
 		e3x_core e3x_self e3x_exchange \
 		mesh_core net_loopback lib_chacha \
-		ext_block lib_socketio lib_jwt lib_base64 \
+		lib_socketio lib_jwt lib_base64 \
 		chan_core net_bulk 
 #		net_udp4 net_tcp4 net_serial
 
@@ -13,7 +13,7 @@ INCLUDE+=-I../unix -I../include -I../include/lib
 LIB = src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/lib/chacha.c src/lib/murmur.c src/lib/socketio.c src/lib/jwt.c src/lib/base64.c src/lib/aes128.c src/lib/sha256.c src/lib/uECC.c
 E3X = src/e3x/e3x.c src/e3x/self.c src/e3x/exchange.c src/e3x/cipher.c
 MESH = src/mesh.c src/link.c src/chan.c
-EXT = src/ext/block.c 
+EXT = 
 #NET = src/net/loopback.c src/net/udp4.c src/net/tcp4.c src/net/serial.c
 NET = src/net/loopback.c 
 UTIL = src/util/util.c src/util/chunks.c src/util/frames.c src/unix/util.c src/unix/util_sys.c

@@ -4,9 +4,6 @@
 #include <stdio.h>
 #include "telehash.h"
 
-// a default prime number for the internal hashtable used by extensions
-#define MAXPRIME 11
-
 // internally handle list of triggers active on the mesh
 typedef struct on_struct
 {
@@ -32,8 +29,6 @@ mesh_t mesh_new(uint32_t prime)
 
   if(!(mesh = malloc(sizeof (struct mesh_struct)))) return NULL;
   memset(mesh, 0, sizeof(struct mesh_struct));
-  mesh->index = xht_new(prime?prime:MAXPRIME);
-  if(!mesh->index) return mesh_free(mesh);
   
   LOG_INFO("mesh created version %d.%d.%d",TELEHASH_VERSION_MAJOR,TELEHASH_VERSION_MINOR,TELEHASH_VERSION_PATCH);
 
@@ -63,7 +58,6 @@ mesh_t mesh_free(mesh_t mesh)
     free(on);
   }
 
-  xht_free(mesh->index);
   lob_free(mesh->keys);
   lob_free(mesh->paths);
   hashname_free(mesh->id);

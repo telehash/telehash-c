@@ -18,7 +18,6 @@ struct mesh_struct
   hashname_t id;
   lob_t keys, paths;
   e3x_self_t self;
-  xht_t index; // for extensions to use
   void *on; // internal list of triggers
   // shared network info
   uint16_t port_local, port_public;
