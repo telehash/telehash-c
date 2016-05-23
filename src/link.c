@@ -40,6 +40,13 @@ void link_free(link_t link)
     }
   }
 
+  // drop
+  if(link->x)
+  {
+    e3x_exchange_free(link->x);
+    link->x = NULL;
+  }
+
   // notify pipe w/ NULL packet
   if(link->send_cb) link->send_cb(link, NULL, link->send_arg);
 
@@ -52,10 +59,6 @@ void link_free(link_t link)
   }
 
   hashname_free(link->id);
-  if(link->x)
-  {
-    e3x_exchange_free(link->x);
-  }
   lob_free(link->key);
   free(link);
 }
