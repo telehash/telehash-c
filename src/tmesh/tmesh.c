@@ -122,6 +122,7 @@ static mote_t mote_free(mote_t mote)
   return LOG_CRAZY("mote free'd");
 }
 
+// new blank mote, caller must attach stream and link_pipe
 static mote_t mote_new(tmesh_t tm, link_t link)
 {
   mote_t mote;
@@ -140,9 +141,6 @@ static mote_t mote_new(tmesh_t tm, link_t link)
   mote->signal->mote = mote;
   tempo_init(mote->signal, NULL);
 
-  // set up pipe
-  link_pipe(link, mote_pipe_send, mote);
-  
   STATED(mote->signal);
 
   return mote;
@@ -1009,6 +1007,8 @@ mote_t tmesh_mote(tmesh_t tm, link_t link)
   tm->stream = NULL; // mote took it over
   tempo_init(tm->beacon, NULL); // re-initialize beacon
   
+  // ensure link is plumbed for this mote
+  link_pipe(link, mote_pipe_send, mote);
   
   // follow w/ handshake and bump priority
   util_frames_send(mote->stream->frames, link_handshake(mote->link));
