@@ -88,6 +88,9 @@ beacon > lost
 SECURITY TODOs
   * generate a temp hashname on boot, use that to do all beacon and shared stream handling
 
+NEXT
+  * use ad-hoc beacons for faster signal stream request/accept
+
 */
 
 typedef struct tmesh_struct *tmesh_t; // joined community motes/signals
