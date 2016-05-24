@@ -96,11 +96,12 @@ mote_t mote_route(mote_t router, hashname_t to, lob_t packet)
 // find a stream to send it to for this mote
 link_t mote_pipe_send(link_t recip, lob_t packet, void *arg)
 {
-  if(!recip || !arg || !packet)
+  if(!recip || !arg)
   {
     lob_free(packet);
     return LOG_WARN("bad args");
   }
+  if(!packet) return LOG_DEBUG("TODO: handle a link/mote down logic in one place");
 
   mote_t mote = (mote_t)(arg);
 
