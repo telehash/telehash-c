@@ -53,8 +53,8 @@ mote_t mote_send(mote_t mote, lob_t packet)
     tempo_init(tempo, NULL);
   }
 
-  // if not scheduled, make sure signalling
-  if(!tempo->do_schedule) tempo->do_request = 1;
+  // if not scheduled/accepting, make sure requesting
+  if(!tempo->do_schedule && !tempo->do_accept) tempo->do_request = 1;
 
   if(util_frames_outlen(tempo->frames) > 1000)
   {
@@ -513,7 +513,7 @@ static tempo_t tempo_blocks_rx(tempo_t tempo, uint8_t *blocks)
           if(about) about->app = body;
           else if(seen && tempo->mote && tm->accept && tm->accept(tm, seen, body))
           {
-            LOG_WARN("FIXME: routing a link probe to %s via %s",hashname_short(seen),hashname_short(tempo->mote->link->id));
+            LOG_CRAZY("FIXME: routing a link probe to %s via %s",hashname_short(seen),hashname_short(tempo->mote->link->id));
 //            mote_route(tempo->mote, seen, hashname_im(tm->mesh->keys, 0x1a));
           }
           break;
