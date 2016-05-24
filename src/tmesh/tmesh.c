@@ -512,8 +512,8 @@ static tempo_t tempo_blocks_rx(tempo_t tempo, uint8_t *blocks)
           if(about) about->app = body;
           else if(seen && tempo->mote && tm->accept && tm->accept(tm, seen, body))
           {
-            LOG_INFO("routing a link probe to %s via %s",hashname_short(seen),hashname_short(tempo->mote->link->id));
-            mote_route(tempo->mote, seen, hashname_im(tm->mesh->keys, 0x1a));
+            LOG_WARN("FIXME: routing a link probe to %s via %s",hashname_short(seen),hashname_short(tempo->mote->link->id));
+//            mote_route(tempo->mote, seen, hashname_im(tm->mesh->keys, 0x1a));
           }
           break;
         case tmesh_block_medium:
