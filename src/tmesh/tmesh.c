@@ -165,6 +165,7 @@ static mote_t mote_new(tmesh_t tm, link_t link)
 static tempo_t tempo_free(tempo_t tempo)
 {
   if(!tempo) return NULL;
+  if(tm->knock->tempo == tempo) tm->knock->tempo = NULL; // safely cancels an existing knock
   tempo->medium = tempo->do_schedule = tempo->priority = 0;
   STATED(tempo);
   util_frames_free(tempo->frames);
@@ -835,7 +836,7 @@ static tempo_t tempo_gone(tempo_t tempo)
 // inner logic
 static tempo_t tempo_schedule(tempo_t tempo, uint32_t at)
 {
-  if(!tempo || !at) return LOG_WARN("bad args");
+  if(!tempo || !at) return NULL;
   tmesh_t tm = tempo->tm;
 
   // initialize to *now* if not set
@@ -867,6 +868,8 @@ tempo_t tmesh_knocked(tmesh_t tm)
   if(!tm) return LOG_WARN("bad args");
   knock_t knock = tm->knock;
   tempo_t tempo = knock->tempo;
+  
+  if(!tempo) return LOG_DEBUG("knock was cancelled");
 
   // always clear skipped counter and ready flag
   tempo->c_skip = 0;
@@ -931,25 +934,28 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
     // schedule outgoing signal if any motes in waiting
     if(mote->is_waiting) tm->signal->do_schedule = 1;
 
-    // advance signal, always elected for best
+    // advance signal/stream
     tempo_schedule(mote->signal, at);
-    if(mote->signal->do_schedule) best = tm->sort(tm, best, mote->signal);
+    tempo_schedule(mote->stream, at);
     
-    // advance stream too
+    // check scheduling, only one or the other needed
     if(mote->stream && mote->stream->do_schedule)
     {
-      tempo_schedule(mote->stream, at);
       if(mote->stream->do_tx && !util_frames_busy(mote->stream->frames))
       {
         LOG_CRAZY("stream has nothing to send, skipping");
         continue;
       }
-      if(!mote->stream->do_tx && mote->stream->frames->flush)
+      // optimize away useless RXs when not awaiting and a flush waiting to TX
+      if(!mote->stream->do_tx && mote->stream->frames->flush && !util_frames_inbox(mote->stream->frames,NULL,NULL))
       {
         LOG_DEBUG("skipping stream RX, waiting to TX flush");
         continue;
       }
       best = tm->sort(tm, best, mote->stream);
+    }else{
+      // try schedule signal if no stream
+      if(mote->signal->do_schedule) best = tm->sort(tm, best, mote->signal);
     }
   }
 
