@@ -917,6 +917,11 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
         LOG_CRAZY("stream has nothing to send, skipping");
         continue;
       }
+      if(!mote->stream->do_tx && mote->stream->frames->flush)
+      {
+        LOG_DEBUG("skipping stream RX, waiting to TX flush");
+        continue;
+      }
       best = tm->sort(tm, best, mote->stream);
     }
   }
