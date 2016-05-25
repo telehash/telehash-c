@@ -22,9 +22,9 @@ typedef struct mblock_struct {
   uint8_t body[4]; // payload
 } *mblock_t;
 
-#define STATED(t) util_sys_log(6, "", __LINE__, "", \
+#define STATED(t) util_sys_log(6, "", __LINE__, __FUNCTION__, \
       "\t%s %s %u %04d %s%u %s %d", \
-        t->mote?hashname_short(t->mote->link->id):"selfself", \
+        t->mote?hashname_short(t->mote->link->id):(t==t->tm->signal)?"mysignal":(t==t->tm->beacon)?"mybeacon":"myshared", \
         t->is_signal?(t->mote?"<-":"->"):"<>", \
         t->medium, t->last, \
         t->do_schedule?"++":"--", \
@@ -55,6 +55,7 @@ mote_t mote_send(mote_t mote, lob_t packet)
 
   if(!tempo)
   {
+    LOG_DEBUG("send initiated new stream");
     tempo = mote->stream = tempo_new(mote->tm);
     tempo->mote = mote;
     tempo_init(tempo, NULL);
@@ -65,6 +66,7 @@ mote_t mote_send(mote_t mote, lob_t packet)
   {
     tempo->do_request = 1;
     mote->is_waiting = 1;
+    LOG_DEBUG("stream in request mode");
   }
 
   if(util_frames_outlen(tempo->frames) > 1000)
@@ -74,7 +76,7 @@ mote_t mote_send(mote_t mote, lob_t packet)
   }
   util_frames_send(tempo->frames, packet);
 
-  LOG_CRAZY("delivering %d to mote %s total %lu",lob_len(packet),hashname_short(mote->link->id),util_frames_outlen(tempo->frames));
+  LOG_DEBUG("delivering %d to mote %s total %lu",lob_len(packet),hashname_short(mote->link->id),util_frames_outlen(tempo->frames));
   STATED(tempo);
 
   return mote;
@@ -549,6 +551,7 @@ static tempo_t tempo_blocks_rx(tempo_t tempo, uint8_t *blocks)
               if(!mote_send(from, NULL)) break; // make sure stream exists
               LOG_INFO("stream request from %s on medium %lu",hashname_short(from->link->id),body);
               from->stream->do_accept = 1; // start signalling accept stream
+              from->is_waiting = 1; // flag to tell them
               from->stream->do_schedule = 0; // hold stream scheduling activity
               tempo_medium(from->stream, body);
               break;
@@ -959,12 +962,15 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   memset(knock,0,sizeof(struct knock_struct));
 
   // first try RX seeking a beacon
-  knock->tempo = tm->beacon;
-  knock->seekto = best->at;
+  if(tm->beacon->do_schedule)
+  {
+    knock->tempo = tm->beacon;
+    knock->seekto = best->at;
 
-  // ask driver if it can seek, done if so, else fall through
-  knock->is_active = 1;
-  if(tm->schedule(tm)) return tm;
+    // ask driver if it can seek, done if so, else fall through
+    knock->is_active = 1;
+    if(tm->schedule(tm)) return tm;
+  }
   
   // proceed w/ normal scheduled knock
   memset(knock,0,sizeof(struct knock_struct));
