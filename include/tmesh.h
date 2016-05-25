@@ -146,6 +146,9 @@ tmesh_t tmesh_demote(tmesh_t tm, mote_t mote);
 // returns mote for this id if one exists
 mote_t tmesh_moted(tmesh_t tm, hashname_t id);
 
+// update/signal our current app id
+tmesh_t tmesh_appid(tmesh_t tm, uint32_t id);
+
 // tempo state
 struct tempo_struct
 {
@@ -202,5 +205,8 @@ struct mote_struct
   uint32_t app; // most recent app block from them
   uint8_t is_waiting:1; // when we need to signal to and hear back a signal from them
 };
+
+// return current mote appid
+uint32_t mote_appid(mote_t mote);
 
 #endif

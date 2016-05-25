@@ -40,6 +40,13 @@ static tempo_t tempo_init(tempo_t tempo, hashname_t id_shared);
 static tempo_t tempo_medium(tempo_t tempo, uint32_t medium);
 static tempo_t tempo_gone(tempo_t tempo);
 
+// return current mote appid
+uint32_t mote_appid(mote_t mote)
+{
+  if(!mote) return 0;
+  return mote->app;
+}
+
 // find a stream to send it to for this mote
 mote_t mote_send(mote_t mote, lob_t packet)
 {
@@ -1074,6 +1081,19 @@ mote_t tmesh_moted(tmesh_t tm, hashname_t id)
   mote_t mote;
   for(mote=tm->motes;mote;mote = mote->next) if(hashname_scmp(mote->link->id,id) == 0) return mote;
   return NULL;
+}
+
+// update/signal our current app id
+tmesh_t tmesh_appid(tmesh_t tm, uint32_t id)
+{
+  if(!tm) return LOG_WARN("bad args");
+  tm->app = id;
+
+  // make sure we inform all neighbors
+  mote_t mote;
+  for(mote=tm->motes;mote;mote=mote->next) mote->is_waiting = 1;
+  
+  return tm;
 }
 
 // just the basics ma'am
