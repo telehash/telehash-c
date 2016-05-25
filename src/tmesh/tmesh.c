@@ -141,6 +141,7 @@ static mote_t mote_new(tmesh_t tm, link_t link)
   mote->signal->is_signal = 1;
   mote->signal->mote = mote;
   tempo_init(mote->signal, NULL);
+  mote->signal->do_schedule = 0; // do not schedule until at/seq sync
 
   STATED(mote->signal);
 
@@ -500,10 +501,12 @@ static tempo_t tempo_blocks_rx(tempo_t tempo, uint8_t *blocks)
         case tmesh_block_at:
           if(!about) break; // require known mote
           about->signal->at = (body + tempo->at); // is an offset from this tempo
+          about->signal->do_schedule = 1; // make sure is scheduled now
           break;
         case tmesh_block_seq:
           if(!about) break; // require known mote
           about->signal->seq = body;
+          about->signal->do_schedule = 1; // make sure is scheduled now
           break;
         case tmesh_block_quality:
           if(about == tempo->mote) tempo->q_remote = body;
