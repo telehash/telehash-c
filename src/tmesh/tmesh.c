@@ -598,6 +598,9 @@ static tempo_t tempo_knocked_tx(tempo_t tempo, knock_t knock)
       
     }else if(tempo == tm->signal){ // shared outgoing signal
       
+      // dampen our signal until something changes
+      tm->signal->do_schedule = 0;
+      
     }else{ // bad
       return LOG_WARN("invalid signal tx state");
     }
@@ -896,10 +899,6 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
     best = tm->sort(tm, best, tm->stream);
   }
 
-  // upcheck our signal
-  tempo_schedule(tm->signal, at);
-  if(tm->signal->do_schedule) best = tm->sort(tm, best, tm->signal);
-
   // walk all the tempos for next best knock
   mote_t mote;
   for(mote=tm->motes;mote;mote=mote->next)
@@ -909,22 +908,32 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
     if(mote->signal->do_schedule) best = tm->sort(tm, best, mote->signal);
     
     // advance stream too
-    if(mote->stream && mote->stream->do_schedule)
+    if(mote->stream)
     {
-      tempo_schedule(mote->stream, at);
-      if(mote->stream->do_tx && !util_frames_busy(mote->stream->frames))
+      // ensure our signal is scheduled to include this
+      if(mote->stream->do_accept || mote->stream->do_request) tm->signal->do_schedule = 1;
+
+      if(mote->stream->do_schedule)
       {
-        LOG_CRAZY("stream has nothing to send, skipping");
-        continue;
+        tempo_schedule(mote->stream, at);
+        if(mote->stream->do_tx && !util_frames_busy(mote->stream->frames))
+        {
+          LOG_CRAZY("stream has nothing to send, skipping");
+          continue;
+        }
+        if(!mote->stream->do_tx && mote->stream->frames->flush)
+        {
+          LOG_DEBUG("skipping stream RX, waiting to TX flush");
+          continue;
+        }
+        best = tm->sort(tm, best, mote->stream);
       }
-      if(!mote->stream->do_tx && mote->stream->frames->flush)
-      {
-        LOG_DEBUG("skipping stream RX, waiting to TX flush");
-        continue;
-      }
-      best = tm->sort(tm, best, mote->stream);
     }
   }
+
+  // upcheck our signal last
+  tempo_schedule(tm->signal, at);
+  if(tm->signal->do_schedule) best = tm->sort(tm, best, tm->signal);
   
   // try a new knock
   knock_t knock = tm->knock;
