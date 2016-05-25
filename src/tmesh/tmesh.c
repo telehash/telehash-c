@@ -54,7 +54,11 @@ mote_t mote_send(mote_t mote, lob_t packet)
   }
 
   // if not scheduled/accepting, make sure requesting
-  if(!tempo->do_schedule && !tempo->do_accept) tempo->do_request = 1;
+  if(!tempo->do_schedule && !tempo->do_accept)
+  {
+    tempo->do_request = 1;
+    mote->is_waiting = 1;
+  }
 
   if(util_frames_outlen(tempo->frames) > 1000)
   {
@@ -143,6 +147,7 @@ static mote_t mote_new(tmesh_t tm, link_t link)
   tempo_init(mote->signal, NULL);
   mote->signal->do_schedule = 0; // do not schedule until at/seq sync
 
+  // new mote, send our signal
   STATED(mote->signal);
 
   return mote;
@@ -346,9 +351,11 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
       block->done = 1;
 
       // fill in blocks for our neighborhood
-      // TODO, sort by priority
       for(mote=tm->motes;mote && at < 10;mote = mote->next) // must be at least enough space for two blocks
       {
+        // only do waiting ones
+        if(!mote->is_waiting) continue;
+
         // lead w/ short hn
         memcpy(blocks+(++at*5),mote->link->id,5);
 
@@ -718,6 +725,9 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
 
     }else if(tempo->mote){ // incoming signal for a mote
 
+      // clear any is_waiting, we got a signal
+      tempo->mote->is_waiting = 0;
+
       // decode/validate signal safely
       memcpy(frame,knock->frame,64);
       chacha20(tempo->secret,knock->nonce,frame,64);
@@ -795,6 +805,7 @@ static tempo_t tempo_gone(tempo_t tempo)
       if(util_frames_busy(tempo->frames))
       {
         tempo->do_request = 1;
+        mote->is_waiting = 1;
         STATED(tempo);
       }else{
         mote->stream = tempo_free(tempo);
@@ -903,31 +914,28 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   mote_t mote;
   for(mote=tm->motes;mote;mote=mote->next)
   {
+    // schedule outgoing signal if any motes in waiting
+    if(mote->is_waiting) tm->signal->do_schedule = 1;
+
     // advance signal, always elected for best
     tempo_schedule(mote->signal, at);
     if(mote->signal->do_schedule) best = tm->sort(tm, best, mote->signal);
     
     // advance stream too
-    if(mote->stream)
+    if(mote->stream && mote->stream->do_schedule)
     {
-      // ensure our signal is scheduled to include this
-      if(mote->stream->do_accept || mote->stream->do_request) tm->signal->do_schedule = 1;
-
-      if(mote->stream->do_schedule)
+      tempo_schedule(mote->stream, at);
+      if(mote->stream->do_tx && !util_frames_busy(mote->stream->frames))
       {
-        tempo_schedule(mote->stream, at);
-        if(mote->stream->do_tx && !util_frames_busy(mote->stream->frames))
-        {
-          LOG_CRAZY("stream has nothing to send, skipping");
-          continue;
-        }
-        if(!mote->stream->do_tx && mote->stream->frames->flush)
-        {
-          LOG_DEBUG("skipping stream RX, waiting to TX flush");
-          continue;
-        }
-        best = tm->sort(tm, best, mote->stream);
+        LOG_CRAZY("stream has nothing to send, skipping");
+        continue;
       }
+      if(!mote->stream->do_tx && mote->stream->frames->flush)
+      {
+        LOG_DEBUG("skipping stream RX, waiting to TX flush");
+        continue;
+      }
+      best = tm->sort(tm, best, mote->stream);
     }
   }
 

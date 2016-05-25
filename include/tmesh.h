@@ -200,6 +200,7 @@ struct mote_struct
   uint32_t q_signal; // most recent quality block about us from their signal
   uint32_t q_stream; // most recent quality block about us from their stream
   uint32_t app; // most recent app block from them
+  uint8_t is_waiting:1; // when we need to signal to and hear back a signal from them
 };
 
 #endif
