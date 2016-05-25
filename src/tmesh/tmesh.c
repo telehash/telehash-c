@@ -192,7 +192,11 @@ static tempo_t tempo_medium(tempo_t tempo, uint32_t medium)
   // no-op if medium is set and no change is requested
   if(tempo->medium && (tempo->medium == medium)) return tempo;
 
-  if(!tm->medium(tm, tempo, medium)) return LOG_WARN("driver failed medium %lu",medium);
+  // create a stable seed unique to this tempo for medium to use
+  uint8_t seed[8] = {0};
+  chacha20(tempo->secret,seed,seed,8);
+  
+  if(!tm->medium(tm, tempo, seed, medium)) return LOG_WARN("driver failed medium %lu",medium);
 
   return tempo;
 }

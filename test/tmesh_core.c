@@ -34,7 +34,7 @@ tmesh_t driver_advance(tmesh_t tm, tempo_t tempo, uint8_t seed[8])
   return tm;
 }
 
-tmesh_t driver_medium(tmesh_t tm, tempo_t tempo, uint32_t medium)
+tmesh_t driver_medium(tmesh_t tm, tempo_t tempo, uint8_t seed[8], uint32_t medium)
 {
   tempo->driver = (void*)1; // flag for test check
   tempo->medium = medium?medium:1;

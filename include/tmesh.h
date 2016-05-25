@@ -117,7 +117,7 @@ struct tmesh_struct
   tempo_t (*sort)(tmesh_t tm, tempo_t a, tempo_t b);
   tmesh_t (*schedule)(tmesh_t tm); // called whenever a new knock is ready to be scheduled
   tmesh_t (*advance)(tmesh_t tm, tempo_t tempo, uint8_t seed[8]); // advances tempo to next window
-  tmesh_t (*medium)(tmesh_t tm, tempo_t tempo, uint32_t medium); // driver can initialize/update a tempo's medium
+  tmesh_t (*medium)(tmesh_t tm, tempo_t tempo, uint8_t seed[8], uint32_t medium); // driver can initialize/update a tempo's medium
   tmesh_t (*accept)(tmesh_t tm, hashname_t id, uint32_t app); // driver handles new neighbors, returns tm to continue or NULL to ignore
   tmesh_t (*free)(tmesh_t tm, tempo_t tempo); // driver can free any associated tempo resources
   knock_t knock;
