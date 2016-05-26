@@ -916,19 +916,17 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
     STATED(tm->signal);
   }
   
+  // TODO rework how the best is sorted, maybe all at once
+  
   // start w/ beacon
   tempo_t best = NULL;
   tempo_schedule(tm->beacon, at);
   if(tm->beacon->do_schedule) best = tm->sort(tm, best, tm->beacon);
 
-  // track the shortest seek window
-  uint32_t until = tm->beacon->at;
-  
   // and shared stream (may not exist)
   if(tm->stream && tm->stream->do_schedule)
   {
     tempo_schedule(tm->stream, at);
-    if(tm->stream->at < until) until = tm->stream->at;
     best = tm->sort(tm, best, tm->stream);
   }
 
@@ -941,24 +939,27 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
 
     // advance signal/stream
     tempo_schedule(mote->signal, at);
-    if(mote->signal->at < until) until = mote->signal->at;
     tempo_schedule(mote->stream, at);
-    if(mote->stream->at < until) until = mote->stream->at;
     
     // check scheduling, only one or the other needed
-    if(mote->stream && mote->stream->do_schedule)
+    tempo_t stream = mote->stream;
+    if(stream && stream->do_schedule)
     {
-      if(mote->stream->do_tx && !util_frames_busy(mote->stream->frames))
-      {
-        LOG_CRAZY("stream has nothing to send, skipping");
-        continue;
-      }
-      // optimize away useless RXs when not awaiting and a flush waiting to TX
-      if(!mote->stream->do_tx && mote->stream->frames->flush && !util_frames_inbox(mote->stream->frames,NULL,NULL))
-      {
-        LOG_DEBUG("skipping stream RX %u, waiting to TX flush",mote->stream->chan);
-        continue;
-      }
+      // any conditions that make us want to wait for a specific type
+      do {
+        if(stream->do_tx && !util_frames_busy(stream->frames))
+        {
+          LOG_CRAZY("stream has nothing to send, skipping");
+          continue;
+        }
+        // optimize away useless RXs when not awaiting and a flush waiting to TX
+        if(!stream->do_tx && stream->frames->flush && !util_frames_inbox(stream->frames,NULL,NULL))
+        {
+          LOG_DEBUG("skipping stream RX %u, waiting to TX flush",stream->chan);
+          continue;
+        }
+        break;
+      } while(tempo_schedule(stream,stream->at));
       best = tm->sort(tm, best, mote->stream);
     }else{
       // try schedule signal if no stream
@@ -968,7 +969,6 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
 
   // upcheck our signal last
   tempo_schedule(tm->signal, at);
-  if(tm->signal->at < until) until = tm->signal->at;
   if(tm->signal->do_schedule) best = tm->sort(tm, best, tm->signal);
   
   // try a new knock
@@ -976,13 +976,15 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   memset(knock,0,sizeof(struct knock_struct));
 
   // first try RX seeking a beacon
-//  if(tm->beacon->do_schedule){} TODO rework how the best is sorted, we need an unfiltered time-only list here 
-  knock->tempo = tm->beacon;
-  knock->seekto = until;
+  if(tm->beacon->do_schedule)
+  {
+    knock->tempo = tm->beacon;
+    knock->seekto = best->at;
 
-  // ask driver if it can seek, done if so, else fall through
-  knock->is_active = 1;
-  if(tm->schedule(tm)) return tm;
+    // ask driver if it can seek, done if so, else fall through
+    knock->is_active = 1;
+    if(tm->schedule(tm)) return tm;
+  }
   
   // proceed w/ normal scheduled knock
   memset(knock,0,sizeof(struct knock_struct));
