@@ -154,7 +154,6 @@ static mote_t mote_new(tmesh_t tm, link_t link)
   mote->signal->is_signal = 1;
   mote->signal->mote = mote;
   tempo_init(mote->signal, NULL);
-  mote->signal->do_schedule = 0; // do not schedule until at/seq sync
 
   // new mote, send our signal
   STATED(mote->signal);
@@ -165,7 +164,7 @@ static mote_t mote_new(tmesh_t tm, link_t link)
 static tempo_t tempo_free(tempo_t tempo)
 {
   if(!tempo) return NULL;
-  if(tm->knock->tempo == tempo) tm->knock->tempo = NULL; // safely cancels an existing knock
+  if(tempo->tm->knock->tempo == tempo) tempo->tm->knock->tempo = NULL; // safely cancels an existing knock
   tempo->medium = tempo->do_schedule = tempo->priority = 0;
   STATED(tempo);
   util_frames_free(tempo->frames);
@@ -239,23 +238,25 @@ static tempo_t tempo_init(tempo_t tempo, hashname_t id_shared)
   {
 
     LOG_CRAZY("signal %s",(tempo == tm->beacon)?"beacon":((tempo == tm->signal)?"out":"in"));
-    tempo->do_schedule = 1; // signals always are scheduled
 
     if(tempo == tm->beacon)
     {
       tempo->priority = 1; // low
       tempo->do_tx = 1;
+      tempo->do_schedule = 1; // beacons always are scheduled
       e3x_rand((uint8_t*)&(tempo->seq),4); // random sequence
       // nothing extra to add, just copy for roll
       memcpy(roll+32,roll,32);
     }else if(tempo == tm->signal){ // shared outgoing signal
       tempo->priority = 7; // high
       tempo->do_tx = 1;
+      tempo->do_schedule = 0; // happens automatically as needed
       // our hashname in rollup
       memcpy(roll+32,hashname_bin(tm->mesh->id),32);
     }else if(tempo->mote){ // incoming signal for a mote
       tempo->priority = 8; // pretty high
       tempo->do_tx = 0;
+      tempo->do_schedule = 0; // do not schedule until at/seq sync
       // their hashname in rollup
       memcpy(roll+32,hashname_bin(tempo->mote->link->id),32);
     }else{
@@ -1059,8 +1060,7 @@ mote_t tmesh_mote(tmesh_t tm, link_t link)
   // ensure link is plumbed for this mote
   link_pipe(link, mote_pipe_send, mote);
   
-  // follow w/ handshake and bump priority
-  util_frames_send(mote->stream->frames, link_handshake(mote->link));
+  // bump priority
   mote->stream->priority = 4;
 
   STATED(mote->stream);

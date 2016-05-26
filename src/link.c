@@ -173,7 +173,7 @@ link_t link_pipe(link_t link, link_t (*send)(link_t link, lob_t packet, void *ar
 {
   if(!link || !send) return NULL;
 
-  if(send == link->send_cb) return link; // noop
+  if(send == link->send_cb && arg == link->send_arg) return link; // noop
   if(link->send_cb) LOG_INFO("replacing existing pipe on link");
 
   link->send_cb = send;
