@@ -949,7 +949,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
     {
       // any conditions that make us want to wait for a specific type
       do {
-        if(stream->do_tx && !util_frames_busy(stream->frames))
+        if(stream->do_tx && !util_frames_outbox(stream->frames,NULL,NULL))
         {
           LOG_CRAZY("stream has nothing to send, skipping");
           continue;
