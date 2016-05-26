@@ -155,7 +155,6 @@ static mote_t mote_new(tmesh_t tm, link_t link)
   mote->signal->mote = mote;
   tempo_init(mote->signal, NULL);
 
-  // new mote, send our signal
   STATED(mote->signal);
 
   return mote;
@@ -920,11 +919,15 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   tempo_t best = NULL;
   tempo_schedule(tm->beacon, at);
   if(tm->beacon->do_schedule) best = tm->sort(tm, best, tm->beacon);
+
+  // track the shortest seek window
+  uint32_t until = tm->beacon->at;
   
   // and shared stream (may not exist)
   if(tm->stream && tm->stream->do_schedule)
   {
     tempo_schedule(tm->stream, at);
+    if(tm->stream->at < until) until = tm->stream->at;
     best = tm->sort(tm, best, tm->stream);
   }
 
@@ -937,7 +940,9 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
 
     // advance signal/stream
     tempo_schedule(mote->signal, at);
+    if(mote->signal->at < until) until = mote->signal->at;
     tempo_schedule(mote->stream, at);
+    if(mote->stream->at < until) until = mote->stream->at;
     
     // check scheduling, only one or the other needed
     if(mote->stream && mote->stream->do_schedule)
@@ -950,7 +955,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
       // optimize away useless RXs when not awaiting and a flush waiting to TX
       if(!mote->stream->do_tx && mote->stream->frames->flush && !util_frames_inbox(mote->stream->frames,NULL,NULL))
       {
-        LOG_DEBUG("skipping stream RX, waiting to TX flush");
+        LOG_DEBUG("skipping stream RX %u, waiting to TX flush",mote->stream->chan);
         continue;
       }
       best = tm->sort(tm, best, mote->stream);
@@ -962,6 +967,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
 
   // upcheck our signal last
   tempo_schedule(tm->signal, at);
+  if(tm->signal->at < until) until = tm->signal->at;
   if(tm->signal->do_schedule) best = tm->sort(tm, best, tm->signal);
   
   // try a new knock
@@ -972,7 +978,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   if(tm->beacon->do_schedule)
   {
     knock->tempo = tm->beacon;
-    knock->seekto = best->at;
+    knock->seekto = until;
 
     // ask driver if it can seek, done if so, else fall through
     knock->is_active = 1;
