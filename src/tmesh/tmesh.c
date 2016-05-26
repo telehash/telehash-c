@@ -498,6 +498,8 @@ static tempo_t tempo_blocks_rx(tempo_t tempo, uint8_t *blocks)
       if(hashname_scmp(id,tm->mesh->id) == 0)
       {
         from = tempo->mote;
+        // any time we are mentioned, it always means schedule a signal
+        tm->signal->do_schedule = 1;
       }else if((link = mesh_linkid(tm->mesh, id))){
         // about a neighbor
         about = tmesh_moted(tm, link->id); // if we have a link, we may have a mote
@@ -553,7 +555,7 @@ static tempo_t tempo_blocks_rx(tempo_t tempo, uint8_t *blocks)
               if(!mote_send(from, NULL)) break; // make sure stream exists
               LOG_INFO("stream request from %s on medium %lu",hashname_short(from->link->id),body);
               from->stream->do_accept = 1; // start signalling accept stream
-              from->is_waiting = 1; // flag to tell them
+              from->is_waiting = 1; // flag to tell them and wait for response
               from->stream->do_schedule = 0; // hold stream scheduling activity
               tempo_medium(from->stream, body);
               break;
@@ -657,9 +659,9 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
     }
 
     // idle mote stream rx fail is a goner
-    if(tempo->mote && !tempo->is_signal && !tempo->do_tx && !util_frames_busy(tempo->frames))
+    if(tempo->mote && !tempo->is_signal && !tempo->do_tx && !util_frames_busy(tempo->frames) && tempo->c_miss > 1)
     {
-      LOG_CRAZY("dropping idle mote stream");
+      LOG_DEBUG("dropping idle mote stream");
       knock->do_gone = 1; 
     }
     return LOG_CRAZY("failed RX, miss at %lu",tempo->c_miss);
