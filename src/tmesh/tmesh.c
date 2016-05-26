@@ -128,6 +128,7 @@ link_t mote_pipe_send(link_t recip, lob_t packet, void *arg)
 static mote_t mote_free(mote_t mote)
 {
   if(!mote) return NULL;
+  LOG_INFO("freeing mote %s",hashname_short(mote->link->id));
   // free signal and stream
   tempo_free(mote->signal);
   tempo_free(mote->stream);
@@ -803,7 +804,7 @@ static tempo_t tempo_gone(tempo_t tempo)
       return LOG_WARN("invalid, our signal cannot be gone");
     }else if(tempo->mote){ // incoming signal for a mote
       tmesh_demote(tm, tempo->mote);
-      return LOG_CRAZY("mote dropped");
+      return LOG_DEBUG("mote dropped");
     }else{ // bad
       return LOG_WARN("invalid signal state");
     }
@@ -975,15 +976,13 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   memset(knock,0,sizeof(struct knock_struct));
 
   // first try RX seeking a beacon
-  if(tm->beacon->do_schedule)
-  {
-    knock->tempo = tm->beacon;
-    knock->seekto = until;
+//  if(tm->beacon->do_schedule){} TODO rework how the best is sorted, we need an unfiltered time-only list here 
+  knock->tempo = tm->beacon;
+  knock->seekto = until;
 
-    // ask driver if it can seek, done if so, else fall through
-    knock->is_active = 1;
-    if(tm->schedule(tm)) return tm;
-  }
+  // ask driver if it can seek, done if so, else fall through
+  knock->is_active = 1;
+  if(tm->schedule(tm)) return tm;
   
   // proceed w/ normal scheduled knock
   memset(knock,0,sizeof(struct knock_struct));
