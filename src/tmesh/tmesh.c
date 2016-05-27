@@ -25,11 +25,10 @@ typedef struct mblock_struct {
 #define STATED(t) util_sys_log(6, "", __LINE__, __FUNCTION__, \
       "\t%s %s %u %04d %s%u %s %d", \
         t->mote?hashname_short(t->mote->link->id):(t==t->tm->signal)?"mysignal":(t==t->tm->beacon)?"mybeacon":"myshared", \
-        t->is_signal?(t->mote?"<-":"->"):"<>", \
+        t->state.is_signal?(t->mote?"<-":"->"):"<>", \
         t->medium, t->last, \
-        t->do_schedule?"++":"--", \
         t->priority, \
-        t->do_accept?"A":(t->do_request?"R":(util_frames_busy(t->frames)?"B":"I")), \
+        t->state.accepting?"A":(t->state.requesting?"R":(util_frames_busy(t->frames)?"B":"I")), \
         t->frames?util_frames_outlen(t->frames):-1);
 
 
@@ -57,14 +56,15 @@ mote_t mote_send(mote_t mote, lob_t packet)
   {
     LOG_DEBUG("send initiated new stream");
     tempo = mote->stream = tempo_new(mote->tm);
+    tempo->state.is_stream = 1;
     tempo->mote = mote;
     tempo_init(tempo, NULL);
   }
 
   // if not scheduled/accepting, make sure requesting
-  if(!tempo->do_schedule && !tempo->do_accept)
+  if(1)//XX !tempo->do_schedule && !tempo->state.accepting)
   {
-    tempo->do_request = 1;
+    tempo->state.requesting = 1;
     mote->is_waiting = 1;
     LOG_DEBUG("stream in request mode");
   }
@@ -152,7 +152,7 @@ static mote_t mote_new(tmesh_t tm, link_t link)
   
   // bind new signal
   mote->signal = tempo_new(tm);
-  mote->signal->is_signal = 1;
+  mote->signal->state.is_signal = 1;
   mote->signal->mote = mote;
   tempo_init(mote->signal, NULL);
 
@@ -165,7 +165,7 @@ static tempo_t tempo_free(tempo_t tempo)
 {
   if(!tempo) return NULL;
   if(tempo->tm->knock->tempo == tempo) tempo->tm->knock->tempo = NULL; // safely cancels an existing knock
-  tempo->medium = tempo->do_schedule = tempo->priority = 0;
+  tempo->medium = tempo->priority = 0;
   STATED(tempo);
   util_frames_free(tempo->frames);
   free(tempo);
@@ -205,7 +205,7 @@ static tempo_t tempo_medium(tempo_t tempo, uint32_t medium)
 
 /*/////////////////////////////////////////////////////////////////
 // standard breakdown based on tempo character
-if(tempo->is_signal)
+if(tempo->state.is_signal)
 {
   LOG_DEBUG("signal %s",(tempo == tm->beacon)?"beacon":((tempo == tm->signal)?"out":"in"));
   if(tempo == tm->beacon){
@@ -234,7 +234,7 @@ static tempo_t tempo_init(tempo_t tempo, hashname_t id_shared)
   memcpy(roll,tempo->secret,32);
 
   // standard breakdown based on tempo type
-  if(tempo->is_signal)
+  if(tempo->state.is_signal)
   {
 
     LOG_CRAZY("signal %s",(tempo == tm->beacon)?"beacon":((tempo == tm->signal)?"out":"in"));
@@ -242,21 +242,18 @@ static tempo_t tempo_init(tempo_t tempo, hashname_t id_shared)
     if(tempo == tm->beacon)
     {
       tempo->priority = 1; // low
-      tempo->do_tx = 1;
-      tempo->do_schedule = 1; // beacons always are scheduled
+      tempo->state.tx = 1;
       e3x_rand((uint8_t*)&(tempo->seq),4); // random sequence
       // nothing extra to add, just copy for roll
       memcpy(roll+32,roll,32);
     }else if(tempo == tm->signal){ // shared outgoing signal
       tempo->priority = 7; // high
-      tempo->do_tx = 1;
-      tempo->do_schedule = 0; // happens automatically as needed
+      tempo->state.tx = 1;
       // our hashname in rollup
       memcpy(roll+32,hashname_bin(tm->mesh->id),32);
     }else if(tempo->mote){ // incoming signal for a mote
       tempo->priority = 8; // pretty high
-      tempo->do_tx = 0;
-      tempo->do_schedule = 0; // do not schedule until at/seq sync
+      tempo->state.tx = 0;
       // their hashname in rollup
       memcpy(roll+32,hashname_bin(tempo->mote->link->id),32);
     }else{
@@ -318,7 +315,7 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
   uint8_t at = 0;
 
   memset(knock->frame,0,64);
-  if(tempo->is_signal)
+  if(tempo->state.is_signal)
   {
     LOG_CRAZY("signal %s",(tempo == tm->beacon)?"beacon":((tempo == tm->signal)?"out":"in"));
     if(tempo == tm->beacon){
@@ -342,6 +339,7 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
         tm->stream = tempo_free(tm->stream);
       }
       tm->stream = tempo_new(tm);
+      tm->stream->state.is_stream = 1;
       tempo_init(tm->stream, tm->mesh->id);
 
       // then blocks about our shared stream, just medium/seq
@@ -376,22 +374,21 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
 
         // see if there's a ready stream to advertise
         tempo_t stream = mote->stream;
-        if(stream && (stream->do_request || stream->do_accept))
+        if(stream && (stream->state.requesting || stream->state.accepting))
         {
           block = (mblock_t)(blocks+(++at*5));
           if(at >= 12) break;
           block->type = tmesh_block_medium;
       
           // request/accept a bit different
-          if(stream->do_request && !stream->do_accept)
+          if(stream->state.requesting && !stream->state.accepting)
           {
             block->head = 1;
           }else{
             block->head = 2;
             // start stream when accept is sent
-            stream->do_accept = 0; // accepted
-            stream->do_schedule = 1; // start going
-            stream->do_tx = 0; // we are inverted
+            stream->state.accepting = 0; // accepted
+            stream->state.tx = 0; // we are inverted
             stream->priority = 3; // little boost
             stream->at = tempo->at;
             stream->seq = tempo->seq; // TODO invert uint32 for unique starting point
@@ -498,8 +495,6 @@ static tempo_t tempo_blocks_rx(tempo_t tempo, uint8_t *blocks)
       if(hashname_scmp(id,tm->mesh->id) == 0)
       {
         from = tempo->mote;
-        // any time we are mentioned, it always means schedule a signal
-        tm->signal->do_schedule = 1;
       }else if((link = mesh_linkid(tm->mesh, id))){
         // about a neighbor
         about = tmesh_moted(tm, link->id); // if we have a link, we may have a mote
@@ -525,12 +520,10 @@ static tempo_t tempo_blocks_rx(tempo_t tempo, uint8_t *blocks)
         case tmesh_block_at:
           if(!about) break; // require known mote
           about->signal->at = (body + tempo->at); // is an offset from this tempo
-          about->signal->do_schedule = 1; // make sure is scheduled now
           break;
         case tmesh_block_seq:
           if(!about) break; // require known mote
           about->signal->seq = body;
-          about->signal->do_schedule = 1; // make sure is scheduled now
           break;
         case tmesh_block_qos:
           if(about == tempo->mote) tempo->qos_remote = body;
@@ -554,18 +547,16 @@ static tempo_t tempo_blocks_rx(tempo_t tempo, uint8_t *blocks)
               if(!from || !from->link) break; // must be to us
               if(!mote_send(from, NULL)) break; // make sure stream exists
               LOG_INFO("stream request from %s on medium %lu",hashname_short(from->link->id),body);
-              from->stream->do_accept = 1; // start signalling accept stream
+              from->stream->state.accepting = 1; // start signalling accept stream
               from->is_waiting = 1; // flag to tell them and wait for response
-              from->stream->do_schedule = 0; // hold stream scheduling activity
               tempo_medium(from->stream, body);
               break;
             case 2: // stream accept (FUTURE, this is where driver checks resources/acceptibility first)
               if(!from || !from->link) break; // must be to us
               if(!mote_send(from, NULL)) break; // bad juju
               LOG_INFO("accepting stream from %s on medium %lu",hashname_short(from->link->id),body);
-              from->stream->do_schedule = 1; // go
-              from->stream->do_request = 0; // done signalling
-              from->stream->do_tx = 1; // we default to inverted since we're accepting
+              from->stream->state.requesting = 0; // done signalling
+              from->stream->state.tx = 1; // we default to inverted since we're accepting
               from->stream->priority = 3; // little more boost
               from->stream->at = from->signal->at; // same reference sync
               from->stream->seq = from->signal->seq; // TODO invert uint32 for unique starting point
@@ -604,7 +595,7 @@ static tempo_t tempo_knocked_tx(tempo_t tempo, knock_t knock)
   // stats
   tempo->c_tx++;
 
-  if(tempo->is_signal)
+  if(tempo->state.is_signal)
   {
 
     LOG_CRAZY("signal %s",(tempo == tm->beacon)?"beacon":((tempo == tm->signal)?"out":"in"));
@@ -612,19 +603,11 @@ static tempo_t tempo_knocked_tx(tempo_t tempo, knock_t knock)
 
       // sync shared stream to when beacon sent
       tm->stream->at = knock->stopped;
-      tm->stream->do_schedule = 1;
-      tm->stream->do_tx = 1;
+      tm->stream->state.tx = 1;
       tm->stream->priority = 2;
       STATED(tm->stream);
       
-      // quiet beacon while shared stream is active
-      tm->beacon->do_schedule = 0;
-      STATED(tm->beacon);
-      
     }else if(tempo == tm->signal){ // shared outgoing signal
-      
-      // dampen our signal until something changes
-      tm->signal->do_schedule = 0;
       
     }else{ // bad
       return LOG_WARN("invalid signal tx state");
@@ -658,8 +641,8 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
       knock->do_gone = 1; 
     }
 
-    // idle mote stream rx fail is a goner
-    if(tempo->mote && !tempo->is_signal && !tempo->do_tx && !util_frames_busy(tempo->frames) && tempo->c_miss > 1)
+    // idle stream rx fail is a goner
+    if(tempo->state.is_stream && !tempo->state.tx && !util_frames_busy(tempo->frames) && tempo->c_miss > 1)
     {
       LOG_DEBUG("dropping idle mote stream");
       knock->do_gone = 1; 
@@ -678,7 +661,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
   uint8_t frame[64] = {0};
   uint32_t check = 0;
   mblock_t block;
-  if(tempo->is_signal)
+  if(tempo->state.is_signal)
   {
     LOG_CRAZY("signal %s",(tempo == tm->beacon)?"beacon":((tempo == tm->signal)?"out":"in"));
 
@@ -726,19 +709,15 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
 
       // new shared stream
       tempo_t stream = tm->stream = tempo_new(tm);
+      stream->state.is_stream = 1;
       tempo_init(stream, hashname_sbin(blocks));
-      stream->do_schedule = 1;
       stream->at = knock->stopped;
       stream->seq = seq;
-      stream->do_tx = 0; // inverted
+      stream->state.tx = 0; // inverted
       stream->priority = 2;
       tempo_medium(stream, medium);
       STATED(stream);
 
-      // quiet beacon while shared stream is active
-      tm->beacon->do_schedule = 0;
-      STATED(tm->beacon);
-      
       return tempo; 
 
     }else if(tempo->mote){ // incoming signal for a mote
@@ -797,7 +776,7 @@ static tempo_t tempo_gone(tempo_t tempo)
 {
   tmesh_t tm = tempo->tm;
 
-  if(tempo->is_signal)
+  if(tempo->state.is_signal)
   {
     LOG_CRAZY("signal %s",(tempo == tm->beacon)?"beacon":((tempo == tm->signal)?"out":"in"));
     if(tempo == tm->beacon){
@@ -817,12 +796,10 @@ static tempo_t tempo_gone(tempo_t tempo)
       tempo_init(tm->beacon, NULL); // re-initialize beacon
     }else if(tempo->mote){ // private stream
       mote_t mote = tempo->mote;
-      // idle it
-      tempo->do_schedule = 0;
       // if data, re-request, else poof
       if(util_frames_busy(tempo->frames))
       {
-        tempo->do_request = 1;
+        tempo->state.requesting = 1;
         mote->is_waiting = 1;
         STATED(tempo);
       }else{
@@ -908,12 +885,12 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   if(!tm->beacon)
   {
     tm->beacon = tempo_new(tm);
-    tm->beacon->is_signal = 1;
+    tm->beacon->state.is_signal = 1;
     tempo_init(tm->beacon, NULL);
     STATED(tm->beacon);
 
     tm->signal = tempo_new(tm);
-    tm->signal->is_signal = 1;
+    tm->signal->state.is_signal = 1;
     tempo_init(tm->signal, NULL);
     STATED(tm->signal);
   }
@@ -923,10 +900,11 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   // start w/ beacon
   tempo_t best = NULL;
   tempo_schedule(tm->beacon, at);
-  if(tm->beacon->do_schedule) best = tm->sort(tm, best, tm->beacon);
+  //XX if(tm->beacon->do_schedule)
+  best = tm->sort(tm, best, tm->beacon);
 
   // and shared stream (may not exist)
-  if(tm->stream && tm->stream->do_schedule)
+  if(tm->stream)//XX && tm->stream->do_schedule)
   {
     tempo_schedule(tm->stream, at);
     best = tm->sort(tm, best, tm->stream);
@@ -937,7 +915,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   for(mote=tm->motes;mote;mote=mote->next)
   {
     // schedule outgoing signal if any motes in waiting
-    if(mote->is_waiting) tm->signal->do_schedule = 1;
+//XX    if(mote->is_waiting) tm->signal->do_schedule = 1;
 
     // advance signal/stream
     tempo_schedule(mote->signal, at);
@@ -945,17 +923,17 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
     
     // check scheduling, only one or the other needed
     tempo_t stream = mote->stream;
-    if(stream && stream->do_schedule)
+    if(stream)//XX && stream->do_schedule)
     {
       // any conditions that make us want to wait for a specific type
       do {
-        if(stream->do_tx && !util_frames_outbox(stream->frames,NULL,NULL))
+        if(stream->state.tx && !util_frames_outbox(stream->frames,NULL,NULL))
         {
           LOG_CRAZY("stream has nothing to send, skipping");
           continue;
         }
         // optimize away useless RXs when not awaiting and a flush waiting to TX
-        if(!stream->do_tx && stream->frames->flush && !util_frames_inbox(stream->frames,NULL,NULL))
+        if(!stream->state.tx && stream->frames->flush && !util_frames_inbox(stream->frames,NULL,NULL))
         {
           LOG_DEBUG("skipping stream RX %u, waiting to TX flush",stream->chan);
           continue;
@@ -965,20 +943,22 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
       best = tm->sort(tm, best, mote->stream);
     }else{
       // try schedule signal if no stream
-      if(mote->signal->do_schedule) best = tm->sort(tm, best, mote->signal);
+      //XX if(mote->signal->do_schedule)
+      best = tm->sort(tm, best, mote->signal);
     }
   }
 
   // upcheck our signal last
   tempo_schedule(tm->signal, at);
-  if(tm->signal->do_schedule) best = tm->sort(tm, best, tm->signal);
+  //XX if(tm->signal->do_schedule)
+  best = tm->sort(tm, best, tm->signal);
   
   // try a new knock
   knock_t knock = tm->knock;
   memset(knock,0,sizeof(struct knock_struct));
 
   // first try RX seeking a beacon
-  if(tm->beacon->do_schedule)
+  if(1)//XX tm->beacon->do_schedule)
   {
     knock->tempo = tm->beacon;
     knock->seekto = best->at;
@@ -997,7 +977,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   knock->tempo = best;
 
   // do the tempo-specific work to fill in the tx frame
-  if(best->do_tx)
+  if(best->state.tx)
   {
     knock->is_tx = 1;
     if(!tempo_knock_tx(best, knock)) return LOG_WARN("knock tx prep failed");

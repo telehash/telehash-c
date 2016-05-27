@@ -167,12 +167,24 @@ struct tempo_struct
   uint8_t c_miss, c_skip; // how many of the last rx windows were missed (nothing received) or skipped (scheduling)
   uint8_t chan; // channel of next knock
   uint8_t priority; // next knock priority
-  // boolean bit flags
-  uint8_t do_request:1; // advertise stream request in signal
-  uint8_t do_accept:1; // advertise stream accept in signal
-  uint8_t do_schedule:1; // include in scheduling
-  uint8_t do_tx:1; // current window direction
-  uint8_t is_signal:1; // == no frames, !is_signal == stream (frames)
+  union
+  {
+    struct
+    {
+      uint8_t is_signal:1;
+      uint8_t unused1:1;
+      uint8_t qos_request:1;
+      uint8_t qos_accept:1;
+    };
+    struct
+    {
+      uint8_t unused2:1;
+      uint8_t is_stream:1;
+      uint8_t requesting:1;
+      uint8_t accepting:1;
+      uint8_t tx:1; // current window direction
+    };
+  } state;
 };
 
 // a single convenient knock request ready to go
