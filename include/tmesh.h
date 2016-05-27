@@ -156,7 +156,7 @@ struct tempo_struct
   mote_t mote; // parent mote (except for our outgoing signal) 
   void *driver; // for driver use, set during tm->tempo()
   util_frames_t frames; // r/w frame buffers for streams
-  uint32_t q_remote, q_local; // last qualities from/about this tempo
+  uint32_t qos_remote, qos_local; // last qos from/about this tempo
   uint32_t medium; // id
   uint32_t at; // cycles until next knock in current window
   uint32_t seq; // window increment part of nonce
@@ -200,8 +200,6 @@ struct mote_struct
   link_t link;
   tempo_t signal; // tracks their signal
   tempo_t stream; // is a private stream, optionally can track their shared stream (TODO)
-  uint32_t q_signal; // most recent quality block about us from their signal
-  uint32_t q_stream; // most recent quality block about us from their stream
   uint32_t app; // most recent app block from them
   uint8_t is_waiting:1; // when we need to signal to and hear back a signal from them
 };

@@ -10,7 +10,7 @@ typedef enum {
   tmesh_block_medium, // current signal medium
   tmesh_block_at, // next signal time from now
   tmesh_block_seq, // next signal sequence#
-  tmesh_block_quality, // last known signal quality
+  tmesh_block_qos, // last known signal quality
   tmesh_block_app // app defined
 } tmesh_block_t;
 
@@ -442,8 +442,8 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
 
       // send stream quality in this context
       block = (mblock_t)(blocks+(5+5+5));
-      block->type = tmesh_block_quality;
-      memcpy(block->body,&(tempo->q_local),4);
+      block->type = tmesh_block_qos;
+      memcpy(block->body,&(tempo->qos_local),4);
     
       block = (mblock_t)(blocks+(5+5+5+5));
       block->type = tmesh_block_app;
@@ -532,9 +532,9 @@ static tempo_t tempo_blocks_rx(tempo_t tempo, uint8_t *blocks)
           about->signal->seq = body;
           about->signal->do_schedule = 1; // make sure is scheduled now
           break;
-        case tmesh_block_quality:
-          if(about == tempo->mote) tempo->q_remote = body;
-          else if(from) from->signal->q_remote = body;
+        case tmesh_block_qos:
+          if(about == tempo->mote) tempo->qos_remote = body;
+          else if(from) from->signal->qos_remote = body;
           break;
         case tmesh_block_app:
           if(about) about->app = body;
