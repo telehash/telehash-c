@@ -182,7 +182,7 @@ struct tempo_struct
       uint8_t is_stream:1;
       uint8_t requesting:1;
       uint8_t accepting:1;
-      uint8_t tx:1; // current window direction
+      uint8_t direction:1;
     };
   } state;
 };
@@ -213,7 +213,6 @@ struct mote_struct
   tempo_t signal; // tracks their signal
   tempo_t stream; // is a private stream, optionally can track their shared stream (TODO)
   uint32_t app; // most recent app block from them
-  uint8_t is_waiting:1; // when we need to signal to and hear back a signal from them
 };
 
 // return current mote appid
