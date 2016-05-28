@@ -660,8 +660,19 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
   // if error just increment stats and fail
   if(knock->do_err)
   {
-    // beacon rx is seek only, everyone else is a miss count
-    if(tempo != tm->beacon) tempo->c_miss++;
+    // update fail counters on streams
+    if(tempo->state.is_stream)
+    {
+      if(util_frames_inbox(tempo->frames,NULL,NULL)) tempo->c_miss++;
+      else tempo->c_idle++;
+    }
+
+    // a signal we are expecting to hear from is a miss
+    if(tempo->state.is_signal)
+    {
+      if(tempo->state.qos_request) tempo->c_miss++;
+      else if(tempo->mote && tempo->mote->stream && tempo->mote->stream->state.requesting) tempo->c_miss++;
+    }
 
     // shared streams force down with low tolerance for misses (NOTE this logic could be more efficienter)
     if(tempo == tm->stream && !tempo->c_rx && tempo->c_miss > 1)
@@ -670,17 +681,11 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
       knock->do_gone = 1; 
     }
 
-    // idle stream rx fail is a goner
-    if(tempo->state.is_stream && tempo->state.direction == 0 && !util_frames_busy(tempo->frames) && tempo->c_miss > 1)
-    {
-      LOG_DEBUG("dropping idle mote stream");
-      knock->do_gone = 1; 
-    }
-    return LOG_CRAZY("failed RX, miss at %lu",tempo->c_miss);
+    return LOG_CRAZY("failed RX, miss %u idle %u",tempo->c_miss,tempo->c_idle);
   }
 
   // always update RX flags/stats first
-  tempo->c_miss = 0; // clear any missed counter
+  tempo->c_miss = tempo->c_idle = 0; // clear all rx counters
   tempo->c_rx++;
   if(knock->rssi > tempo->best || !tempo->best) tempo->best = knock->rssi;
   if(knock->rssi < tempo->worst || !tempo->worst) tempo->worst = knock->rssi;
@@ -947,7 +952,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
     {
       // any conditions that make us want to wait for a specific type
       do {
-        if(stream->state.direction && !util_frames_outbox(stream->frames,NULL,NULL))
+        if(stream->state.direction == 1 && !util_frames_outbox(stream->frames,NULL,NULL))
         {
           LOG_CRAZY("stream has nothing to send, skipping");
           continue;
@@ -964,7 +969,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
       best = tm->sort(tm, best, stream);
     }
     
-    // signal is active when qos request, no stream, or stream is requesting
+    // signal is active when qos request, no stream, or stream is requesting (mirror'd in c_miss counter)
     if(signal->state.qos_request || !stream  || stream->state.requesting)
     {
       best = tm->sort(tm, best, signal);

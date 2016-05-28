@@ -164,7 +164,7 @@ struct tempo_struct
   uint16_t c_bad; // dropped bad frames
   int16_t last, best, worst; // rssi
   uint8_t secret[32];
-  uint8_t c_miss, c_skip; // how many of the last rx windows were missed (nothing received) or skipped (scheduling)
+  uint8_t c_miss, c_skip, c_idle; // how many of the last rx windows were missed (expected), skipped (scheduling), or idle
   uint8_t chan; // channel of next knock
   uint8_t priority; // next knock priority
   union
