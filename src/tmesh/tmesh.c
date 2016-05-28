@@ -814,7 +814,7 @@ static tempo_t tempo_gone(tempo_t tempo)
 }
 
 // inner logic
-static tempo_t tempo_schedule(tempo_t tempo, uint32_t at)
+static tempo_t tempo_advance(tempo_t tempo, uint32_t at)
 {
   if(!tempo || !at) return NULL;
   tmesh_t tm = tempo->tm;
@@ -896,34 +896,30 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   }
   
   // TODO rework how the best is sorted, maybe all at once
-  
-  // start w/ beacon
   tempo_t best = NULL;
-  tempo_schedule(tm->beacon, at);
-  //XX if(tm->beacon->do_schedule)
-  best = tm->sort(tm, best, tm->beacon);
 
-  // and shared stream (may not exist)
-  if(tm->stream)//XX && tm->stream->do_schedule)
-  {
-    tempo_schedule(tm->stream, at);
-    best = tm->sort(tm, best, tm->stream);
-  }
+  tempo_advance(tm->beacon, at);
+  tempo_advance(tm->stream, at);
+
+  // only schedule beacon or shared stream
+  if(!tm->stream) best = tm->sort(tm, best, tm->beacon);
+  else best = tm->sort(tm, best, tm->stream);
 
   // walk all the tempos for next best knock
   mote_t mote;
+  bool do_signal = false;
   for(mote=tm->motes;mote;mote=mote->next)
   {
-    // schedule outgoing signal if any motes in waiting
-//XX    if(mote->is_waiting) tm->signal->do_schedule = 1;
+    // convenience
+    tempo_t stream = mote->stream;
+    tempo_t signal = mote->signal;
 
     // advance signal/stream
-    tempo_schedule(mote->signal, at);
-    tempo_schedule(mote->stream, at);
+    tempo_advance(signal, at);
+    tempo_advance(stream, at);
     
-    // check scheduling, only one or the other needed
-    tempo_t stream = mote->stream;
-    if(stream)//XX && stream->do_schedule)
+    // stream is always active if not requesting
+    if(stream && !stream->state.requesting)
     {
       // any conditions that make us want to wait for a specific type
       do {
@@ -939,26 +935,32 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
           continue;
         }
         break;
-      } while(tempo_schedule(stream,stream->at));
-      best = tm->sort(tm, best, mote->stream);
-    }else{
-      // try schedule signal if no stream
-      //XX if(mote->signal->do_schedule)
-      best = tm->sort(tm, best, mote->signal);
+      } while(tempo_advance(stream,stream->at));
+
+      best = tm->sort(tm, best, stream);
     }
+    
+    // signal is active when qos request, no stream, or stream is requesting
+    if(signal->state.qos_request || !stream  || stream->state.requesting)
+    {
+      best = tm->sort(tm, best, signal);
+    }
+    
+    // our outgoing signal must be active when:
+    if(signal->state.qos_request || signal->state.qos_accept) do_signal = true;
+    if(stream && (stream->state.requesting || stream->state.accepting)) do_signal = true;
   }
 
   // upcheck our signal last
-  tempo_schedule(tm->signal, at);
-  //XX if(tm->signal->do_schedule)
-  best = tm->sort(tm, best, tm->signal);
+  tempo_advance(tm->signal, at);
+  if(do_signal) best = tm->sort(tm, best, tm->signal);
   
   // try a new knock
   knock_t knock = tm->knock;
   memset(knock,0,sizeof(struct knock_struct));
 
-  // first try RX seeking a beacon
-  if(1)//XX tm->beacon->do_schedule)
+  // first try RX seeking a beacon whenever no shared stream is active
+  if(!tm->stream)
   {
     knock->tempo = tm->beacon;
     knock->seekto = best->at;
