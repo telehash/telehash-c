@@ -182,7 +182,7 @@ struct tempo_struct
       uint8_t is_stream:1;
       uint8_t requesting:1;
       uint8_t accepting:1;
-      uint8_t direction:1;
+      uint8_t direction:1; // 1==TX, 0==RX
     };
   } state;
 };
