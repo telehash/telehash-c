@@ -22,7 +22,7 @@ typedef struct mblock_struct {
   uint8_t body[4]; // payload
 } *mblock_t;
 
-#define STATED(t) util_sys_log(6, "", __LINE__, __FUNCTION__, \
+#define STATED(t) util_sys_log(7, "", __LINE__, __FUNCTION__, \
       "\t%s %s %u/%u/%u %s %d", \
         t->mote?hashname_short(t->mote->link->id):(t==t->tm->signal)?"mysignal":(t==t->tm->beacon)?"mybeacon":"myshared", \
         t->state.is_signal?(t->mote?"<-":"->"):"<>", \
@@ -672,6 +672,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
     {
       if(tempo->state.qos_request) tempo->c_miss++;
       else if(tempo->mote && tempo->mote->stream && tempo->mote->stream->state.requesting) tempo->c_miss++;
+      else tempo->c_idle++;
     }
 
     // shared streams force down with low tolerance for misses (NOTE this logic could be more efficienter)
@@ -683,13 +684,6 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
 
     return LOG_CRAZY("failed RX, miss %u idle %u",tempo->c_miss,tempo->c_idle);
   }
-
-  // always update RX flags/stats first
-  tempo->c_miss = tempo->c_idle = 0; // clear all rx counters
-  tempo->c_rx++;
-  if(knock->rssi > tempo->best || !tempo->best) tempo->best = knock->rssi;
-  if(knock->rssi < tempo->worst || !tempo->worst) tempo->worst = knock->rssi;
-  tempo->last = knock->rssi;
 
   uint8_t blocks[60] = {0};
   uint8_t frame[64] = {0};
@@ -796,6 +790,13 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
     
     // app handles processing received stream data
   }
+
+  // update RX flags/stats now
+  tempo->c_miss = tempo->c_idle = 0; // clear all rx counters
+  tempo->c_rx++;
+  if(knock->rssi > tempo->best || !tempo->best) tempo->best = knock->rssi;
+  if(knock->rssi < tempo->worst || !tempo->worst) tempo->worst = knock->rssi;
+  tempo->last = knock->rssi;
 
   // process any blocks
   tempo_blocks_rx(tempo, blocks);
@@ -978,7 +979,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
     
     // our outgoing signal must be active when:
     if(signal->state.qos_request || signal->state.qos_accept) do_signal = true;
-    if(!stream || stream->state.requesting || stream->state.accepting) do_signal = true;
+    if(stream && (stream->state.requesting || stream->state.accepting)) do_signal = true;
   }
 
   // upcheck our signal last
