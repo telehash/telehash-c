@@ -356,7 +356,7 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
         // only include motes that want to be
         bool do_qos = false;
         bool do_stream = false;
-        if(mote->signal->state.qos_request || mote->signal->state.qos_request) do_qos = true;
+        if(mote->signal->state.qos_ping || mote->signal->state.qos_pong) do_qos = true;
         if(mote->stream && (mote->stream->state.requesting || mote->stream->state.accepting)) do_stream = true;
         if(!(do_qos || do_stream)) continue;
 
@@ -400,14 +400,14 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
         {
           block = (mblock_t)(blocks+(++at*5));
           if(at >= 12) break;
-          block->type = tmesh_block_medium;
+          block->type = tmesh_block_qos;
           memcpy(block->body,&(mote->signal->qos_local),4);
       
-          if(mote->signal->state.requesting) block->head = 1;
-          if(mote->signal->state.accepting)
+          if(mote->signal->state.qos_ping) block->head = 1;
+          if(mote->signal->state.qos_pong)
           {
             block->head = 2;
-            mote->signal->state.accepting = 0; // clear since sent
+            mote->signal->state.qos_pong = 0; // clear since sent
           }
         }
 
@@ -517,6 +517,7 @@ static tempo_t tempo_blocks_rx(tempo_t tempo, uint8_t *blocks)
 
       at++;
     }
+    LOG_CRAZY("about %s from %s seen %s  at %u",about?hashname_short(about->link->id):"NULL",from?hashname_short(from->link->id):"NULL",seen?hashname_short(seen):"NULL",at);
 
     // loop through blocks for above id/mote
     for(;at < 12;at++)
@@ -545,12 +546,12 @@ static tempo_t tempo_blocks_rx(tempo_t tempo, uint8_t *blocks)
               break;
             case 1: // qos request, flag to accept
               if(!from || !tempo->state.is_signal) break; // must be signal to us
-              tempo->state.qos_accept = 1; // triggers our signal out
+              tempo->state.qos_pong = 1; // triggers our signal out
               tempo->qos_remote = body;
               break;
             case 2: // qos accept, clear request
               if(!from || !tempo->state.is_signal) break; // must be signal to us
-              tempo->state.qos_request = tempo->state.qos_accept = 0; // clear all state
+              tempo->state.qos_ping = tempo->state.qos_pong = 0; // clear all state
               tempo->qos_remote = body;
               // TODO notify app of aliveness?
               break;
@@ -670,7 +671,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
     // a signal we are expecting to hear from is a miss
     if(tempo->state.is_signal)
     {
-      if(tempo->state.qos_request) tempo->c_miss++;
+      if(tempo->state.qos_ping) tempo->c_miss++;
       else if(tempo->mote && tempo->mote->stream && tempo->mote->stream->state.requesting) tempo->c_miss++;
       else tempo->c_idle++;
     }
@@ -972,13 +973,13 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
     }
     
     // signal rx is active when qos request, no stream, or stream is requesting (mirror'd in c_miss counter)
-    if(signal->state.qos_request || !stream  || stream->state.requesting)
+    if(signal->state.qos_ping || !stream  || stream->state.requesting)
     {
       best = tm->sort(tm, best, signal);
     }
     
     // our outgoing signal must be active when:
-    if(signal->state.qos_request || signal->state.qos_accept) do_signal = true;
+    if(signal->state.qos_ping || signal->state.qos_pong) do_signal = true;
     if(stream && (stream->state.requesting || stream->state.accepting)) do_signal = true;
   }
 
@@ -1134,7 +1135,7 @@ tmesh_t tmesh_appid(tmesh_t tm, uint32_t id)
 
   // make sure we resync all the neighbors
   mote_t mote;
-  for(mote=tm->motes;mote;mote=mote->next) mote->signal->state.qos_request = 1;
+  for(mote=tm->motes;mote;mote=mote->next) mote->signal->state.qos_ping = 1;
   
   return tm;
 }

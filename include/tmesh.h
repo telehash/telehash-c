@@ -173,8 +173,8 @@ struct tempo_struct
     {
       uint8_t is_signal:1;
       uint8_t unused1:1;
-      uint8_t qos_request:1;
-      uint8_t qos_accept:1;
+      uint8_t qos_ping:1;
+      uint8_t qos_pong:1;
     };
     struct
     {
