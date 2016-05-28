@@ -1,4 +1,5 @@
 CC=gcc
+EMCC=emcc
 CFLAGS+=-g -Wall -Wextra -Wno-unused-parameter -DDEBUG
 #CFLAGS+=-Weverything -Wno-unused-macros -Wno-undef -Wno-gnu-zero-variadic-macro-arguments -Wno-padded -Wno-gnu-label-as-value -Wno-gnu-designator -Wno-missing-prototypes -Wno-format-nonliteral
 INCLUDE+=-Iinclude -Iinclude/lib -Iunix
@@ -90,6 +91,9 @@ arduino: static
 	@cat src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c >> arduino/src/telehash/telehash.c
 	cp src/e3x/cs1a/cs1a.c arduino/src/cs1a/
 	cp $(HEADERS) arduino/src/telehash/
+
+javascript: static
+	$(EMCC) telehash.c -I include/ -s LINKABLE=1 -s EXPORT_ALL=1 -s NO_FILESYSTEM=1 -s INLINING_LIMIT=1 -O3 -o js/_th.js
 
 test: $(FULL_OBJFILES) ping
 	cd test; $(MAKE) $(MFLAGS)
