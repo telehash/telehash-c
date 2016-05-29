@@ -169,6 +169,7 @@ struct tempo_struct
   uint8_t c_miss, c_skip, c_idle; // how many of the last rx windows were missed (expected), skipped (scheduling), or idle
   uint8_t chan; // channel of next knock
   uint8_t priority; // next knock priority
+  // a byte of state flags for each tempo type
   union
   {
     struct
@@ -178,6 +179,7 @@ struct tempo_struct
       uint8_t qos_ping:1;
       uint8_t qos_pong:1;
       uint8_t seen:1; // beacon only
+      uint8_t adhoc:1;
     };
     struct
     {

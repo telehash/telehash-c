@@ -58,7 +58,11 @@ mote_t mote_send(mote_t mote, lob_t packet)
     LOG_DEBUG("send initiated new stream");
     tempo = mote->stream = tempo_new(mote->tm);
     tempo->state.is_stream = 1;
-    tempo->state.requesting = 1;
+    if(packet)
+    {
+      tempo->state.requesting = 1;
+      mote->signal->state.adhoc = 1; // try adhoc signal for fast stream init
+    }
     tempo->mote = mote;
     tempo_init(tempo);
   }
@@ -296,6 +300,48 @@ static tempo_t tempo_init(tempo_t tempo)
   STATED(tempo);
   
   return tempo;
+}
+
+// special tx fill for ad-hoc signal beacon
+tempo_t tempo_knock_adhoc(tempo_t signal, knock_t knock)
+{
+  tmesh_t tm = signal->tm;
+  tempo_t beacon = tm->beacon;
+  tempo_t stream = signal->mote->stream;
+
+  // first is nonce (unciphered prefixed)
+  e3x_rand(knock->nonce,8); // random nonce each time
+  memcpy(knock->frame,knock->nonce,8);
+
+  uint8_t index = 2;
+
+  // block pattern is [them][us][stream blocks]
+  memcpy(knock->frame+(index*5),hashname_bin(signal->mote->link->id),5);
+  index++;
+  memcpy(knock->frame+(index*5),hashname_bin(tm->mesh->id),5);
+  index++;
+  
+  // NOTE duplicated from normal signal tx (ick)
+  mblock_t block = (mblock_t)(knock->frame+(index*5));
+  block->type = tmesh_block_medium;
+  memcpy(block->body,&(stream->medium),4);
+  if(stream->state.requesting) block->head = 1;
+  if(stream->state.accepting)
+  {
+    block->head = 2;
+    // try starting stream now
+    stream->state.accepting = stream->state.requesting = 0; // this lets the stream be scheduled
+    stream->state.direction = 0; // we are inverted
+    stream->priority = 3; // little boost
+    stream->at = beacon->at;
+    stream->seq = beacon->seq;
+  }
+
+  block->done = 1;
+  murmur(knock->frame,60,knock->frame+60);
+  
+  LOG_INFO("ad-hoc signal to %s about a stream %s",hashname_short(signal->mote->link->id),(block->head == 1)?"request":"accept");
+  return signal;
 }
 
 // fills in next tx knock
@@ -727,7 +773,19 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
       
       // TODO, process these blocks loosely, not fixed
       memcpy(blocks,frame+10,50);
-      if(tmesh_moted(tm,hashname_sbin(blocks))) return LOG_DEBUG("skipping beacon from known neighbor %s",hashname_short(hashname_sbin(blocks)));
+      mote_t from;
+      
+      // an ad-hoc signal beacon is in the form of [us][them][stream blocks]
+      if(hashname_scmp(hashname_sbin(blocks),tm->mesh->id) == 0 && (from = tmesh_moted(tm,hashname_sbin(blocks+5))))
+      {
+        LOG_INFO("ADHOC SIGNAL from %s: %s",hashname_short(from->link->id), util_hex(blocks+10,40,NULL));
+        // pass in from->signal tempo w/ blocks,1
+        // match channel
+        return tempo;
+      }
+      
+      // otherwise skip known
+      if((from = tmesh_moted(tm,hashname_sbin(blocks)))) return LOG_DEBUG("skipping beacon from known neighbor %s",hashname_short(from->link->id));
 
       uint8_t index = 1;
       block = (mblock_t)(blocks+(index*5));
@@ -980,6 +1038,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   // walk all the tempos for next best knock
   mote_t mote;
   bool do_signal = false;
+  tempo_t adhoc = NULL;
   for(mote=tm->motes;mote;mote=mote->next)
   {
     // convenience
@@ -1021,6 +1080,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
     // our outgoing signal must be active when:
     if(signal->state.qos_ping || signal->state.qos_pong) do_signal = true;
     if(stream && (stream->state.requesting || stream->state.accepting)) do_signal = true;
+    if(signal->state.adhoc) adhoc = signal;
   }
 
   // upcheck our signal last
@@ -1038,10 +1098,26 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   {
     knock->tempo = tm->beacon;
     knock->seekto = best->at;
+    
+    // try one ad-hoc signal beacon TX special case
+    if(adhoc && !tm->beacon->state.adhoc)
+    {
+      knock->is_tx = 1;
+      tempo_knock_adhoc(adhoc, knock);
+      chacha20(best->secret,knock->frame,knock->frame+8,64-8);
+    }
 
     // ask driver if it can seek, done if so, else fall through
     knock->is_active = 1;
-    if(tm->schedule(tm)) return tm;
+    if(tm->schedule(tm))
+    {
+      if(adhoc)
+      {
+        adhoc->state.adhoc = 0;
+        tm->beacon->state.adhoc = 1; // block others until reset
+      }
+      return tm;
+    }
   }
   
   // proceed w/ normal scheduled knock
