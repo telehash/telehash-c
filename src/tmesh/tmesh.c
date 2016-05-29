@@ -306,7 +306,7 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
   tmesh_t tm = tempo->tm;
   uint8_t blocks[60] = {0};
   mblock_t block = NULL;
-  uint8_t at = 0;
+  uint8_t index = 0;
 
   memset(knock->frame,0,64);
   if(tempo->state.is_signal)
@@ -322,10 +322,10 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
       memcpy(blocks,hashname_bin(tm->mesh->id),5);
 
       // then blocks about our beacon for anyone to sync to, we'll RX after one c_tx
-      block = (mblock_t)(blocks+(++at*5));
+      block = (mblock_t)(blocks+(++index*5));
       block->type = tmesh_block_medium;
       memcpy(block->body,&(tempo->medium),4);
-      block = (mblock_t)(blocks+(++at*5));
+      block = (mblock_t)(blocks+(++index*5));
       block->type = tmesh_block_seq;
       memcpy(block->body,&(tempo->seq),4);
       block->done = 1;
@@ -336,7 +336,7 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
         tempo->state.seen = 0;
 
         // lead w/ seen short hn
-        memcpy(blocks+(++at*5),tm->seen,5);
+        memcpy(blocks+(++index*5),tm->seen,5);
 
         // init/create new shared stream, starts immediately, ->at is set after TX
         if(tm->stream) return LOG_ERROR("attempt to beacon when shared stream is active");
@@ -346,11 +346,11 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
         tm->stream->state.direction = 0; // we are inverted
 
         // then blocks about our shared stream, just medium/seq
-        block = (mblock_t)(blocks+(++at*5));
+        block = (mblock_t)(blocks+(++index*5));
         block->type = tmesh_block_medium;
         block->head = 2; // immediate accepting
         memcpy(block->body,&(tm->stream->medium),4);
-        block = (mblock_t)(blocks+(++at*5));
+        block = (mblock_t)(blocks+(++index*5));
         block->type = tmesh_block_seq;
         memcpy(block->body,&(tm->stream->seq),4);
         block->done = 1;
@@ -369,7 +369,7 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
       block->done = 1;
 
       // fill in blocks for our neighborhood
-      for(mote=tm->motes;mote && at < 10;mote = mote->next) // must be at least enough space for two blocks
+      for(mote=tm->motes;mote && index < 10;mote = mote->next) // must be at least enough space for two blocks
       {
         // only include motes that want to be
         bool do_qos = false;
@@ -379,14 +379,14 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
         if(!(do_qos || do_stream)) continue;
 
         // lead w/ short hn
-        memcpy(blocks+(++at*5),mote->link->id,5);
+        memcpy(blocks+(++index*5),mote->link->id,5);
 
         // a ready stream to signal about
         if(do_stream)
         {
           tempo_t stream = mote->stream;
-          block = (mblock_t)(blocks+(++at*5));
-          if(at >= 12) break;
+          block = (mblock_t)(blocks+(++index*5));
+          if(index >= 12) break;
           block->type = tmesh_block_medium;
       
           // requesting is easy
@@ -415,8 +415,8 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
         // qos mode too
         if(do_qos)
         {
-          block = (mblock_t)(blocks+(++at*5));
-          if(at >= 12) break;
+          block = (mblock_t)(blocks+(++index*5));
+          if(index >= 12) break;
           block->type = tmesh_block_qos;
           memcpy(block->body,&(mote->signal->qos_local),4);
       
@@ -429,8 +429,8 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
         }
 
         // always bundle app id to confirm and for ambiance in the neighborhood
-        block = (mblock_t)(blocks+(++at*5));
-        if(at >= 12) break;
+        block = (mblock_t)(blocks+(++index*5));
+        if(index >= 12) break;
         block->type = tmesh_block_app;
         memcpy(block->body,&(mote->app),4);
 
@@ -491,32 +491,31 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
 }
 
 // process incoming blocks from this tempo
-static tempo_t tempo_blocks_rx(tempo_t tempo, uint8_t *blocks)
+static tempo_t tempo_blocks_rx(tempo_t tempo, uint8_t *blocks, uint8_t index)
 {
   tmesh_t tm = tempo->tm;
   mote_t about;
   mote_t from; // when about is us
   struct hashname_struct hn_val;
   hashname_t seen;
-  uint8_t at;
 
-  for(at = 0;at < 12;at++)
+  for(index = 0;index < 12;index++)
   {
     about = from = NULL;
     seen = NULL;
 
     // initial about is always sender
-    if(!at)
+    if(!index)
     {
       about = tempo->mote;
     }else{
 
       // 0's not a valid hn
       uint8_t zeros[5] = {0};
-      if(memcmp(zeros,blocks+(5*at),5) == 0) return tempo;
+      if(memcmp(zeros,blocks+(5*index),5) == 0) return tempo;
       
       // use local copy
-      memcpy(hn_val.bin,blocks+(5*at),5);
+      memcpy(hn_val.bin,blocks+(5*index),5);
       hashname_t id = &hn_val;
 
       // is it about us?
@@ -532,14 +531,14 @@ static tempo_t tempo_blocks_rx(tempo_t tempo, uint8_t *blocks)
         seen = &hn_val;
       }
 
-      at++;
+      index++;
     }
-    LOG_CRAZY("about %s from %s seen %s  at %u",about?hashname_short(about->link->id):"NULL",from?hashname_short(from->link->id):"NULL",seen?hashname_short(seen):"NULL",at);
+    LOG_CRAZY("about %s from %s seen %s  index %u",about?hashname_short(about->link->id):"NULL",from?hashname_short(from->link->id):"NULL",seen?hashname_short(seen):"NULL",index);
 
     // loop through blocks for above id/mote
-    for(;at < 12;at++)
+    for(;index < 12;index++)
     {
-      mblock_t block = (mblock_t)(blocks+(5*at));
+      mblock_t block = (mblock_t)(blocks+(5*index));
       uint32_t body;
       memcpy(&body,block->body,4);
 
@@ -730,16 +729,16 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
       memcpy(blocks,frame+10,50);
       if(tmesh_moted(tm,hashname_sbin(blocks))) return LOG_DEBUG("skipping beacon from known neighbor %s",hashname_short(hashname_sbin(blocks)));
 
-      uint8_t at = 1;
-      block = (mblock_t)(blocks+(at*5));
+      uint8_t index = 1;
+      block = (mblock_t)(blocks+(index*5));
       uint32_t medium;
       memcpy(&medium,block->body,4);
       if(!medium) return LOG_WARN("no medium on beacon");
-      at++;
-      block = (mblock_t)(blocks+(at*5));
+      index++;
+      block = (mblock_t)(blocks+(index*5));
       uint32_t seq;
       memcpy(&seq,block->body,4);
-      at++;
+      index++;
 
       // might be busy receiving already
       if(tm->stream)
@@ -760,18 +759,18 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
       tempo->at = knock->stopped;
 
       // see if there's a shared stream accept to us
-      uint8_t *to = blocks+(at*5);
-      at++;
-      block = (mblock_t)(blocks+(at*5));
+      uint8_t *to = blocks+(index*5);
+      index++;
+      block = (mblock_t)(blocks+(index*5));
       if(memcmp(to,hashname_bin(tm->mesh->id),5) == 0 && (block->type == tmesh_block_medium) && (block->head == 2))
       {
         // finish medium/seq
         memcpy(&medium,block->body,4);
-        at++;
-        block = (mblock_t)(blocks+(at*5));
+        index++;
+        block = (mblock_t)(blocks+(index*5));
         uint32_t seq;
         memcpy(&seq,block->body,4);
-        at++;
+        index++;
 
         // new shared stream
         tempo_t stream = tm->stream = tempo_new(tm);
@@ -841,7 +840,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
   tempo->last = knock->rssi;
 
   // process any blocks
-  tempo_blocks_rx(tempo, blocks);
+  tempo_blocks_rx(tempo, blocks, 0);
 
   return tempo;
 }
