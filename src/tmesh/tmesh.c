@@ -36,7 +36,7 @@ typedef struct mblock_struct {
 // forward-ho
 static tempo_t tempo_new(tmesh_t tm);
 static tempo_t tempo_free(tempo_t tempo);
-static tempo_t tempo_init(tempo_t tempo, hashname_t id_shared);
+static tempo_t tempo_init(tempo_t tempo);
 static tempo_t tempo_medium(tempo_t tempo, uint32_t medium);
 static tempo_t tempo_gone(tempo_t tempo);
 
@@ -60,7 +60,7 @@ mote_t mote_send(mote_t mote, lob_t packet)
     tempo->state.is_stream = 1;
     tempo->state.requesting = 1;
     tempo->mote = mote;
-    tempo_init(tempo, NULL);
+    tempo_init(tempo);
   }
 
   if(util_frames_outlen(tempo->frames) > 1000)
@@ -148,7 +148,7 @@ static mote_t mote_new(tmesh_t tm, link_t link)
   mote->signal = tempo_new(tm);
   mote->signal->state.is_signal = 1;
   mote->signal->mote = mote;
-  tempo_init(mote->signal, NULL);
+  tempo_init(mote->signal);
 
   STATED(mote->signal);
 
@@ -217,7 +217,7 @@ if(tempo->state.is_signal)
 /*//////////////////////////////////////////////////////////////////
 
 // init any tempo, only called once
-static tempo_t tempo_init(tempo_t tempo, hashname_t id_shared)
+static tempo_t tempo_init(tempo_t tempo)
 {
   if(!tempo) return LOG_WARN("bad args");
   tmesh_t tm = tempo->tm;
@@ -237,6 +237,7 @@ static tempo_t tempo_init(tempo_t tempo, hashname_t id_shared)
     {
       tempo->priority = 1; // low
       e3x_rand((uint8_t*)&(tempo->seq),4); // random sequence
+      tempo->c_tx = tempo->state.seen = 0; // ensure clear
       // nothing extra to add, just copy for roll
       memcpy(roll+32,roll,32);
     }else if(tempo == tm->signal){ // shared outgoing signal
@@ -260,8 +261,10 @@ static tempo_t tempo_init(tempo_t tempo, hashname_t id_shared)
     if(tempo == tm->stream) // shared stream
     {
       e3x_rand((uint8_t*)&(tempo->seq),4); // random sequence
-      // include given id in the rollup to make shared stream more unique
-      memcpy(roll+32,hashname_bin(id_shared),5);
+      // combine both short hashnames in the rollup to make shared stream more unique
+      memcpy(roll+32,hashname_bin(tm->mesh->id),5); // add ours in
+      uint8_t i;
+      for(i=0;i<5;i++) roll[32+i] ^= tm->seen[i]; // xor add theirs in
       // shared stream always has a discovery primed
       util_frames_send(tempo->frames,hashname_im(tm->mesh->keys, 0x1a));
     }else if(tempo->mote){
@@ -318,27 +321,42 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
       // first block is always our short hashname
       memcpy(blocks,hashname_bin(tm->mesh->id),5);
 
-      // then our current app value
-      block = (mblock_t)(blocks+5);
-      block->type = tmesh_block_app;
-      memcpy(block->body,&(tm->app),4);
-      
-      // init/create new stream
-      if(tm->stream) return LOG_ERROR("attempt to beacon when shared stream is active");
-      tm->stream = tempo_new(tm);
-      tm->stream->state.is_stream = 1;
-      tempo_init(tm->stream, tm->mesh->id);
-
-      // then blocks about our shared stream, just medium/seq
-      block = (mblock_t)(blocks+5+5);
+      // then blocks about our beacon for anyone to sync to, we'll RX after one c_tx
+      block = (mblock_t)(blocks+(++at*5));
       block->type = tmesh_block_medium;
-      memcpy(block->body,&(tm->stream->medium),4);
-      block = (mblock_t)(blocks+5+5+5);
+      memcpy(block->body,&(tempo->medium),4);
+      block = (mblock_t)(blocks+(++at*5));
       block->type = tmesh_block_seq;
-      memcpy(block->body,&(tm->stream->seq),4);
-      
+      memcpy(block->body,&(tempo->seq),4);
       block->done = 1;
 
+      // include an accept for a shared stream just once
+      if(tempo->state.seen)
+      {
+        tempo->state.seen = 0;
+
+        // lead w/ seen short hn
+        memcpy(blocks+(++at*5),tm->seen,5);
+
+        // init/create new shared stream, starts immediately, ->at is set after TX
+        if(tm->stream) return LOG_ERROR("attempt to beacon when shared stream is active");
+        tm->stream = tempo_new(tm);
+        tm->stream->state.is_stream = 1;
+        tempo_init(tm->stream);
+        tm->stream->seq = tempo->seq; // remap?
+        tm->stream->state.direction = 0; // we are inverted
+
+        // then blocks about our shared stream, just medium/seq
+        block = (mblock_t)(blocks+5+5);
+        block->type = tmesh_block_medium;
+        block->head = 2; // immediate accepting
+        memcpy(block->body,&(tm->stream->medium),4);
+        block = (mblock_t)(blocks+5+5+5);
+        block->type = tmesh_block_seq;
+        memcpy(block->body,&(tm->stream->seq),4);
+        block->done = 1;
+      }
+      
       memcpy(knock->frame+10,blocks,50);
 
     }else if(tempo == tm->signal){ // shared outgoing signal
@@ -380,10 +398,9 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
           // accepting changes state
           if(stream->state.accepting)
           {
-            if(stream->state.requesting) LOG_ERROR("stream requesting state is invalid when accepting");
             block->head = 2;
             // start stream when accept is sent
-            stream->state.accepting = 0; // this lets the stream be scheduled
+            stream->state.accepting = stream->state.requesting = 0; // this lets the stream be scheduled
             stream->state.direction = 0; // we are inverted
             stream->priority = 3; // little boost
             stream->at = tempo->at;
@@ -631,11 +648,10 @@ static tempo_t tempo_knocked_tx(tempo_t tempo, knock_t knock)
     LOG_CRAZY("signal %s",(tempo == tm->beacon)?"beacon":((tempo == tm->signal)?"out":"in"));
     if(tempo == tm->beacon){
 
-      // sync shared stream to when beacon sent
-      tm->stream->at = knock->stopped;
-      tm->stream->state.direction = 1;
-      tm->stream->priority = 2;
-      STATED(tm->stream);
+      // beacon/shared stream reset to when actually sent for sync
+      tempo->at = knock->stopped;
+      if(tm->stream) tm->stream->at = knock->stopped;
+      else tempo->priority = 9; // we must always RX once after a beacon
       
     }else if(tempo == tm->signal){ // shared outgoing signal
       
@@ -673,6 +689,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
     {
       if(tempo->state.qos_ping) tempo->c_miss++;
       else if(tempo->mote && tempo->mote->stream && tempo->mote->stream->state.requesting) tempo->c_miss++;
+      else if(tempo == tm->beacon) tempo_init(tempo); // always reset after no RX
       else tempo->c_idle++;
     }
 
@@ -709,46 +726,61 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
         return LOG_INFO("beacon frame invalid, possibly from another community");
       }
       
-      // might be busy receiving already
-      if(tm->stream)
-      {
-        if(tm->stream->c_rx) LOG_DEBUG("beacon received while processing another, switching");
-        tm->stream = tempo_free(tm->stream);
-      }
-
-      // process blocks directly, first sender nickname NOTE: can this be done in tempo_blocks somehow?
+      // TODO, process these blocks loosely, not fixed
       memcpy(blocks,frame+10,50);
-      hashname_t id = hashname_sbin(blocks);
-      if(tmesh_moted(tm,id)) return LOG_DEBUG("skipping beacon from known neighbor %s",hashname_short(id));
+      if(tmesh_moted(tm,hashname_sbin(blocks))) return LOG_DEBUG("skipping beacon from known neighbor %s",hashname_short(hashname_sbin(blocks)));
 
-      block = (mblock_t)(blocks+5);
-      uint32_t app;
-      memcpy(&app,block->body,4);
-      
-      // see if driver accepts the new mote
-      if(tm->accept && !tm->accept(tm, id, app)) return LOG_INFO("driver rejected beacon from %s",hashname_short(id));
-  
-      block = (mblock_t)(blocks+5+5);
+      uint8_t at = 1;
+      block = (mblock_t)(blocks+(at*5));
       uint32_t medium;
       memcpy(&medium,block->body,4);
       if(!medium) return LOG_WARN("no medium on beacon");
-
-      block = (mblock_t)(blocks+5+5+5);
+      at++;
+      block = (mblock_t)(blocks+(at*5));
       uint32_t seq;
       memcpy(&seq,block->body,4);
+      at++;
 
-      // new shared stream
-      tempo_t stream = tm->stream = tempo_new(tm);
-      stream->state.is_stream = 1;
-      tempo_init(stream, hashname_sbin(blocks));
-      stream->at = knock->stopped;
-      stream->seq = seq;
-      stream->state.direction = 0; // inverted
-      stream->priority = 2;
-      tempo_medium(stream, medium);
-      STATED(stream);
+      // might be busy receiving already
+      if(tm->stream)
+      {
+        if(tm->stream->c_rx && memcmp(blocks,tm->seen,5) != 0) return LOG_INFO("ignoring beacon received from %s while busy with %s",hashname_sbin(blocks),hashname_sbin(tm->seen));
+        tm->stream = tempo_free(tm->stream);
+      }
 
-      return tempo; 
+      // see if driver accepts the new mote
+      if(tm->accept && !tm->accept(tm, hashname_sbin(blocks), 0)) return LOG_INFO("driver rejected beacon from %s",hashname_short(hashname_sbin(blocks)));
+      memcpy(tm->seen,blocks,5); // copy in sender id to seen to validate later
+
+      // sync up beacon for seen accept TX
+      tempo->state.seen = 1;
+      tempo->medium = medium;
+      tempo->seq = seq;
+      tempo->at = knock->stopped;
+
+      // see if there's a shared stream accept to us
+      uint8_t *to = blocks+(at*5);
+      at++;
+      block = (mblock_t)(blocks+(at*5));
+      if(memcmp(to,hashname_bin(tm->mesh->id),5) == 0 && (block->type == tmesh_block_medium) && (block->head == 2))
+      {
+        // new shared stream
+        tempo_t stream = tm->stream = tempo_new(tm);
+        stream->state.is_stream = 1;
+        tempo_init(stream);
+        stream->at = knock->stopped;
+        stream->seq = seq;
+        stream->state.direction = 1; // inverted
+        stream->priority = 2;
+        tempo_medium(stream, medium);
+        STATED(stream);
+
+        // reset beacon
+        return tempo_init(tempo);
+      }
+      
+      // leave for next TX
+      return tempo;
 
     }else if(tempo->mote){ // incoming signal for a mote
 
@@ -826,7 +858,7 @@ static tempo_t tempo_gone(tempo_t tempo)
     LOG_DEBUG("stream %s",(tempo == tm->stream)?"shared":"private");
     if(tempo == tm->stream){ // shared stream
       tm->stream = tempo_free(tempo);
-      tempo_init(tm->beacon, NULL); // re-initialize beacon
+      tempo_init(tm->beacon); // re-initialize beacon
     }else if(tempo->mote){ // private stream
       mote_t mote = tempo->mote;
       // if data, re-request, else poof
@@ -919,12 +951,12 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   {
     tm->beacon = tempo_new(tm);
     tm->beacon->state.is_signal = 1;
-    tempo_init(tm->beacon, NULL);
+    tempo_init(tm->beacon);
     STATED(tm->beacon);
 
     tm->signal = tempo_new(tm);
     tm->signal->state.is_signal = 1;
-    tempo_init(tm->signal, NULL);
+    tempo_init(tm->signal);
     STATED(tm->signal);
   }
   
@@ -1014,7 +1046,8 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
 
   // catch all tx knocks
   if(best->state.is_stream && best->state.direction == 1) knock->is_tx = 1;
-  if(best == tm->signal || best == tm->beacon) knock->is_tx = 1;
+  if(best == tm->signal) knock->is_tx = 1;
+  if(best == tm->beacon && !best->c_tx) knock->is_tx = 1; // only tx once, then rx, then reset
 
   // do the tempo-specific work to fill in the tx frame
   if(knock->is_tx)
@@ -1083,7 +1116,7 @@ mote_t tmesh_mote(tmesh_t tm, link_t link)
   mote->stream = tm->stream;
   mote->stream->mote = mote;
   tm->stream = NULL; // mote took it over
-  tempo_init(tm->beacon, NULL); // re-initialize beacon
+  tempo_init(tm->beacon); // re-initialize beacon
   
   // ensure link is plumbed for this mote
   link_pipe(link, mote_pipe_send, mote);

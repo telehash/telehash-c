@@ -121,6 +121,8 @@ struct tmesh_struct
   tmesh_t (*accept)(tmesh_t tm, hashname_t id, uint32_t app); // driver handles new neighbors, returns tm to continue or NULL to ignore
   tmesh_t (*free)(tmesh_t tm, tempo_t tempo); // driver can free any associated tempo resources
   knock_t knock;
+  
+  uint8_t seen[5]; // recently seen short hn from a beacon
 };
 
 // join a new tmesh community, pass optional
@@ -175,6 +177,7 @@ struct tempo_struct
       uint8_t unused1:1;
       uint8_t qos_ping:1;
       uint8_t qos_pong:1;
+      uint8_t seen:1; // beacon only
     };
     struct
     {
