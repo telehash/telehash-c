@@ -34,7 +34,7 @@ tmesh_t driver_advance(tmesh_t tm, tempo_t tempo, uint8_t seed[8])
   return tm;
 }
 
-tmesh_t driver_medium(tmesh_t tm, tempo_t tempo, uint32_t medium)
+tmesh_t driver_medium(tmesh_t tm, tempo_t tempo, uint8_t seed[8], uint32_t medium)
 {
   tempo->driver = (void*)1; // flag for test check
   tempo->medium = medium?medium:1;
@@ -95,7 +95,6 @@ int main(int argc, char **argv)
   mote_t moteB = tmesh_mote(netA, linkAB);
   fail_unless(moteB);
   fail_unless(moteB->link == linkAB);
-  fail_unless(moteB->pipe);
   fail_unless(moteB->signal);
   fail_unless(moteB->signal->medium == 1);
   fail_unless(moteB->signal->driver == (void*)1);

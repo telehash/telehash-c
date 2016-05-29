@@ -5,7 +5,6 @@
 
 typedef struct net_loopback_struct
 {
-  pipe_t pipe;
   mesh_t a, b;
 } *net_loopback_t;
 

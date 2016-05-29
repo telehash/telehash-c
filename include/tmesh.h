@@ -88,6 +88,9 @@ beacon > lost
 SECURITY TODOs
   * generate a temp hashname on boot, use that to do all beacon and shared stream handling
 
+NEXT
+  * use ad-hoc beacons for faster signal stream request/accept
+
 */
 
 typedef struct tmesh_struct *tmesh_t; // joined community motes/signals
@@ -114,10 +117,12 @@ struct tmesh_struct
   tempo_t (*sort)(tmesh_t tm, tempo_t a, tempo_t b);
   tmesh_t (*schedule)(tmesh_t tm); // called whenever a new knock is ready to be scheduled
   tmesh_t (*advance)(tmesh_t tm, tempo_t tempo, uint8_t seed[8]); // advances tempo to next window
-  tmesh_t (*medium)(tmesh_t tm, tempo_t tempo, uint32_t medium); // driver can initialize/update a tempo's medium
+  tmesh_t (*medium)(tmesh_t tm, tempo_t tempo, uint8_t seed[8], uint32_t medium); // driver can initialize/update a tempo's medium
   tmesh_t (*accept)(tmesh_t tm, hashname_t id, uint32_t app); // driver handles new neighbors, returns tm to continue or NULL to ignore
   tmesh_t (*free)(tmesh_t tm, tempo_t tempo); // driver can free any associated tempo resources
   knock_t knock;
+  
+  uint8_t seen[5]; // recently seen short hn from a beacon
 };
 
 // join a new tmesh community, pass optional
@@ -143,6 +148,9 @@ tmesh_t tmesh_demote(tmesh_t tm, mote_t mote);
 // returns mote for this id if one exists
 mote_t tmesh_moted(tmesh_t tm, hashname_t id);
 
+// update/signal our current app id
+tmesh_t tmesh_appid(tmesh_t tm, uint32_t id);
+
 // tempo state
 struct tempo_struct
 {
@@ -150,7 +158,7 @@ struct tempo_struct
   mote_t mote; // parent mote (except for our outgoing signal) 
   void *driver; // for driver use, set during tm->tempo()
   util_frames_t frames; // r/w frame buffers for streams
-  uint32_t q_remote, q_local; // last qualities from/about this tempo
+  uint32_t qos_remote, qos_local; // last qos from/about this tempo
   uint32_t medium; // id
   uint32_t at; // cycles until next knock in current window
   uint32_t seq; // window increment part of nonce
@@ -158,15 +166,28 @@ struct tempo_struct
   uint16_t c_bad; // dropped bad frames
   int16_t last, best, worst; // rssi
   uint8_t secret[32];
-  uint8_t c_miss, c_skip; // how many of the last rx windows were missed (nothing received) or skipped (scheduling)
+  uint8_t c_miss, c_skip, c_idle; // how many of the last rx windows were missed (expected), skipped (scheduling), or idle
   uint8_t chan; // channel of next knock
   uint8_t priority; // next knock priority
-  // boolean bit flags
-  uint8_t do_request:1; // advertise stream request in signal
-  uint8_t do_accept:1; // advertise stream accept in signal
-  uint8_t do_schedule:1; // include in scheduling
-  uint8_t do_tx:1; // current window direction
-  uint8_t is_signal:1; // == no frames, !is_signal == stream (frames)
+  union
+  {
+    struct
+    {
+      uint8_t is_signal:1;
+      uint8_t unused1:1;
+      uint8_t qos_ping:1;
+      uint8_t qos_pong:1;
+      uint8_t seen:1; // beacon only
+    };
+    struct
+    {
+      uint8_t unused2:1;
+      uint8_t is_stream:1;
+      uint8_t requesting:1;
+      uint8_t accepting:1;
+      uint8_t direction:1; // 1==TX, 0==RX
+    };
+  } state;
 };
 
 // a single convenient knock request ready to go
@@ -191,13 +212,13 @@ struct mote_struct
   mote_t next; // for lists
   mote_t via; // router mote
   tmesh_t tm;
-  pipe_t pipe; // one pipe per mote to start stream as needed
   link_t link;
   tempo_t signal; // tracks their signal
   tempo_t stream; // is a private stream, optionally can track their shared stream (TODO)
-  uint32_t q_signal; // most recent quality block about us from their signal
-  uint32_t q_stream; // most recent quality block about us from their stream
   uint32_t app; // most recent app block from them
 };
+
+// return current mote appid
+uint32_t mote_appid(mote_t mote);
 
 #endif

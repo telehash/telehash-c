@@ -13,7 +13,6 @@ int main(int argc, char **argv)
   printf("%lu\te3x_cipher_t\n",sizeof(struct e3x_cipher_struct));
   printf("%lu\te3x_exchange_t\n",sizeof(struct e3x_exchange_struct));
   printf("%lu\tchan_t\n",sizeof(struct chan_struct));
-  printf("%lu\tpipe_t\n",sizeof(struct pipe_struct));
   printf("%lu\ttmesh_t\n",sizeof(struct tmesh_struct));
   printf("%lu\tmote_t\n",sizeof(struct mote_struct));
   printf("%lu\ttempo_t\n",sizeof(struct tempo_struct));

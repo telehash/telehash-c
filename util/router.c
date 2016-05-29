@@ -42,7 +42,6 @@ int main(int argc, char *argv[])
 
   json = mesh_json(mesh);
   printf("%s\n",lob_json(json));
-  printf("%s\n",mesh_uri(mesh, NULL));
 
   while(net_udp4_receive(udp4) && net_tcp4_loop(tcp4));
 

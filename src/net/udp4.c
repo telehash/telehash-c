@@ -14,15 +14,12 @@ typedef struct pipe_udp4_struct
 
 void udp4_send(pipe_t pipe, lob_t packet, link_t link)
 {
-  uint8_t *cloaked;
   pipe_udp4_t to = (pipe_udp4_t)pipe->arg;
 
   if(!to || !packet || !link) return;
   LOG("udp4 to %s",hashname_short(link->id));
   // TODO, determine MTU capacity left and add random # of rounds within that
-  cloaked = lob_cloak(packet, 1);
-  if(sendto(to->net->server, cloaked, lob_len(packet)+8, 0, (struct sockaddr *)&(to->sa), sizeof(struct sockaddr_in)) < 0) LOG("sendto failed: %s",strerror(errno));
-  free(cloaked);
+  if(sendto(to->net->server, lob_raw(packet), lob_len(packet), 0, (struct sockaddr *)&(to->sa), sizeof(struct sockaddr_in)) < 0) LOG("sendto failed: %s",strerror(errno));
   lob_free(packet);
 }
 
@@ -159,7 +156,7 @@ net_udp4_t net_udp4_receive(net_udp4_t net)
   if(len < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) return net;
   if(len <= 0) return LOG("recvfrom error %s",strerror(errno));
 
-  packet = lob_decloak(buf, (size_t)len);
+  packet = lob_parse(buf, (size_t)len);
   if(!packet)
   {
     LOG("parse error from %s on %d bytes",inet_ntoa(sa.sin_addr),len);
