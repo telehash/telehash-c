@@ -196,7 +196,7 @@ struct tempo_struct
 struct knock_struct
 {
   tempo_t tempo;
-  uint32_t seekto; // when is the next knock if seeking
+  uint32_t adhoc; // request driver to do an adhoc tx(immediate) or rx(seek until)
   uint32_t started, stopped; // actual times
   int16_t rssi, snr; // set by driver only after rx
   uint8_t frame[64];

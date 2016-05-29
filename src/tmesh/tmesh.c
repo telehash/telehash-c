@@ -241,7 +241,8 @@ static tempo_t tempo_init(tempo_t tempo)
     {
       tempo->priority = 1; // low
       e3x_rand((uint8_t*)&(tempo->seq),4); // random sequence
-      tempo->c_tx = tempo->state.seen = 0; // ensure clear
+      tempo->c_tx = tempo->state.seen = tempo->state.adhoc = 0; // ensure clear
+      tempo->mote = NULL; // only used as a cache
       // nothing extra to add, just copy for roll
       memcpy(roll+32,roll,32);
     }else if(tempo == tm->signal){ // shared outgoing signal
@@ -302,11 +303,10 @@ static tempo_t tempo_init(tempo_t tempo)
   return tempo;
 }
 
-// special tx fill for ad-hoc signal beacon
+// special tx fill for adhoc signal beacon
 tempo_t tempo_knock_adhoc(tempo_t signal, knock_t knock)
 {
   tmesh_t tm = signal->tm;
-  tempo_t beacon = tm->beacon;
   tempo_t stream = signal->mote->stream;
 
   // first is nonce (unciphered prefixed)
@@ -330,11 +330,11 @@ tempo_t tempo_knock_adhoc(tempo_t signal, knock_t knock)
   {
     block->head = 2;
     // try starting stream now
-    stream->state.accepting = stream->state.requesting = 0; // this lets the stream be scheduled
+    stream->state.accepting = stream->state.requesting = 0; // unleash the stream
     stream->state.direction = 0; // we are inverted
     stream->priority = 3; // little boost
-    stream->at = beacon->at;
-    stream->seq = beacon->seq;
+    stream->seq = signal->seq;
+    // ->at is sync'd in knocked_tx
   }
 
   block->done = 1;
@@ -446,7 +446,7 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
           {
             block->head = 2;
             // start stream when accept is sent
-            stream->state.accepting = stream->state.requesting = 0; // this lets the stream be scheduled
+            stream->state.accepting = stream->state.requesting = 0; // just in case
             stream->state.direction = 0; // we are inverted
             stream->priority = 3; // little boost
             stream->at = tempo->at;
@@ -454,6 +454,7 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
             STATED(tempo);
           }
 
+          stream->state.adhoc = 0; // just in case, don't do this anymore
           LOG_INFO("signalling %s about a stream %s",hashname_short(mote->link->id),(block->head == 1)?"request":"accept");
           memcpy(block->body,&(stream->medium),4);
         }
@@ -545,7 +546,7 @@ static tempo_t tempo_blocks_rx(tempo_t tempo, uint8_t *blocks, uint8_t index)
   struct hashname_struct hn_val;
   hashname_t seen;
 
-  for(index = 0;index < 12;index++)
+  for(;index < 12;index++)
   {
     about = from = NULL;
     seen = NULL;
@@ -695,9 +696,15 @@ static tempo_t tempo_knocked_tx(tempo_t tempo, knock_t knock)
 
       // beacon/shared stream reset to when actually sent for sync
       tempo->at = knock->stopped;
-      if(tm->stream) tm->stream->at = knock->stopped;
-      else tempo->priority = 9; // we must always RX once after a beacon
-      
+      if(tm->stream)
+      {
+        tm->stream->at = knock->stopped;
+      }else if(tempo->mote && tempo->mote->stream){ // sync attached mote stream
+        tempo->mote->stream->at = knock->stopped;
+        tempo->mote = NULL;
+      }else{ // we must always RX once after a beacon
+        tempo->priority = 9;
+      }
     }else if(tempo == tm->signal){ // shared outgoing signal
       
     }else{ // bad
@@ -734,7 +741,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
     {
       if(tempo->state.qos_ping) tempo->c_miss++;
       else if(tempo->mote && tempo->mote->stream && tempo->mote->stream->state.requesting) tempo->c_miss++;
-      else if(tempo == tm->beacon && !knock->seekto) tempo_init(tempo); // always reset after non-seek RX fail
+      else if(tempo == tm->beacon && !knock->adhoc) tempo_init(tempo); // always reset after non-seek RX fail
       else tempo->c_idle++;
     }
 
@@ -775,12 +782,24 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
       memcpy(blocks,frame+10,50);
       mote_t from;
       
-      // an ad-hoc signal beacon is in the form of [us][them][stream blocks]
+      // an adhoc signal beacon is in the form of [us][them][stream blocks]
       if(hashname_scmp(hashname_sbin(blocks),tm->mesh->id) == 0 && (from = tmesh_moted(tm,hashname_sbin(blocks+5))))
       {
-        LOG_INFO("ADHOC SIGNAL from %s: %s",hashname_short(from->link->id), util_hex(blocks+10,40,NULL));
-        // pass in from->signal tempo w/ blocks,1
-        // match channel
+        LOG_INFO("ad-hoc signal from %s: %s",hashname_short(from->link->id), util_hex(blocks+10,40,NULL));
+        memcpy(blocks+5,blocks,5); // adjust format to fit blocks_rx expectations, code sore spot
+        tempo_blocks_rx(from->signal,blocks,1); // start offset, also for blocks_rx expectations :/
+        // enable an adhoc accept attempt too
+        if(from->stream)
+        {
+          if(from->stream->state.accepting)
+          {
+            // try one adhoc accept
+            from->signal->state.adhoc = 1;
+          }else{
+            // hack *cough* around the re-use of blocks_rx to override the at sync
+            from->stream->at = knock->stopped;
+          }
+        }
         return tempo;
       }
       
@@ -892,7 +911,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
 
   // update RX flags/stats now
   tempo->c_miss = tempo->c_idle = 0; // clear all rx counters
-  tempo->c_rx++;
+  tempo->c_rx++; // this will pause mote signal RX while stream is active
   if(knock->rssi > tempo->best || !tempo->best) tempo->best = knock->rssi;
   if(knock->rssi < tempo->worst || !tempo->worst) tempo->worst = knock->rssi;
   tempo->last = knock->rssi;
@@ -930,7 +949,11 @@ static tempo_t tempo_gone(tempo_t tempo)
       // if data, re-request, else poof
       if(util_frames_busy(tempo->frames))
       {
+        // back to requesting state
         tempo->state.requesting = 1;
+        // reset counters
+        tempo->c_rx = tempo->c_tx = tempo->c_bad = 0;
+        tempo->c_miss = tempo->c_skip = tempo->c_idle = 0;
         STATED(tempo);
       }else{
         mote->stream = tempo_free(tempo);
@@ -1038,7 +1061,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   // walk all the tempos for next best knock
   mote_t mote;
   bool do_signal = false;
-  tempo_t adhoc = NULL;
+  mote_t adhoc_tx = NULL;
   for(mote=tm->motes;mote;mote=mote->next)
   {
     // convenience
@@ -1071,8 +1094,8 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
       best = tm->sort(tm, best, stream);
     }
     
-    // signal rx is active when qos request, no stream, or stream is requesting (mirror'd in c_miss counter)
-    if(signal->state.qos_ping || !stream  || stream->state.requesting)
+    // signal rx is active when qos request, no stream, or stream hasn't worked yet (mirror'd in c_miss counter)
+    if(signal->state.qos_ping || !stream  || stream->state.requesting || !stream->c_rx)
     {
       best = tm->sort(tm, best, signal);
     }
@@ -1080,7 +1103,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
     // our outgoing signal must be active when:
     if(signal->state.qos_ping || signal->state.qos_pong) do_signal = true;
     if(stream && (stream->state.requesting || stream->state.accepting)) do_signal = true;
-    if(signal->state.adhoc) adhoc = signal;
+    if(signal->state.adhoc) adhoc_tx = mote;
   }
 
   // upcheck our signal last
@@ -1097,24 +1120,25 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   if(!tm->stream)
   {
     knock->tempo = tm->beacon;
-    knock->seekto = best->at;
+    knock->adhoc = best->at;
     
-    // try one ad-hoc signal beacon TX special case
-    if(adhoc && !tm->beacon->state.adhoc)
+    // try one adhoc signal beacon TX special case
+    if(adhoc_tx && !tm->beacon->state.adhoc)
     {
       knock->is_tx = 1;
-      tempo_knock_adhoc(adhoc, knock);
-      chacha20(best->secret,knock->frame,knock->frame+8,64-8);
+      tempo_knock_adhoc(adhoc_tx->signal, knock);
+      chacha20(knock->tempo->secret,knock->frame,knock->frame+8,64-8);
     }
 
     // ask driver if it can seek, done if so, else fall through
     knock->is_active = 1;
     if(tm->schedule(tm))
     {
-      if(adhoc)
+      if(adhoc_tx)
       {
-        adhoc->state.adhoc = 0;
+        adhoc_tx->signal->state.adhoc = 0; // only try once
         tm->beacon->state.adhoc = 1; // block others until reset
+        tm->beacon->mote = adhoc_tx; // cache to sync sent time in knocked_tx
       }
       return tm;
     }
