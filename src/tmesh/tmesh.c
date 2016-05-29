@@ -343,18 +343,18 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
         tm->stream = tempo_new(tm);
         tm->stream->state.is_stream = 1;
         tempo_init(tm->stream);
-        tm->stream->seq = tempo->seq; // remap?
         tm->stream->state.direction = 0; // we are inverted
 
         // then blocks about our shared stream, just medium/seq
-        block = (mblock_t)(blocks+5+5);
+        block = (mblock_t)(blocks+(++at*5));
         block->type = tmesh_block_medium;
         block->head = 2; // immediate accepting
         memcpy(block->body,&(tm->stream->medium),4);
-        block = (mblock_t)(blocks+5+5+5);
+        block = (mblock_t)(blocks+(++at*5));
         block->type = tmesh_block_seq;
         memcpy(block->body,&(tm->stream->seq),4);
         block->done = 1;
+        
       }
       
       memcpy(knock->frame+10,blocks,50);
@@ -689,7 +689,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
     {
       if(tempo->state.qos_ping) tempo->c_miss++;
       else if(tempo->mote && tempo->mote->stream && tempo->mote->stream->state.requesting) tempo->c_miss++;
-      else if(tempo == tm->beacon) tempo_init(tempo); // always reset after no RX
+      else if(tempo == tm->beacon && !knock->seekto) tempo_init(tempo); // always reset after non-seek RX fail
       else tempo->c_idle++;
     }
 
@@ -744,7 +744,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
       // might be busy receiving already
       if(tm->stream)
       {
-        if(tm->stream->c_rx && memcmp(blocks,tm->seen,5) != 0) return LOG_INFO("ignoring beacon received from %s while busy with %s",hashname_sbin(blocks),hashname_sbin(tm->seen));
+        if(tm->stream->c_rx && memcmp(blocks,tm->seen,5) != 0) return LOG_INFO("ignoring beacon received from %s while busy with %s",hashname_short(hashname_sbin(blocks)),hashname_short(hashname_sbin(tm->seen)));
         tm->stream = tempo_free(tm->stream);
       }
 
@@ -752,6 +752,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
       if(tm->accept && !tm->accept(tm, hashname_sbin(blocks), 0)) return LOG_INFO("driver rejected beacon from %s",hashname_short(hashname_sbin(blocks)));
       memcpy(tm->seen,blocks,5); // copy in sender id to seen to validate later
 
+      LOG_CRAZY("accepted m%lu seq%lu from %s",medium,seq,hashname_short(hashname_sbin(blocks)));
       // sync up beacon for seen accept TX
       tempo->state.seen = 1;
       tempo->medium = medium;
@@ -764,6 +765,14 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
       block = (mblock_t)(blocks+(at*5));
       if(memcmp(to,hashname_bin(tm->mesh->id),5) == 0 && (block->type == tmesh_block_medium) && (block->head == 2))
       {
+        // finish medium/seq
+        memcpy(&medium,block->body,4);
+        at++;
+        block = (mblock_t)(blocks+(at*5));
+        uint32_t seq;
+        memcpy(&seq,block->body,4);
+        at++;
+
         // new shared stream
         tempo_t stream = tm->stream = tempo_new(tm);
         stream->state.is_stream = 1;
