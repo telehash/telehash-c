@@ -156,7 +156,7 @@ struct tempo_struct
   mote_t mote; // parent mote (except for our outgoing signal) 
   void *driver; // for driver use, set during tm->tempo()
   util_frames_t frames; // r/w frame buffers for streams
-  uint32_t q_remote, q_local; // last qualities from/about this tempo
+  uint32_t qos_remote, qos_local; // last qos from/about this tempo
   uint32_t medium; // id
   uint32_t at; // cycles until next knock in current window
   uint32_t seq; // window increment part of nonce
@@ -164,15 +164,27 @@ struct tempo_struct
   uint16_t c_bad; // dropped bad frames
   int16_t last, best, worst; // rssi
   uint8_t secret[32];
-  uint8_t c_miss, c_skip; // how many of the last rx windows were missed (nothing received) or skipped (scheduling)
+  uint8_t c_miss, c_skip, c_idle; // how many of the last rx windows were missed (expected), skipped (scheduling), or idle
   uint8_t chan; // channel of next knock
   uint8_t priority; // next knock priority
-  // boolean bit flags
-  uint8_t do_request:1; // advertise stream request in signal
-  uint8_t do_accept:1; // advertise stream accept in signal
-  uint8_t do_schedule:1; // include in scheduling
-  uint8_t do_tx:1; // current window direction
-  uint8_t is_signal:1; // == no frames, !is_signal == stream (frames)
+  union
+  {
+    struct
+    {
+      uint8_t is_signal:1;
+      uint8_t unused1:1;
+      uint8_t qos_ping:1;
+      uint8_t qos_pong:1;
+    };
+    struct
+    {
+      uint8_t unused2:1;
+      uint8_t is_stream:1;
+      uint8_t requesting:1;
+      uint8_t accepting:1;
+      uint8_t direction:1; // 1==TX, 0==RX
+    };
+  } state;
 };
 
 // a single convenient knock request ready to go
@@ -200,10 +212,7 @@ struct mote_struct
   link_t link;
   tempo_t signal; // tracks their signal
   tempo_t stream; // is a private stream, optionally can track their shared stream (TODO)
-  uint32_t q_signal; // most recent quality block about us from their signal
-  uint32_t q_stream; // most recent quality block about us from their stream
   uint32_t app; // most recent app block from them
-  uint8_t is_waiting:1; // when we need to signal to and hear back a signal from them
 };
 
 // return current mote appid

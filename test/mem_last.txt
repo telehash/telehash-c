@@ -8,6 +8,6 @@
 88	e3x_exchange_t
 80	chan_t
 128	tmesh_t
-64	mote_t
+56	mote_t
 104	tempo_t
 104	knock_t
