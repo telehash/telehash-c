@@ -5,7 +5,8 @@
 var th = require("./th.js");
 
 const returntypes = {
-  "_lob_json" : "json"
+  "_lob_json" : "json",
+  "_hashname_short" : "string"
 };
 
 const Unwrappers = {

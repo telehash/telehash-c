@@ -2,10 +2,23 @@ var dgram = require('dgram');
 var os = require('os');
 var th = require("./index.js");
 
-var server = dgram.createSocket({ type: 'udp4', reuseAddr: true }, function(msg, rinfo){
+var mesh = mesh_new();
+mesh_generate(mesh);
+console.log(hashname_short(mesh_id(mesh)));
+
+var server = dgram.createSocket({ type: 'udp4', reuseAddr: true }, function receive(msg, rinfo)
+{
   var packet = lob_parse(msg,msg.length);
-  var body = th.BUFFER(lob_body_get(packet),lob_body_len(packet));
-  console.log(lob_json(packet),body.toString());
+  if(lob_head_len(packet) > 6)
+  {
+    if(hashname_vkey(packet,0x1a))
+    {
+      link = link_get_key(mesh,packet,0x1a);
+      console.log("establishing link with",hashname_short(link_id(link)));
+    }else{
+      console.error("unknown raw packet",lob_json(packet));
+    }
+  }
 });
 
 server.bind(42424, function(err){
