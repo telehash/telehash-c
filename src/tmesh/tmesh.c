@@ -72,7 +72,9 @@ mote_t mote_send(mote_t mote, lob_t packet)
     lob_free(packet);
     return LOG_WARN("stream outbox full (%lu), dropping packet",util_frames_outlen(tempo->frames));
   }
-  util_frames_send(tempo->frames, packet);
+  
+  // a NULL packet here would trigger a flush, but semantics of mote_send use NULL to ensure stream exists (TODO detangle!)
+  if(packet) util_frames_send(tempo->frames, packet);
 
   LOG_DEBUG("delivering %d to mote %s total %lu",lob_len(packet),hashname_short(mote->link->id),util_frames_outlen(tempo->frames));
   STATED(tempo);
@@ -946,15 +948,19 @@ static tempo_t tempo_gone(tempo_t tempo)
       tempo_init(tm->beacon); // re-initialize beacon
     }else if(tempo->mote){ // private stream
       mote_t mote = tempo->mote;
-      // if data, re-request, else poof
+      // if unsent packets, push into a fresh new stream to start the request process
       if(util_frames_busy(tempo->frames))
       {
-        // back to requesting state
-        tempo->state.requesting = 1;
-        // reset counters
-        tempo->c_rx = tempo->c_tx = tempo->c_bad = 0;
-        tempo->c_miss = tempo->c_skip = tempo->c_idle = 0;
-        STATED(tempo);
+        LOG_INFO("copying packets into new stream for %s",hashname_short(mote->link->id));
+        mote->stream = NULL;
+        lob_t packet;
+        while((packet = lob_shift(tempo->frames->outbox)))
+        {
+          tempo->frames->outbox = packet->next;
+          packet->next = NULL;
+          mote_send(mote, packet);
+        }
+        tempo_free(tempo);
       }else{
         mote->stream = tempo_free(tempo);
       }
@@ -1068,12 +1074,20 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
     tempo_t stream = mote->stream;
     tempo_t signal = mote->signal;
 
+    // before we advance stream, if it was rx and skipped while awaiting, gotta set flush flag since we def missed something
+    bool awaiting = false;
+    if(stream)
+    {
+      if(util_frames_inbox(stream->frames,NULL,NULL)) awaiting = true;
+      if(stream->c_skip && stream->state.direction == 0 && awaiting) stream->frames->flush = 1;
+    }
+
     // advance signal/stream
     tempo_advance(signal, at);
     tempo_advance(stream, at);
     
-    // stream is always active if not requesting
-    if(stream && !stream->state.requesting)
+    // stream is always active if not requesting/accepting
+    if(stream && !(stream->state.requesting || stream->state.accepting))
     {
       // any conditions that make us want to wait for a specific type
       do {
@@ -1083,7 +1097,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
           continue;
         }
         // optimize away useless RXs when not awaiting and a flush waiting to TX
-        if(stream->state.direction == 0 && stream->frames->flush && !util_frames_inbox(stream->frames,NULL,NULL))
+        if(stream->state.direction == 0 && stream->frames->flush && !awaiting)
         {
           LOG_DEBUG("skipping stream RX %u, waiting to TX flush",stream->chan);
           continue;
