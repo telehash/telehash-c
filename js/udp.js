@@ -3,9 +3,9 @@ var os = require('os');
 var th = require("./index.js");
 
 var server = dgram.createSocket({ type: 'udp4', reuseAddr: true }, function(msg, rinfo){
-  var packet = th.lob_parse(msg,msg.length);
-  var body = th.BUFFER(th.lob_body_get(packet),th.lob_body_len(packet));
-  console.log(th.lob_json(packet),body.toString());
+  var packet = lob_parse(msg,msg.length);
+  var body = th.BUFFER(lob_body_get(packet),lob_body_len(packet));
+  console.log(lob_json(packet),body.toString());
 });
 
 server.bind(42424, function(err){

@@ -37,7 +37,10 @@ const wrapFun = (_fun, returntype) => function() {
 }
 
 Object.keys(th).filter(key => key.indexOf("_") == 0).forEach((key) => {
-  th[key.substr(1)] = wrapFun(th[key], returntypes[key]);
+  let fn = key.substr(1);
+  th[fn] = wrapFun(th[key], returntypes[key]);
+  // globalize all the funthings!
+  if(fn.indexOf("_") > 0) global[fn] = th[fn];
 })
 
 th.CALLBACK = (fun, types) => function(){
