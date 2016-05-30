@@ -121,6 +121,8 @@ struct tmesh_struct
   tmesh_t (*accept)(tmesh_t tm, hashname_t id, uint32_t app); // driver handles new neighbors, returns tm to continue or NULL to ignore
   tmesh_t (*free)(tmesh_t tm, tempo_t tempo); // driver can free any associated tempo resources
   knock_t knock;
+  
+  uint8_t seen[5]; // recently seen short hn from a beacon
 };
 
 // join a new tmesh community, pass optional
@@ -167,6 +169,7 @@ struct tempo_struct
   uint8_t c_miss, c_skip, c_idle; // how many of the last rx windows were missed (expected), skipped (scheduling), or idle
   uint8_t chan; // channel of next knock
   uint8_t priority; // next knock priority
+  // a byte of state flags for each tempo type
   union
   {
     struct
@@ -175,6 +178,8 @@ struct tempo_struct
       uint8_t unused1:1;
       uint8_t qos_ping:1;
       uint8_t qos_pong:1;
+      uint8_t seen:1; // beacon only
+      uint8_t adhoc:1;
     };
     struct
     {
@@ -191,7 +196,7 @@ struct tempo_struct
 struct knock_struct
 {
   tempo_t tempo;
-  uint32_t seekto; // when is the next knock if seeking
+  uint32_t adhoc; // request driver to do an adhoc tx(immediate) or rx(seek until)
   uint32_t started, stopped; // actual times
   int16_t rssi, snr; // set by driver only after rx
   uint8_t frame[64];
