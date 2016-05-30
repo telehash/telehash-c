@@ -2,13 +2,23 @@ var dgram = require('dgram');
 var th = require("./index.js");
 
 var link = 0;
-var client = dgram.createSocket({ type: 'udp4', reuseAddr: true }, function receive(msg, rinfo)
+var client = dgram.createSocket({ type: 'udp4', reuseAddr: true }, function receive(msg, from)
 {
-  var ret = mesh_receive(mesh,lob_parse(msg,msg.length));
-  if(ret)
+  var packet = lob_parse(msg,msg.length);
+  if(hashname_vkey(packet,0x1a))
   {
-    if(!link) console.log("new link to",hashname_short(link_id(link)));
-    link = ret;
+    link = link_get_key(mesh,packet,0x1a);
+    console.log("establishing link with",hashname_short(link_id(link)));
+    link_pipe(link, function(link, packet, arg){
+      if(!packet) return null;
+      var raw = th.BUFFER(lob_raw(packet),lob_len(packet));
+//      console.log("send",link,packet,from,raw);
+      client.send(raw,0,raw.length,from.port,from.address,function(err){
+        if(err) console.error("error sending to",from,err);
+      });
+    },null);
+  }else{
+    mesh_receive(mesh,lob_parse(msg,msg.length));
   }
 });
 
@@ -19,6 +29,9 @@ client.on('error', function(err){
 var mesh = mesh_new();
 mesh_generate(mesh);
 console.log(hashname_short(mesh_id(mesh)));
+mesh_on_link(mesh, "foo", function(link){
+  console.log(hashname_short(link_id(link)),link_up(link)?"up":"down");
+});
 
 // send our key as a discovery hello
 var hello = hashname_im(mesh_keys(mesh),0x1a);
@@ -29,13 +42,9 @@ client.send(raw,0,raw.length,42424,"127.0.0.1",function(err){
 
 process.stdin.on('data',function(data){
   if(!link) return console.error("no link");
-  var pkt = lob_new();
-  lob_set(pkt,"type","stdin");
-  lob_body(pkt,data,data.length);
-  
-  var raw = th.BUFFER(lob_raw(pkt),lob_len(pkt));
-  client.send(raw,0,raw.length,42424,"127.0.0.1",function(err){
-    console.log("sent",raw,err?err:"");
-  });
+  var packet = lob_new();
+  lob_set(packet,"type","stdin");
+  lob_body(packet,data,data.length);
+  link_direct(link,packet);
 });
 

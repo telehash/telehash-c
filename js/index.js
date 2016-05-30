@@ -6,10 +6,12 @@ var th = require("./th.js");
 
 const returntypes = {
   "_lob_json" : "json",
-  "_hashname_short" : "string"
+  "_hashname_short" : "string",
+  "_lob_get" : "string"
 };
 
 const Unwrappers = {
+  pointer : (_val) => _val,
   number : (_val) => _val,
   string : th.UTF8ToString,
   json : (_val) => JSON.parse(th.UTF8ToString(_val))
