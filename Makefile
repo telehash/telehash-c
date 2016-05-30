@@ -93,8 +93,8 @@ arduino: static
 	cp src/e3x/cs1a/cs1a.c arduino/src/cs1a/
 	cp $(HEADERS) arduino/src/telehash/
 
-javascript: static
-	$(EMCC) telehash.c -I include/ -s LINKABLE=1 -s EXPORT_ALL=1 -s NO_FILESYSTEM=1 -s INLINING_LIMIT=1 -O3 -o js/_th.js
+javascript: static-cs1a
+	$(EMCC) telehash.c -I include/ -s LINKABLE=1 -s EXPORT_ALL=1 -s NO_FILESYSTEM=1 -s INLINING_LIMIT=1 -O3 -o js/th.js
 
 test: $(FULL_OBJFILES) ping
 	cd test; $(MAKE) $(MFLAGS)
