@@ -14,7 +14,7 @@ link_t net_test(link_t link, lob_t path)
 
 int main(int argc, char **argv)
 {
-  mesh_t mesh = mesh_new(3);
+  mesh_t mesh = mesh_new();
   fail_unless(mesh);
   lob_t secrets = mesh_generate(mesh);
   fail_unless(secrets);

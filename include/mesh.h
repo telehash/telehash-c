@@ -25,8 +25,7 @@ struct mesh_struct
   link_t links;
 };
 
-// pass in a prime for the main index of hashnames+links+channels, 0 to use compiled default
-mesh_t mesh_new(uint32_t prime);
+mesh_t mesh_new(void);
 mesh_t mesh_free(mesh_t mesh);
 
 // must be called to initialize to a hashname from keys/secrets, return !0 if failed

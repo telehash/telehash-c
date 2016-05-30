@@ -24,7 +24,7 @@ int main(int argc, char *argv[])
   mesh_t mesh;
   net_udp4_t udp4;
 
-  mesh = mesh_new(0);
+  mesh = mesh_new();
   fail_unless(mesh_generate(mesh));
   mesh_on_discover(mesh,"auto",mesh_add); // accept anyone
   mesh_on_link(mesh, "test", link_check); // testing the event being triggered

@@ -12,12 +12,12 @@ void pong(link_t link, lob_t ping, void *arg)
 
 int main(int argc, char **argv)
 {
-  mesh_t meshA = mesh_new(3);
+  mesh_t meshA = mesh_new();
   fail_unless(meshA);
   lob_t secretsA = mesh_generate(meshA);
   fail_unless(secretsA);
 
-  mesh_t meshB = mesh_new(3);
+  mesh_t meshB = mesh_new();
   fail_unless(meshB);
   lob_t secretsB = mesh_generate(meshB);
   fail_unless(secretsB);

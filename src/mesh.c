@@ -20,7 +20,7 @@ typedef struct on_struct
 on_t on_get(mesh_t mesh, char *id);
 on_t on_free(on_t on);
 
-mesh_t mesh_new(uint32_t prime)
+mesh_t mesh_new(void)
 {
   mesh_t mesh;
   
