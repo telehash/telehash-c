@@ -22,8 +22,8 @@ net_loopback_t net_loopback_new(mesh_t a, mesh_t b)
   pair->b = b;
 
   // ensure they're linked and piped together
-  link_pipe(link_keys(a,b->keys),pair_send,pair);
-  link_pipe(link_keys(b,a->keys),pair_send,pair);
+  link_pipe(link_get_keys(a,b->keys),pair_send,pair);
+  link_pipe(link_get_keys(b,a->keys),pair_send,pair);
 
   return pair;
 }

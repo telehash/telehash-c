@@ -72,6 +72,19 @@ link_t link_get(mesh_t mesh, hashname_t id)
   return link_new(mesh,id);
 }
 
+// simple accessors
+hashname_t link_id(link_t link)
+{
+  if(!link) return NULL;
+  return link->id;
+}
+
+lob_t link_key(link_t link)
+{
+  if(!link) return NULL;
+  return link->key;
+}
+
 // get existing channel id if any
 chan_t link_chan_get(link_t link, uint32_t id)
 {
@@ -98,7 +111,7 @@ lob_t link_json(link_t link)
   return json;
 }
 
-link_t link_keys(mesh_t mesh, lob_t keys)
+link_t link_get_keys(mesh_t mesh, lob_t keys)
 {
   uint8_t csid;
 
@@ -106,12 +119,12 @@ link_t link_keys(mesh_t mesh, lob_t keys)
   csid = hashname_id(mesh->keys,keys);
   if(!csid) return LOG("no supported key");
   lob_t key = hashname_im(keys,csid);
-  link_t ret = link_key(mesh, key, csid);
+  link_t ret = link_get_key(mesh, key, csid);
   lob_free(key);
   return ret;
 }
 
-link_t link_key(mesh_t mesh, lob_t key, uint8_t csid)
+link_t link_get_key(mesh_t mesh, lob_t key, uint8_t csid)
 {
   link_t link;
 

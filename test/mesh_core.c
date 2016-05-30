@@ -30,7 +30,7 @@ int main(int argc, char **argv)
   fail_unless(strlen(hashname_char(link->id)) == 52);
   fail_unless(link->csid == 0x01);
   
-  fail_unless(link_keys(mesh,lob_linked(idB)) == link);
+  fail_unless(link_get_keys(mesh,lob_linked(idB)) == link);
   fail_unless(link->csid > 0x01);
   fail_unless(link->x);
   lob_free(idB);

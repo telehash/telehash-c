@@ -35,6 +35,10 @@ uint8_t mesh_load(mesh_t mesh, lob_t secrets, lob_t keys);
 // creates and loads a new random hashname, returns secrets if it needs to be saved/reused
 lob_t mesh_generate(mesh_t mesh);
 
+// simple accessors
+hashname_t mesh_id(mesh_t mesh);
+lob_t mesh_keys(mesh_t mesh);
+
 // generate json of mesh keys and current paths
 lob_t mesh_json(mesh_t mesh);
 
