@@ -171,6 +171,30 @@ lob_t lob_append_str(lob_t p, char *chunk)
   return lob_append(p, (uint8_t*)chunk, strlen(chunk));
 }
 
+size_t lob_head_len(lob_t p)
+{
+  if(!p) return 0;
+  return p->head_len;
+}
+
+uint8_t *lob_head_get(lob_t p)
+{
+  if(!p) return NULL;
+  return p->head;
+}
+
+size_t lob_body_len(lob_t p)
+{
+  if(!p) return 0;
+  return p->body_len;
+}
+
+uint8_t *lob_body_get(lob_t p)
+{
+  if(!p) return NULL;
+  return p->body;
+}
+
 // TODO allow empty val to remove existing
 lob_t lob_set_raw(lob_t p, char *key, size_t klen, char *val, size_t vlen)
 {
