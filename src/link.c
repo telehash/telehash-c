@@ -437,7 +437,7 @@ link_t link_down(link_t link)
     link->send_arg = NULL;
   }
 
-  return link;
+  return NULL;
 }
 
 // recursive to handle deletes
