@@ -1,4 +1,5 @@
 var th = require("./index.js");
+th.util_sys_logging(1);
 
 var mesh = mesh_new();
 var id = mesh_generate(mesh);
