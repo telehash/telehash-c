@@ -285,7 +285,7 @@ void mesh_discover(mesh_t mesh, lob_t discovered)
 link_t mesh_receive_handshake(mesh_t mesh, lob_t handshake)
 {
   uint32_t now;
-  hashname_t from;
+  hashname_t from = NULL;
   link_t link;
 
   if(!mesh || !handshake) return LOG("bad args");
@@ -355,7 +355,7 @@ link_t mesh_receive_handshake(mesh_t mesh, lob_t handshake)
   // tell anyone listening about the newly discovered handshake
   mesh_discover(mesh, handshake);
   
-  return NULL;
+  return from == NULL ? NULL : mesh_linkid(mesh, from);
 }
 
 // processes incoming packet, it will take ownership of outer
