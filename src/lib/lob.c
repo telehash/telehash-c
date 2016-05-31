@@ -108,7 +108,7 @@ lob_t lob_parse(const uint8_t *raw, size_t len)
 
   // validate any json
   jtest = 0;
-  if(p->head_len >= 2) js0n("\0",1,(char*)p->head,p->head_len,&jtest);
+  if(p->head_len >= 7) js0n("\0",1,(char*)p->head,p->head_len,&jtest);
   if(jtest) return lob_free(p);
 
   return p;
