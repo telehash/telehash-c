@@ -50,7 +50,7 @@ int main(int argc, char **argv)
 {
   fail_unless(!e3x_init(NULL)); // random seed
   
-  mesh_t meshA = mesh_new(3);
+  mesh_t meshA = mesh_new();
   fail_unless(meshA);
   lob_t keyA = lob_new();
   lob_set(keyA,"1a",A_KEY);
@@ -220,7 +220,7 @@ int main(int argc, char **argv)
   fail_unless(tmesh_leave(netA,c));
   
   // two motes meshing
-  mesh_t meshB = mesh_new(3);
+  mesh_t meshB = mesh_new();
   fail_unless(meshB);
   lob_t secB = lob_new();
   lob_set(secB,"1a",B_SEC);

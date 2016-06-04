@@ -14,10 +14,10 @@ var lob = require("lob-enc");
 
 var pkt = lob.encode({json:"stuff"}, new Buffer("payload"));
 
-var l = th.lob_parse(pkt, pkt.length);
+var l = lob_parse(pkt, pkt.length);
 
-th.lob_json(l)                         // {json: "stuff"}
-var pkt = th.BUFFER(th.lob_raw(l),th.lob_len(l)) // <Buffer 00 11 7b 22 73 6f 6d 65 22 22 7d 68 65 79 20 6c 6f 6f 6b 20 61 20 70 61 79 6c 6f 61 64>
+lob_json(l)                         // {json: "stuff"}
+var pkt = th.BUFFER(lob_raw(l),lob_len(l)) // <Buffer 00 11 7b 22 73 6f 6d 65 22 22 7d 68 65 79 20 6c 6f 6f 6b 20 61 20 70 61 79 6c 6f 61 64>
 
 var decoded = lob.decode(pkt)
 
@@ -26,7 +26,7 @@ var decoded = lob.decode(pkt)
 
 Notes
 ====
-- All functions in telehash.c are exported (once we know exactly which one's are necessary we can optimize the build )
+- All functions in telehash.c are exported into global (once we know exactly which one's are necessary we can optimize the build )
 - emscripten basically expects everything to be a number, pointers are numbers that reference the internal heap
 - to ease use, all functions are dynamically wrapped such that you can use strings/buffers as arguments instead of manually using uint8* or char*
 - if you find yourself needing the low level version of any function it is available as th._function_name

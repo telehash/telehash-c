@@ -4,12 +4,12 @@
 
 int main(int argc, char **argv)
 {
-  mesh_t meshA = mesh_new(3);
+  mesh_t meshA = mesh_new();
   fail_unless(meshA);
   lob_t secretsA = mesh_generate(meshA);
   fail_unless(secretsA);
 
-  mesh_t meshB = mesh_new(3);
+  mesh_t meshB = mesh_new();
   fail_unless(meshB);
   lob_t secretsB = mesh_generate(meshB);
   fail_unless(secretsB);
@@ -22,8 +22,8 @@ int main(int argc, char **argv)
   fail_unless(netB);
   fail_unless(net_udp4_socket(netA) > 0);
   
-  link_t linkAB = link_keys(meshA, meshB->keys);
-  link_t linkBA = link_keys(meshB, meshA->keys);
+  link_t linkAB = link_get_keys(meshA, meshB->keys);
+  link_t linkBA = link_get_keys(meshB, meshA->keys);
   fail_unless(linkAB);
   fail_unless(linkBA);
   

@@ -14,7 +14,7 @@ link_t net_test(link_t link, lob_t path)
 
 int main(int argc, char **argv)
 {
-  mesh_t mesh = mesh_new(3);
+  mesh_t mesh = mesh_new();
   fail_unless(mesh);
   lob_t secrets = mesh_generate(mesh);
   fail_unless(secrets);
@@ -30,7 +30,7 @@ int main(int argc, char **argv)
   fail_unless(strlen(hashname_char(link->id)) == 52);
   fail_unless(link->csid == 0x01);
   
-  fail_unless(link_keys(mesh,lob_linked(idB)) == link);
+  fail_unless(link_get_keys(mesh,lob_linked(idB)) == link);
   fail_unless(link->csid > 0x01);
   fail_unless(link->x);
   lob_free(idB);

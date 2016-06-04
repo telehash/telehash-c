@@ -4,13 +4,13 @@
 
 int main(int argc, char **argv)
 {
-  mesh_t meshA = mesh_new(3);
+  mesh_t meshA = mesh_new();
   fail_unless(meshA);
   lob_t secretsA = mesh_generate(meshA);
   fail_unless(secretsA);
   fail_unless(peer_enable(meshA));
 
-  mesh_t meshB = mesh_new(3);
+  mesh_t meshB = mesh_new();
   fail_unless(meshB);
   lob_t secretsB = mesh_generate(meshB);
   fail_unless(secretsB);
@@ -37,7 +37,7 @@ int main(int argc, char **argv)
   fail_unless(link_receive(linkAB, peerAB, NULL));
 
   // add a third
-  mesh_t meshC = mesh_new(3);
+  mesh_t meshC = mesh_new();
   fail_unless(meshC);
   lob_t secretsC = mesh_generate(meshC);
   fail_unless(secretsC);
