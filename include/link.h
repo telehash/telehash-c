@@ -24,8 +24,12 @@ struct link_struct
 
 // these all create or return existing one from the mesh
 link_t link_get(mesh_t mesh, hashname_t id);
-link_t link_keys(mesh_t mesh, lob_t keys); // adds in the right key
-link_t link_key(mesh_t mesh, lob_t key, uint8_t csid); // adds in from the body
+link_t link_get_keys(mesh_t mesh, lob_t keys); // adds in the right key
+link_t link_get_key(mesh_t mesh, lob_t key, uint8_t csid); // adds in from the body
+
+// simple accessors
+hashname_t link_id(link_t link);
+lob_t link_key(link_t link);
 
 // get link info json
 lob_t link_json(link_t link);

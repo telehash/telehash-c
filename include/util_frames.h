@@ -53,7 +53,7 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *me
 // fills data with the next frame, if no payload available always fills w/ meta frame, safe to re-run (idempotent)
 util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *meta); // data=NULL is ready-check
 
-// this must be called immediately (no inbox interleaved) after last outbox is actually sent to advance payload or clear flush request
+// this must be called immediately (no inbox interleaved) after last outbox is actually sent to advance payload or clear flush request, returns if more to send
 util_frames_t util_frames_sent(util_frames_t frames);
 
 // are we waiting to send/receive a frame
