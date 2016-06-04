@@ -27,7 +27,7 @@ int main(int argc, char **argv)
   fail_unless(util_frames_outbox(frames,frame,NULL));
   printf("frame %s\n",util_hex(frame,16,NULL));
   fail_unless(strcmp("2a0000002a00000000000000daa1a223",util_hex(frame,16,NULL)) == 0);
-  fail_unless(util_frames_sent(frames));
+  fail_unless(!util_frames_sent(frames));
 
   // receive the flush frame
   fail_unless(util_frames_inbox(frames,frame,NULL));
@@ -50,8 +50,13 @@ int main(int argc, char **argv)
   fail_unless(util_frames_inlen(frames) == 102);
   lob_t in = util_frames_receive(frames);
   fail_unless(in);
-  fail_unless(!util_frames_inbox(frames,NULL,NULL));
   fail_unless(in->body_len == 100);
+
+  // flush to clear
+  fail_unless(util_frames_inbox(frames,NULL,NULL));
+  fail_unless(util_frames_outbox(frames,frame,NULL));
+  fail_unless(util_frames_inbox(frames,frame,NULL));
+  fail_unless(!util_frames_inbox(frames,NULL,NULL));
 
   fail_unless(!util_frames_free(frames));
 
@@ -70,15 +75,20 @@ int main(int argc, char **argv)
   memset(metaout,42,50);
   fa->flush = 1;
   fail_unless(util_frames_outbox(fa,f64,metaout));
-  fail_unless(util_frames_sent(fa));
+  fail_unless(!util_frames_sent(fa));
   fail_unless(util_frames_inbox(fb,f64,metain));
   fail_unless(memcmp(metaout,metain,50) == 0);
 
   // chat
-  while(util_frames_busy(fa) && util_frames_outbox(fa,f64,NULL) && util_frames_sent(fa))
+  while(util_frames_busy(fa) && util_frames_outbox(fa,f64,NULL))
   {
+    util_frames_sent(fa);
     fail_unless(util_frames_inbox(fb,f64,NULL));
-    if(util_frames_outbox(fb,f64,NULL) && util_frames_sent(fb)) fail_unless(util_frames_inbox(fa,f64,NULL));
+    if(util_frames_outbox(fb,f64,NULL))
+    {
+      util_frames_sent(fb);
+      fail_unless(util_frames_inbox(fa,f64,NULL));
+    }
   }
 
   fail_unless(!util_frames_busy(fa));

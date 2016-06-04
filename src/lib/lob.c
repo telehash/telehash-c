@@ -108,7 +108,7 @@ lob_t lob_parse(const uint8_t *raw, size_t len)
 
   // validate any json
   jtest = 0;
-  if(p->head_len >= 2) js0n("\0",1,(char*)p->head,p->head_len,&jtest);
+  if(p->head_len >= 7) js0n("\0",1,(char*)p->head,p->head_len,&jtest);
   if(jtest) return lob_free(p);
 
   return p;
@@ -169,6 +169,30 @@ lob_t lob_append_str(lob_t p, char *chunk)
 {
   if(!p || !chunk) return LOG("bad args");
   return lob_append(p, (uint8_t*)chunk, strlen(chunk));
+}
+
+size_t lob_head_len(lob_t p)
+{
+  if(!p) return 0;
+  return p->head_len;
+}
+
+uint8_t *lob_head_get(lob_t p)
+{
+  if(!p) return NULL;
+  return p->head;
+}
+
+size_t lob_body_len(lob_t p)
+{
+  if(!p) return 0;
+  return p->body_len;
+}
+
+uint8_t *lob_body_get(lob_t p)
+{
+  if(!p) return NULL;
+  return p->body;
 }
 
 // TODO allow empty val to remove existing

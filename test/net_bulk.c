@@ -44,14 +44,14 @@ int main(int argc, char **argv)
   e3x_init(opt);
   lob_free(opt);
 
-  mesh_t meshA = mesh_new(3);
+  mesh_t meshA = mesh_new();
   fail_unless(meshA);
   lob_t secretsA = e3x_generate();
   fail_unless(secretsA);
   fail_unless(!mesh_load(meshA, secretsA, lob_linked(secretsA)));
   lob_free(secretsA);
 
-  mesh_t meshB = mesh_new(3);
+  mesh_t meshB = mesh_new();
   fail_unless(meshB);
   lob_t secretsB = mesh_generate(meshB);
   fail_unless(secretsB);

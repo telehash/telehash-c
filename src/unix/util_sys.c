@@ -84,6 +84,7 @@ void *util_sys_log(uint8_t level, const char *file, int line, const char *functi
     case 5: lstr = "NOTICE "; break;
     case 6: lstr = "INFO   "; break;
     case 7: lstr = "DEBUG  "; break;
+    case 8: lstr = "CRAZY  "; break;
     default: lstr = "?????? "; break;
   }
   va_start (args, format);

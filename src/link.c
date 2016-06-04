@@ -40,6 +40,13 @@ void link_free(link_t link)
     }
   }
 
+  // drop
+  if(link->x)
+  {
+    e3x_exchange_free(link->x);
+    link->x = NULL;
+  }
+
   // notify pipe w/ NULL packet
   if(link->send_cb) link->send_cb(link, NULL, link->send_arg);
 
@@ -52,10 +59,6 @@ void link_free(link_t link)
   }
 
   hashname_free(link->id);
-  if(link->x)
-  {
-    e3x_exchange_free(link->x);
-  }
   lob_free(link->key);
   free(link);
 }
@@ -67,6 +70,19 @@ link_t link_get(mesh_t mesh, hashname_t id)
   if(!mesh || !id) return LOG("invalid args");
   for(link = mesh->links;link;link = link->next) if(hashname_cmp(id,link->id) == 0) return link;
   return link_new(mesh,id);
+}
+
+// simple accessors
+hashname_t link_id(link_t link)
+{
+  if(!link) return NULL;
+  return link->id;
+}
+
+lob_t link_key(link_t link)
+{
+  if(!link) return NULL;
+  return link->key;
 }
 
 // get existing channel id if any
@@ -95,7 +111,7 @@ lob_t link_json(link_t link)
   return json;
 }
 
-link_t link_keys(mesh_t mesh, lob_t keys)
+link_t link_get_keys(mesh_t mesh, lob_t keys)
 {
   uint8_t csid;
 
@@ -103,12 +119,12 @@ link_t link_keys(mesh_t mesh, lob_t keys)
   csid = hashname_id(mesh->keys,keys);
   if(!csid) return LOG("no supported key");
   lob_t key = hashname_im(keys,csid);
-  link_t ret = link_key(mesh, key, csid);
+  link_t ret = link_get_key(mesh, key, csid);
   lob_free(key);
   return ret;
 }
 
-link_t link_key(mesh_t mesh, lob_t key, uint8_t csid)
+link_t link_get_key(mesh_t mesh, lob_t key, uint8_t csid)
 {
   link_t link;
 
@@ -170,7 +186,7 @@ link_t link_pipe(link_t link, link_t (*send)(link_t link, lob_t packet, void *ar
 {
   if(!link || !send) return NULL;
 
-  if(send == link->send_cb) return link; // noop
+  if(send == link->send_cb && arg == link->send_arg) return link; // noop
   if(link->send_cb) LOG_INFO("replacing existing pipe on link");
 
   link->send_cb = send;
@@ -317,6 +333,7 @@ lob_t link_handshake(link_t link)
   if(!link) return NULL;
   if(!link->x) return LOG_DEBUG("no exchange");
   
+  LOG_DEBUG("generating a new handshake in %lu out %lu",link->x->in,link->x->out);
   lob_t handshake = lob_new();
   lob_t tmp = hashname_im(link->mesh->keys, link->csid);
   lob_body(handshake, lob_raw(tmp), lob_len(tmp));
@@ -420,7 +437,7 @@ link_t link_down(link_t link)
     link->send_arg = NULL;
   }
 
-  return link;
+  return NULL;
 }
 
 // recursive to handle deletes

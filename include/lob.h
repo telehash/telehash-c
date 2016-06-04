@@ -56,6 +56,12 @@ uint8_t *lob_body(lob_t p, uint8_t *body, size_t len);
 lob_t lob_append(lob_t p, uint8_t *chunk, size_t len);
 lob_t lob_append_str(lob_t p, char *chunk);
 
+// core accessors
+size_t lob_head_len(lob_t p);
+uint8_t *lob_head_get(lob_t p);
+size_t lob_body_len(lob_t p);
+uint8_t *lob_body_get(lob_t p);
+
 // convenient json setters/getters, always return given lob so they're chainable
 lob_t lob_set_raw(lob_t p, char *key, size_t klen, char *val, size_t vlen); // raw
 lob_t lob_set(lob_t p, char *key, char *val); // escapes value

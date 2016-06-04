@@ -20,7 +20,7 @@ typedef struct on_struct
 on_t on_get(mesh_t mesh, char *id);
 on_t on_free(on_t on);
 
-mesh_t mesh_new(uint32_t prime)
+mesh_t mesh_new(void)
 {
   mesh_t mesh;
   
@@ -91,6 +91,19 @@ lob_t mesh_generate(mesh_t mesh)
   return secrets;
 }
 
+// simple accessors
+hashname_t mesh_id(mesh_t mesh)
+{
+  if(!mesh) return NULL;
+  return mesh->id;
+}
+
+lob_t mesh_keys(mesh_t mesh)
+{
+  if(!mesh) return NULL;
+  return mesh->keys;
+}
+
 // generate json of mesh keys and current paths
 lob_t mesh_json(mesh_t mesh)
 {
@@ -144,7 +157,7 @@ link_t mesh_add(mesh_t mesh, lob_t json)
   link = link_get(mesh, hashname_vchar(lob_get(json,"hashname")));
   keys = lob_get_json(json,"keys");
   paths = lob_get_array(json,"paths");
-  if(!link) link = link_keys(mesh, keys);
+  if(!link) link = link_get_keys(mesh, keys);
   if(!link) LOG("no hashname");
   
   LOG("loading keys from %s",lob_json(keys));
