@@ -30,8 +30,6 @@ int main(int argc, char **argv)
   // kickstart direct
   net_udp4_direct(netA,link_handshake(linkAB),"127.0.0.1",net_udp4_port(netB));
 
-  return 0; // WIP
-
   int i;
   for(i=256;i;i--)
   {

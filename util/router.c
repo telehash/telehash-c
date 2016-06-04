@@ -25,7 +25,7 @@ int main(int argc, char *argv[])
   id = util_fjson("id.json");
   if(!id) return -1;
   
-  mesh = mesh_new(0);
+  mesh = mesh_new();
   mesh_load(mesh,lob_get_json(id,"secrets"),lob_get_json(id,"keys"));
   mesh_on_discover(mesh,"auto",mesh_add); // auto-link anyone
 
