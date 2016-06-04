@@ -1,0 +1,19 @@
+{
+  "name": "telehash-core",
+  "version": "0.0.1",
+  "description": "telehash-c compiled into javascript",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/telehash/telehash-c.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/telehash/telehash-c/issues"
+  },
+  "homepage": "https://github.com/telehash/telehash-c#readme"
+}
