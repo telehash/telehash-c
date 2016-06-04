@@ -46,7 +46,7 @@ CS_OBJFILES = $(patsubst %.c,%.o,$(CS))
 FULL_OBJFILES = $(LIB_OBJFILES) $(E3X_OBJFILES) $(MESH_OBJFILES) $(EXT_OBJFILES) $(NET_OBJFILES) $(UTIL_OBJFILES) $(CS_OBJFILES)
 
 IDGEN_OBJFILES = $(FULL_OBJFILES) util/idgen.o
-ROUTER_OBJFILES = $(FULL_OBJFILES) util/router.o 
+ROUTER_OBJFILES = $(FULL_OBJFILES) src/net/udp4.o util/router.o 
 PING_OBJFILES = $(FULL_OBJFILES) util/ping.o 
 
 HEADERS=$(wildcard include/*.h)
