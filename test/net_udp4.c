@@ -22,8 +22,8 @@ int main(int argc, char **argv)
   fail_unless(netB);
   fail_unless(net_udp4_socket(netA) > 0);
   
-  link_t linkAB = link_keys(meshA, meshB->keys);
-  link_t linkBA = link_keys(meshB, meshA->keys);
+  link_t linkAB = link_get_keys(meshA, meshB->keys);
+  link_t linkBA = link_get_keys(meshB, meshA->keys);
   fail_unless(linkAB);
   fail_unless(linkBA);
   
