@@ -16,7 +16,7 @@ int main(int argc, char **argv)
   fail_unless(lob_get(payload,"name"));
   fail_unless(payload->body_len == 32);
   
-  char jwt2[] = "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6ImlkIn0.eyJpc3MiOiJ0ZXN0Iiwic3ViIjoiZXhwZWN0IiwiYXVkIjoieW91IiwiYXpwIjoibWUiLCJpYXQiOjE0MjEwMjk5MzQsInNjb3BlIjoidGVzdCIsImV4cCI6MTczNjM4OTkzNH0.aHORuwSmjEl5UOZaQ-eDggDjzMBc7i5pSZCYEDT5mpP7S9c3h_I-6pGaD9W4xu79VTidjsyspS6P4FZUWGkmMRfcXPr0Uv-SbbKzD5E_T-xkp5SxL3AMV9Up9BcsM6hZU_tHxl5XBmM8IZztPV2asL77flQtrIvsc7DABw9r9SQ";
+  char jwt2[] = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjQyfQ.GMQg9LfZNenJCrdWEDklQRxHqCHgYC5DN9YkdetGurKAxITJ1552lKwkgRPUJMNE9kHYW2yslC42sjhZ50m0n25zuOxt5rzbonotFb243deLt5bjvLP1HxaA37qtjGVvPXPwI-nquSVKrVAndaB8p16Beo_Ftehneu_ClFbkOpUYmalVGzIhI3MjnwYusFkEPK7LWOTIe8S_UZFaob6uSiGo_6q3Fwn84QkU2pOGlUAg3onJGKLOlXdGhZDrpjvYJtJXPpRj_1cxTTBAWlAX28-jUEi0U1EpN_vswLlGAx-ZgARAiMww2_z6GNcj2k7Tnnju2BOYL5RFGCqIob7jhw";
   head = jwt_decode(jwt2, 0);
   fail_unless(head);
   fail_unless(lob_get(head,"typ"));
@@ -24,13 +24,11 @@ int main(int argc, char **argv)
   payload = lob_linked(head);
   fail_unless(payload);
   fail_unless(lob_get(payload,"sub"));
-  fail_unless(lob_get(payload,"scope"));
-  fail_unless(payload->body_len == 128);
+  fail_unless(payload->body_len == 256);
 
-  char orig[] = "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6ImlkIn0.eyJpc3MiOiJ0ZXN0Iiwic3ViIjoiZXhwZWN0IiwiYXVkIjoieW91IiwiYXpwIjoibWUiLCJpYXQiOjE0MjEwMjk5MzQsInNjb3BlIjoidGVzdCIsImV4cCI6MTczNjM4OTkzNH0.aHORuwSmjEl5UOZaQ-eDggDjzMBc7i5pSZCYEDT5mpP7S9c3h_I-6pGaD9W4xu79VTidjsyspS6P4FZUWGkmMRfcXPr0Uv-SbbKzD5E_T-xkp5SxL3AMV9Up9BcsM6hZU_tHxl5XBmM8IZztPV2asL77flQtrIvsc7DABw9r9SQ";
   char *enc = jwt_encode(head);
   fail_unless(enc);
-  fail_unless(util_cmp(orig,enc) == 0);
+  fail_unless(util_cmp(jwt2,enc) == 0);
   
   // test signing
   fail_unless(e3x_init(NULL) == 0);
@@ -47,7 +45,7 @@ int main(int argc, char **argv)
     lob_body(hs256,(uint8_t*)"secret",6);
     fail_unless(jwt_sign(hs256,NULL));
     fail_unless(hsp->body_len == 32);
-    printf("signed JWT: %s\n",jwt_encode(hs256));
+    LOG("signed JWT: %s",jwt_encode(hs256));
     lob_body(hs256,(uint8_t*)"secret",6);
     fail_unless(jwt_verify(hs256,NULL));
   }
@@ -67,7 +65,7 @@ int main(int argc, char **argv)
     lob_link(es160,esp);
     fail_unless(jwt_sign(es160,self));
     fail_unless(esp->body_len == 40);
-    printf("signed JWT: %s\n",jwt_encode(es160));
+    LOG("signed JWT: %s",jwt_encode(es160));
 
     lob_t key = lob_get_base32(lob_linked(id),"1a");
     e3x_exchange_t x = e3x_exchange_new(self, 0x1a, key);
@@ -85,7 +83,9 @@ int main(int argc, char **argv)
     lob_link(test,testp);
     fail_unless(jwt_sign(test,self));
     fail_unless(testp->body_len == 256);
-    printf("signed JWT: %s\n",jwt_encode(test));
+    char *encoded = jwt_encode(test);
+    fail_unless(encoded);
+    LOG("signed JWT: %s",encoded);
 
     lob_t key = lob_get_base32(lob_linked(id),"2a");
     e3x_exchange_t x = e3x_exchange_new(self, 0x2a, key);

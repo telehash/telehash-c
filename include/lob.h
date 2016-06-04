@@ -50,6 +50,9 @@ size_t lob_len(lob_t p);
 // return null-terminated json header only
 char *lob_json(lob_t p);
 
+// creates temporarily cached string on lob (used by lob_json), free'd w/ lob or next cache call
+char *lob_cache(lob_t p, size_t len);
+
 // set/store these in the current packet
 uint8_t *lob_head(lob_t p, uint8_t *head, size_t len);
 uint8_t *lob_body(lob_t p, uint8_t *body, size_t len);

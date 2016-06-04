@@ -1,3 +1,5 @@
+#include <stdint.h>
+#include <stdbool.h>
 #include <string.h>
 #include "telehash.h"
 
@@ -14,7 +16,6 @@ lob_t jwt_decode(char *encoded, size_t len)
 {
   lob_t header, claims;
   char *dot1, *dot2, *end;
-  size_t dlen;
 
   if(!encoded) return NULL;
   if(!len) len = strlen(encoded);
@@ -22,26 +23,33 @@ lob_t jwt_decode(char *encoded, size_t len)
   
   // make sure the dot separators are there
   dot1 = strchr(encoded,'.');
-  if(!dot1 || dot1+1 >= end) return LOG("missing/bad first separator");
+  if(!dot1 || dot1+1 >= end) return LOG_INFO("missing/bad first separator");
   dot1++;
   dot2 = strchr(dot1,'.');
-  if(!dot2 || (dot2+1) >= end) return LOG("missing/bad second separator");
+  if(!dot2 || (dot2+1) >= end) return LOG_INFO("missing/bad second separator");
   dot2++;
+
+  uint32_t dlen = base64_decoder(dot2, (end-dot2)+1, NULL);
+  if(dlen+3 < base64_decode_length((end-dot2)+1)) return LOG_INFO("invalid sig b64 len %u",dlen);
+  dlen = base64_decoder(dot1, dot2-dot1, NULL);
+  if(dlen+3 < base64_decode_length(dot2-dot1)) return LOG_INFO("invalid claims b64 len %u %u",dlen);
+  dlen = base64_decoder(encoded, dot1-encoded, NULL);
+  if(dlen+3 < base64_decode_length(dot1-encoded)) return LOG_INFO("invalid header b64 len %u",dlen);
 
   claims = lob_new();
   header = lob_link(NULL, claims);
   
   // decode claims sig first
-  dlen = base64_decoder(dot2, (end-dot2)+1, (uint8_t*)dot2);
-  lob_body(claims, (uint8_t*)dot2, dlen);
+  lob_body(claims, NULL, base64_decoder(dot2, (end-dot2)+1, NULL));
+  base64_decoder(dot2, (end-dot2)+1, lob_body_get(claims));
 
   // decode claims json
-  dlen = base64_decoder(dot1, (dot2-dot1), (uint8_t*)dot1);
-  lob_head(claims, (uint8_t*)dot1, dlen);
+  lob_head(claims, NULL, base64_decoder(dot1, dot2-dot1, NULL));
+  base64_decoder(dot1, (dot2-dot1), lob_head_get(claims));
 
   // decode header json
-  dlen = base64_decoder(encoded, (dot1-encoded), (uint8_t*)encoded);
-  lob_head(header, (uint8_t*)encoded, dlen);
+  lob_head(header, NULL, base64_decoder(encoded, dot1-encoded, NULL));
+  base64_decoder(encoded, (dot1-encoded), lob_head_get(header));
 
   return header;
 }
@@ -70,7 +78,7 @@ char *jwt_encode(lob_t token)
   slen = base64_encode_length(payload->body_len);
   clen = base64_encode_length(payload->head_len);
   hlen = base64_encode_length(token->head_len);
-  encoded = (char*)lob_body(token,NULL,hlen+1+clen+1+slen+1);
+  encoded = lob_cache(token,hlen+1+clen+1+slen+1);
   
   // append all the base64 encoding
   hlen = base64_encoder(token->head,token->head_len,encoded);
@@ -98,52 +106,36 @@ uint32_t jwt_len(lob_t token)
 // verify the signature on this token, optionally using key loaded in this exchange
 lob_t jwt_verify(lob_t token, e3x_exchange_t x)
 {
-  size_t hlen, clen;
-  char *encoded;
-  uint8_t err;
   lob_t payload = lob_linked(token);
   if(!token || !payload) return LOG("bad args");
 
   // generate the temporary encoded data
-  clen = base64_encode_length(payload->head_len);
-  hlen = base64_encode_length(token->head_len);
-  encoded = (char*)malloc(hlen+1+clen);
-  hlen = base64_encoder(token->head,token->head_len,encoded);
-  encoded[hlen] = '.';
-  clen = base64_encoder(payload->head,payload->head_len,encoded+hlen+1);
+  char *encoded = jwt_encode(token);
+  if(!encoded) return LOG("bad token");
+  char *dot = strchr(encoded,'.');
+  dot = strchr(dot+1,'.');
+  
+  LOG("checking %lu %.*s",lob_body_len(token),dot-encoded,encoded);
 
   // do the validation
-  err = e3x_exchange_validate(x, token, payload, (uint8_t*)encoded, hlen+1+clen);
-  free(encoded);
-
-  if(err)
-  {
-    LOG("validate failed: %d",err);
-    return NULL;
-  }
-
+  uint8_t err = e3x_exchange_validate(x, token, payload, (uint8_t*)encoded, dot-encoded);
+  if(err) return LOG("validate failed: %d",err);
   return token;
 }
 
 // sign this token, adds signature to the claims body
 lob_t jwt_sign(lob_t token, e3x_self_t self)
 {
-  size_t hlen, clen;
-  char *encoded;
   lob_t payload = lob_linked(token);
   if(!token || !payload) return LOG("bad args");
 
-  // allocates space in the payload body for the encoded data to be signed
-  clen = base64_encode_length(payload->head_len);
-  hlen = base64_encode_length(token->head_len);
-  encoded = (char*)lob_body(payload,NULL,hlen+1+clen);
-  
-  hlen = base64_encoder(token->head,token->head_len,encoded);
-  encoded[hlen] = '.';
-  clen = base64_encoder(payload->head,payload->head_len,encoded+hlen+1);
+  char *encoded = jwt_encode(token);
+  if(!encoded) return LOG("bad token");
+  char *dot = strchr(encoded,'.');
+  dot = strchr(dot+1,'.');
 
   // e3x returns packet w/ signature
-  if(!e3x_self_sign(self, token, payload->body, hlen+1+clen)) return LOG("signing failed");
+  if(!e3x_self_sign(self, token, (uint8_t*)encoded, dot-encoded)) return LOG("signing failed");
   
   // copy sig to payload
   lob_body(payload,token->body,token->body_len);
@@ -151,13 +143,8 @@ lob_t jwt_sign(lob_t token, e3x_self_t self)
 }
 
 // return >0 if this alg is supported
-uint8_t jwt_alg(char *alg)
+bool jwt_alg(char *alg)
 {
-  uint8_t err;
-  lob_t test = lob_new();
-  lob_set(test,"alg",alg);
-  // TODO refactor how this is checked
-  err = e3x_exchange_validate(NULL, test, NULL, (uint8_t*)"x", 1);
-  lob_free(test);
-  return (err == 1) ? 0 : 1;
+
+  return (e3x_cipher_set(0,alg)) ? true : false;
 }

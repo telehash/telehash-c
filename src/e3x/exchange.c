@@ -8,7 +8,8 @@
 // packet must contain the raw key in the body
 e3x_exchange_t e3x_exchange_new(e3x_self_t self, uint8_t csid, lob_t key)
 {
-  uint8_t i, token[16];
+  uint16_t i;
+  uint8_t token[16];
   e3x_exchange_t x;
   remote_t remote;
   e3x_cipher_t cs = NULL;

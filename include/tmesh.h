@@ -223,4 +223,11 @@ struct mote_struct
 // return current mote appid
 uint32_t mote_appid(mote_t mote);
 
+// find a stream to send it to for this mote
+mote_t mote_send(mote_t mote, lob_t packet);
+
+// send this packet to this id via this router
+mote_t mote_route(mote_t router, hashname_t to, lob_t packet);
+
+
 #endif

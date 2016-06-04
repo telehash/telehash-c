@@ -344,7 +344,6 @@ uint8_t remote_validate(remote_t remote, lob_t args, lob_t sig, uint8_t *data, s
   if(lob_get_cmp(args,"alg","HS256") == 0)
   {
     if(sig->body_len != 32 || !args->body_len) return 2;
-//    LOG("[%d] [%.*s]",args->body_len,len,data);
     hmac_256(args->body,args->body_len,data,len,hash);
     return (util_ct_memcmp(sig->body,hash,32) == 0) ? 0 : 3;
   }

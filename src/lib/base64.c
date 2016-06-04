@@ -4,7 +4,7 @@
 #include <string.h>
 
 // decode str of len into out (must be base64_decode_length(len) bit), return actual decoded len
-size_t base64_decoder(const char *str, size_t len, uint8_t *out)
+size_t base64_decoder(const char *str, size_t len, uint8_t *save)
 {
     const char *cur;
     uint8_t *start;
@@ -29,8 +29,12 @@ size_t base64_decoder(const char *str, size_t len, uint8_t *out)
         -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1   /* F0-FF */
     };
 
-    if(!str || !out) return 0;
+    if(!str) return 0;
     if(!len) len = strlen(str);
+    
+    // allow null save to just return exact size
+    uint8_t *out = save;
+    if(!out) out = (uint8_t*)str;
 
     d = dlast = phase = 0;
     start = out;
@@ -53,24 +57,26 @@ size_t base64_decoder(const char *str, size_t len, uint8_t *out)
                 break;
             case 1:
                 c = ((dlast << 2) | ((d & 0x30) >> 4));
-                *out++ = c;
+                if(save) *out = c;
+                ++out;
                 ++phase;
                 break;
             case 2:
                 c = (((dlast & 0xf) << 4) | ((d & 0x3c) >> 2));
-                *out++ = c;
+                if(save) *out = c;
+                ++out;
                 ++phase;
                 break;
             case 3:
                 c = (((dlast & 0x03 ) << 6) | d);
-                *out++ = c;
+                if(save) *out = c;
+                ++out;
                 phase = 0;
                 break;
             }
             dlast = d;
         }
     }
-    *out = '\0';
     return out - start;
 }
 
