@@ -21,7 +21,7 @@ struct net_udp4_struct
   mesh_t mesh;
   pipe_t pipes;
   int server;
-  int port;
+  uint16_t port;
 };
 
 static pipe_t pipe_free(pipe_t pipe)
@@ -79,7 +79,7 @@ pipe_t udp4_pipe(net_udp4_t net, struct sockaddr_in *from)
   to->sa.sin_family = AF_INET;
   to->sa.sin_addr = from->sin_addr;
   to->sa.sin_port = from->sin_port;
-  to->frames = util_frames_new(252);
+  to->frames = util_frames_new(128);
   
   // link into list
   to->next = net->pipes;
@@ -100,6 +100,9 @@ net_udp4_t net_udp4_new(mesh_t mesh, lob_t options)
 
   // create a udp socket
   if((sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP) ) < 0 ) return LOG_ERROR("failed to create socket %s",strerror(errno));
+
+  // TODO this needs to be modified for app usage
+  util_sock_timeout(sock,1);
 
   memset(&sa,0,sizeof(sa));
   sa.sin_family = AF_INET;
@@ -142,7 +145,7 @@ net_udp4_t net_udp4_process(net_udp4_t net)
   struct sockaddr_in sa;
   size_t salen = sizeof(sa);
   memset(&sa,0,salen);
-  uint8_t frame[256];
+  uint8_t frame[128];
   
   // try receiving anything waiting
   pipe_t pipe = NULL;
@@ -201,5 +204,30 @@ int net_udp4_socket(net_udp4_t net)
   if(!net) return -1;
   return net->server;
 }
+
+uint16_t net_udp4_port(net_udp4_t net)
+{
+  if(!net) return 0;
+  return net->port;
+}
+
+net_udp4_t net_udp4_direct(net_udp4_t net, lob_t packet, char *ip, uint16_t port)
+{
+  if(!net || !packet || !ip || !port) return LOG_WARN("bad args");
+
+  struct sockaddr_in sa;
+  memset(&sa,0,sizeof(sa));
+  inet_aton(ip, &(sa.sin_addr));
+  sa.sin_port = htons(port);
+  pipe_t pipe = udp4_pipe(net, &sa);
+  if(!port)
+  {
+    lob_free(packet);
+    return LOG_WARN("direct pipe failed to %s:%u",ip,port);
+  }
+  util_frames_send(pipe->frames,packet);
+  return net;
+}
+
 
 #endif // POSIX
