@@ -178,6 +178,7 @@ net_udp4_t net_udp4_process(net_udp4_t net)
       if(!link) continue;
       if(link != pipe->link)
       {
+        LOG_DEBUG("adding new link to pipe for %s",hashname_short(link->id));
         pipe->link = link;
         link_pipe(link,udp4_send,pipe);
       }

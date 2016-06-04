@@ -243,7 +243,7 @@ link_t link_receive_handshake(link_t link, lob_t inner)
     LOG("old handshake: %s (%d,%d,%d)",lob_json(inner),at,in,out);
     link_sync(link);
     lob_free(inner);
-    return NULL;
+    return link;
   }
 
   // try to sync ephemeral key

@@ -31,13 +31,14 @@ int main(int argc, char **argv)
   net_udp4_direct(netA,link_handshake(linkAB),"127.0.0.1",net_udp4_port(netB));
 
   int i;
-  for(i=256;i;i--)
+  for(i=32;i;i--)
   {
     net_udp4_process(netA);
     net_udp4_process(netB);
     if(link_up(linkAB) && link_up(linkBA)) break;
   }
   fail_unless(i);
+  LOG_DEBUG("done in %d loops",32-i);
 
   return 0;
 }
