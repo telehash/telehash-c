@@ -5,10 +5,13 @@
 var th = require("./th.js");
 
 const returntypes = {
-  "_lob_json" : "json"
+  "_lob_json" : "json",
+  "_hashname_short" : "string",
+  "_lob_get" : "string"
 };
 
 const Unwrappers = {
+  pointer : (_val) => _val,
   number : (_val) => _val,
   string : th.UTF8ToString,
   json : (_val) => JSON.parse(th.UTF8ToString(_val))
@@ -37,7 +40,10 @@ const wrapFun = (_fun, returntype) => function() {
 }
 
 Object.keys(th).filter(key => key.indexOf("_") == 0).forEach((key) => {
-  th[key.substr(1)] = wrapFun(th[key], returntypes[key]);
+  let fn = key.substr(1);
+  th[fn] = wrapFun(th[key], returntypes[key]);
+  // globalize all the funthings!
+  if(fn.indexOf("_") > 0) global[fn] = th[fn];
 })
 
 th.CALLBACK = (fun, types) => function(){

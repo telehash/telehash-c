@@ -8,7 +8,6 @@
 #include "mesh.h"
 #include "util_unix.h"
 #include "net_udp4.h"
-#include "net_tcp4.h"
 #include "ext.h"
 
 int main(int argc, char *argv[])
@@ -16,7 +15,6 @@ int main(int argc, char *argv[])
   lob_t id, options, json;
   mesh_t mesh;
   net_udp4_t udp4;
-  net_tcp4_t tcp4;
   int port = 0;
 
   if(argc==2)
@@ -27,24 +25,20 @@ int main(int argc, char *argv[])
   id = util_fjson("id.json");
   if(!id) return -1;
   
-  mesh = mesh_new(0);
+  mesh = mesh_new();
   mesh_load(mesh,lob_get_json(id,"secrets"),lob_get_json(id,"keys"));
   mesh_on_discover(mesh,"auto",mesh_add); // auto-link anyone
-  mesh_on_open(mesh,"path",path_on_open); // add path support
 
   options = lob_new();
   lob_set_int(options,"port",port);
 
   udp4 = net_udp4_new(mesh, options);
-  util_sock_timeout(udp4->server,100);
-
-  tcp4 = net_tcp4_new(mesh, options);
+  util_sock_timeout(net_udp4_socket(udp4),100);
 
   json = mesh_json(mesh);
   printf("%s\n",lob_json(json));
-  printf("%s\n",mesh_uri(mesh, NULL));
 
-  while(net_udp4_receive(udp4) && net_tcp4_loop(tcp4));
+  while(net_udp4_process(udp4));
 
   /*
   if(util_loadjson(s) != 0 || (sock = util_server(0,1000)) <= 0)

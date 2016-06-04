@@ -29,9 +29,9 @@ lob_t bulk_on_open(link_t link, lob_t open)
   lob_t reply = lob_new();
   lob_set(reply,"c",lob_get(open,"c"));
   chan_receive(chan,open); // consumes the open
-  printf("Done setting up channel: %d\n", chan_size(chan,0));
+  printf("Done setting up channel: %d\n", chan_size(chan));
 
-  link_direct(link,reply,NULL);
+  link_direct(link,reply);
 
   return NULL;
 }
@@ -44,14 +44,14 @@ int main(int argc, char **argv)
   e3x_init(opt);
   lob_free(opt);
 
-  mesh_t meshA = mesh_new(3);
+  mesh_t meshA = mesh_new();
   fail_unless(meshA);
   lob_t secretsA = e3x_generate();
   fail_unless(secretsA);
   fail_unless(!mesh_load(meshA, secretsA, lob_linked(secretsA)));
   lob_free(secretsA);
 
-  mesh_t meshB = mesh_new(3);
+  mesh_t meshB = mesh_new();
   fail_unless(meshB);
   lob_t secretsB = mesh_generate(meshB);
   fail_unless(secretsB);
@@ -65,16 +65,14 @@ int main(int argc, char **argv)
   fail_unless(linkAB);
   fail_unless(linkBA);
 
-  lob_t hs = link_resync(linkAB);
-  fail_unless(hs);
-  lob_free(hs);
+  fail_unless(link_resync(linkAB));
 
   mesh_on_open(meshA, "bulk", bulk_on_open);
   lob_t bulkBA = lob_new();
   lob_set(bulkBA,"type","bulk");
   uint32_t cid = e3x_exchange_cid(linkBA->x, NULL);
   lob_set_uint(bulkBA,"c",cid);
-  fail_unless(link_receive(linkAB, bulkBA, NULL));
+  fail_unless(link_receive(linkAB, bulkBA));
   fail_unless(chan);
 
   int i;
@@ -82,7 +80,7 @@ int main(int argc, char **argv)
   {
     lob_t bulk = lob_new();
     lob_set_uint(bulk,"c",cid);
-    fail_unless(link_receive(linkAB, bulk, NULL));
+    fail_unless(link_receive(linkAB, bulk));
   }
   
   LOG("bulked %d",bulked);

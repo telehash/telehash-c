@@ -34,7 +34,7 @@ tmesh_t driver_advance(tmesh_t tm, tempo_t tempo, uint8_t seed[8])
   return tm;
 }
 
-tmesh_t driver_medium(tmesh_t tm, tempo_t tempo, uint32_t medium)
+tmesh_t driver_medium(tmesh_t tm, tempo_t tempo, uint8_t seed[8], uint32_t medium)
 {
   tempo->driver = (void*)1; // flag for test check
   tempo->medium = medium?medium:1;
@@ -50,7 +50,7 @@ int main(int argc, char **argv)
 {
   fail_unless(!e3x_init(NULL)); // random seed
   
-  mesh_t meshA = mesh_new(3);
+  mesh_t meshA = mesh_new();
   fail_unless(meshA);
   lob_t keyA = lob_new();
   lob_set(keyA,"1a",A_KEY);
@@ -95,7 +95,6 @@ int main(int argc, char **argv)
   mote_t moteB = tmesh_mote(netA, linkAB);
   fail_unless(moteB);
   fail_unless(moteB->link == linkAB);
-  fail_unless(moteB->pipe);
   fail_unless(moteB->signal);
   fail_unless(moteB->signal->medium == 1);
   fail_unless(moteB->signal->driver == (void*)1);
@@ -221,7 +220,7 @@ int main(int argc, char **argv)
   fail_unless(tmesh_leave(netA,c));
   
   // two motes meshing
-  mesh_t meshB = mesh_new(3);
+  mesh_t meshB = mesh_new();
   fail_unless(meshB);
   lob_t secB = lob_new();
   lob_set(secB,"1a",B_SEC);

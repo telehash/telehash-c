@@ -4,12 +4,13 @@ CFLAGS+=-g -Wall -Wextra -Wno-unused-parameter -DDEBUG
 #CFLAGS+=-Weverything -Wno-unused-macros -Wno-undef -Wno-gnu-zero-variadic-macro-arguments -Wno-padded -Wno-gnu-label-as-value -Wno-gnu-designator -Wno-missing-prototypes -Wno-format-nonliteral
 INCLUDE+=-Iinclude -Iinclude/lib -Iunix
 
-LIB = src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/lib/chacha.c src/lib/murmur.c src/lib/aes128.c src/lib/sha256.c src/lib/uECC.c
+LIB = src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/lib/chacha.c src/lib/murmur.c src/lib/jwt.c src/lib/base64.c src/lib/aes128.c src/lib/sha256.c src/lib/uECC.c
 E3X = src/e3x/e3x.c src/e3x/self.c src/e3x/exchange.c src/e3x/cipher.c
-MESH = src/mesh.c src/link.c src/chan.c src/pipe.c
-EXT = src/ext/stream.c src/ext/block.c src/ext/path.c
-NET = src/net/loopback.c src/net/udp4.c src/net/tcp4.c src/net/serial.c
-UTIL = src/util/util.c src/util/uri.c src/util/chunks.c src/util/frames.c src/unix/util.c src/unix/util_sys.c
+MESH = src/mesh.c src/link.c src/chan.c
+EXT = 
+#NET = src/net/loopback.c src/net/udp4.c src/net/tcp4.c src/net/serial.c
+NET = src/net/loopback.c 
+UTIL = src/util/util.c src/util/chunks.c src/util/frames.c src/unix/util.c src/unix/util_sys.c
 TMESH = src/tmesh/tmesh.c 
 
 # CS1a by default
@@ -45,7 +46,7 @@ CS_OBJFILES = $(patsubst %.c,%.o,$(CS))
 FULL_OBJFILES = $(LIB_OBJFILES) $(E3X_OBJFILES) $(MESH_OBJFILES) $(EXT_OBJFILES) $(NET_OBJFILES) $(UTIL_OBJFILES) $(CS_OBJFILES)
 
 IDGEN_OBJFILES = $(FULL_OBJFILES) util/idgen.o
-ROUTER_OBJFILES = $(FULL_OBJFILES) util/router.o 
+ROUTER_OBJFILES = $(FULL_OBJFILES) src/net/udp4.o util/router.o 
 PING_OBJFILES = $(FULL_OBJFILES) util/ping.o 
 
 HEADERS=$(wildcard include/*.h)
@@ -92,9 +93,6 @@ arduino: static
 	cp src/e3x/cs1a/cs1a.c arduino/src/cs1a/
 	cp $(HEADERS) arduino/src/telehash/
 
-javascript: static
-	$(EMCC) telehash.c -I include/ -s LINKABLE=1 -s EXPORT_ALL=1 -s NO_FILESYSTEM=1 -s INLINING_LIMIT=1 -O3 -o js/_th.js
-
 test: $(FULL_OBJFILES) ping
 	cd test; $(MAKE) $(MFLAGS)
 
@@ -107,8 +105,9 @@ TAGS:
 idgen: $(IDGEN_OBJFILES)
 	$(CC) $(CFLAGS) -o bin/idgen $(IDGEN_OBJFILES) $(LDFLAGS)
 
-ping: $(PING_OBJFILES)
-	$(CC) $(CFLAGS) -o bin/ping $(PING_OBJFILES) $(LDFLAGS)
+ping:
+#ping: $(PING_OBJFILES)
+#	$(CC) $(CFLAGS) -o bin/ping $(PING_OBJFILES) $(LDFLAGS)
 
 router: $(ROUTER_OBJFILES)
 	$(CC) $(CFLAGS) -o bin/router $(ROUTER_OBJFILES) $(LDFLAGS)

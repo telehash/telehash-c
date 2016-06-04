@@ -254,7 +254,7 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *me
   if(tail >= size)
   {
     frames->flush = 1;
-    return LOG_DEBUG("invalid frame data length: %u %s",tail,util_hex(data+(size-4),8,NULL));
+    return LOG_DEBUG("invalid frame %u tail (%u) hash %lu != %lu last %lu",frames->in,tail,hash1,hash2,frames->inlast);
   }
   
   // hash must match
@@ -352,7 +352,7 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *m
   return frames;
 }
 
-// out state changes
+// out state changes, returns if more to send
 util_frames_t util_frames_sent(util_frames_t frames)
 {
   if(!frames) return LOG_WARN("bad args");
@@ -361,16 +361,22 @@ util_frames_t util_frames_sent(util_frames_t frames)
   uint32_t len = lob_len(frames->outbox); 
   uint32_t at = frames->out * size;
 
-  // we sent a meta-frame, clear flush and done, else advance payload
+  // we sent a meta-frame, clear flush and done
   if(frames->flush || !len || at > len)
   {
     frames->flush = 0;
-  }else{
-    if((at + size) > len) size = len - at;
-    frames->outbox->id = at + size; // track exact sent bytes
-    frames->out++; // advance sent frames counter
+    return NULL;
   }
+
+  // else advance payload
+  if((at + size) > len) size = len - at;
+  frames->outbox->id = at + size; // track exact sent bytes
+  frames->out++; // advance sent frames counter
+
+  // if no more, signal done
+  if((frames->out * size) > len) return NULL;
   
+  // more to go
   return frames;
 }
 

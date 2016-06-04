@@ -12,7 +12,6 @@ extern "C" {
 #include "chan.h"
 #include "mesh.h"
 #include "link.h"
-#include "pipe.h"
 
 #ifdef __cplusplus
 }

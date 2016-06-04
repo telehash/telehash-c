@@ -23,8 +23,7 @@ int main(int argc, char **argv)
   fail_unless(chan);
   fail_unless(chan_state(chan) == CHAN_OPENING);
   fail_unless(chan_id(chan) == 1);
-  fail_unless(chan_size(chan,0) == 0);
-  fail_unless(util_cmp(lob_get(chan_open(chan),"type"),"test") == 0);
+  fail_unless(chan_size(chan) == 0);
   
   // test timeout erroring
   fail_unless(chan_timeout(chan,1) == 1);
@@ -45,28 +44,6 @@ int main(int argc, char **argv)
   fail_unless(lob_get_int(outgoing,"c") == 1);
   lob_set_int(outgoing,"test",42);
   fail_unless(!chan_send(chan,outgoing)); // dropped, no link
-
-  // create a reliable channel
-  chan_free(chan);
-  lob_set(open,"type","test");
-  lob_set_int(open,"seq",1);
-  chan = chan_new(open);
-  fail_unless(chan);
-  fail_unless(chan_state(chan) == CHAN_OPENING);
-  fail_unless(chan_process(chan,0));
-  
-  // receive an out of order packet
-  lob_t ooo = lob_new();
-  lob_set_int(ooo,"seq",10);
-  fail_unless(chan_receive(chan, lob_copy(ooo)));
-  fail_unless(!chan_receive(chan, ooo)); // dedup drop
-  fail_unless(chan_receiving(chan) == NULL); // nothing to receive yet
-  lob_t oob = chan_oob(chan); // should have triggered an ack/miss
-  printf("OOB %s\n",lob_json(oob));
-  fail_unless(oob);
-  fail_unless(lob_get_int(oob,"c") == 1);
-  fail_unless(util_cmp(lob_get(oob,"ack"),"0") == 0);
-  fail_unless(util_cmp(lob_get(oob,"miss"),"[1,1,1,1,1,1,1,1,1,100]") == 0);
 
   return 0;
 }

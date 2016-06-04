@@ -6,93 +6,103 @@
 #include "net_udp4.h"
 
 // individual pipe local info
-typedef struct pipe_udp4_struct
+typedef struct pipe_struct
 {
-  struct sockaddr_in sa;
+  link_t link;
+  util_frames_t frames;
   net_udp4_t net;
-} *pipe_udp4_t;
+  struct pipe_struct *next;
+  struct sockaddr_in sa;
+} *pipe_t;
 
-void udp4_send(pipe_t pipe, lob_t packet, link_t link)
+// overall server
+struct net_udp4_struct
 {
-  uint8_t *cloaked;
-  pipe_udp4_t to = (pipe_udp4_t)pipe->arg;
+  mesh_t mesh;
+  pipe_t pipes;
+  int server;
+  uint16_t port;
+};
 
-  if(!to || !packet || !link) return;
-  LOG("udp4 to %s",hashname_short(link->id));
-  // TODO, determine MTU capacity left and add random # of rounds within that
-  cloaked = lob_cloak(packet, 1);
-  if(sendto(to->net->server, cloaked, lob_len(packet)+8, 0, (struct sockaddr *)&(to->sa), sizeof(struct sockaddr_in)) < 0) LOG("sendto failed: %s",strerror(errno));
-  free(cloaked);
-  lob_free(packet);
+static pipe_t pipe_free(pipe_t pipe)
+{
+  if(!pipe || !pipe->net || !pipe->net->pipes) return LOG("bad args");
+  LOG_DEBUG("dropping pipe %s:%u",inet_ntoa(pipe->sa.sin_addr), ntohs(pipe->sa.sin_port));
+
+  // remove from pipes list
+  if(pipe == pipe->net->pipes) pipe->net->pipes = pipe->next;
+  else {
+    pipe_t p = pipe->net->pipes;
+    while(p && p->next != pipe) p = p->next;
+    if(!p) LOG_WARN("pipe not found for %s:%u",inet_ntoa(pipe->sa.sin_addr), ntohs(pipe->sa.sin_port));
+    else p->next = pipe->next;
+  }
+
+  pipe->frames = util_frames_free(pipe->frames);
+  free(pipe);
+  return NULL;
+}
+
+
+link_t udp4_send(link_t link, lob_t packet, void *arg)
+{
+  pipe_t pipe = (pipe_t)arg;
+  if(!pipe || !link) return NULL;
+  
+  // request to drop;
+  if(!packet)
+  {
+    pipe = pipe_free(pipe);
+    return link;
+  }
+
+  LOG_CRAZY("send to %s at %s:%u",hashname_short(link->id),inet_ntoa(pipe->sa.sin_addr), ntohs(pipe->sa.sin_port));
+  util_frames_send(pipe->frames,packet);
+
+  return link;
 }
 
 // internal, get or create a pipe
-pipe_t udp4_pipe(net_udp4_t net, char *ip, int port)
+pipe_t udp4_pipe(net_udp4_t net, struct sockaddr_in *from)
 {
-  pipe_t pipe;
-  pipe_udp4_t to;
-  char id[23];
+  pipe_t to;
 
-  snprintf(id,23,"%s:%d",ip,port);
-  pipe = xht_get(net->pipes,id);
-  if(pipe) return pipe;
+  // find existing
+  for(to = net->pipes; to; to = to->next) if(memcmp(&(to->sa.sin_addr),&(from->sin_addr),sizeof(struct in_addr)) == 0 && to->sa.sin_port == from->sin_port) return to;
 
-  LOG("new pipe to %s",id);
+  LOG("new pipe to %s:%u",inet_ntoa(from->sin_addr), ntohs(from->sin_port));
 
   // create new udp4 pipe
-  if(!(to = malloc(sizeof (struct pipe_udp4_struct)))) return LOG("OOM");
-  memset(to,0,sizeof (struct pipe_udp4_struct));
+  if(!(to = malloc(sizeof (struct pipe_struct)))) return LOG("OOM");
+  memset(to,0,sizeof (struct pipe_struct));
   to->net = net;
   to->sa.sin_family = AF_INET;
-  inet_aton(ip, &(to->sa.sin_addr));
-  to->sa.sin_port = htons(port);
-
-  // create the general pipe object to return and save reference to it
-  if(!(pipe = pipe_new("udp4")))
-  {
-    free(to);
-    return LOG("OOM");
-  }
-  pipe->id = strdup(id);
-  xht_set(net->pipes,pipe->id,pipe);
-
-  pipe->arg = to;
-  pipe->send = udp4_send;
-
-  return pipe;
-}
-
-pipe_t udp4_path(link_t link, lob_t path)
-{
-  net_udp4_t net;
-  char *ip;
-  int port;
-
-  // just sanity check the path first
-  if(!link || !path) return NULL;
-  if(!(net = xht_get(link->mesh->index, "net_udp4"))) return NULL;
-  if(util_cmp("udp4",lob_get(path,"type"))) return NULL;
-  if(!(ip = lob_get(path,"ip"))) return LOG("missing ip");
-  if((port = lob_get_int(path,"port")) <= 0) return LOG("missing port");
+  to->sa.sin_addr = from->sin_addr;
+  to->sa.sin_port = from->sin_port;
+  to->frames = util_frames_new(128);
   
-  return udp4_pipe(net, ip, port);
+  // link into list
+  to->next = net->pipes;
+  net->pipes = to;
+
+  return to;
 }
 
 net_udp4_t net_udp4_new(mesh_t mesh, lob_t options)
 {
   int port, sock;
-  unsigned int pipes;
   net_udp4_t net;
   struct sockaddr_in sa;
   socklen_t size = sizeof(struct sockaddr_in);
   
   port = lob_get_int(options,"port");
   if(!port) port = mesh->port_local; // might be another in use
-  pipes = lob_get_uint(options,"pipes");
-  if(!pipes) pipes = 11; // hashtable for active pipes
 
   // create a udp socket
-  if((sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP) ) < 0 ) return LOG("failed to create socket %s",strerror(errno));
+  if((sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP) ) < 0 ) return LOG_ERROR("failed to create socket %s",strerror(errno));
+
+  // TODO this needs to be modified for app usage
+  util_sock_timeout(sock,1);
 
   memset(&sa,0,sizeof(sa));
   sa.sin_family = AF_INET;
@@ -101,76 +111,124 @@ net_udp4_t net_udp4_new(mesh_t mesh, lob_t options)
   if (bind (sock, (struct sockaddr*)&sa, size) < 0)
   {
     close(sock);
-    return LOG("bind failed %s",strerror(errno));
+    return LOG_ERROR("bind failed %s",strerror(errno));
   }
   getsockname(sock, (struct sockaddr*)&sa, &size);
 
   if(!(net = malloc(sizeof (struct net_udp4_struct))))
   {
     close(sock);
-    return LOG("OOM");
+    return LOG_ERROR("OOM");
   }
   memset(net,0,sizeof (struct net_udp4_struct));
+  net->mesh = mesh;
   net->server = sock;
   net->port = ntohs(sa.sin_port);
   if(!mesh->port_local) mesh->port_local = (uint16_t)net->port; // use ours as the default if no others
-  net->pipes = xht_new(pipes);
-
-  // connect us to this mesh
-  net->mesh = mesh;
-  xht_set(mesh->index, "net_udp4", net);
-  mesh_on_path(mesh, "net_udp4", udp4_path);
-  
-  // convenience
-  net->path = lob_new();
-  lob_set(net->path,"type","udp4");
-  lob_set(net->path,"ip","127.0.0.1");
-  lob_set_int(net->path,"port",net->port);
-  mesh->paths = lob_push(mesh->paths, net->path);
 
   return net;
 }
 
-void net_udp4_free(net_udp4_t net)
+net_udp4_t net_udp4_free(net_udp4_t net)
 {
-  if(!net) return;
+  if(!net) return NULL;
+  LOG_DEBUG("closing udp4 transport on %u",net->port);
   close(net->server);
-  xht_free(net->pipes);
-//  lob_free(net->path); owned by mesh
   free(net);
-  return;
+  return NULL;
 }
 
-net_udp4_t net_udp4_receive(net_udp4_t net)
+net_udp4_t net_udp4_process(net_udp4_t net)
 {
-  unsigned char buf[2048];
+  if(!net) return LOG_WARN("bad args");
+
   struct sockaddr_in sa;
-  ssize_t len;
-  size_t salen;
-  lob_t packet;
-  pipe_t pipe;
-  
-  if(!net) return LOG("bad args");
-
-  salen = sizeof(sa);
+  size_t salen = sizeof(sa);
   memset(&sa,0,salen);
-  len = recvfrom(net->server, buf, sizeof(buf), 0, (struct sockaddr *)&sa, (socklen_t *)&salen);
-
-  if(len < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) return net;
-  if(len <= 0) return LOG("recvfrom error %s",strerror(errno));
-
-  packet = lob_decloak(buf, (size_t)len);
-  if(!packet)
+  uint8_t frame[128];
+  
+  // try receiving anything waiting
+  pipe_t pipe = NULL;
+  while(1)
   {
-    LOG("parse error from %s on %d bytes",inet_ntoa(sa.sin_addr),len);
-    return net;
+    ssize_t len = recvfrom(net->server, frame, sizeof(frame), 0, (struct sockaddr *)&sa, (socklen_t *)&salen);
+    if(len < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) break;
+    if(len <= 0) return LOG_WARN("recvfrom error %s",strerror(errno));
+    
+    // get the pipe and return
+    if(!pipe || memcmp(&(pipe->sa.sin_addr), &(sa.sin_addr), sizeof(struct in_addr)) || pipe->sa.sin_port != sa.sin_port) pipe = udp4_pipe(net, &sa);
+    if(pipe)
+    {
+      LOG_CRAZY("receive from %s at %s:%u",(pipe->link)?hashname_short(pipe->link->id):"unknown",inet_ntoa(pipe->sa.sin_addr), ntohs(pipe->sa.sin_port));
+      util_frames_inbox(pipe->frames, frame, NULL);
+    }
   }
 
-  // create the id and look for existing pipe
-  pipe = udp4_pipe(net, inet_ntoa(sa.sin_addr), ntohs(sa.sin_port));
-  mesh_receive(net->mesh, packet, pipe);
+  // process each pipe also
+  pipe_t next = NULL;
+  for(pipe = net->pipes;pipe;pipe = next)
+  {
+    next = pipe->next;
+    
+    // process received full packets
+    lob_t packet = NULL;
+    while((packet = util_frames_receive(pipe->frames)))
+    {
+      link_t link = mesh_receive(net->mesh, packet);
+      if(!link) continue;
+      if(link != pipe->link)
+      {
+        LOG_DEBUG("adding new link to pipe for %s",hashname_short(link->id));
+        pipe->link = link;
+        link_pipe(link,udp4_send,pipe);
+      }
+    }
+    
+    // send all/any waiting frames
+    while(util_frames_outbox(pipe->frames,frame,NULL))
+    {
+      if(sendto(net->server, frame, sizeof(frame), 0, (struct sockaddr *)&(pipe->sa), sizeof(struct sockaddr_in)) < 0)
+      {
+        LOG_WARN("sendto failed: %s to %s:%u",strerror(errno),inet_ntoa(pipe->sa.sin_addr), ntohs(pipe->sa.sin_port));
+        break;
+      }
+      // only continue if sent says there's more
+      if(!util_frames_sent(pipe->frames)) break;
+    }
+  }
   
   return net;
 }
 
-#endif
+int net_udp4_socket(net_udp4_t net)
+{
+  if(!net) return -1;
+  return net->server;
+}
+
+uint16_t net_udp4_port(net_udp4_t net)
+{
+  if(!net) return 0;
+  return net->port;
+}
+
+net_udp4_t net_udp4_direct(net_udp4_t net, lob_t packet, char *ip, uint16_t port)
+{
+  if(!net || !packet || !ip || !port) return LOG_WARN("bad args");
+
+  struct sockaddr_in sa;
+  memset(&sa,0,sizeof(sa));
+  inet_aton(ip, &(sa.sin_addr));
+  sa.sin_port = htons(port);
+  pipe_t pipe = udp4_pipe(net, &sa);
+  if(!port)
+  {
+    lob_free(packet);
+    return LOG_WARN("direct pipe failed to %s:%u",ip,port);
+  }
+  util_frames_send(pipe->frames,packet);
+  return net;
+}
+
+
+#endif // POSIX

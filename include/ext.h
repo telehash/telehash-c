@@ -6,7 +6,6 @@
 #include <stdlib.h>
 #include "mesh.h"
 
-#include "ext_stream.h"
 #include "ext_block.h"
 #include "ext_path.h"
 #include "ext_peer.h"

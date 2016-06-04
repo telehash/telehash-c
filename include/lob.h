@@ -56,6 +56,12 @@ uint8_t *lob_body(lob_t p, uint8_t *body, size_t len);
 lob_t lob_append(lob_t p, uint8_t *chunk, size_t len);
 lob_t lob_append_str(lob_t p, char *chunk);
 
+// core accessors
+size_t lob_head_len(lob_t p);
+uint8_t *lob_head_get(lob_t p);
+size_t lob_body_len(lob_t p);
+uint8_t *lob_body_get(lob_t p);
+
 // convenient json setters/getters, always return given lob so they're chainable
 lob_t lob_set_raw(lob_t p, char *key, size_t klen, char *val, size_t vlen); // raw
 lob_t lob_set(lob_t p, char *key, char *val); // escapes value
@@ -97,12 +103,6 @@ size_t lob_get_len(lob_t p, char *key);
 lob_t lob_get_json(lob_t p, char *key); // creates new packet from key:object value
 lob_t lob_get_array(lob_t p, char *key); // list of packet->next from key:[object,object]
 lob_t lob_get_base32(lob_t p, char *key); // decoded binary is the return body
-
-// handles cloaking conveniently, len is lob_len()+(8*rounds)
-uint8_t *lob_cloak(lob_t p, uint8_t rounds);
-
-// decloaks and parses
-lob_t lob_decloak(uint8_t *cloaked, size_t len);
 
 // TODO, this would be handy, js syntax to get a json value
 // char *lob_eval(lob_t p, "foo.bar[0]['zzz']");

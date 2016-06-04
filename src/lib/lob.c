@@ -108,7 +108,7 @@ lob_t lob_parse(const uint8_t *raw, size_t len)
 
   // validate any json
   jtest = 0;
-  if(p->head_len >= 2) js0n("\0",1,(char*)p->head,p->head_len,&jtest);
+  if(p->head_len >= 7) js0n("\0",1,(char*)p->head,p->head_len,&jtest);
   if(jtest) return lob_free(p);
 
   return p;
@@ -169,6 +169,30 @@ lob_t lob_append_str(lob_t p, char *chunk)
 {
   if(!p || !chunk) return LOG("bad args");
   return lob_append(p, (uint8_t*)chunk, strlen(chunk));
+}
+
+size_t lob_head_len(lob_t p)
+{
+  if(!p) return 0;
+  return p->head_len;
+}
+
+uint8_t *lob_head_get(lob_t p)
+{
+  if(!p) return NULL;
+  return p->head;
+}
+
+size_t lob_body_len(lob_t p)
+{
+  if(!p) return 0;
+  return p->body_len;
+}
+
+uint8_t *lob_body_get(lob_t p)
+{
+  if(!p) return NULL;
+  return p->body;
 }
 
 // TODO allow empty val to remove existing
@@ -269,7 +293,7 @@ lob_t lob_set_float(lob_t p, char *key, float value, uint8_t places)
   int tenscount = 0;
   int i;
   float tempfloat = value;
-  static char buf[16];
+  char buf[16];
 
   if(!p || !key) return LOG("bad args");
   
@@ -617,42 +641,6 @@ lob_t lob_set_json(lob_t p, lob_t json)
     i += 2;
   }
   return p;
-}
-
-// sha256("telehash")
-static const uint8_t _cloak_key[32] = {0xd7, 0xf0, 0xe5, 0x55, 0x54, 0x62, 0x41, 0xb2, 0xa9, 0x44, 0xec, 0xd6, 0xd0, 0xde, 0x66, 0x85, 0x6a, 0xc5, 0x0b, 0x0b, 0xab, 0xa7, 0x6a, 0x6f, 0x5a, 0x47, 0x82, 0x95, 0x6c, 0xa9, 0x45, 0x9a};
-
-// handles cloaking conveniently, len is lob_len()+(8*rounds)
-uint8_t *lob_cloak(lob_t p, uint8_t rounds)
-{
-  uint8_t *ret, *cur;
-  size_t len;
-  if(!p || !rounds) return lob_raw(p);
-  len = lob_len(p);
-  len += 8*rounds;
-  if(!(ret = malloc(len))) return LOG("OOM needed %d",len);
-  memset(ret,0,len);
-  memcpy(ret+(8*rounds),lob_raw(p),lob_len(p));
-
-  while(rounds)
-  {
-    cur = ret+(8*(rounds-1));
-    e3x_rand(cur, 8);
-    if(cur[0] == 0) continue; // re-random until not a 0 byte to start
-    rounds--;
-    chacha20((uint8_t*)_cloak_key, cur, cur+8, len-((8*rounds)+8));
-  }
-
-  return ret;
-}
-
-// recursively decloaks and parses
-lob_t lob_decloak(uint8_t *cloaked, size_t len)
-{
-  if(!cloaked || !len) return LOG("bad args");
-  if(len < 8 || cloaked[0] == 0) return lob_parse(cloaked, len);
-  chacha20((uint8_t*)_cloak_key, cloaked, cloaked+8, (uint32_t)len-8);
-  return lob_decloak(cloaked+8, len-8);
 }
 
 // linked list utilities
