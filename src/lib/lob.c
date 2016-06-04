@@ -379,13 +379,23 @@ lob_t lob_set_base32(lob_t p, char *key, uint8_t *bin, size_t blen)
   return p;
 }
 
+// creates cached string on lob
+char *lob_cache(lob_t p, size_t len)
+{
+  if(!p) return NULL;
+  if(p->cache) free(p->cache);
+  if(!(p->cache = malloc(len+1))) return LOG("OOM");
+  p->cache[0] = 0; // flag
+  return p->cache+1;
+}
+
 // return null-terminated json string
 char *lob_json(lob_t p)
 {
   if(!p) return NULL;
   if(p->head_len < 2) return NULL;
-  if(p->cache) free(p->cache);
-  if(!(p->cache = malloc(p->head_len+1))) return LOG("OOM");
+  // direct/internal use of cache
+  if(!lob_cache(p,p->head_len)) return LOG("OOM");
   memcpy(p->cache,p->head,p->head_len);
   p->cache[p->head_len] = 0;
   return p->cache;
@@ -399,8 +409,8 @@ char *unescape(lob_t p, char *start, size_t len)
 
   if(!p || !start || len <= 0) return NULL;
 
-  // make a copy if we haven't yet
-  if(!p->cache) lob_json(p);
+  // make a fresh cache if we haven't yet or was used external
+  if(!p->cache || p->cache[0] == 0) lob_json(p);
   if(!p->cache) return NULL;
 
   // switch pointer to the json copy
