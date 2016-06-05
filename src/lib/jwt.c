@@ -37,13 +37,13 @@ lob_t jwt_decode(char *encoded, size_t len)
   claims = lob_new();
   header = lob_link(NULL, claims);
   
-  // decode claims sig first
-  lob_body(claims, NULL, base64_decoder(dot2, (end-dot2)+1, NULL));
-  base64_decoder(dot2, (end-dot2)+1, lob_body_get(claims));
-
   // decode claims json
   lob_head(claims, NULL, base64_decoder(dot1, (dot2-dot1)-1, NULL));
   base64_decoder(dot1, (dot2-dot1)-1, lob_head_get(claims));
+
+  // decode claims sig 
+  lob_body(claims, NULL, base64_decoder(dot2, (end-dot2)+1, NULL));
+  base64_decoder(dot2, (end-dot2)+1, lob_body_get(claims));
 
   // decode header json
   lob_head(header, NULL, base64_decoder(encoded, (dot1-encoded)-1, NULL));
@@ -67,15 +67,13 @@ lob_t jwt_claims(lob_t token)
 // returns the base64 encoded token from a packet
 char *jwt_encode(lob_t token)
 {
-  size_t hlen, clen, slen;
-  char *encoded;
   lob_t claims = jwt_claims(token);
   if(!claims) return LOG_WARN("no claims");
   
-  // allocates space in the token body
-  slen = base64_encode_length(claims->body_len);
-  clen = base64_encode_length(claims->head_len);
-  hlen = base64_encode_length(token->head_len);
+  size_t slen = base64_encode_length(claims->body_len);
+  size_t clen = base64_encode_length(claims->head_len);
+  size_t hlen = base64_encode_length(token->head_len);
+  char *encoded;
   if(!(encoded = malloc(hlen+1+clen+1+slen+1))) return LOG_WARN("OOM");
   
   // append all the base64 encoding

@@ -94,6 +94,17 @@ int main(int argc, char **argv)
     fail_unless(jwt_verify(test,x));
   }
 
+  // brunty
+  int i = 1000;
+  char *tok = strdup(jwt);
+  while(i--)
+  {
+    lob_t t = jwt_decode(tok,0);
+    free(tok);
+    tok = jwt_encode(t);
+    lob_free(t);
+    fail_unless(tok);
+  }
 
   return 0;
 }
