@@ -8,6 +8,7 @@ int main(int argc, char **argv)
 
   lob_t head = jwt_decode(jwt, 0);
   fail_unless(head);
+  LOG("head %s",lob_json(head));
   fail_unless(lob_get(head,"typ"));
   fail_unless(lob_get(head,"alg"));
   lob_t payload = lob_linked(head);
