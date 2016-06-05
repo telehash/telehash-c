@@ -75,6 +75,8 @@ size_t base64_decoder(const char *str, size_t len, uint8_t *save)
                 break;
             }
             dlast = d;
+        }else{
+          return 0;
         }
     }
     return out - start;
