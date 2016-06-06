@@ -19,6 +19,8 @@ int main(int argc, char **argv)
   lob_body(packet,0,100);
   fail_unless(util_frames_send(frames, lob_copy(packet)));
   fail_unless(util_frames_outlen(frames) == 102);
+  fail_unless(util_frames_waiting(frames));
+  fail_unless(util_frames_pending(frames));
   fail_unless(util_frames_busy(frames));
 
   // cause a flush frame
@@ -45,6 +47,8 @@ int main(int argc, char **argv)
   // do rest
   while(util_frames_busy(frames) && util_frames_outbox(frames,frame,NULL) && util_frames_sent(frames)) fail_unless(util_frames_inbox(frames,frame,NULL));
   
+  fail_unless(util_frames_waiting(frames)); // for meta ack
+  fail_unless(!util_frames_pending(frames));
   fail_unless(util_frames_outlen(frames) == 0);
   printf("inlen %lu\n",util_frames_inlen(frames));
   fail_unless(util_frames_inlen(frames) == 102);

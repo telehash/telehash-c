@@ -135,8 +135,8 @@ size_t util_frames_outlen(util_frames_t frames)
   return len;
 }
 
-// is just a check to see if there's something to send
-static util_frames_t util_frames_ready(util_frames_t frames)
+// is just a check to see if there's data waiting to be sent
+util_frames_t util_frames_waiting(util_frames_t frames)
 {
   if(!frames) return NULL;
   if(frames->err) return LOG_WARN("frame state error");
@@ -147,7 +147,7 @@ static util_frames_t util_frames_ready(util_frames_t frames)
 }
 
 // is there an expectation of an incoming frame
-static util_frames_t util_frames_await(util_frames_t frames)
+util_frames_t util_frames_await(util_frames_t frames)
 {
   if(!frames) return NULL;
   if(frames->err) return LOG_WARN("frame state error");
@@ -156,6 +156,20 @@ static util_frames_t util_frames_await(util_frames_t frames)
   // outbox is complete, awaiting flush
   if((frames->out * PAYLOAD(frames)) > lob_len(frames->outbox)) return frames;
   return NULL;
+}
+
+// is a frame pending to be sent immediately
+util_frames_t util_frames_pending(util_frames_t frames)
+{
+  if(!frames) return LOG_WARN("bad args");
+  if(frames->err) return LOG_WARN("frame state error");
+  
+  if(frames->flush) return frames;
+
+  uint32_t len = lob_len(frames->outbox); 
+  if(len && (frames->out * PAYLOAD(frames)) <= len) return frames;
+  
+  return LOG_CRAZY("nothing pending %lu/%lu",len,(frames->out * PAYLOAD(frames)));
 }
 
 // the next frame of data in/out, if data NULL bool is just ready check
@@ -302,7 +316,7 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *m
 {
   if(!frames) return LOG_WARN("bad args");
   if(frames->err) return LOG_WARN("frame state error");
-  if(!data) return util_frames_ready(frames); // just a ready check
+  if(!data) return util_frames_waiting(frames); // just a ready check
   uint8_t size = PAYLOAD(frames);
   uint8_t *out = lob_raw(frames->outbox);
   uint32_t len = lob_len(frames->outbox); 
@@ -384,7 +398,7 @@ util_frames_t util_frames_sent(util_frames_t frames)
 util_frames_t util_frames_busy(util_frames_t frames)
 {
   if(!frames) return NULL;
-  if(util_frames_ready(frames)) return frames;
+  if(util_frames_waiting(frames)) return frames;
   return util_frames_await(frames);
 }
 

@@ -56,8 +56,19 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *m
 // this must be called immediately (no inbox interleaved) after last outbox is actually sent to advance payload or clear flush request, returns if more to send
 util_frames_t util_frames_sent(util_frames_t frames);
 
-// are we waiting to send/receive a frame
+// is just a check to see if there's data waiting to be sent
+util_frames_t util_frames_waiting(util_frames_t frames);
+
+// is there an expectation of an incoming frame
+util_frames_t util_frames_await(util_frames_t frames);
+
+// are we waiting to send/receive a frame (both waiting && await)
 util_frames_t util_frames_busy(util_frames_t frames);
+
+// is a frame pending to be sent immediately
+util_frames_t util_frames_pending(util_frames_t frames);
+
+
 
 // check error state and clearing it
 util_frames_t util_frames_ok(util_frames_t frames);
