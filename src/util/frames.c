@@ -166,10 +166,11 @@ util_frames_t util_frames_pending(util_frames_t frames)
   
   if(frames->flush) return frames;
 
+  uint8_t size = PAYLOAD(frames);
   uint32_t len = lob_len(frames->outbox); 
-  if(len && (frames->out * PAYLOAD(frames)) <= len) return frames;
+  if(len && (frames->out * size) <= len) return frames;
   
-  return LOG_CRAZY("nothing pending %lu/%lu",len,(frames->out * PAYLOAD(frames)));
+  return LOG_CRAZY("nothing pending %lu/%lu",len,(frames->out * size));
 }
 
 // the next frame of data in/out, if data NULL bool is just ready check

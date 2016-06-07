@@ -674,6 +674,7 @@ lob_t lob_push(lob_t list, lob_t p)
   while(end->next) end = end->next;
   end->next = p;
   p->prev = end;
+  p->next = NULL; // safety
   return list;
 }
 
