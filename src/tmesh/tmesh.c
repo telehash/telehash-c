@@ -23,7 +23,7 @@ typedef struct mblock_struct {
 } *mblock_t;
 
 #define STATED(t) util_sys_log(7, "", __LINE__, __FUNCTION__, \
-      "\t%s %s %u/%u/%u %s %d", \
+      "\t%s %s %u/%d/%u %s %d", \
         t->mote?hashname_short(t->mote->link->id):(t==t->tm->signal)?"mysignal":(t==t->tm->beacon)?"mybeacon":"myshared", \
         t->state.is_signal?(t->mote?"<-":"->"):"<>", \
         t->medium, \
