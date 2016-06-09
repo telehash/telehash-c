@@ -67,17 +67,17 @@ mote_t mote_send(mote_t mote, lob_t packet)
     tempo_init(tempo);
   }
 
-  if(util_frames_outlen(tempo->frames) > 1000)
-  {
-    lob_free(packet);
-    return LOG_WARN("stream outbox full (%lu), dropping packet",util_frames_outlen(tempo->frames));
-  }
-  
   // a NULL packet here would trigger a flush, but semantics of mote_send use NULL to ensure stream exists (TODO detangle!)
-  if(packet) util_frames_send(tempo->frames, packet);
-
-  LOG_DEBUG("delivering %d to mote %s total %lu",lob_len(packet),hashname_short(mote->link->id),util_frames_outlen(tempo->frames));
-  STATED(tempo);
+  if(packet)
+  {
+    if(util_frames_outlen(tempo->frames) > 1000)
+    {
+      lob_free(packet);
+      return LOG_WARN("stream outbox full (%lu), dropping packet",util_frames_outlen(tempo->frames));
+    }
+    util_frames_send(tempo->frames, packet);
+    LOG_DEBUG("delivering %d to mote %s total %lu",lob_len(packet),hashname_short(mote->link->id),util_frames_outlen(tempo->frames));
+  }
 
   return mote;
 }
@@ -457,7 +457,7 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
           }
 
           stream->state.adhoc = 0; // just in case, don't do this anymore
-          LOG_INFO("signalling %s about a stream %s",hashname_short(mote->link->id),(block->head == 1)?"request":"accept");
+          LOG_INFO("signalling %s about a stream %s(%d)",hashname_short(mote->link->id),(block->head == 1)?"request":"accept",block->head);
           memcpy(block->body,&(stream->medium),4);
         }
 
@@ -591,6 +591,7 @@ static tempo_t tempo_blocks_rx(tempo_t tempo, uint8_t *blocks, uint8_t index)
       uint32_t body;
       memcpy(&body,block->body,4);
 
+      LOG_DEBUG("block type %u head %u body %lu",block->type,block->head,body);
       switch(block->type)
       {
         case tmesh_block_end:
@@ -802,7 +803,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
             from->stream->at = knock->stopped;
           }
         }
-        return tempo;
+        return from->signal;
       }
       
       // otherwise skip known
@@ -985,18 +986,19 @@ tempo_t tmesh_knocked(tmesh_t tm)
   tempo->c_skip = 0;
   knock->is_active = 0;
 
+  tempo_t rxgood = NULL;
   if(knock->is_tx)
   {
     tempo_knocked_tx(tempo, knock);
   }else{
-    tempo_knocked_rx(tempo, knock);
+    rxgood = tempo_knocked_rx(tempo, knock);
   }
   
   // if anyone says this tempo is gone, handle it
   if(knock->do_gone) return tempo_gone(tempo);
 
-  // return stream with any full packets waiting (NOTE, don't like having to return a raw tempo)
-  return (tempo->frames && tempo->frames->inbox)?tempo:NULL;
+  // return tempo on successful rx to signal check for full packets waiting 
+  return rxgood;
 }
 
 
@@ -1130,8 +1132,8 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   knock_t knock = tm->knock;
   memset(knock,0,sizeof(struct knock_struct));
 
-  // first try RX seeking a beacon whenever no shared stream is active
-  if(!tm->stream)
+  // first try RX seeking a beacon whenever no shared stream is being established
+  if(!tm->stream && !tm->beacon->state.seen)
   {
     knock->tempo = tm->beacon;
     knock->adhoc = best->at;
