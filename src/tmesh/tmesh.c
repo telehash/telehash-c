@@ -1171,7 +1171,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   // catch all tx knocks
   if(best->state.is_stream && best->state.direction == 1) knock->is_tx = 1;
   if(best == tm->signal) knock->is_tx = 1;
-  if(best == tm->beacon && !best->c_tx) knock->is_tx = 1; // only tx once, then rx, then reset
+  if(best == tm->beacon && !best->c_tx) knock->is_tx = 1; // first one is tx, next is rx
 
   // do the tempo-specific work to fill in the tx frame
   if(knock->is_tx)
@@ -1233,8 +1233,7 @@ mote_t tmesh_mote(tmesh_t tm, link_t link)
   // only continue if there's a stream to subsume into this mote (NOTE, need to match hashname)
   if(!tm->stream || !tm->stream->c_rx) return mote;
 
-  if(mote->stream) LOG_WARN("replacing existing stream for %s",hashname_short(mote->link->id));
-  mote->stream = tempo_free(mote->stream);
+  if(mote->stream) return LOG_WARN("(TODO) cannot replace existing active stream for %s",hashname_short(mote->link->id));
 
   // bond together
   mote->stream = tm->stream;
