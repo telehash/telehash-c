@@ -751,7 +751,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
     // shared streams force down with low tolerance for misses (NOTE this logic could be more efficienter)
     if(tempo == tm->stream && !tempo->c_rx && tempo->c_miss > 1)
     {
-      LOG_CRAZY("beacon'd stream no response");
+      LOG_DEBUG("beacon'd stream no response");
       knock->do_gone = 1; 
     }
 
@@ -1076,13 +1076,9 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
     tempo_t stream = mote->stream;
     tempo_t signal = mote->signal;
 
-    // before we advance stream, if it was rx and skipped while awaiting, gotta set flush flag since we def missed something
+    // detect when we're awaiting
     bool awaiting = false;
-    if(stream)
-    {
-      if(util_frames_inbox(stream->frames,NULL,NULL)) awaiting = true;
-      if(stream->c_skip && stream->state.direction == 0 && awaiting) stream->frames->flush = 1;
-    }
+    if(stream && util_frames_inbox(stream->frames,NULL,NULL)) awaiting = true;
 
     // advance signal/stream
     tempo_advance(signal, at);
@@ -1095,7 +1091,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
       do {
         if(stream->state.direction == 1 && !util_frames_outbox(stream->frames,NULL,NULL))
         {
-          LOG_CRAZY("stream has nothing to send, skipping");
+          LOG_DEBUG("stream has nothing to TX, skipping");
           continue;
         }
         // optimize away useless RXs when not awaiting and a flush waiting to TX
