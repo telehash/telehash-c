@@ -833,6 +833,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
 
       LOG_CRAZY("accepted m%lu seq%lu from %s",medium,seq,hashname_short(hashname_sbin(blocks)));
       // sync up beacon for seen accept TX
+      tempo->c_tx = 0; // so we tx next
       tempo->state.seen = 1;
       tempo->medium = medium;
       tempo->seq = seq;
