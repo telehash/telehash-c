@@ -744,7 +744,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
     {
       if(tempo->state.qos_ping) tempo->c_miss++;
       else if(tempo->mote && tempo->mote->stream && tempo->mote->stream->state.requesting) tempo->c_miss++;
-      else if(tempo == tm->beacon && !knock->adhoc) tempo_init(tempo); // always reset after non-seek RX fail
+      else if(tempo == tm->beacon && !knock->adhoc) tempo_init(tempo); // always reset beacon after non-seek RX fail
       else tempo->c_idle++;
     }
 
@@ -1129,8 +1129,8 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   knock_t knock = tm->knock;
   memset(knock,0,sizeof(struct knock_struct));
 
-  // first try RX seeking a beacon whenever no shared stream is being established
-  if(!tm->stream && !tm->beacon->state.seen)
+  // only adhoc RX a beacon when it is fully idle
+  if(!tm->stream && !tm->beacon->state.seen && !tm->beacon->c_tx)
   {
     knock->tempo = tm->beacon;
     knock->adhoc = best->at;
