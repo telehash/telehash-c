@@ -749,7 +749,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
     }
 
     // shared streams force down with low tolerance for misses (NOTE this logic could be more efficienter)
-    if(tempo == tm->stream && !tempo->c_rx && tempo->c_miss > 1)
+    if(tempo == tm->stream && !tempo->c_rx && tempo->c_miss > 2)
     {
       LOG_DEBUG("beacon'd stream no response");
       knock->do_gone = 1; 
