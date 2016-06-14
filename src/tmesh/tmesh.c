@@ -618,6 +618,7 @@ static tempo_t tempo_blocks_rx(tempo_t tempo, uint8_t *blocks, uint8_t index)
             case 2: // qos accept, clear request
               if(!from || !tempo->state.is_signal) break; // must be signal to us
               tempo->state.qos_ping = tempo->state.qos_pong = 0; // clear all state
+              tempo->c_idle = 0; // only clear on qos accept
               tempo->qos_remote = body;
               // TODO notify app of aliveness?
               break;
@@ -914,7 +915,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
   }
 
   // update RX flags/stats now
-  tempo->c_miss = tempo->c_idle = 0; // clear all rx counters
+  tempo->c_miss = 0;
   tempo->c_rx++; // this will pause mote signal RX while stream is active
   if(knock->rssi > tempo->best || !tempo->best) tempo->best = knock->rssi;
   if(knock->rssi < tempo->worst || !tempo->worst) tempo->worst = knock->rssi;
@@ -950,6 +951,7 @@ static tempo_t tempo_gone(tempo_t tempo)
       tempo_init(tm->beacon); // re-initialize beacon
     }else if(tempo->mote){ // private stream
       mote_t mote = tempo->mote;
+      mote->signal->state.adhoc = 0; // just in case
       // if unsent packets, push into a fresh new stream to start the request process
       if(util_frames_busy(tempo->frames))
       {
@@ -1060,7 +1062,9 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   
   // TODO rework how the best is sorted, maybe all at once
   tempo_t best = NULL;
+  LOG_CRAZY("advance beacon to %lu from %lu",at,tm->beacon->at);
   tempo_advance(tm->beacon, at);
+  if(tm->stream) LOG_CRAZY("advance stream to %lu from %lu",at,tm->stream->at);
   tempo_advance(tm->stream, at);
 
   // only schedule beacon or shared stream
