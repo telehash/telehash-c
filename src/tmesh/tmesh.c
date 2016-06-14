@@ -233,6 +233,9 @@ static tempo_t tempo_init(tempo_t tempo)
   e3x_hash((uint8_t*)(tempo->tm->community),strlen(tempo->tm->community),tempo->secret);
   memcpy(roll,tempo->secret,32);
 
+  // always reset at so it'll start fresh
+  tempo->at = 0;
+
   // standard breakdown based on tempo type
   if(tempo->state.is_signal)
   {
@@ -1229,7 +1232,12 @@ mote_t tmesh_mote(tmesh_t tm, link_t link)
   mote_t mote;
   for(mote=tm->motes;mote;mote = mote->next) if(mote->link == link) break;
 
-  if(!mote) mote = mote_new(tm, link);
+  if(!mote)
+  {
+    // reset our TX signal since it wasn't in use
+    if(!tm->motes) tempo_init(tm->signal);
+    mote = mote_new(tm, link);
+  }
 
   // only continue if there's a stream to subsume into this mote (NOTE, need to match hashname)
   if(!tm->stream || !tm->stream->c_rx) return mote;
