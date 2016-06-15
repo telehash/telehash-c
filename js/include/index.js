@@ -2,7 +2,7 @@
 /**
  * dynamically wrap lob, mesh, and util functions for javascript
 **/
-var th = require("./th.js");
+var th = require("./thc.js");
 
 const returntypes = {
   "_lob_json" : "json",
@@ -27,7 +27,7 @@ const Wrappers = {
   number : (_val) => _val,
   function : (_fun) => th.Runtime.addFunction(_fun),
   string : (_string) => makeVarPointer(_string, th.writeStringToMemory, 1),
-  object : (_buf) => (Buffer.isBuffer(_buf)) ?  makeVarPointer(_buf, th.writeArrayToMemory, 0) : new Error("only numbers, strings, functions, and buffers accepted")
+  object : (_buf) => (Buffer.isBuffer(_buf)) ?  makeVarPointer(_buf, th.writeArrayToMemory, 0) : _buf === null ? 0 :  new Error("only numbers, strings, functions, and buffers accepted")
 }
 
 const wrapFun = (_fun, returntype) => function() {

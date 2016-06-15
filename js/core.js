@@ -7,7 +7,7 @@ const lob = require("lob-enc");
 const path = require("path");
 const Duplex = require("stream").Duplex;
 
-const th = require("./wrap.js");
+const th = require("./include/");
 //th.util_sys_logging(1);
 const lob_to_c = (buf) => typeof buf === "number" ? buf : lob_parse(buf, buf.length)
 
