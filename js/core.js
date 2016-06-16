@@ -15,30 +15,13 @@ const lob_from_c = (ptr) => lob.decode(buf_lob_from_c(ptr))
 
 const buf_lob_from_c = (ptr) => th.BUFFER(lob_raw(ptr),lob_len(ptr))
 
-const getKeys = (mesh, path) =>{
-//th.util_sys_logging(1);
-  if (!fs.existsSync(path)){
-    var secrets = mesh_generate(mesh) 
-    if (!secrets) throw new Error("mesh generate failed");
-  
-    var hn = {
-      secrets : buf_lob_from_c(secrets).toString("hex"),
-      keys:  buf_lob_from_c(lob_linked(secrets)).toString("hex")
-    }
-    fs.writeFileSync(path, JSON.stringify(hn));
-  } else {
-    var hn = JSON.parse(fs.readFileSync(path).toString());
-    var keys = new Buffer(hn.keys, "hex");
-    var secrets = new Buffer(hn.secrets, "hex");
-    var k = lob_parse(keys, keys.length);
-    var s = lob_parse(secrets, secrets.length);
-    var l = mesh_load(mesh,s,k);
-    if (l) throw new Error("mesh load failed");
-  }
+const hex_to_lob = (hex) => {
+  let k = new Buffer(hex, "hex");
+  return lob_parse(hex, hex.length);
 }
 
 class Chunks{
-  constructor(mesh, sock, chunk_size){
+  constructor(mesh, stream, chunk_size){
     var link;
     var linked = false;
     var that = this;
@@ -60,8 +43,8 @@ class Chunks{
       
     });
 
-    this.chunks.pipe(sock);
-    sock.pipe(this.chunks);
+    this.chunks.pipe(stream);
+    stream.pipe(this.chunks);
 
     var greeting = buf_lob_from_c(mesh_json(mesh));
     this.chunks.send(greeting);
@@ -69,7 +52,7 @@ class Chunks{
 }
 
 class Frames{
-  constructor (mesh, sock, frame_size){
+  constructor (mesh, stream, frame_size){
     this.frames = util_frames_new(frame_size);
     var frames = this.frames;
     var interval;
@@ -83,7 +66,7 @@ class Frames{
         try {
           let frame = th._malloc(frame_size);
           util_frames_outbox(frames,frame,null);
-          sock.write(th.BUFFER(frame,frame_size));
+          stream.write(th.BUFFER(frame,frame_size));
           util_frames_sent(frames);
           th._free(frame);          
         } catch (e){
@@ -97,7 +80,7 @@ class Frames{
     var linked;
     var readbuf = new Buffer(0);
 
-    sock.on('data',function(data){
+    stream.on('data',function(data){
       // buffer up and look for full frames
       readbuf = Buffer.concat([readbuf,data]);
       //console.log(readbuf,data);
@@ -233,7 +216,7 @@ class Link extends EventEmitter {
 }
 
 class Mesh extends EventEmitter {
-  constructor(on_link, opts){
+  constructor(on_up, opts){
     super();
     this._mesh = mesh_new();
     this._open = true;
@@ -244,26 +227,10 @@ class Mesh extends EventEmitter {
     this._links = new Map();
     this._frames = new Set();
     this._chunks = new Set();
+    this._listen = new Set();
+    this._connect = new Map();
 
-    getKeys(this._mesh, opts.id);
-
-    this.on("link",on_link);
-
-    opts.chan.forEach( path => this.use(require(path)) );
-    opts.transport.forEach( path => this.use(require(path)) );
-
-    mesh_on_discover(this._mesh, "*", (mesh, discovered, pipe) => {
-      let hashname = lob_from_c(discovered).json.hashname;
-      if (!this._reject.has(hashname) && this._open || this._accept.has(hashname)) mesh_add(mesh, discovered, pipe);
-    });
-
-    mesh_on_link(this._mesh, "*", (c_link) => {
-      if (!this._links.has(th.UTF8ToString( hashname_char(link_id(c_link)) ).substr(0,8)))
-        this.emit("link", new Link(this , c_link));
-    });
-    process.nextTick(() => {
-      this.emit('up', this);      
-    })
+    this.on("up",on_up);
   }
 
   frames(transport, frame_size){
@@ -291,13 +258,72 @@ class Mesh extends EventEmitter {
 
   }
 
+  listen(){
+    let promise = [];
+    console.log("listen")
+    for (let listen of this._listen) promise.push(listen())
+    console.log("promise?")
+    Promise.all(promise).then(() => this.emit('up', this)).catch((e) => this.emit('error', e))
+  }
+
+  start(){
+    th.util_sys_logging(1);
+    this._mesh = mesh_new();
+
+    mesh_on_discover(this._mesh, "*", (mesh, discovered, pipe) => {
+      let hashname = lob_from_c(discovered).json.hashname;
+      if (!this._reject.has(hashname) && this._open || this._accept.has(hashname)) mesh_add(mesh, discovered, pipe);
+    });
+
+    mesh_on_link(this._mesh, "*", (c_link) => {
+      if (!this._links.has(th.UTF8ToString( hashname_char(link_id(c_link)) ).substr(0,8)))
+        this.emit("link", new Link(this , c_link));
+    });
+
+    mesh_on_open(this._mesh, "*", (c_link, c_open) => 
+      this.emit('open', this._links.get( th.UTF8ToString( hashname_char(link_id(c_link)) ).substr(0,8) ) , lob_from_c(c_open) ) 
+    );
+
+    this._getKeys((secrets, keys) => {
+      if (secrets && keys){
+        mesh_load(this._mesh, hex_to_lob(secrets), hex_to_lob(keys))
+        console.log("!!")
+        this.listen();
+      } else {
+        let secrets = mesh_generate(this._mesh)
+        if (!secrets) throw new Error("mesh generate failed");
+
+        this._storeKeys( buf_lob_from_c(secrets).toString("hex"), buf_lob_from_c(lob_linked(secrets)).toString("hex"), () => {
+          this.listen();
+        })
+      }
+    })
+  }
+
+  _getKeys(cb){
+    let { TELEHASH_SECRET_KEYS, TELEHASH_PUBLIC_KEYS} = process.env;
+    cb(  TELEHASH_SECRET_KEYS, TELEHASH_PUBLIC_KEYS)
+  }
+
+  _storeKeys(secrets, keys, cb){
+    cb()
+    // this function intentionally left blank
+  }
+
   use(middleware){
+    console.log("use",middleware)
     let mid = middleware(this, th);
     switch (mid.type){
       case "transport":
-        return mid.listen(this._opts);
+        if (mid.listen) this._listen.add(mid.listen);
+        if (mid.connect) this._connect.set(mid.type, mid.connect);
+        return;
       case "channel":
-        return mesh_on_open(this._mesh, mid.name, (c_link, c_open) => mid.open(this._links.get( th.UTF8ToString( hashname_char(link_id(c_link)) ).substr(0,8) ), lob_from_c(c_open)) );
+        return this.on('open', mid.open.bind(this) );
+      case "keystore":
+        console.log("keystore")
+        this._getKeys = mid.getKeys;
+        this._storeKeys = mid.storeKeys;
       default:
         return;
     }
@@ -311,12 +337,12 @@ const defaultOpts = {
   transport : []
 }
 
-const Telehash = module.exports = (on_link, opts) => {
-  if (!on_link){
+const Telehash = module.exports = (on_up, opts) => {
+  if (!on_up){
     throw new Error("must provide an on_link handler");
   }
 
   opts = Object.assign({}, defaultOpts, opts || {});
 
-  return new Mesh(on_link, opts)
+  return new Mesh(on_up, opts)
 } 

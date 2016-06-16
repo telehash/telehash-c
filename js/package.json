@@ -2,7 +2,7 @@
   "name": "thc",
   "version": "0.0.1",
   "description": "telehash-c compiled into javascript",
-  "main": "index.js",
+  "main": "core.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
