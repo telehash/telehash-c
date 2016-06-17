@@ -110,7 +110,7 @@ class Frames{
         
       }
       if(util_frames_await(frames)) util_frames_send(frames,null);
-
+      frames_flush();
     });
 
     util_frames_send(frames,mesh_json(mesh));
