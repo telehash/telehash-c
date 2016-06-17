@@ -7,6 +7,18 @@ process.chdir(__dirname)
 var th = require("./thc.js");
 process.chdir(cwd);
 
+var crypto;
+
+var _browser = (crypto && crypto.getRandomBytes) ? true : false;
+if (!_browser) crypto = require("crypto")
+var rand;
+if (_browser){
+  rand = () => crypto.getRandomBytes(new Uint8Array(1))[0]
+} else {
+  rand = () => crypto.randomBytes(1)[0]
+}
+
+
 const returntypes = {
   "_lob_json" : "json",
   "_hashname_short" : "string",
@@ -49,6 +61,8 @@ Object.keys(th).filter(key => key.indexOf("_") == 0).forEach((key) => {
   // globalize all the funthings!
   if(fn.indexOf("_") > 0) global[fn] = th[fn];
 })
+
+th._e3x_random(th.Runtime.addFunction(rand));
 
 th.CALLBACK = (fun, types) => function(){
   let args = [];
