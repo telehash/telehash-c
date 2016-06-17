@@ -13,7 +13,7 @@ var _browser = (crypto && crypto.getRandomBytes) ? true : false;
 if (!_browser) crypto = require("crypto")
 var rand;
 if (_browser){
-  rand = () => crypto.getRandomBytes(new Uint8Array(1))[0]
+  rand = () => crypto.getRandomValues(new Uint8Array(1))[0]
 } else {
   rand = () => crypto.randomBytes(1)[0]
 }
