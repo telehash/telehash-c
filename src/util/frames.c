@@ -39,6 +39,7 @@ util_frames_t util_frames_clear(util_frames_t frames)
   frames->inlast = frames->outbase = 42;
   frames->in = frames->out = 0;
   frames->cache = util_frame_free(frames->cache);
+  frames->flush = 0;
   return frames;
 }
 
