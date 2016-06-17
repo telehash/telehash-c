@@ -17,8 +17,10 @@ const buf_lob_from_c = (ptr) => th.BUFFER(lob_raw(ptr),lob_len(ptr))
 
 const hex_to_lob = (hex) => {
   let k = new Buffer(hex, "hex");
-  return lob_parse(hex, hex.length);
+  return lob_parse(k, k.length);
 }
+
+
 
 class Chunks{
   constructor(mesh, stream, chunk_size){
@@ -45,7 +47,6 @@ class Chunks{
 
     this.chunks.pipe(stream);
     stream.pipe(this.chunks);
-
     var greeting = buf_lob_from_c(mesh_json(mesh));
     this.chunks.send(greeting);
   }
@@ -58,9 +59,6 @@ class Frames{
     var interval;
     function frames_flush()
     {
-      //console.log("flushing");
-
-
       if(util_frames_pending(frames))
       {      
         try {
@@ -181,10 +179,8 @@ class Link extends EventEmitter {
     this._c_mesh = Mesh._mesh;
     this._c_link = c_link;
     this.hashname = th.UTF8ToString( hashname_char(link_id(c_link)) );
-    console.log("LINK UP")
     Mesh._links.set(this.hashname.substr(0,8), this);
     this.on('down',() => {
-      console.log("link down")
       Mesh._links.delete(this.hashname.substr(0,8))
       link_pipe(c_link,null,null);
     })
@@ -260,14 +256,11 @@ class Mesh extends EventEmitter {
 
   listen(){
     let promise = [];
-    console.log("listen")
-    for (let listen of this._listen) promise.push(listen())
-    console.log("promise?")
+    for (let listen of this._listen) promise.push(listen());
     Promise.all(promise).then(() => this.emit('up', this)).catch((e) => this.emit('error', e))
   }
 
   start(){
-    th.util_sys_logging(1);
     this._mesh = mesh_new();
 
     mesh_on_discover(this._mesh, "*", (mesh, discovered, pipe) => {
@@ -286,8 +279,7 @@ class Mesh extends EventEmitter {
 
     this._getKeys((secrets, keys) => {
       if (secrets && keys){
-        mesh_load(this._mesh, hex_to_lob(secrets), hex_to_lob(keys))
-        console.log("!!")
+        mesh_load(this._mesh,  hex_to_lob(secrets),hex_to_lob(keys))
         this.listen();
       } else {
         let secrets = mesh_generate(this._mesh)
@@ -311,7 +303,6 @@ class Mesh extends EventEmitter {
   }
 
   use(middleware){
-    console.log("use",middleware)
     let mid = middleware(this, th);
     switch (mid.type){
       case "transport":
@@ -321,7 +312,6 @@ class Mesh extends EventEmitter {
       case "channel":
         return this.on('open', mid.open.bind(this) );
       case "keystore":
-        console.log("keystore")
         this._getKeys = mid.getKeys;
         this._storeKeys = mid.storeKeys;
       default:
@@ -329,6 +319,22 @@ class Mesh extends EventEmitter {
     }
   }
 }
+var _crypto;
+const random = () => new Promise((res, rej) => {
+  let crypto;
+  if (crypto && crypto.getRandomBytes){
+    return crypto.getRandomBytes(new Uint8Array)[0]
+  } else {
+    if (!_crypto) _crypto = require("crypto")
+
+    var _buf = new ArrayBuffer(4)
+    var u32 = new Uint32Array(_buf);
+    var u8 = new Uint8Array(_buf);
+    var bytes = crypto.randomBytes(4)
+    for (var i = 0; i < 4; i++) u8[i] = bytes[i];
+    return u32[0]
+  }
+})
 
 
 const defaultOpts = {
