@@ -59,17 +59,14 @@ class Frames{
     var interval;
     function frames_flush()
     {
-      if(util_frames_pending(frames))
+      while (util_frames_pending(frames))
       {      
-        try {
-          let frame = th._malloc(frame_size);
-          util_frames_outbox(frames,frame,null);
-          stream.write(th.BUFFER(frame,frame_size));
-          util_frames_sent(frames);
-          th._free(frame);          
-        } catch (e){
-          clearInterval(interval);
-        }
+        let frame = th._malloc(frame_size);
+        util_frames_outbox(frames,frame,null);
+        stream.write(th.BUFFER(frame,frame_size));
+        util_frames_sent(frames);
+        th._free(frame);          
+
 
       }
 
@@ -107,14 +104,17 @@ class Frames{
           if(!packet) return null;
           //console.log("sending packet", frames, packet, lob_len(packet));
           util_frames_send(frames,packet)
+          frames_flush()
           return link;
         },null);
         
       }
+      if(util_frames_await(frames)) util_frames_send(frames,null);
+
     });
 
     util_frames_send(frames,mesh_json(mesh));
-    interval = setInterval(frames_flush,5)
+    frames_flush();
 
     
   }
@@ -319,22 +319,7 @@ class Mesh extends EventEmitter {
     }
   }
 }
-var _crypto;
-const random = () => new Promise((res, rej) => {
-  let crypto;
-  if (crypto && crypto.getRandomBytes){
-    return crypto.getRandomBytes(new Uint8Array)[0]
-  } else {
-    if (!_crypto) _crypto = require("crypto")
 
-    var _buf = new ArrayBuffer(4)
-    var u32 = new Uint32Array(_buf);
-    var u8 = new Uint8Array(_buf);
-    var bytes = crypto.randomBytes(4)
-    for (var i = 0; i < 4; i++) u8[i] = bytes[i];
-    return u32[0]
-  }
-})
 
 
 const defaultOpts = {
