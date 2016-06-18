@@ -206,7 +206,9 @@ class Link extends EventEmitter {
 
   console(cmd, cb){
     let chan = this.channel({json : {type : "console"}, body : cmd})
-    chan.on('data',(packet) => cb(null, Object.assign(packet.json, {body: packet.body ? packet.body.toString() : null})))
+    chan.on('data',(packet) => {
+      cb(null, Object.assign(packet.json, {result: packet.body ? JSON.parse(packet.body.toString()) : null}))
+    })
     chan.c_send(chan._open);
   }
 }
