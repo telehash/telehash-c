@@ -1,8 +1,8 @@
 {
-  "name": "telehash-core",
-  "version": "0.0.1",
+  "name": "thc",
+  "version": "0.0.5",
   "description": "telehash-c compiled into javascript",
-  "main": "index.js",
+  "main": "core.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -10,10 +10,13 @@
     "type": "git",
     "url": "git+https://github.com/telehash/telehash-c.git"
   },
-  "author": "",
+  "author": "Jeremie Miller",
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/telehash/telehash-c/issues"
   },
-  "homepage": "https://github.com/telehash/telehash-c#readme"
+  "homepage": "https://github.com/telehash/telehash-c#readme",
+  "keywords": [
+    "telehash"
+  ]
 }

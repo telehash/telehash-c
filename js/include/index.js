@@ -2,7 +2,22 @@
 /**
  * dynamically wrap lob, mesh, and util functions for javascript
 **/
-var th = require("./th.js");
+var cwd = process.cwd()
+process.chdir(__dirname)
+var th = require("./thc.js");
+process.chdir(cwd);
+
+var crypto;
+
+var _browser = (crypto && crypto.getRandomBytes) ? true : false;
+if (!_browser) crypto = require("crypto")
+var rand;
+if (_browser){
+  rand = () => crypto.getRandomValues(new Uint8Array(1))[0]
+} else {
+  rand = () => crypto.randomBytes(1)[0]
+}
+
 
 const returntypes = {
   "_lob_json" : "json",
@@ -27,7 +42,8 @@ const Wrappers = {
   number : (_val) => _val,
   function : (_fun) => th.Runtime.addFunction(_fun),
   string : (_string) => makeVarPointer(_string, th.writeStringToMemory, 1),
-  object : (_buf) => (Buffer.isBuffer(_buf)) ?  makeVarPointer(_buf, th.writeArrayToMemory, 0) : new Error("only numbers, strings, functions, and buffers accepted")
+  object : (_buf) => (Buffer.isBuffer(_buf)) ?  makeVarPointer(_buf, th.writeArrayToMemory, 0) : _buf === null ? 0 :  new Error("only numbers, strings, functions, and buffers accepted"),
+  undefined : () => 0
 }
 
 const wrapFun = (_fun, returntype) => function() {
@@ -45,6 +61,8 @@ Object.keys(th).filter(key => key.indexOf("_") == 0).forEach((key) => {
   // globalize all the funthings!
   if(fn.indexOf("_") > 0) global[fn] = th[fn];
 })
+
+th._e3x_random(th.Runtime.addFunction(rand));
 
 th.CALLBACK = (fun, types) => function(){
   let args = [];
