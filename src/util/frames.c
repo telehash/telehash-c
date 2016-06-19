@@ -242,13 +242,12 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *me
       lob_free(done);
     }
 
-    // sender's last tx'd hash changes flush state
-    if(memcmp(data+4,&(inlast),4) == 0)
+    // sender's last tx'd hash mismatch causes flush
+    memcpy(&rxd,data+4,4);
+    if(rxd != inlast)
     {
-      frames->flush = 0;
-    }else{
       frames->flush = 1;
-      LOG_DEBUG("flushing mismatch, last %lu",inlast);
+      LOG_DEBUG("flushing mismatch, hash %lu last %lu",rxd,inlast);
     }
     
     return frames;
