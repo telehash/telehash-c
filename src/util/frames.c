@@ -36,7 +36,7 @@ util_frames_t util_frames_clear(util_frames_t frames)
 {
   if(!frames) return NULL;
   frames->err = 0;
-  frames->inlast = frames->outbase = 42;
+  frames->inbase = frames->outbase = 42;
   frames->in = frames->out = 0;
   frames->cache = util_frame_free(frames->cache);
   frames->flush = 0;
@@ -190,6 +190,7 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *me
   uint32_t hash1;
   memcpy(&(hash1),data+size,4);
   uint32_t hash2 = murmur4(data,size);
+  uint32_t inlast = (frames->cache)?frames->cache->hash:frames->inbase;
   
 //  LOG("frame sz %u hash rx %lu check %lu",size,hash1,hash2);
   
@@ -242,30 +243,30 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *me
     }
 
     // sender's last tx'd hash changes flush state
-    if(memcmp(data+4,&(frames->inlast),4) == 0)
+    if(memcmp(data+4,&(inlast),4) == 0)
     {
       frames->flush = 0;
     }else{
       frames->flush = 1;
-      LOG_DEBUG("flushing mismatch, last %lu",frames->inlast);
+      LOG_DEBUG("flushing mismatch, last %lu",inlast);
     }
     
     return frames;
   }
   
   // dedup, if identical to last received one
-  if(hash1 == frames->inlast) return frames;
+  if(hash1 == inlast) return frames;
 
   // full data frames must match combined w/ previous
-  hash2 ^= frames->inlast;
+  hash2 ^= inlast;
   hash2 += frames->in;
   if(hash1 == hash2)
   {
     if(!util_frame_new(frames)) return LOG_WARN("OOM");
     // append, update inlast, continue
     memcpy(frames->cache->data,data,size);
+    frames->cache->hash = hash1;
     frames->flush = 0;
-    frames->inlast = hash1;
 //    LOG("got data frame %lu",hash1);
     return frames;
   }
@@ -275,24 +276,24 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *me
   if(tail >= size)
   {
     frames->flush = 1;
-    return LOG_DEBUG("invalid frame %u tail (%u) hash %lu != %lu last %lu",frames->in,tail,hash1,hash2,frames->inlast);
+    return LOG_DEBUG("invalid frame %u tail %u >= %u hash %lu/%lu base %lu last %lu",frames->in,tail,size,hash1,hash2,frames->inbase,inlast);
   }
   
   // hash must match
   hash2 = murmur4(data,tail);
-  hash2 ^= frames->inlast;
+  hash2 ^= inlast;
   hash2 += frames->in;
   if(hash1 != hash2)
   {
     frames->flush = 1;
-    return LOG_DEBUG("invalid frame %u tail (%u) hash %lu != %lu last %lu",frames->in,tail,hash1,hash2,frames->inlast);
+    return LOG_DEBUG("invalid frame %u tail %u hash %lu != %lu base %lu last %lu",frames->in,tail,hash1,hash2,frames->inbase,inlast);
   }
   
   // process full packet w/ tail, update inlast, set flush
 //  LOG("got frame tail of %u",tail);
   frames->flush = 1;
-  frames->inlast = hash1;
-  
+  frames->inbase = hash1;
+
   size_t tlen = (frames->in * size) + tail;
 
   // TODO make a lob_new that creates space to prevent double-copy here
@@ -348,11 +349,12 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *m
   {
     frames->flush = 1; // so _sent() does us proper
     memset(data,0,size+4);
-    memcpy(data,&(frames->inlast),4);
+    uint32_t inlast = (frames->cache)?frames->cache->hash:frames->inbase;
+    memcpy(data,&(inlast),4);
     memcpy(data+4,&(hash),4);
     if(meta) memcpy(data+10,meta,size-10);
     murmur(data,size,data+size);
-    LOG_CRAZY("sending meta frame inlast %lu cur %lu",frames->inlast,hash);
+    LOG_CRAZY("sending meta frame inlast %lu cur %lu",inlast,hash);
     return frames;
   }
   
