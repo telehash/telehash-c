@@ -253,8 +253,10 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *me
     return frames;
   }
   
-  // dedup, if identical to last received one
-  if(hash1 == inlast) return frames;
+  // dedup, ignore if identical to any received one
+  if(hash1 == frames->inbase) return frames;
+  util_frame_t cache = frames->cache;
+  for(;cache;cache = cache->prev) if(cache->hash == hash1) return frames;
 
   // full data frames must match combined w/ previous
   hash2 ^= inlast;
