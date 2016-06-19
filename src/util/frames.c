@@ -208,7 +208,7 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *me
     uint32_t len = lob_len(frames->outbox);
     uint32_t rxs = frames->outbase;
     uint8_t i;
-    for(i = 0;i < frames->out;i++)
+    for(i = 0;(i*size) < len;i++)
     {
       // verify/reset to last rx'd frame
       if(rxd == rxs)
