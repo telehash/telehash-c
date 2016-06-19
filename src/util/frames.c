@@ -207,21 +207,22 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *me
     uint8_t *bin = lob_raw(frames->outbox);
     uint32_t len = lob_len(frames->outbox);
     uint32_t rxs = frames->outbase;
-    uint8_t i;
-    for(i = 0;(i*size) < len;i++)
-    {
-      // verify/reset to last rx'd frame
+    uint8_t next = 0;
+    do {
+      // here next is always the frame to be re-sent, rxs is always the previous frame
       if(rxd == rxs)
       {
-        frames->out = i;
+        frames->out = next;
         break;
       }
 
       // handle tail hash correctly like sender
-      uint32_t at = i * size;
+      uint32_t at = next * size;
       rxs ^= murmur4((bin+at), ((at+size) > len) ? (len - at) : size);
-      rxs += i;
-    }
+      rxs += next;
+    }while((next*size) < len && ++next);
+
+    // it must have matched something above
     if(rxd != rxs)
     {
       LOG_WARN("invalid received frame hash %lu check %lu",rxd,rxs);
