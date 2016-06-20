@@ -295,8 +295,9 @@ class Mesh extends EventEmitter {
   }
 
   _getKeys(cb){
-    let { TELEHASH_SECRET_KEYS, TELEHASH_PUBLIC_KEYS} = process.env;
-    cb(  TELEHASH_SECRET_KEYS, TELEHASH_PUBLIC_KEYS)
+    let TELEHASH_SECRET_KEYS = process.env.TELEHASH_SECRET_KEYS
+      , TELEHASH_PUBLIC_KEYS = process.env.TELEHASH_PUBLIC_KEYS;
+    cb( TELEHASH_SECRET_KEYS, TELEHASH_PUBLIC_KEYS )
   }
 
   _storeKeys(secrets, keys, cb){
