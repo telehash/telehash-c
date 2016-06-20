@@ -23,7 +23,8 @@ const hex_to_lob = (hex) => {
 
 
 class Chunks{
-  constructor(mesh, stream, chunk_size){
+  constructor(Mesh, stream, chunk_size){
+    var mesh = Mesh._mesh;
     var link;
     var linked = false;
     var that = this;
@@ -53,7 +54,8 @@ class Chunks{
 }
 
 class Frames{
-  constructor (mesh, stream, frame_size){
+  constructor (Mesh, stream, frame_size){
+    var mesh = Mesh._mesh;
     this.frames = util_frames_new(frame_size);
     var frames = this.frames;
     util_frames_send(frames,null); // flush meta greeting
@@ -91,7 +93,7 @@ class Frames{
         util_frames_inbox(frames,frame,null);
         if(!util_frames_ok(frames))
         {
-          console.log("frames state error, resetting");
+          //console.log("frames state error, resetting");
           util_frames_clear();
         }else{
 //          console.log("receive frame",frame.toString("hex"));
@@ -108,6 +110,7 @@ class Frames{
         if(linked || !link) continue;
         mesh_link(mesh, link);
 
+
         // catch new link and plumb delivery pipe
         linked = link;
         link_pipe(link, function(link, packet, arg){
@@ -117,6 +120,10 @@ class Frames{
           frames_flush()
           return link;
         },null);
+
+        stream.on('close', () => {
+          Mesh._links.get(th.UTF8ToString( hashname_char(link_id(link)) ).substr(0,8)).emit('down')
+        })
       }
     });
 
@@ -238,11 +245,11 @@ class Mesh extends EventEmitter {
   }
 
   frames(transport, frame_size){
-    this._frames.add(new Frames(this._mesh, transport, frame_size));
+    this._frames.add(new Frames(this, transport, frame_size));
   }
 
   chunks(transport, chunk_size){
-    this._chunks.add(new Chunks(this._mesh, transport, chunk_size));
+    this._chunks.add(new Chunks(this, transport, chunk_size));
   }
 
   init(on_link, opts){
