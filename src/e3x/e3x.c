@@ -46,6 +46,15 @@ lob_t e3x_generate(void)
   return secrets;
 }
 
+
+static uint8_t (*frandom)(void) = (uint8_t (*)(void))util_sys_random;
+
+// set a callback for random
+void e3x_random(uint8_t (*frand)(void))
+{
+  frandom = frand;
+}
+
 // random bytes, from a supported cipher set
 uint8_t *e3x_rand(uint8_t *bytes, size_t len)
 {
@@ -56,7 +65,7 @@ uint8_t *e3x_rand(uint8_t *bytes, size_t len)
   // crypto lib didn't provide one, use platform's RNG
   while(len-- > 0)
   {
-    *x = (uint8_t)util_sys_random();
+    *x = frandom();
     x++;
   }
   return bytes;
