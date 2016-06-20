@@ -56,20 +56,23 @@ class Frames{
   constructor (mesh, stream, frame_size){
     this.frames = util_frames_new(frame_size);
     var frames = this.frames;
-    var interval;
+    util_frames_send(frames,null); // flush meta greeting
+    var flushing = false;
     function frames_flush()
     {
-      while (util_frames_pending(frames))
-      {      
-        let frame = th._malloc(frame_size);
-        util_frames_outbox(frames,frame,null);
-        stream.write(th.BUFFER(frame,frame_size));
-        util_frames_sent(frames);
-        th._free(frame);          
-
-
-      }
-
+      if(!util_frames_pending(frames)) return;
+      if(flushing) return;
+      flushing = true;
+      let frame = th._malloc(frame_size);
+      util_frames_outbox(frames,frame,null);
+      util_frames_sent(frames);
+//      console.log("sending frame",th.BUFFER(frame,frame_size).toString("hex"));
+      stream.write(th.BUFFER(frame,frame_size),function(err){
+        flushing = false;
+        if(err) return;
+        setTimeout(frames_flush,1); // unroll
+      });
+      th._free(frame);
     }
 
     var linked;
@@ -78,7 +81,7 @@ class Frames{
     stream.on('data',function(data){
       // buffer up and look for full frames
       readbuf = Buffer.concat([readbuf,data]);
-      //console.log(readbuf,data);
+//      console.log('data',readbuf.length,data.length);
       while(readbuf.length >= frame_size)
       {
         // TODO, frames may get offset, need to realign against whatever's in the buffer
@@ -86,8 +89,15 @@ class Frames{
         var frame = readbuf.slice(0,frame_size);
         readbuf = readbuf.slice(frame_size);
         util_frames_inbox(frames,frame,null);
-        //console.log("received a frame",frame);
+        if(!util_frames_ok(frames))
+        {
+          console.log("frames state error, resetting");
+          util_frames_clear();
+        }else{
+//          console.log("receive frame",frame.toString("hex"));
+        }
       }
+      frames_flush();
       // check for and process any full packets
       var packet;
       while((packet = util_frames_receive(frames)))
@@ -107,15 +117,11 @@ class Frames{
           frames_flush()
           return link;
         },null);
-        
       }
-      if(util_frames_await(frames)) util_frames_send(frames,null);
-      frames_flush();
     });
 
     util_frames_send(frames,mesh_json(mesh));
     frames_flush();
-
     
   }
 }
