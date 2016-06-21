@@ -42,14 +42,20 @@ class Chunks{
           that.chunks.send(lob_from_c(packet));
           return link;
         },null);
+        stream.on('close', () => {
+          Mesh._links.get(th.UTF8ToString( hashname_char(link_id(link)) ).substr(0,8)).emit('down')
+        })
       }
       
+
     });
 
     this.chunks.pipe(stream);
     stream.pipe(this.chunks);
     var greeting = buf_lob_from_c(mesh_json(mesh));
     this.chunks.send(greeting);
+
+
   }
 }
 
@@ -196,6 +202,7 @@ class Link extends EventEmitter {
     this.on('down',() => {
       Mesh._links.delete(this.hashname.substr(0,8))
       link_pipe(c_link,null,null);
+      link_down(c_link);
     })
     this.x = {
       channel : this.channel
@@ -284,7 +291,7 @@ class Mesh extends EventEmitter {
     });
 
     mesh_on_link(this._mesh, "*", (c_link) => {
-      if (!this._links.has(th.UTF8ToString( hashname_char(link_id(c_link)) ).substr(0,8)))
+      if (link_up(c_link) && !this._links.has(th.UTF8ToString( hashname_char(link_id(c_link)) ).substr(0,8)))
         this.emit("link", new Link(this , c_link));
     });
 
