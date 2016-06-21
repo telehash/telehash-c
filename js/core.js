@@ -206,7 +206,9 @@ class Link extends EventEmitter {
 
   console(cmd, cb){
     let chan = this.channel({json : {type : "console"}, body : cmd})
-    chan.on('data',(packet) => cb(null, Object.assign(packet.json, {body: packet.body ? packet.body.toString() : null})))
+    chan.on('data',(packet) => {
+      cb(null, Object.assign(packet.json, {result: packet.body ? JSON.parse(packet.body.toString()) : null}))
+    })
     chan.c_send(chan._open);
   }
 }
@@ -293,8 +295,9 @@ class Mesh extends EventEmitter {
   }
 
   _getKeys(cb){
-    let { TELEHASH_SECRET_KEYS, TELEHASH_PUBLIC_KEYS} = process.env;
-    cb(  TELEHASH_SECRET_KEYS, TELEHASH_PUBLIC_KEYS)
+    let TELEHASH_SECRET_KEYS = process.env.TELEHASH_SECRET_KEYS
+      , TELEHASH_PUBLIC_KEYS = process.env.TELEHASH_PUBLIC_KEYS;
+    cb( TELEHASH_SECRET_KEYS, TELEHASH_PUBLIC_KEYS )
   }
 
   _storeKeys(secrets, keys, cb){
