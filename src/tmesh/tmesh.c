@@ -602,7 +602,7 @@ static tempo_t tempo_blocks_rx(tempo_t tempo, uint8_t *blocks, uint8_t index)
           return tempo;
         case tmesh_block_at:
           if(!about) break; // require known mote
-          about->signal->at = (body + tempo->at); // is an offset from this tempo
+          about->signal->at = (((int32_t)body) + tempo->at); // is an offset from this tempo
           break;
         case tmesh_block_seq:
           if(!about) break; // require known mote

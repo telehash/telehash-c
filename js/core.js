@@ -23,7 +23,8 @@ const hex_to_lob = (hex) => {
 
 
 class Chunks{
-  constructor(mesh, stream, chunk_size){
+  constructor(Mesh, stream, chunk_size){
+    var mesh = Mesh._mesh;
     var link;
     var linked = false;
     var that = this;
@@ -41,35 +42,45 @@ class Chunks{
           that.chunks.send(lob_from_c(packet));
           return link;
         },null);
+        stream.on('close', () => {
+          Mesh._links.get(th.UTF8ToString( hashname_char(link_id(link)) ).substr(0,8)).emit('down')
+        })
       }
       
+
     });
 
     this.chunks.pipe(stream);
     stream.pipe(this.chunks);
     var greeting = buf_lob_from_c(mesh_json(mesh));
     this.chunks.send(greeting);
+
+
   }
 }
 
 class Frames{
-  constructor (mesh, stream, frame_size){
+  constructor (Mesh, stream, frame_size){
+    var mesh = Mesh._mesh;
     this.frames = util_frames_new(frame_size);
     var frames = this.frames;
-    var interval;
+    util_frames_send(frames,null); // flush meta greeting
+    var flushing = false;
     function frames_flush()
     {
-      while (util_frames_pending(frames))
-      {      
-        let frame = th._malloc(frame_size);
-        util_frames_outbox(frames,frame,null);
-        stream.write(th.BUFFER(frame,frame_size));
-        util_frames_sent(frames);
-        th._free(frame);          
-
-
-      }
-
+      if(!util_frames_pending(frames)) return;
+      if(flushing) return;
+      flushing = true;
+      let frame = th._malloc(frame_size);
+      util_frames_outbox(frames,frame,null);
+      util_frames_sent(frames);
+//      console.log("sending frame",th.BUFFER(frame,frame_size).toString("hex"));
+      stream.write(th.BUFFER(frame,frame_size),function(err){
+        flushing = false;
+        if(err) return;
+        setTimeout(frames_flush,1); // unroll
+      });
+      th._free(frame);
     }
 
     var linked;
@@ -78,7 +89,7 @@ class Frames{
     stream.on('data',function(data){
       // buffer up and look for full frames
       readbuf = Buffer.concat([readbuf,data]);
-      //console.log(readbuf,data);
+//      console.log('data',readbuf.length,data.length);
       while(readbuf.length >= frame_size)
       {
         // TODO, frames may get offset, need to realign against whatever's in the buffer
@@ -86,8 +97,15 @@ class Frames{
         var frame = readbuf.slice(0,frame_size);
         readbuf = readbuf.slice(frame_size);
         util_frames_inbox(frames,frame,null);
-        //console.log("received a frame",frame);
+        if(!util_frames_ok(frames))
+        {
+          //console.log("frames state error, resetting");
+          util_frames_clear();
+        }else{
+//          console.log("receive frame",frame.toString("hex"));
+        }
       }
+      frames_flush();
       // check for and process any full packets
       var packet;
       while((packet = util_frames_receive(frames)))
@@ -98,6 +116,7 @@ class Frames{
         if(linked || !link) continue;
         mesh_link(mesh, link);
 
+
         // catch new link and plumb delivery pipe
         linked = link;
         link_pipe(link, function(link, packet, arg){
@@ -107,15 +126,15 @@ class Frames{
           frames_flush()
           return link;
         },null);
-        
+
+        stream.on('close', () => {
+          Mesh._links.get(th.UTF8ToString( hashname_char(link_id(link)) ).substr(0,8)).emit('down')
+        })
       }
-      if(util_frames_await(frames)) util_frames_send(frames,null);
-      frames_flush();
     });
 
     util_frames_send(frames,mesh_json(mesh));
     frames_flush();
-
     
   }
 }
@@ -182,7 +201,10 @@ class Link extends EventEmitter {
     Mesh._links.set(this.hashname.substr(0,8), this);
     this.on('down',() => {
       Mesh._links.delete(this.hashname.substr(0,8))
-      link_pipe(c_link,null,null);
+      try{
+        link_pipe(c_link, null, null);
+        link_down(c_link);
+      } catch (e){}
     })
     this.x = {
       channel : this.channel
@@ -232,11 +254,11 @@ class Mesh extends EventEmitter {
   }
 
   frames(transport, frame_size){
-    this._frames.add(new Frames(this._mesh, transport, frame_size));
+    this._frames.add(new Frames(this, transport, frame_size));
   }
 
   chunks(transport, chunk_size){
-    this._chunks.add(new Chunks(this._mesh, transport, chunk_size));
+    this._chunks.add(new Chunks(this, transport, chunk_size));
   }
 
   init(on_link, opts){
@@ -271,7 +293,7 @@ class Mesh extends EventEmitter {
     });
 
     mesh_on_link(this._mesh, "*", (c_link) => {
-      if (!this._links.has(th.UTF8ToString( hashname_char(link_id(c_link)) ).substr(0,8)))
+      if (link_up(c_link) && !this._links.has(th.UTF8ToString( hashname_char(link_id(c_link)) ).substr(0,8)))
         this.emit("link", new Link(this , c_link));
     });
 
