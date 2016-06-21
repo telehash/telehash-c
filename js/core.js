@@ -201,8 +201,10 @@ class Link extends EventEmitter {
     Mesh._links.set(this.hashname.substr(0,8), this);
     this.on('down',() => {
       Mesh._links.delete(this.hashname.substr(0,8))
-      link_pipe(c_link,null,null);
-      link_down(c_link);
+      try{
+        link_pipe(c_link, null, null);
+        link_down(c_link);
+      } catch (e){}
     })
     this.x = {
       channel : this.channel
