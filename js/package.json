@@ -1,6 +1,6 @@
 {
   "name": "thc",
-  "version": "0.0.14",
+  "version": "0.0.16",
   "description": "telehash-c compiled into javascript",
   "main": "core.js",
   "scripts": {
@@ -18,5 +18,8 @@
   "homepage": "https://github.com/telehash/telehash-c#readme",
   "keywords": [
     "telehash"
-  ]
+  ],
+  "dependencies": {
+    "lob-enc": "0.0.17"
+  }
 }
