@@ -100,7 +100,7 @@ class Frames{
         if(!util_frames_ok(frames))
         {
           //console.log("frames state error, resetting");
-          util_frames_clear();
+          util_frames_clear(frames);
         }else{
 //          console.log("receive frame",frame.toString("hex"));
         }
