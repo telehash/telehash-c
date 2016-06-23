@@ -43,7 +43,8 @@ const Wrappers = {
   function : (_fun) => th.Runtime.addFunction(_fun),
   string : (_string) => makeVarPointer(_string, th.writeStringToMemory, 1),
   object : (_buf) => (Buffer.isBuffer(_buf)) ?  makeVarPointer(_buf, th.writeArrayToMemory, 0) : _buf === null ? 0 :  new Error("only numbers, strings, functions, and buffers accepted"),
-  undefined : () => 0
+  undefined : () => 0,
+  boolean : (b) => b ? 1 : 0 
 }
 
 const wrapFun = (_fun, returntype) => function() {
