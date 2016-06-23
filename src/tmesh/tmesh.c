@@ -595,7 +595,7 @@ static tempo_t tempo_blocks_rx(tempo_t tempo, uint8_t *blocks, uint8_t index)
       uint32_t body;
       memcpy(&body,block->body,4);
 
-      LOG_DEBUG("block type %u head %u body %lu",block->type,block->head,body);
+      LOG_DEBUG("block type %u head %u body %ld",block->type,block->head,(int32_t)body);
       switch(block->type)
       {
         case tmesh_block_end:
