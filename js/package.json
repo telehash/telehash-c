@@ -1,22 +1,78 @@
 {
-  "name": "thc",
-  "version": "0.0.14",
-  "description": "telehash-c compiled into javascript",
-  "main": "core.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "_args": [
+    [
+      "thc",
+      "/Users/ry/work/electron-boilerplate/app"
+    ]
+  ],
+  "_from": "thc@*",
+  "_id": "thc@0.0.17",
+  "_inCache": true,
+  "_installable": true,
+  "_location": "/thc",
+  "_nodeVersion": "6.2.1",
+  "_npmOperationalInternal": {
+    "host": "packages-12-west.internal.npmjs.com",
+    "tmp": "tmp/thc-0.0.16.tgz_1466615283507_0.5260792037006468"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/telehash/telehash-c.git"
+  "_npmUser": {
+    "email": "nomad.ry@gmail.com",
+    "name": "rynomad"
   },
-  "author": "Jeremie Miller",
-  "license": "ISC",
+  "_npmVersion": "3.9.3",
+  "_phantomChildren": {},
+  "_requested": {
+    "name": "thc",
+    "raw": "thc",
+    "rawSpec": "",
+    "scope": null,
+    "spec": "*",
+    "type": "range"
+  },
+  "_requiredBy": [
+    "#USER"
+  ],
+  "_shasum": "ada22b02275f51d6bc53329e27de56ab5f94cf9e",
+  "_shrinkwrap": null,
+  "_spec": "thc",
+  "_where": "/Users/ry/work/electron-boilerplate/app",
+  "author": {
+    "name": "Jeremie Miller"
+  },
   "bugs": {
     "url": "https://github.com/telehash/telehash-c/issues"
+  },
+  "dependencies": {
+    "lob-enc": "0.0.17"
+  },
+  "description": "telehash-c compiled into javascript",
+  "devDependencies": {},
+  "directories": {},
+  "dist": {
+    "shasum": "ada22b02275f51d6bc53329e27de56ab5f94cf9e",
+    "tarball": "https://registry.npmjs.org/thc/-/thc-0.0.16.tgz"
   },
   "homepage": "https://github.com/telehash/telehash-c#readme",
   "keywords": [
     "telehash"
-  ]
+  ],
+  "license": "ISC",
+  "main": "core.js",
+  "maintainers": [
+    {
+      "name": "rynomad",
+      "email": "nomad.ry@gmail.com"
+    }
+  ],
+  "name": "thc",
+  "optionalDependencies": {},
+  "readme": "ERROR: No README data found!",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/telehash/telehash-c.git"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "version": "0.0.18"
 }
