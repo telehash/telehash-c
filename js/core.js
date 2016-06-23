@@ -50,8 +50,8 @@ class Chunks{
 
     });
 
-    this.chunks.pipe(stream);
-    stream.pipe(this.chunks);
+    stream.on('data', (d) => this.chunks.write(d))
+    this.chunks.on('data', (d) => stream.write(d))
     var greeting = buf_lob_from_c(mesh_json(mesh));
     this.chunks.send(greeting);
 
@@ -315,6 +315,7 @@ class Mesh extends EventEmitter {
           this.listen();
         })
       }
+      this.hashname = th.UTF8ToString( hashname_char(mesh_id(this._mesh)));
     })
   }
 
