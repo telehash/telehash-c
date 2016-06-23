@@ -100,7 +100,7 @@ class Frames{
         if(!util_frames_ok(frames))
         {
           //console.log("frames state error, resetting");
-          util_frames_clear();
+          util_frames_clear(frames);
         }else{
 //          console.log("receive frame",frame.toString("hex"));
         }
@@ -297,9 +297,11 @@ class Mesh extends EventEmitter {
         this.emit("link", new Link(this , c_link));
     });
 
-    mesh_on_open(this._mesh, "*", (c_link, c_open) => 
-      this.emit('open', this._links.get( th.UTF8ToString( hashname_char(link_id(c_link)) ).substr(0,8) ) , lob_from_c(c_open) ) 
-    );
+    mesh_on_open(this._mesh, "*", (c_link, c_open) => {
+      process.nextTick(() => {
+        this.emit('open', this._links.get( th.UTF8ToString( hashname_char(link_id(c_link)) ).substr(0,8) ) , lob_from_c(c_open) )   
+      })
+    });
 
     this._getKeys((secrets, keys) => {
       if (secrets && keys){
