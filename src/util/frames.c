@@ -39,7 +39,7 @@ util_frames_t util_frames_clear(util_frames_t frames)
   frames->inbase = frames->outbase = 42;
   frames->in = frames->out = 0;
   frames->cache = util_frame_free(frames->cache);
-  frames->flush = 0;
+  frames->flush = 1; // always force a flush after a clear to let the other party know
   return frames;
 }
 
@@ -53,7 +53,9 @@ util_frames_t util_frames_new(uint8_t size)
   frames->size = size;
 
   // default init hash state
-  return util_frames_clear(frames);
+  util_frames_clear(frames);
+  frames->flush = 0; // don't start w/ a flush
+  return frames;
 }
 
 util_frames_t util_frames_free(util_frames_t frames)
