@@ -43,7 +43,12 @@ class Chunks{
           return link;
         },null);
         stream.on('close', () => {
-          Mesh._links.get(th.UTF8ToString( hashname_char(link_id(link)) ).substr(0,8)).emit('down')
+          let l = Mesh._links.get(th.UTF8ToString( hashname_char(link_id(link)) ).substr(0,8))
+          if (l)
+            l.emit('down')
+          else {
+            console.log("UNDEF",th.UTF8ToString( hashname_char(link_id(link)) ).substr(0,8) )
+          }
         })
       }
       
@@ -128,7 +133,12 @@ class Frames{
         },null);
 
         stream.on('close', () => {
-          Mesh._links.get(th.UTF8ToString( hashname_char(link_id(link)) ).substr(0,8)).emit('down')
+          let l = Mesh._links.get(th.UTF8ToString( hashname_char(link_id(link)) ).substr(0,8))
+          if (l)
+            l.emit('down')
+          else {
+            console.log("UNDEF",th.UTF8ToString( hashname_char(link_id(link)) ).substr(0,8) )
+          }
         })
       }
     });
