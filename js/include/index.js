@@ -2,10 +2,7 @@
 /**
  * dynamically wrap lob, mesh, and util functions for javascript
 **/
-var cwd = process.cwd()
-process.chdir(__dirname)
 var th = require("./thc.js");
-process.chdir(cwd);
 
 var crypto;
 
