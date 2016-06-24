@@ -316,16 +316,17 @@ class Mesh extends EventEmitter {
     this._getKeys((secrets, keys) => {
       if (secrets && keys){
         mesh_load(this._mesh,  hex_to_lob(secrets),hex_to_lob(keys))
-        this.listen();
+        
       } else {
         let secrets = mesh_generate(this._mesh)
         if (!secrets) throw new Error("mesh generate failed");
 
         this._storeKeys( buf_lob_from_c(secrets).toString("hex"), buf_lob_from_c(lob_linked(secrets)).toString("hex"), () => {
-          this.listen();
+          
         })
       }
       this.hashname = th.UTF8ToString( hashname_char(mesh_id(this._mesh)));
+      this.listen();
     })
   }
 
