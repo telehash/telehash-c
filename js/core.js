@@ -36,6 +36,7 @@ class Chunks{
       }
       link = mesh_receive(mesh,lob_to_c(packet))
       if (!linked && link){
+        mesh_link(mesh, link);
         linked = true;
         link_pipe(link, function(link, packet, arg){
           if(!packet) return null;
