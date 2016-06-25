@@ -130,7 +130,7 @@ tmesh_t tmesh_new(mesh_t mesh, char *name, char *pass);
 tmesh_t tmesh_free(tmesh_t tm);
 
 // process knock that has been completed by a driver
-// returns a stream if there's new packets available
+// returns a tempo when successful rx in case there's new packets available
 tempo_t tmesh_knocked(tmesh_t tm);
 
 // at based on current cycle count since start or last rebase

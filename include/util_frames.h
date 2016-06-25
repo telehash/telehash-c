@@ -8,6 +8,7 @@
 typedef struct util_frame_struct
 {
   struct util_frame_struct *prev;
+  uint32_t hash;
   uint8_t data[];
 } *util_frame_t;
 
@@ -19,8 +20,8 @@ typedef struct util_frames_struct
 
   util_frame_t cache; // stacked linked list of incoming frames in progress
 
-  uint32_t inlast; // last good incoming frame hash
-  uint32_t outbase; // last sent outbox frame hash
+  uint32_t inbase; // last confirmed inbox hash
+  uint32_t outbase; // last confirmed outbox hash
 
   uint8_t in; // number of incoming frames received/waiting
   uint8_t out; //  number of outgoing frames of outbox sent since outbase

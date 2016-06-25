@@ -35,6 +35,9 @@ lob_t e3x_generate(void);
 // random bytes, from a supported cipher set
 uint8_t *e3x_rand(uint8_t *bytes, size_t len);
 
+// set a random byte provider function
+void e3x_random(uint8_t (*frand)(void));
+
 // sha256 hashing, from one of the cipher sets
 uint8_t *e3x_hash(uint8_t *in, size_t len, uint8_t *out32);
 
