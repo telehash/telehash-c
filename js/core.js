@@ -73,9 +73,8 @@ class Frames{
     var flushing = false;
     function frames_flush()
     {
-      if(flushing) return;
       if(!util_frames_pending(frames)) return;
-      
+      if(flushing) return;
       flushing = true;
       let frame = th._malloc(frame_size);
       util_frames_outbox(frames,frame,null);
@@ -83,11 +82,13 @@ class Frames{
 //      console.log("sending frame",th.BUFFER(frame,frame_size).toString("hex"));
       stream.write(th.BUFFER(frame,frame_size),function(err){
         flushing = false;
+        if(err) return;
+        setTimeout(frames_flush,1); // unroll
       });
       th._free(frame);
     }
 
-    var linked, interval;
+    var linked;
     var readbuf = new Buffer(0);
 
     stream.on('data',function(data){
@@ -109,6 +110,7 @@ class Frames{
 //          console.log("receive frame",frame.toString("hex"));
         }
       }
+      frames_flush();
       // check for and process any full packets
       var packet;
       while((packet = util_frames_receive(frames)))
@@ -126,27 +128,26 @@ class Frames{
           if(!packet) return null;
           //console.log("sending packet", frames, packet, lob_len(packet));
           util_frames_send(frames,packet)
+          frames_flush()
           return link;
         },null);
 
-        
       }
     });
 
     stream.on('close', () => {
-      clearInterval(interval);
       if (linked){
         let l = Mesh._links.get(th.UTF8ToString( hashname_char(link_id(linked)) ).substr(0,8))
         if (l)
           l.emit('down')
         else {
           console.log("UNDEF",th.UTF8ToString( hashname_char(link_id(linked)) ).substr(0,8) )
-        }            
+        }
       }
     })
 
     util_frames_send(frames,mesh_json(mesh));
-    interval = setInterval(frames_flush, 5)
+    frames_flush();
     
   }
 }
