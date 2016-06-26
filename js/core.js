@@ -1,6 +1,5 @@
 'use strict';
 const EventEmitter = require("events").EventEmitter;
-const fs = require("fs");
 const lob = require("lob-enc");
 //const hashname = require("hashname");
 //const base32 = require("base32")
