@@ -223,7 +223,7 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *me
       uint32_t at = next * size;
       rxs ^= murmur4((bin+at), ((at+size) > len) ? (len - at) : size);
       rxs += next;
-    }while(++next && (next*size) < len);
+    }while((next*size) < len && ++next);
 
     // it must have matched something above
     if(rxd != rxs)
