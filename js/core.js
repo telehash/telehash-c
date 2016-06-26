@@ -69,7 +69,6 @@ class Frames{
     var mesh = Mesh._mesh;
     this.frames = util_frames_new(frame_size);
     var frames = this.frames;
-    util_frames_send(frames,null); // flush meta greeting
     var flushing = false;
     function frames_flush()
     {
@@ -136,6 +135,7 @@ class Frames{
     });
 
     stream.on('close', () => {
+      flushing = false;
       if (linked){
         let l = Mesh._links.get(th.UTF8ToString( hashname_char(link_id(linked)) ).substr(0,8))
         if (l)
