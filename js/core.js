@@ -36,6 +36,8 @@ class Chunks{
       link = mesh_receive(mesh,lob_to_c(packet))
       if (!linked && link){
         mesh_link(mesh, link);
+        that._c_link = link;
+
         linked = true;
         link_pipe(link, function(link, packet, arg){
           if(!packet) return null;
@@ -62,6 +64,15 @@ class Chunks{
 
 
   }
+
+  cleanup(Mesh, c_link){
+    if (c_link === this._c_link){
+      this.stream.close();
+      return true;
+    } else {
+      return false
+    }
+  }
 }
 
 class Frames{
@@ -70,6 +81,7 @@ class Frames{
     this.frames = util_frames_new(frame_size);
     var frames = this.frames;
     var flushing = false;
+    var that = this;
     function frames_flush()
     {
       if(!util_frames_pending(frames)) return;
@@ -118,6 +130,7 @@ class Frames{
         //th.util_sys_logging(1);
         var link = mesh_receive(mesh,packet);
         if(linked || !link) continue;
+        that._c_link = link;
         mesh_link(mesh, link);
 
 
@@ -150,6 +163,17 @@ class Frames{
     frames_flush();
     
   }
+
+
+  cleanup(Mesh, c_link){
+    if (c_link === this._c_link){
+      this.stream.close();
+      return true;
+    } else {
+      return false;
+    }
+  }
+
 }
 
 class Channel extends Duplex{
@@ -217,6 +241,7 @@ class Link extends EventEmitter {
       try{
         link_pipe(c_link, null, null);
         link_down(c_link);
+        link_free(c_link);
       } catch (e){}
     })
     this.x = {
@@ -246,6 +271,11 @@ class Link extends EventEmitter {
     })
     chan.c_send(chan._open);
   }
+
+  close(){
+    Mesh._frames.forEach((frames) => frames.cleanup(Mesh, c_link) && Mesh._frames.delete(frames))
+    Mesh._chunks.forEach((chunks) => chunks.cleanup(Mesh, c_link) && Mesh._frames.delete(chunks))
+  }
 }
 
 class Mesh extends EventEmitter {
@@ -263,7 +293,7 @@ class Mesh extends EventEmitter {
     this._listen = new Set();
     this._connect = new Map();
 
-    this.on("up",on_up);
+    this.once("up",on_up);
   }
 
   frames(transport, frame_size){
@@ -294,10 +324,10 @@ class Mesh extends EventEmitter {
   listen(){
     let promise = [];
     for (let listen of this._listen) promise.push(listen());
-    Promise.all(promise).then(() => this.emit('up', this)).catch((e) => this.emit('error', e))
+    Promise.all(promise).then((aborts) => (this._aborts = aborts) && this.emit('up', this)).catch((e) => this.emit('error', e))
   }
 
-  start(){
+  start(listen){
     this._mesh = mesh_new();
 
     mesh_on_discover(this._mesh, "*", (mesh, discovered, pipe) => {
@@ -306,8 +336,13 @@ class Mesh extends EventEmitter {
     });
 
     mesh_on_link(this._mesh, "*", (c_link) => {
-      if (link_up(c_link) && !this._links.has(th.UTF8ToString( hashname_char(link_id(c_link)) ).substr(0,8)))
-        this.emit("link", new Link(this , c_link));
+      if (link_up(c_link) && !this._links.has(th.UTF8ToString( hashname_char(link_id(c_link)) ).substr(0,8))){
+        let _link = new Link(this , c_link)
+         process.nextTick(() => this.emit("link", _link));
+      }
+      if (!link_up(c_link) && this._links.has(th.UTF8ToString( hashname_char(link_id(c_link)) ).substr(0,8))){
+        this._links.delete(th.UTF8ToString( hashname_char(link_id(c_link)) ).substr(0,8))
+      }
     });
 
     mesh_on_open(this._mesh, "*", (c_link, c_open) => {
@@ -329,8 +364,13 @@ class Mesh extends EventEmitter {
         })
       }
       this.hashname = th.UTF8ToString( hashname_char(mesh_id(this._mesh)));
-      this.listen();
+      if (listen) this.listen();
+      else this.emit('up',this)
     })
+  }
+
+  stopListen(){
+    this._aborts = this._aborts.filter((abort) => abort() && false)
   }
 
   _getKeys(cb){
