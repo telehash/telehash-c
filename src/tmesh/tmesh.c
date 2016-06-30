@@ -1290,6 +1290,8 @@ mote_t tmesh_moted(tmesh_t tm, hashname_t id)
 tmesh_t tmesh_route(tmesh_t tm, uint32_t route)
 {
   if(!tm) return LOG_WARN("bad args");
+  if(route == tm->route) return tm; // noop
+  LOG_INFO("updating route value from %lu to %lu",tm->route,route);
   tm->route = route;
 
   // make sure we resync all the neighbors
