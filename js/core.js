@@ -159,6 +159,35 @@ class Frames{
       }
     })
 
+    mesh_on_discover(Mesh._mesh, "aaa", (mesh, discovered, pipe) => {
+
+      let packet = lob_from_c(discovered)
+      let hashname = packet.json.hashname;
+      if (Mesh._reject.has(hashname)) return null;
+      if (Mesh._open || Mesh._accept.has(hashname)) return null; //will get handled by global CB
+
+      process.nextTick(() => Mesh.emit('discover', packet, () =>{ 
+        
+        let link = mesh_add(mesh, discovered, pipe);
+        if (!linked && link){
+          that._c_link = link;
+          mesh_link(mesh, link);
+
+
+          // catch new link and plumb delivery pipe
+          linked = link;
+          link_pipe(link, function(link, packet, arg){
+            if(!packet) return null;
+            //console.log("sending packet", frames, packet, lob_len(packet));
+            util_frames_send(frames,packet)
+            frames_flush()
+            return link;
+          },null);
+        }
+      }))
+
+    })
+
     util_frames_send(frames,mesh_json(mesh));
     frames_flush();
     
@@ -282,7 +311,6 @@ class Mesh extends EventEmitter {
   constructor(on_up, opts){
     super();
     this._mesh = mesh_new();
-    this._open = true;
     this._opts = opts;
     
     this._accept = new Set();
@@ -294,6 +322,10 @@ class Mesh extends EventEmitter {
     this._connect = new Map();
 
     this.once("up",on_up);
+  }
+
+  get _open() {
+    return ((this._accept.size === 0) && (this.listenerCount('discover') === 0));
   }
 
   frames(transport, frame_size){
@@ -313,12 +345,11 @@ class Mesh extends EventEmitter {
   }
 
   accept(hashname){
-    this._open = false;
-
+    this._accept.add(hashname);
   }
 
   reject(hashname){
-
+    this._reject.add(hashname);
   }
 
   listen(){
@@ -331,8 +362,12 @@ class Mesh extends EventEmitter {
     this._mesh = mesh_new();
 
     mesh_on_discover(this._mesh, "*", (mesh, discovered, pipe) => {
-      let hashname = lob_from_c(discovered).json.hashname;
-      if (!this._reject.has(hashname) && this._open || this._accept.has(hashname)) mesh_add(mesh, discovered, pipe);
+
+      let packet = lob_from_c(discovered)
+      let hashname = packet.json.hashname;
+      if (this._reject.has(hashname)) return null;
+      if (this._open || this._accept.has(hashname)) return mesh_add(mesh, discovered, pipe);
+      return null;
     });
 
     mesh_on_link(this._mesh, "*", (c_link) => {
