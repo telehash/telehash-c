@@ -53,7 +53,7 @@ class Chunks{
           }
         })
       }
-      
+
 
     });
 
@@ -166,8 +166,8 @@ class Frames{
       if (Mesh._reject.has(hashname)) return null;
       if (Mesh._open || Mesh._accept.has(hashname)) return null; //will get handled by global CB
 
-      process.nextTick(() => Mesh.emit('discover', packet, () =>{ 
-        
+      process.nextTick(() => Mesh.emit('discover', packet, () =>{
+
         let link = mesh_add(mesh, discovered, pipe);
         if (!linked && link){
           that._c_link = link;
@@ -190,7 +190,7 @@ class Frames{
 
     util_frames_send(frames,mesh_json(mesh));
     frames_flush();
-    
+
   }
 
 
@@ -249,7 +249,7 @@ class Channel extends Duplex{
 
   _write(packet, enc, cb){
     packet.json.c = chan_id(this._c_chan);
-    this.c_send(lob_to_c(lob.encode(packet.json, packet.body))); 
+    this.c_send(lob_to_c(lob.encode(packet.json, packet.body)));
     cb();
   }
 
@@ -296,7 +296,15 @@ class Link extends EventEmitter {
   console(cmd, cb){
     let chan = this.channel({json : {type : "console"}, body : cmd})
     chan.on('data',(packet) => {
-      cb(null, Object.assign(packet.json, {result: packet.body ? JSON.parse(packet.body.toString()) : null}))
+      let result;
+
+      try {
+        result = JSON.parse(packet.body.toString());
+      } catch (e){
+        result = packet.body.length ? packet.body.toString() : null;
+      }
+
+      cb(null, Object.assign(packet.json, {result: result}))
     })
     chan.c_send(chan._open);
   }
@@ -312,7 +320,7 @@ class Mesh extends EventEmitter {
     super();
     this._mesh = mesh_new();
     this._opts = opts;
-    
+
     this._accept = new Set();
     this._reject = new Set();
     this._links = new Map();
@@ -382,20 +390,20 @@ class Mesh extends EventEmitter {
 
     mesh_on_open(this._mesh, "*", (c_link, c_open) => {
       process.nextTick(() => {
-        this.emit('open', this._links.get( th.UTF8ToString( hashname_char(link_id(c_link)) ).substr(0,8) ) , lob_from_c(c_open) )   
+        this.emit('open', this._links.get( th.UTF8ToString( hashname_char(link_id(c_link)) ).substr(0,8) ) , lob_from_c(c_open) )
       })
     });
 
     this._getKeys((secrets, keys) => {
       if (secrets && keys){
         mesh_load(this._mesh,  hex_to_lob(secrets),hex_to_lob(keys))
-        
+
       } else {
         let secrets = mesh_generate(this._mesh)
         if (!secrets) throw new Error("mesh generate failed");
 
         this._storeKeys( buf_lob_from_c(secrets).toString("hex"), buf_lob_from_c(lob_linked(secrets)).toString("hex"), () => {
-          
+
         })
       }
       this.hashname = th.UTF8ToString( hashname_char(mesh_id(this._mesh)));
@@ -453,4 +461,4 @@ const Telehash = module.exports = (on_up, opts) => {
   opts = Object.assign({}, defaultOpts, opts || {});
 
   return new Mesh(on_up, opts)
-} 
+}

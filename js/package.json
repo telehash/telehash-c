@@ -43,7 +43,8 @@
     "url": "https://github.com/telehash/telehash-c/issues"
   },
   "dependencies": {
-    "lob-enc": "0.0.17"
+    "lob-enc": "0.0.17",
+    "serialport": "^3.1.2"
   },
   "description": "telehash-c compiled into javascript",
   "devDependencies": {},
