@@ -1038,7 +1038,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   if(!tm->sort || !tm->advance || !tm->schedule) return LOG_ERROR("driver missing");
   if(tm->knock->is_active) return LOG_WARN("invalid usage, busy knock");
 
-  if(at < tm->at) return LOG_WARN("invalid at in the past");
+  if(at < tm->at) return LOG_WARN("invalid at in the past %lu < %lu",at,tm->at);
   tm->at = at;
 
   LOG_CRAZY("processing for %s at %lu",hashname_short(tm->mesh->id),at);
