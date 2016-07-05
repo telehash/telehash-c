@@ -229,5 +229,16 @@ mote_t mote_send(mote_t mote, lob_t packet);
 // send this packet to this id via this router
 mote_t mote_route(mote_t router, hashname_t to, lob_t packet);
 
+// event log byte
+struct tmev_struct {
+  uint8_t is_err:1; // true means failed/stop
+  uint8_t is_tx:1;
+  uint8_t is_signal:1;
+  uint8_t is_scheduled:1;
+  uint8_t is_skipped:1; // for scheduled=false, skipped=false means advanced past a window 
+  uint8_t is_knocked:1; // success/fail
+  uint8_t is_valid:1; // for rx, if frame was valid
+  uint8_t is_sending:1; // if data waiting
+};
 
 #endif
