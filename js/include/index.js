@@ -4,18 +4,6 @@
 **/
 var th = require("./thc.js");
 
-var crypto;
-
-var _browser = (crypto && crypto.getRandomBytes) ? true : false;
-if (!_browser) crypto = require("crypto")
-var rand;
-if (_browser){
-  rand = () => crypto.getRandomValues(new Uint8Array(1))[0]
-} else {
-  rand = () => crypto.randomBytes(1)[0]
-}
-
-
 const returntypes = {
   "_lob_json" : "json",
   "_hashname_short" : "string",

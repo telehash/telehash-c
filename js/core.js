@@ -416,6 +416,10 @@ class Mesh extends EventEmitter {
     this._aborts = this._aborts.filter((abort) => abort() && false)
   }
 
+  _rng(cb){
+    th._e3x_random(th.Runtime.addFunction(rand));
+  }
+
   _getKeys(cb){
     let TELEHASH_SECRET_KEYS = process.env.TELEHASH_SECRET_KEYS
       , TELEHASH_PUBLIC_KEYS = process.env.TELEHASH_PUBLIC_KEYS;
@@ -439,6 +443,9 @@ class Mesh extends EventEmitter {
       case "keystore":
         this._getKeys = mid.getKeys;
         this._storeKeys = mid.storeKeys;
+        return;
+      case "rng":
+        e3x_random(th.Runtime.addFunction(mid.randomByte));
       default:
         return;
     }
