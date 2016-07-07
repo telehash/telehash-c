@@ -97,6 +97,7 @@ typedef struct tmesh_struct *tmesh_t; // joined community motes/signals
 typedef struct mote_struct *mote_t; // local link info, signal and list of stream tempos
 typedef struct tempo_struct *tempo_t; // single tempo, is a signal or stream
 typedef struct knock_struct *knock_t; // single txrx action
+typedef struct tmev_struct tmev_t; // single byte value of 8 event boolean flags
 
 // overall tmesh manager
 struct tmesh_struct
@@ -120,6 +121,7 @@ struct tmesh_struct
   tmesh_t (*medium)(tmesh_t tm, tempo_t tempo, uint8_t seed[8], uint32_t medium); // driver can initialize/update a tempo's medium
   tmesh_t (*accept)(tmesh_t tm, hashname_t id, uint32_t app); // driver handles new neighbors, returns tm to continue or NULL to ignore
   tmesh_t (*free)(tmesh_t tm, tempo_t tempo); // driver can free any associated tempo resources
+  tmesh_t (*event)(tmesh_t tm, mote_t mote, tmev_t ev); // driver can free any associated tempo resources
   knock_t knock;
   
   uint8_t seen[5]; // recently seen short hn from a beacon
@@ -240,5 +242,6 @@ struct tmev_struct {
   uint8_t is_valid:1; // for rx, if frame was valid
   uint8_t is_sending:1; // if data waiting
 };
+
 
 #endif

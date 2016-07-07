@@ -1053,6 +1053,9 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   // create core tempos first time
   if(!tm->beacon)
   {
+    // signal startup
+    if(tm->event) tm->event(tm, NULL, (tmev_t){1,1,1,1,1,1,1,1});
+
     tm->beacon = tempo_new(tm);
     tm->beacon->state.is_signal = 1;
     tempo_init(tm->beacon);

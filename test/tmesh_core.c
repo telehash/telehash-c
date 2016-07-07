@@ -46,6 +46,13 @@ tmesh_t driver_free(tmesh_t tm, tempo_t tempo)
   return tm;
 }
 
+tmev_t ev_last = {0};
+tmesh_t driver_event(tmesh_t tm, mote_t mote, tmev_t ev)
+{
+  ev_last = ev;
+  return tm;
+}
+
 int main(int argc, char **argv)
 {
   fail_unless(!e3x_init(NULL)); // random seed
@@ -74,12 +81,15 @@ int main(int argc, char **argv)
   netA->advance = driver_advance;
   netA->medium = driver_medium;
   netA->free = driver_free;
+  netA->event = driver_event;
   
   fail_unless(netA->knock);
   fail_unless(strcmp(netA->community,"test") == 0);
 
   // create outgoing beacon
   fail_unless(tmesh_schedule(netA,1));
+  printf("ev %x",*(uint8_t*)&ev_last);
+  fail_unless(*(uint8_t*)&ev_last == 0xFF);
   fail_unless(netA->beacon);
   fail_unless(!netA->beacon->frames);
   fail_unless(!netA->beacon->mote);
