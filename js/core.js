@@ -27,14 +27,17 @@ class Chunks{
     var link;
     var linked = false;
     var that = this;
-    this.chunks = lob.chunking({size:chunk_size, blocking:true}, function receive(err, packet){
+    //console.log("chunks", chunk_size)
+    this.chunks = lob.chunking({size:chunk_size, blocking: true}, function receive(err, packet){
+      //console.log("got chunk packet")
       if(err || !packet)
       {
-        console.error('pipe chunk read error',err,pipe.id);
+        //console.error('pipe chunk read error',err,pipe.id);
         return;
       }
       link = mesh_receive(mesh,lob_to_c(packet))
       if (!linked && link){
+        //console.log("linked")
         mesh_link(mesh, link);
         that._c_link = link;
 
@@ -57,17 +60,42 @@ class Chunks{
 
     });
 
-    stream.on('data', (d) => this.chunks.write(d))
-    this.chunks.on('data', (d) => stream.write(d))
-    var greeting = buf_lob_from_c(mesh_json(mesh));
-    this.chunks.send(greeting);
+    var datas = [];
+    var flushing = false;
+    function flush(){
+      if (!flushing && datas.length){
+        flushing = true;
+        stream.write(datas.shift(),function(err){
+          //console.log("write done");
+          if(err) return console.error(err);
+          stream.drain((err) => {
+            //console.log("Drain done")
+            flushing = false;
+            if (err) return console.error(err);
+            setTimeout(flush,1);
+          })
+          //setTimeout(frames_flush,1); // unroll
+        });
+      }
 
+    }
+
+
+    stream.pipe(this.chunks)
+    this.chunks.on('data', (d) =>{
+      datas.push(d);
+      flush();
+    })
+    var greeting = lob_from_c(mesh_json(mesh));
+    console.log(greeting.json)
+    this.chunks.send(lob.encode(greeting.json));
 
   }
 
   cleanup(Mesh, c_link){
     if (c_link === this._c_link){
-      this.stream.close();
+      //console.log("calling cleanup on chunk")
+      //this.stream.close();
       return true;
     } else {
       return false
@@ -92,9 +120,16 @@ class Frames{
       util_frames_sent(frames);
 //      console.log("sending frame",th.BUFFER(frame,frame_size).toString("hex"));
       stream.write(th.BUFFER(frame,frame_size),function(err){
-        flushing = false;
-        if(err) return;
-        setTimeout(frames_flush,1); // unroll
+
+        //console.log("write done");
+        if(err) return console.error(err);
+        stream.drain((err) => {
+          //console.log("Drain done")
+          flushing = false;
+          if (err) return console.error(err);
+          setTimeout(frames_flush,1);
+        })
+        //setTimeout(frames_flush,1); // unroll
       });
       th._free(frame);
     }
@@ -414,10 +449,6 @@ class Mesh extends EventEmitter {
 
   stopListen(){
     this._aborts = this._aborts.filter((abort) => abort() && false)
-  }
-
-  _rng(cb){
-    th._e3x_random(th.Runtime.addFunction(rand));
   }
 
   _getKeys(cb){
