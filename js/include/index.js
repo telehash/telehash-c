@@ -48,8 +48,6 @@ Object.keys(th).filter(key => key.indexOf("_") == 0).forEach((key) => {
   if(fn.indexOf("_") > 0) global[fn] = th[fn];
 })
 
-th._e3x_random(th.Runtime.addFunction(rand));
-
 th.CALLBACK = (fun, types) => function(){
   let args = [];
   for(let i = 0; i < arguments.length; i++){
