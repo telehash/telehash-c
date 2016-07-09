@@ -123,12 +123,9 @@ class Frames{
 
         //console.log("write done");
         if(err) return console.error(err);
-        stream.drain((err) => {
-          //console.log("Drain done")
-          flushing = false;
-          if (err) return console.error(err);
-          setTimeout(frames_flush,1);
-        })
+        flushing = false;
+        if (err) return console.error(err);
+        setTimeout(frames_flush,1);
         //setTimeout(frames_flush,1); // unroll
       });
       th._free(frame);
