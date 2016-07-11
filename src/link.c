@@ -13,7 +13,7 @@ link_t link_new(mesh_t mesh, hashname_t id)
   LOG("adding link %s",hashname_short(id));
   if(!(link = malloc(sizeof (struct link_struct)))) return LOG("OOM");
   memset(link,0,sizeof (struct link_struct));
-  
+
   link->id = hashname_dup(id);
   link->csid = 0x01; // default state
   link->mesh = mesh;
@@ -154,7 +154,7 @@ link_t link_load(link_t link, uint8_t csid, lob_t key)
   }
 
   LOG("adding %x key to link %s",csid,hashname_short(link->id));
-  
+
   // key must be bin
   if(key->body_len)
   {
@@ -174,7 +174,7 @@ link_t link_load(link_t link, uint8_t csid, lob_t key)
 
   link->csid = csid;
   link->key = copy;
-  
+
   e3x_exchange_out(link->x, util_sys_seconds());
   LOG("new exchange session to %s",hashname_short(link->id));
 
@@ -191,7 +191,7 @@ link_t link_pipe(link_t link, link_t (*send)(link_t link, lob_t packet, void *ar
 
   link->send_cb = send;
   link->send_arg = arg;
-  
+
   // flush handshake
   return link_sync(link);
 }
@@ -252,21 +252,23 @@ link_t link_receive_handshake(link_t link, lob_t inner)
     lob_free(inner);
     return LOG("sync failed");
   }
-  
+
   // we may need to re-sync
   if(out != e3x_exchange_out(link->x,0)) link_sync(link);
-  
+
   // notify of ready state change
   if(!ready && link_up(link))
   {
     LOG("link ready");
     mesh_link(link->mesh, link);
   }
-  
+
   lob_free(inner);
   return link;
 }
 
+// forward declare
+chan_t link_process_chan(chan_t c, uint32_t now);
 // process a decrypted channel packet
 link_t link_receive(link_t link, lob_t inner)
 {
@@ -281,7 +283,7 @@ link_t link_receive(link_t link, lob_t inner)
     // consume inner
     chan_receive(c, inner);
     // process any changes
-    chan_process(c, 0);
+    link->chans = link_process_chan(c, 0);
     return link;
   }
 
@@ -305,7 +307,7 @@ link_t link_receive(link_t link, lob_t inner)
     lob_free(inner);
     return NULL;
   }
-  
+
   return link;
 }
 
@@ -318,7 +320,7 @@ link_t link_send(link_t link, lob_t outer)
     lob_free(outer);
     return LOG_WARN("no network");
   }
-  
+
   if(!link->send_cb(link, outer, link->send_arg))
   {
     lob_free(outer);
@@ -332,13 +334,13 @@ lob_t link_handshake(link_t link)
 {
   if(!link) return NULL;
   if(!link->x) return LOG_DEBUG("no exchange");
-  
+
   LOG_DEBUG("generating a new handshake in %lu out %lu",link->x->in,link->x->out);
   lob_t handshake = lob_new();
   lob_t tmp = hashname_im(link->mesh->keys, link->csid);
   lob_body(handshake, lob_raw(tmp), lob_len(tmp));
   lob_free(tmp);
-  
+
   // encrypt it
   tmp = handshake;
   handshake = e3x_exchange_handshake(link->x, tmp);
@@ -456,7 +458,7 @@ link_t link_process(link_t link, uint32_t now)
   if(!link || !now) return LOG("bad args");
   link->chans = link_process_chan(link->chans, now);
   if(link->csid) return link;
-  
+
   // flagged to remove, do that now
   link_down(link);
   link_free(link);
