@@ -90,7 +90,10 @@ chan_t link_chan_get(link_t link, uint32_t id)
 {
   chan_t c;
   if(!link || !id) return NULL;
-  for(c = link->chans;c;c = chan_next(c)) if(chan_id(c) == id) return c;
+  for(c = link->chans;c;c = chan_next(c)) {
+    LOG("<%d><%d>",chan_id(c), id);
+    if(chan_id(c) == id) return c;
+  }
   return NULL;
 }
 
@@ -276,14 +279,15 @@ link_t link_receive(link_t link, lob_t inner)
 
   if(!link || !inner) return LOG("bad args");
 
+  LOG("<-- %d",lob_get_int(inner,"c"));
   // see if existing channel and send there
   if((c = link_chan_get(link, lob_get_int(inner,"c"))))
   {
-    LOG("\t<-- %s",lob_json(inner));
+    LOG("found chan");
     // consume inner
     chan_receive(c, inner);
     // process any changes
-    link->chans = link_process_chan(c, 0);
+    link->chans = link_process_chan(link->chans, 0);
     return link;
   }
 
@@ -448,6 +452,7 @@ chan_t link_process_chan(chan_t c, uint32_t now)
   if(!c) return NULL;
   chan_t next = link_process_chan(chan_next(c), now);
   if(!chan_process(c, now)) return next;
+  LOG("alive: %d", chan_id(c));
   c->next = next;
   return c;
 }
