@@ -16,8 +16,8 @@ TMESH = src/tmesh/tmesh.c
 # CS1c by default
 CS = src/e3x/cs1c/cs1c.c 
 
-# legacy CS1a
-CS += src/e3x/cs1a_disabled.c
+# also CS1a
+CS += src/e3x/cs1a/cs1a.c
 
 # check for CS2a deps
 ifneq ("$(wildcard node_modules/libtomcrypt-c/libtomcrypt.a)","")
