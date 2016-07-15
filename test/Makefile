@@ -23,6 +23,10 @@ TMESH = src/tmesh/tmesh.c
 CS = src/e3x/cs1a/cs1a.c 
 TESTS += e3x_cs1a
 
+# CS1c also
+CS += src/e3x/cs1c/cs1c.c 
+TESTS += e3x_cs1c
+
 # check for CS2a deps
 ifneq ("$(wildcard ../node_modules/libtomcrypt-c/libtomcrypt.a)","")
 CS += src/e3x/cs2a/cs2a_tom.c
