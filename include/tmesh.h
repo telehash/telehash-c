@@ -111,14 +111,14 @@ struct tmesh_struct
   tempo_t signal; // outgoing signal, unique to us
   tempo_t stream; // have an always-running shared stream, keyed from beacon for handshakes, RX for alerts
   tempo_t beacon; // only one of these, advertises our shared stream
-  uint32_t app; // available for app to use to send custom block
+  uint32_t route; // available for app-level routing logic
 
   // driver interface
   tempo_t (*sort)(tmesh_t tm, tempo_t a, tempo_t b);
   tmesh_t (*schedule)(tmesh_t tm); // called whenever a new knock is ready to be scheduled
   tmesh_t (*advance)(tmesh_t tm, tempo_t tempo, uint8_t seed[8]); // advances tempo to next window
   tmesh_t (*medium)(tmesh_t tm, tempo_t tempo, uint8_t seed[8], uint32_t medium); // driver can initialize/update a tempo's medium
-  tmesh_t (*accept)(tmesh_t tm, hashname_t id, uint32_t app); // driver handles new neighbors, returns tm to continue or NULL to ignore
+  tmesh_t (*accept)(tmesh_t tm, hashname_t id, uint32_t route); // driver handles new neighbors, returns tm to continue or NULL to ignore
   tmesh_t (*free)(tmesh_t tm, tempo_t tempo); // driver can free any associated tempo resources
   knock_t knock;
   
@@ -148,8 +148,8 @@ tmesh_t tmesh_demote(tmesh_t tm, mote_t mote);
 // returns mote for this id if one exists
 mote_t tmesh_moted(tmesh_t tm, hashname_t id);
 
-// update/signal our current app id
-tmesh_t tmesh_appid(tmesh_t tm, uint32_t id);
+// update/signal our current route value
+tmesh_t tmesh_route(tmesh_t tm, uint32_t route);
 
 // tempo state
 struct tempo_struct
@@ -217,7 +217,7 @@ struct mote_struct
   link_t link;
   tempo_t signal; // tracks their signal
   tempo_t stream; // is a private stream, optionally can track their shared stream (TODO)
-  uint32_t app; // most recent app block from them
+  uint32_t route; // most recent route block from them
 };
 
 // return current mote appid
