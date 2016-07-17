@@ -4,6 +4,9 @@
 #include "mesh.h"
 #include <stdbool.h>
 
+// how many knocks can be prepared in advance, must be >= 2
+#define TMESH_KNOCKS 5
+
 /*
 
 tempo_t is a synchronized comm thread
@@ -129,7 +132,7 @@ struct tmesh_struct
   // driver handles new neighbors, returns tm to continue or NULL to ignore
   tmesh_t (*accept)(tmesh_t tm, hashname_t id, uint32_t route);
 
-  struct knock_struct knocks[5]; // 0 is idle slot, 1-3 is ready slots
+  struct knock_struct knocks[TMESH_KNOCKS]; // 0 is idle slot, 1+ is ready slots
   knock_t ready;
   knock_t idle;
   
