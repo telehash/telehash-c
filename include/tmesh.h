@@ -104,7 +104,7 @@ typedef struct knock_struct
   tempo_t tempo;
   uint32_t started, stopped; // actual times
   uint8_t frame[64];
-  uint8_t nonce[8]; // convenience
+  uint8_t seed[8]; // random bits shared betweeen both parties
   // boolean flags for state tracking, etc
   uint8_t is_active:1; // is actively transceiving
   uint8_t is_tx:1; // current window direction (copied from tempo for convenience)
@@ -147,8 +147,8 @@ tmesh_t tmesh_free(tmesh_t tm);
 // returns a tempo when successful rx in case there's new packets available
 tempo_t tmesh_knocked(tmesh_t tm);
 
-// check all knocks if done, rebuilt tm->ready
-tmesh_t tmesh_process(tmesh_t tm);
+// check all knocks if done, rebuild tm->ready
+tmesh_t tmesh_process(tmesh_t tm, uint32_t at);
 
 // call before a _process to rebase (subtract) given cycles off all at's (to prevent overflow)
 tmesh_t tmesh_rebase(tmesh_t tm, uint32_t deduct);
@@ -178,11 +178,10 @@ struct tempo_struct
   uint32_t seq; // window increment part of nonce
   uint16_t c_tx, c_rx; // current counts
   uint16_t c_bad; // dropped bad frames
-  int16_t last, best, worst; // rssi
   uint8_t secret[32];
-  uint8_t c_miss, c_skip, c_idle; // how many of the last rx windows were missed (expected), skipped (scheduling), or idle
-  uint8_t chan; // channel of next knock
-  uint8_t priority; // next knock priority
+  uint8_t c_skipped; // number of windows skipped due to being in the past
+  uint8_t c_miss, c_idle; // how many of the last rx windows were missed (expected), or idle
+  uint8_t priority; // current priority
   // a byte of state flags for each tempo type
   union
   {

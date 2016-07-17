@@ -22,18 +22,6 @@ typedef struct mblock_struct {
   uint8_t body[4]; // payload
 } *mblock_t;
 
-#define STATED(t) util_sys_log(7, "", __LINE__, __FUNCTION__, \
-      "\t%s %s %u/%d/%u %s %d %lu", \
-        t->mote?hashname_short(t->mote->link->id):(t==t->tm->signal)?"mysignal":(t==t->tm->beacon)?"mybeacon":"myshared", \
-        t->state.is_signal?(t->mote?"<-":"->"):"<>", \
-        t->medium, \
-        t->last, \
-        t->priority, \
-        t->state.accepting?"A":(t->state.requesting?"R":(util_frames_busy(t->frames)?"B":"I")), \
-        t->frames?util_frames_outlen(t->frames):-1, \
-        t->at);
-
-
 // forward-ho
 static tempo_t tempo_new(tmesh_t tm);
 static tempo_t tempo_free(tempo_t tempo);
@@ -150,8 +138,6 @@ static mote_t mote_new(tmesh_t tm, link_t link)
   mote->signal->mote = mote;
   tempo_init(mote->signal);
 
-  STATED(mote->signal);
-
   return mote;
 }
 
@@ -160,7 +146,6 @@ static tempo_t tempo_free(tempo_t tempo)
   if(!tempo) return NULL;
   if(tempo->tm->knock->tempo == tempo) tempo->tm->knock->tempo = NULL; // safely cancels an existing knock
   tempo->medium = tempo->priority = 0;
-  STATED(tempo);
   util_frames_free(tempo->frames);
   free(tempo);
   return NULL;
@@ -296,8 +281,6 @@ static tempo_t tempo_init(tempo_t tempo)
   
   // tell driver to set the medium
   tempo_medium(tempo, 0);
-  
-  STATED(tempo);
   
   return tempo;
 }
@@ -450,7 +433,6 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
             stream->priority = 3; // little boost
             stream->at = tempo->at;
             stream->seq = tempo->seq; // TODO invert uint32 for unique starting point
-            STATED(tempo);
           }
 
           stream->state.adhoc = 0; // just in case, don't do this anymore
@@ -659,7 +641,6 @@ static tempo_t tempo_blocks_rx(tempo_t tempo, uint8_t *blocks, uint8_t index)
             default:
               LOG_WARN("unknown medium block %u: %s",block->head,util_hex((uint8_t*)block,5,NULL));
           }
-          if(from) STATED(from->stream);
           break;
         default:
           LOG_WARN("unknown block %u: %s",block->type,util_hex((uint8_t*)block,5,NULL));
@@ -860,7 +841,6 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
         stream->state.direction = 1; // inverted
         stream->priority = 2;
         tempo_medium(stream, medium);
-        STATED(stream);
 
         // reset beacon
         return tempo_init(tempo);
@@ -894,7 +874,7 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
 
     memcpy(frame,knock->frame,64);
     chacha20(tempo->secret,knock->nonce,frame,64);
-    LOG_CRAZY("RX data RSSI %d frame %s\n",knock->rssi,util_hex(frame,64,NULL));
+    LOG_CRAZY("RX data frame %s\n",util_hex(frame,64,NULL));
 
     if(!util_frames_inbox(tempo->frames, frame, blocks))
     {
@@ -914,9 +894,6 @@ static tempo_t tempo_knocked_rx(tempo_t tempo, knock_t knock)
   // update RX flags/stats now
   tempo->c_miss = 0;
   tempo->c_rx++; // this will pause mote signal RX while stream is active
-  if(knock->rssi > tempo->best || !tempo->best) tempo->best = knock->rssi;
-  if(knock->rssi < tempo->worst || !tempo->worst) tempo->worst = knock->rssi;
-  tempo->last = knock->rssi;
 
   // process any blocks
   tempo_blocks_rx(tempo, blocks, 0);
@@ -1006,7 +983,6 @@ tempo_t tmesh_knocked(tmesh_t tm)
 static tempo_t tempo_advance(tempo_t tempo, uint32_t at)
 {
   if(!tempo || !at) return NULL;
-  tmesh_t tm = tempo->tm;
 
   // initialize to *now* if not set
   if(!tempo->at) tempo->at = at;
@@ -1015,24 +991,29 @@ static tempo_t tempo_advance(tempo_t tempo, uint32_t at)
   while(tempo->at <= at)
   {
     tempo->seq++;
-    tempo->c_skip++; // counts missed windows, cleared after knocked
-
-    // use encrypted seed (follows frame)
-    uint8_t seed[64+8] = {0};
-    uint8_t nonce[8] = {0};
-    memcpy(nonce,&(tempo->medium),4);
-    memcpy(nonce+4,&(tempo->seq),4);
-    chacha20(tempo->secret,nonce,seed,64+8);
-    
-    // call driver to apply seed to tempo
-    if(!tm->advance(tm, tempo, seed+64)) return LOG_WARN("driver advance failed");
+    tempo->c_skipped++; // counts missed windows, cleared after knocked
   }
 
   return tempo;
 }
 
+static knock_t tempo_knock(tempo_t tempo, knock_t knock)
+{
+  if(!tempo || !knock) return NULL;
+
+  memset(knock,0,sizeof(struct knock_struct));
+  knock->tempo = tempo;
+
+  uint8_t nonce[8] = {0};
+  memcpy(nonce,&(tempo->medium),4);
+  memcpy(nonce+4,&(tempo->seq),4);
+  chacha20(tempo->secret,nonce,knock->seed,8);
+
+  return knock;
+}
+
 // process everything based on current cycle count, returns success
-tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
+tmesh_t tmesh_process(tmesh_t tm, uint32_t at)
 {
   if(!tm || !at) return LOG_WARN("bad args");
   if(!tm->sort || !tm->advance || !tm->schedule) return LOG_ERROR("driver missing");
@@ -1049,12 +1030,10 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
     tm->beacon = tempo_new(tm);
     tm->beacon->state.is_signal = 1;
     tempo_init(tm->beacon);
-    STATED(tm->beacon);
 
     tm->signal = tempo_new(tm);
     tm->signal->state.is_signal = 1;
     tempo_init(tm->signal);
-    STATED(tm->signal);
   }
   
   // TODO rework how the best is sorted, maybe all at once
@@ -1123,8 +1102,6 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   // upcheck our signal last
   tempo_advance(tm->signal, at);
   if(do_signal) best = tm->sort(tm, best, tm->signal);
-  
-  STATED(best);
   
   // try a new knock
   knock_t knock = tm->knock;
@@ -1250,11 +1227,7 @@ mote_t tmesh_mote(tmesh_t tm, link_t link)
   // bump priority
   mote->stream->priority = 4;
 
-  STATED(mote->stream);
-  STATED(mote->signal);
-
   return mote;
-  
 }
 
 // drops and free's this mote (link just goes to down state if no other paths)
