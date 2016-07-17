@@ -88,15 +88,25 @@ beacon > lost
 SECURITY TODOs
   * generate a temp hashname on boot, use that to do all beacon and shared stream handling
 
-NEXT
-  * use ad-hoc beacons for faster signal stream request/accept
-
 */
 
 typedef struct tmesh_struct *tmesh_t; // joined community motes/signals
 typedef struct mote_struct *mote_t; // local link info, signal and list of stream tempos
 typedef struct tempo_struct *tempo_t; // single tempo, is a signal or stream
-typedef struct knock_struct *knock_t; // single txrx action
+
+// a single convenient tx/rx action ready to go
+typedef struct knock_struct
+{
+  struct knock_struct *next; // for tm->ready list
+  tempo_t tempo;
+  uint32_t started, stopped; // actual times
+  uint8_t frame[64];
+  uint8_t nonce[8]; // convenience
+  // boolean flags for state tracking, etc
+  uint8_t is_active:1; // is actively transceiving
+  uint8_t is_tx:1; // current window direction (copied from tempo for convenience)
+  uint8_t do_err:1; // driver sets if failed
+} *knock_t;
 
 // overall tmesh manager
 struct tmesh_struct
@@ -113,14 +123,15 @@ struct tmesh_struct
   tempo_t beacon; // only one of these, advertises our shared stream
   uint32_t route; // available for app-level routing logic
 
-  // driver interface
-  tempo_t (*sort)(tmesh_t tm, tempo_t a, tempo_t b);
-  tmesh_t (*schedule)(tmesh_t tm); // called whenever a new knock is ready to be scheduled
-  tmesh_t (*advance)(tmesh_t tm, tempo_t tempo, uint8_t seed[8]); // advances tempo to next window
-  tmesh_t (*medium)(tmesh_t tm, tempo_t tempo, uint8_t seed[8], uint32_t medium); // driver can initialize/update a tempo's medium
-  tmesh_t (*accept)(tmesh_t tm, hashname_t id, uint32_t route); // driver handles new neighbors, returns tm to continue or NULL to ignore
-  tmesh_t (*free)(tmesh_t tm, tempo_t tempo); // driver can free any associated tempo resources
-  knock_t knock;
+  // externally event when a tempo is created (has medium) and removed (0 medium)
+  tmesh_t (*tempo)(tmesh_t tm, tempo_t tempo, uint8_t seed[8], uint32_t medium);
+
+  // driver handles new neighbors, returns tm to continue or NULL to ignore
+  tmesh_t (*accept)(tmesh_t tm, hashname_t id, uint32_t route);
+
+  struct knock_struct knocks[5]; // 0 is idle slot, 1-3 is ready slots
+  knock_t ready;
+  knock_t idle;
   
   uint8_t seen[5]; // recently seen short hn from a beacon
 };
@@ -133,11 +144,11 @@ tmesh_t tmesh_free(tmesh_t tm);
 // returns a tempo when successful rx in case there's new packets available
 tempo_t tmesh_knocked(tmesh_t tm);
 
-// at based on current cycle count since start or last rebase
-tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at);
+// check all knocks if done, rebuilt tm->ready
+tmesh_t tmesh_process(tmesh_t tm);
 
-// call before a schedule to rebase (subtract) given cycles off all at's (to prevent overflow)
-tmesh_t tmesh_rebase(tmesh_t tm, uint32_t at);
+// call before a _process to rebase (subtract) given cycles off all at's (to prevent overflow)
+tmesh_t tmesh_rebase(tmesh_t tm, uint32_t deduct);
 
 // returns mote for this link, creating one if a stream is provided
 mote_t tmesh_mote(tmesh_t tm, link_t link);
@@ -192,22 +203,6 @@ struct tempo_struct
   } state;
 };
 
-// a single convenient knock request ready to go
-struct knock_struct
-{
-  tempo_t tempo;
-  uint32_t adhoc; // request driver to do an adhoc tx(immediate) or rx(seek until)
-  uint32_t started, stopped; // actual times
-  int16_t rssi, snr; // set by driver only after rx
-  uint8_t frame[64];
-  uint8_t nonce[8]; // convenience
-  // boolean flags for state tracking, etc
-  uint8_t is_active:1; // is actively transceiving
-  uint8_t is_tx:1; // current window direction (copied from tempo for convenience)
-  uint8_t do_err:1; // driver sets if failed
-  uint8_t do_gone:1; // driver sets to fail the signal/stream
-};
-
 // mote state tracking
 struct mote_struct
 {
@@ -219,9 +214,6 @@ struct mote_struct
   tempo_t stream; // is a private stream, optionally can track their shared stream (TODO)
   uint32_t route; // most recent route block from them
 };
-
-// return current mote appid
-uint32_t mote_appid(mote_t mote);
 
 // find a stream to send it to for this mote
 mote_t mote_send(mote_t mote, lob_t packet);
