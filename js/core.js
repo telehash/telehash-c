@@ -21,6 +21,8 @@ const hex_to_lob = (hex) => {
 
 
 
+
+
 class Chunks{
   constructor(Mesh, stream, chunk_size){
     var mesh = Mesh._mesh;
@@ -294,12 +296,16 @@ class Channel extends Duplex{
 class Link extends EventEmitter {
   constructor(Mesh, c_link){
     super();
+
     this._c_mesh = Mesh._mesh;
     this._c_link = c_link;
     this.hashname = th.UTF8ToString( hashname_char(link_id(c_link)) );
-    Mesh._links.set(this.hashname.substr(0,8), this);
+    var id = this.hashname.substr(0,8)
+
+    Mesh._links.set(id, this);
     this.on('down',() => {
-      Mesh._links.delete(this.hashname.substr(0,8))
+      Mesh._links.delete(id)
+      Mesh._deadLinks.set(id, this);
       try{
         link_pipe(c_link, null, null);
         link_down(c_link);
@@ -311,9 +317,17 @@ class Link extends EventEmitter {
     }
   }
 
+  get up(){
+    return link_up(this._c_link);
+  }
+
   direct(open, body){
     let buf = lob.encode(open, new Buffer(body));
     link_direct( this._c_link, lob_to_c(buf) );
+  }
+
+  c_link(c){
+    this._c_link = c;
   }
 
   init(file, cb){
@@ -357,6 +371,8 @@ class Mesh extends EventEmitter {
     this._accept = new Set();
     this._reject = new Set();
     this._links = new Map();
+    this._deadLinks = new Map();
+
     this._frames = new Set();
     this._chunks = new Set();
     this._listen = new Set();
@@ -412,12 +428,19 @@ class Mesh extends EventEmitter {
     });
 
     mesh_on_link(this._mesh, "*", (c_link) => {
-      if (link_up(c_link) && !this._links.has(th.UTF8ToString( hashname_char(link_id(c_link)) ).substr(0,8))){
-        let _link = new Link(this , c_link)
-         process.nextTick(() => this.emit("link", _link));
+      let id = th.UTF8ToString( hashname_char(link_id(c_link)) ).substr(0,8);
+      if (link_up(c_link) && !this._links.has(id)){
+        let _link = this._deadLinks.get(id) || new Link(this , c_link)
+        _link.c_link(c_link);
+        process.nextTick(() => {
+          this._links.set(id, _link);
+          this.emit("link", _link)
+          _link.emit("up");
+        });
       }
-      if (!link_up(c_link) && this._links.has(th.UTF8ToString( hashname_char(link_id(c_link)) ).substr(0,8))){
-        this._links.delete(th.UTF8ToString( hashname_char(link_id(c_link)) ).substr(0,8))
+      if (!link_up(c_link) && this._links.has(id)){
+        this._deadLinks.set(id, this._links.get(id))
+        this._links.delete(id)
       }
     });
 
