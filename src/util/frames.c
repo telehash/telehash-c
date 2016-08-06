@@ -154,6 +154,8 @@ util_frames_t util_frames_await(util_frames_t frames)
 {
   if(!frames) return NULL;
   if(frames->err) return LOG_WARN("frame state error");
+  // last status from them
+  if(frames->more) return frames;
   // need more to complete inbox
   if(frames->cache) return frames;
   // outbox is complete, awaiting flush
@@ -253,6 +255,9 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *me
       LOG_DEBUG("flushing mismatch, hash %lu last %lu",rxd,inlast);
     }
     
+    // update more flag (TODO move incoming byte to bitfield)
+    frames->more = (data[8])?1:0;
+
     return frames;
   }
   
@@ -297,6 +302,7 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *me
 //  LOG("got frame tail of %u",tail);
   frames->flush = 1;
   frames->inbase = hash1;
+  frames->more = 0; // clear any more flag also
 
   size_t tlen = (frames->in * size) + tail;
 
@@ -356,6 +362,7 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *m
     uint32_t inlast = (frames->cache)?frames->cache->hash:frames->inbase;
     memcpy(data,&(inlast),4);
     memcpy(data+4,&(hash),4);
+    if(len && (frames->out * size) <= len) data[8] = 1; // flag we have more to send
     if(meta) memcpy(data+10,meta,size-10);
     murmur(data,size,data+size);
     LOG_CRAZY("sending meta frame inlast %lu cur %lu",inlast,hash);
@@ -370,6 +377,7 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *m
     size = len - at;
     data[PAYLOAD(frames)-1] = size;
   }
+  // TODO there's extra space in tail frames that could be used for meta
   memcpy(data,out+at,size);
   hash ^= murmur4(data,size);
   hash += frames->out;
