@@ -13,8 +13,11 @@ NET = src/net/loopback.c
 UTIL = src/util/util.c src/util/chunks.c src/util/frames.c src/unix/util.c src/unix/util_sys.c
 TMESH = src/tmesh/tmesh.c 
 
-# CS1a by default
-CS = src/e3x/cs1a/cs1a.c 
+# CS1c by default
+CS = src/e3x/cs1c/cs1c.c 
+
+# also CS1a
+CS += src/e3x/cs1a/cs1a.c
 
 # check for CS2a deps
 ifneq ("$(wildcard node_modules/libtomcrypt-c/libtomcrypt.a)","")

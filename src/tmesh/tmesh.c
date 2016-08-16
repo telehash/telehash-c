@@ -11,12 +11,12 @@ typedef enum {
   tmesh_block_at, // next signal time from now
   tmesh_block_seq, // next signal sequence#
   tmesh_block_qos, // last known signal quality
-  tmesh_block_app // app defined
+  tmesh_block_route // routing information
 } tmesh_block_t;
 
 // 5-byte blocks for mesh meta values
 typedef struct mblock_struct {
-  tmesh_block_t type:3; // medium, at, seq, quality, app
+  tmesh_block_t type:3; // medium, at, seq, quality, route
   uint8_t head:4; // per-type
   uint8_t done:1; // last one for cur context
   uint8_t body[4]; // payload
@@ -40,13 +40,6 @@ static tempo_t tempo_free(tempo_t tempo);
 static tempo_t tempo_init(tempo_t tempo);
 static tempo_t tempo_medium(tempo_t tempo, uint32_t medium);
 static tempo_t tempo_gone(tempo_t tempo);
-
-// return current mote appid
-uint32_t mote_appid(mote_t mote)
-{
-  if(!mote) return 0;
-  return mote->app;
-}
 
 // find a stream to send it to for this mote
 mote_t mote_send(mote_t mote, lob_t packet)
@@ -413,10 +406,10 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
 
     }else if(tempo == tm->signal){ // shared outgoing signal
 
-      // fill in our outgoing blocks, just cur app value for now
+      // fill in our outgoing blocks, just cur route value for now
       block = (mblock_t)(blocks);
-      block->type = tmesh_block_app;
-      memcpy(block->body,&(tm->app),4);
+      block->type = tmesh_block_route;
+      memcpy(block->body,&(tm->route),4);
 
       block->done = 1;
 
@@ -481,11 +474,11 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
           }
         }
 
-        // always bundle app id to confirm and for ambiance in the neighborhood
+        // always bundle route id to confirm and for ambiance in the neighborhood
         block = (mblock_t)(blocks+(++index*5));
         if(index >= 12) break;
-        block->type = tmesh_block_app;
-        memcpy(block->body,&(mote->app),4);
+        block->type = tmesh_block_route;
+        memcpy(block->body,&(mote->route),4);
 
         // end this mote's blocks
         block->done = 1;
@@ -525,8 +518,8 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
       memcpy(block->body,&(tempo->qos_local),4);
     
       block = (mblock_t)(blocks+(5+5+5+5));
-      block->type = tmesh_block_app;
-      memcpy(block->body,&(tm->app),4);
+      block->type = tmesh_block_route;
+      memcpy(block->body,&(tm->route),4);
 
       block->done = 1;
 
@@ -630,8 +623,8 @@ static tempo_t tempo_blocks_rx(tempo_t tempo, uint8_t *blocks, uint8_t index)
               LOG_WARN("unknown medium block %u: %s",block->head,util_hex((uint8_t*)block,5,NULL));
           }
           break;
-        case tmesh_block_app:
-          if(about) about->app = body;
+        case tmesh_block_route:
+          if(about) about->route = body;
           else if(seen && tempo->mote && tm->accept && tm->accept(tm, seen, body))
           {
             LOG_CRAZY("FIXME: routing a link probe to %s via %s",hashname_short(seen),hashname_short(tempo->mote->link->id));
@@ -1045,7 +1038,7 @@ tmesh_t tmesh_schedule(tmesh_t tm, uint32_t at)
   if(!tm->sort || !tm->advance || !tm->schedule) return LOG_ERROR("driver missing");
   if(tm->knock->is_active) return LOG_WARN("invalid usage, busy knock");
 
-  if(at < tm->at) return LOG_WARN("invalid at in the past");
+  if(at < tm->at) return LOG_WARN("invalid at in the past %lu < %lu",at,tm->at);
   tm->at = at;
 
   LOG_CRAZY("processing for %s at %lu",hashname_short(tm->mesh->id),at);
@@ -1293,11 +1286,13 @@ mote_t tmesh_moted(tmesh_t tm, hashname_t id)
   return NULL;
 }
 
-// update/signal our current app id
-tmesh_t tmesh_appid(tmesh_t tm, uint32_t id)
+// update/signal our current route id
+tmesh_t tmesh_route(tmesh_t tm, uint32_t route)
 {
   if(!tm) return LOG_WARN("bad args");
-  tm->app = id;
+  if(route == tm->route) return tm; // noop
+  LOG_INFO("updating route value from %lu to %lu",tm->route,route);
+  tm->route = route;
 
   // make sure we resync all the neighbors
   mote_t mote;
