@@ -16,10 +16,13 @@ int main(int argc, char *argv[])
   mesh_t mesh;
   net_udp4_t udp4;
   int port = 0;
+  int link = 0;
 
-  if(argc==2)
+  // support "router 12345 54321" first arg listen, second to establish link to
+  if(argc >= 3)
   {
     port = atoi(argv[1]);
+    link = atoi(argv[2]);
   }
 
   id = util_fjson("id.json");
@@ -37,6 +40,13 @@ int main(int argc, char *argv[])
 
   json = mesh_json(mesh);
   printf("%s\n",lob_json(json));
+  printf("using port %u\n",net_udp4_port(udp4));
+
+  if(link)
+  {
+    net_udp4_direct(udp4, json, "127.0.0.1", link);
+    printf("sent hello to %d\n",link);
+  }
 
   while(net_udp4_process(udp4));
 
