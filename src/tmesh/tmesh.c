@@ -159,6 +159,7 @@ static tempo_t tempo_free(tempo_t tempo)
 {
   if(!tempo) return NULL;
   if(tempo->tm->knock->tempo == tempo) tempo->tm->knock->tempo = NULL; // safely cancels an existing knock
+  if(tempo->tm->free) tempo->tm->free(tempo->tm, tempo); // tell driver to free also
   tempo->medium = tempo->priority = 0;
   STATED(tempo);
   util_frames_free(tempo->frames);

@@ -29,6 +29,7 @@ typedef struct util_frames_struct
   uint8_t size; // frame size
   uint8_t flush:1; // bool to signal a flush is needed
   uint8_t err:1; // unrecoverable failure
+  uint8_t more:1; // last incoming meta said there was more
 
 } *util_frames_t;
 
@@ -68,8 +69,6 @@ util_frames_t util_frames_busy(util_frames_t frames);
 
 // is a frame pending to be sent immediately
 util_frames_t util_frames_pending(util_frames_t frames);
-
-
 
 // check error state and clearing it
 util_frames_t util_frames_ok(util_frames_t frames);
