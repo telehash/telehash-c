@@ -1,5 +1,5 @@
-#ifndef lobar_h
-#define lobar_h
+#ifndef book_h
+#define book_h
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -41,67 +41,67 @@ struct index_struct
 };
 
 // chapter meta tracker
-typedef struct lobar_struct
+typedef struct book_struct
 {
   uint32_t pager; // cumulative hash during paging
   struct index_struct index;
   uint8_t null; // makes sure index.title is null terminated
-} *lobar_t;
+} *book_t;
 
 
 // allocates new chapter tracker w/ given values
-lobar_t lobar_create(char *title, uint16_t start, uint32_t len, uint32_t hash);
+book_t book_create(char *title, uint16_t start, uint32_t len, uint32_t hash);
 
 // loads chapter from a raw index page
-lobar_t lobar_parse(const uint8_t *index);
+book_t book_parse(const uint8_t *index);
 
 // free's local state about this chapter
-lobar_t lobar_free(lobar_t chapter);
+book_t book_free(book_t chapter);
 
 // accessors
-uint32_t lobar_hash(lobar_t chapter);
-uint32_t lobar_len(lobar_t chapter);
-char *lobar_title(lobar_t chapter);
+uint32_t book_hash(book_t chapter);
+uint32_t book_len(book_t chapter);
+char *book_title(book_t chapter);
 
 // pages
-uint16_t lobar_first(lobar_t chapter);
-uint16_t lobar_last(lobar_t chapter);
+uint16_t book_first(book_t chapter);
+uint16_t book_last(book_t chapter);
 
 // new lob describing it
-lob_t lobar_json(lobar_t chapter);
+lob_t book_json(book_t chapter);
 
 // accumulates checkhash and returns next page to load after given data (must be len%16==0)
-uint16_t lobar_pager(lobar_t chapter, uint16_t at, uint8_t *bin, uint32_t len);
+uint16_t book_pager(book_t chapter, uint16_t at, uint8_t *bin, uint32_t len);
 
 // success of last full pager hashing, optional flag to update w/ new hash
-lobar_t lobar_verify(lobar_t chapter, bool update);
+book_t book_verify(book_t chapter, bool update);
 
 // given the first page, return the last page of the lob header
-uint16_t lobar_head(lobar_t chapter, uint8_t *first);
+uint16_t book_head(book_t chapter, uint8_t *first);
 
 // returns raw index page
-uint8_t *lobar_index(lobar_t chapter);
+uint8_t *book_index(book_t chapter);
 
 
 //////// this is for making writeable books
 
 // creates summary of chapters 
-lob_t lobar_toc_json(lob_t toc);
+lob_t book_toc_json(lob_t toc);
 
 // finds a block of pages w/ this much space, returns first block
-uint16_t lobar_toc_space(lob_t toc, uint32_t len);
+uint16_t book_toc_space(lob_t toc, uint32_t len);
 
 // loads chapter from a toc lob by matching name
-lobar_t lobar_toc_get(lob_t toc, char *title);
+book_t book_toc_get(lob_t toc, char *title);
 
 // adds chapter, fails if exists
-lob_t lobar_toc_add(lob_t toc, lobar_t chapter);
+lob_t book_toc_add(lob_t toc, book_t chapter);
 
 // just updates this chapter in the toc (fails if doesn't exist)
-lob_t lobar_toc_mod(lob_t toc, lobar_t chapter);
+lob_t book_toc_mod(lob_t toc, book_t chapter);
 
 // removes any chapter w/ this title
-lob_t lobar_toc_del(lob_t toc, char *title);
+lob_t book_toc_del(lob_t toc, char *title);
 
 
 #endif

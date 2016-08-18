@@ -3,7 +3,7 @@
 #include "hashname.h"
 #include "js0n.h"
 #include "lob.h"
-#include "lobar.h"
+#include "book.h"
 #include "murmur.h"
 #include "chacha.h"
 #include "xht.h"
