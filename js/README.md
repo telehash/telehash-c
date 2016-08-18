@@ -1,7 +1,7 @@
 Telehash-c + Emscripten = fast javascript telehash
 ===
 
-to build, first get (emsdk)[https://kripken.github.io/emscripten-site/docs/getting_started/downloads.html]
+to build, first get [emsdk](https://kripken.github.io/emscripten-site/docs/getting_started/downloads.html)
 
 `make javascript`
 
