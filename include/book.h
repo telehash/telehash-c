@@ -31,7 +31,7 @@ typical flow, old is previous book, new is updated one:
 - ... copy, apply, validate, repeat
 *******************************************/
 
-// raw index format
+// raw index page format (16 bytes)
 struct index_struct
 {
   uint32_t hash;
