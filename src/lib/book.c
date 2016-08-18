@@ -20,9 +20,9 @@ chapter_t chapter_parse(const uint8_t *index)
 }
 
 // allocs new
-chapter_t chapter_create(char *title, uint16_t start, uint32_t len, uint32_t hash)
+chapter_t chapter_new(char *title, uint16_t start, uint32_t len, uint32_t hash)
 {
-  if(!title || !start || !len) return LOG_WARN("bad args");
+  if(!title || !start) return LOG_WARN("bad args");
   uint8_t tlen = strlen(title);
   if(tlen > 6) return LOG_WARN("title too long, must be <= 6: '%s'",title);
   if(len > (65535*16)) return LOG_WARN("len of %lu is too long, must be < 1048560",len);
@@ -84,7 +84,7 @@ lob_t chapter_json(chapter_t ch)
   lob_t json = lob_new();
   lob_set(json,"title",ch->index.title);
   lob_set_uint(json,"start",ch->index.start);
-  lob_set_uint(json,"leh",ch->index.len);
+  lob_set_uint(json,"len",ch->index.len);
   lob_set_uint(json,"hash",ch->index.hash);
   return json;
 }
@@ -111,7 +111,7 @@ chapter_t chapter_verify(chapter_t ch, bool set)
     return ch;
   }
 
-  return (ch->index.hash == pager)?ch:LOG_DEBUG("verify failed %lu != %lu",ch->index.hash,pager);
+  return (ch->index.hash == pager)?ch:LOG_DEBUG("verify failed %u != %u",ch->index.hash,pager);
 }
 
 // given the first page, return the last page of the lob header
@@ -125,6 +125,22 @@ uint16_t chapter_head(chapter_t chapter, uint8_t *first)
 uint8_t *chapter_index(chapter_t chapter)
 {
   return LOG_INFO("TODO");
+}
+
+// set the len/hash using these contents
+chapter_t chapter_set(chapter_t ch, lob_t contents)
+{
+  if(!ch) return LOG_DEBUG("bad args");
+  if(!contents)
+  {
+    ch->index.len = 0;
+    ch->index.hash = 0;
+    return ch;
+  }
+  
+  ch->index.len = lob_len(contents);
+  ch->index.hash = murmur4(lob_raw(contents), ch->index.len);
+  return ch;
 }
 
 //////// this is for making writeable books
