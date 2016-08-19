@@ -116,16 +116,17 @@ chapter_t chapter_verify(chapter_t ch, bool set)
 }
 
 // given the first page, return the last page of the lob header
-uint16_t chapter_head(chapter_t chapter, uint8_t *first)
+uint16_t chapter_head(chapter_t ch, uint8_t *first)
 {
-  LOG_INFO("TODO");
-  return 0;
+  uint16_t len = util_sys_short(*(uint16_t*)first);
+  uint16_t page = (len + 16 - 1)/16;
+  return ch->index.start + page;
 }
 
 // returns raw index page
-uint8_t *chapter_index(chapter_t chapter)
+uint8_t *chapter_index(chapter_t ch)
 {
-  return LOG_INFO("TODO");
+  return (uint8_t*)&(ch->index);
 }
 
 // set the len/hash using these contents

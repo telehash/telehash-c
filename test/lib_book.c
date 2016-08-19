@@ -20,6 +20,11 @@ int main(int argc, char **argv)
   char *ch1_json = lob_json(chapter_json(ch1));
   LOG_DEBUG("chapter: %s",ch1_json);
   fail_unless(strcmp(ch1_json,"{\"title\":\"one\",\"start\":1,\"len\":21,\"hash\":20068273}") == 0);
+  char *hex = util_hex(chapter_index(ch1),16,NULL);
+  fail_unless(hex);
+  LOG_DEBUG("hex of index page: %s",hex);
+  fail_unless(strcmp(hex,"b13732011500000001006f6e65000000") == 0);
+  fail_unless(chapter_head(ch1,lob_raw(ch1_val)) == 1+2); // only 2 pages long
   
   
   return 0;
