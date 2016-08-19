@@ -43,7 +43,8 @@ struct index_struct
 // chapter meta tracker
 typedef struct chapter_struct
 {
-  uint32_t pager; // cumulative hash during paging
+  // cumulative hash values during paging
+  uint32_t hash, carry;
   struct index_struct index;
   uint8_t null; // makes sure index.title is null terminated
 } *chapter_t;

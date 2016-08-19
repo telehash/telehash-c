@@ -11,7 +11,6 @@ chapter_t chapter_parse(const uint8_t *index)
   chapter_t ch;
   if(!(ch = malloc(sizeof (struct chapter_struct)))) return LOG("OOM");
   memset(ch,0,sizeof (struct chapter_struct));
-  ch->pager = 42; // all hashes start from fixed non-null point, just good hygene
 
   if(index) memcpy(&(ch->index),index,16);
   
@@ -90,10 +89,13 @@ lob_t chapter_json(chapter_t ch)
 }
 
 // accumulates checkhash and returns next page to load after given data (must be len%16==0)
-uint16_t chapter_pager(chapter_t chapter, uint16_t at, uint8_t *bin, uint32_t len)
+uint16_t chapter_pager(chapter_t ch, uint16_t at, uint8_t *bin, uint32_t len)
 {
-  LOG_INFO("TODO");
-  return 0;
+  PMurHash32_Process(&(ch->hash), &(ch->carry), bin, len);
+  uint16_t pages = (len + 16 - 1)/16;
+  uint16_t max = (ch->index.len + 16 - 1)/16;
+  if(at+pages >= (ch->index.start + max)) return 0;
+  return at+pages;
 }
 
 // success of last full pager hashing
@@ -101,17 +103,16 @@ chapter_t chapter_verify(chapter_t ch, bool set)
 {
   if(!ch) return LOG_DEBUG("no chapter");
 
-  // must reset pager for next time
-  uint32_t pager = ch->pager;
-  ch->pager = 42;
+  uint32_t hash = PMurHash32_Result(ch->hash, ch->carry, ch->index.len);
+  ch->carry = ch->hash = 0;
   
   if(set)
   {
-    ch->index.hash = pager;
+    ch->index.hash = hash;
     return ch;
   }
 
-  return (ch->index.hash == pager)?ch:LOG_DEBUG("verify failed %u != %u",ch->index.hash,pager);
+  return (ch->index.hash == hash)?ch:LOG_DEBUG("verify failed %u != %u",ch->index.hash,hash);
 }
 
 // given the first page, return the last page of the lob header
