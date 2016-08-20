@@ -32,7 +32,7 @@ typical flow, old is previous book, new is updated one:
 *******************************************/
 
 // raw index page format (16 bytes)
-struct index_struct
+struct ndxpg_struct
 {
   uint32_t hash;
   uint32_t len;
@@ -45,7 +45,7 @@ typedef struct chapter_struct
 {
   // cumulative hash values during paging
   uint32_t hash, carry;
-  struct index_struct index;
+  struct ndxpg_struct index;
   uint8_t null; // makes sure index.title is null terminated
 } *chapter_t;
 
@@ -90,17 +90,17 @@ chapter_t chapter_set(chapter_t ch, lob_t contents);
 // creates summary of chapters 
 lob_t book_json(lob_t toc);
 
-// finds a block of pages w/ this much space, returns first block
-uint16_t book_space(lob_t toc, uint32_t len);
+// count of chapters
+uint16_t book_chapters(lob_t toc);
 
-// loads chapter from a toc lob by matching name
-chapter_t book_get(lob_t toc, char *title);
+// returns matching index page for given title in the toc
+uint8_t *book_get(lob_t toc, char *title);
 
 // adds chapter, fails if exists
-lob_t book_add(lob_t toc, chapter_t chap);
+lob_t book_add(lob_t toc, chapter_t ch);
 
 // just updates this chapter in the toc (fails if doesn't exist)
-lob_t book_mod(lob_t toc, chapter_t chap);
+lob_t book_mod(lob_t toc, chapter_t ch);
 
 // removes any chapter w/ this title
 lob_t book_del(lob_t toc, char *title);
