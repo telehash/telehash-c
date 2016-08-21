@@ -88,6 +88,13 @@ libtelehash: $(FULL_OBJFILES)
 	rm -f libtelehash.a
 	ar crs libtelehash.a $(FULL_OBJFILES)
 
+throwback-update:
+	cd ../throwback && make static
+	cp ../throwback/dew.c throwback/
+	cp ../throwback/dew.h throwback/
+
+throwback-test: 
+
 .PHONY: arduino test TAGS
 
 arduino: static
