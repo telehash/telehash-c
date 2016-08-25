@@ -7,14 +7,14 @@ INCLUDE+=-Iinclude -Iinclude/lib -Iunix
 LIB = src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/lib/chacha.c src/lib/murmur.c src/lib/jwt.c src/lib/base64.c src/lib/aes128.c src/lib/sha256.c src/lib/uECC.c
 E3X = src/e3x/e3x.c src/e3x/self.c src/e3x/exchange.c src/e3x/cipher.c
 MESH = src/mesh.c src/link.c src/chan.c
-EXT = 
+EXT =
 #NET = src/net/loopback.c src/net/udp4.c src/net/tcp4.c src/net/serial.c
-NET = src/net/loopback.c 
+NET = src/net/loopback.c
 UTIL = src/util/util.c src/util/chunks.c src/util/frames.c src/unix/util.c src/unix/util_sys.c
-TMESH = src/tmesh/tmesh.c 
+TMESH = src/tmesh/tmesh.c
 
 # CS1c by default
-CS = src/e3x/cs1c/cs1c.c 
+CS = src/e3x/cs1c/cs1c.c
 
 # also CS1a
 CS += src/e3x/cs1a/cs1a.c
@@ -49,8 +49,8 @@ CS_OBJFILES = $(patsubst %.c,%.o,$(CS))
 FULL_OBJFILES = $(LIB_OBJFILES) $(E3X_OBJFILES) $(MESH_OBJFILES) $(EXT_OBJFILES) $(NET_OBJFILES) $(UTIL_OBJFILES) $(CS_OBJFILES)
 
 IDGEN_OBJFILES = $(FULL_OBJFILES) util/idgen.o
-ROUTER_OBJFILES = $(FULL_OBJFILES) src/net/udp4.o util/router.o 
-PING_OBJFILES = $(FULL_OBJFILES) util/ping.o 
+ROUTER_OBJFILES = $(FULL_OBJFILES) src/net/udp4.o util/router.o
+PING_OBJFILES = $(FULL_OBJFILES) util/ping.o
 
 HEADERS=$(wildcard include/*.h)
 
@@ -64,7 +64,7 @@ deps:
 
 static: libtelehash
 	@cat $(LIB) $(E3X) $(MESH) $(EXT) $(UTIL) > telehash.c
-	@cat include/lob.h include/xht.h include/e3x_cipher.h include/e3x_self.h include/e3x_exchange.h include/hashname.h include/mesh.h include/link.h include/chan.h include/util_chunks.h include/util_frames.h include/*.h > telehash.h
+	@cat include/lob.h include/xht.h include/e3x_cipher.h include/e3x_self.h include/e3x_exchange.h include/hashname.h include/mesh.h include/link.h include/chan.h include/util_chunks.h include/util_frames.h include/*.h  > telehash.h
 	@sed -i.bak "/#include \".*h\"/d" telehash.h
 	@rm -f telehash.h.bak
 
@@ -93,7 +93,7 @@ throwback-update:
 	cp ../throwback/dew.c throwback/
 	cp ../throwback/dew.h throwback/
 
-throwback-test: 
+throwback-test:
 
 .PHONY: arduino test TAGS
 

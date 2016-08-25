@@ -7,6 +7,8 @@ LOB.body(lob); // returns body
 */
 
 #include "lob.h"
+#include "dew.h"
+
 #define TYPEOF_LOB TYPOF_EXT1
 
 struct dew_type_struct lob_type = {&lob_get, &lob_set, &lob_free, NULL, TYPEOF_LOB};
@@ -20,11 +22,12 @@ dew_t throwback_lib_lob(dew_t stack)
 
 static dew_t lob_singleton_getter(dew_t stack, dew_t this, char *key, uint8_t len, dew_t result, void *arg)
 {
-  if (strcmp(key,"create") == 0){
+  if (strncmp(key,"create",len) == 0){
     dew_set_fun(result, &lob_create);
-  } else if (strcmp(key,"body") == 0) {
+  } else if (strncmp(key,"body",len) == 0) {
     dew_set_fun(result, &lob_body);
   }
+  return stack;
 }
 
 static dew_t lob_create(dew_t stack, dew_t args, dew_t result)
@@ -36,12 +39,14 @@ static dew_t lob_create(dew_t stack, dew_t args, dew_t result)
 static dew_t lob_get(dew_t stack, dew_t this, char *key, uint8_t len, dew_t result, void *arg)
 {
   dew_set_char(result, lob_get(this->value, key), lob_get_len(this->value, key));
+  dew_block(result);
   return stack;
 }
 
 static dew_t lob_set(dew_t stack, dew_t this, char *key, uint8_t len, dew_t val, void *arg)
 {
-  lob_set_len(this->value, dew_get_char(val), dew_get_len(val));
+  char* json = dew_json(val);
+  lob_set_len(this->value, json, strlen(json));
   return stack;
 }
 

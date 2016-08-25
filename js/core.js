@@ -300,7 +300,7 @@ class Link extends EventEmitter {
     this._c_mesh = Mesh._mesh;
     this._c_link = c_link;
     this.hashname = th.UTF8ToString( hashname_char(link_id(c_link)) );
-    var id = this.hashname.substr(0,8)
+    var id = this.id = this.hashname.substr(0,8)
 
     Mesh._links.set(id, this);
     this.on('down',() => {

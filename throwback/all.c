@@ -1,11 +1,6 @@
 #include <telehash.h>
 #include <dew.h>
 
-#include "./lob.c"
-#include "./transform.c"
-#include "./mesh.c"
-#include "./link.c"
-
 // adds in types/singletons for telehash stuff
 dew_t telehash_dew(dew_t stack, bool mesh)
 {
