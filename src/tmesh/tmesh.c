@@ -22,7 +22,7 @@ typedef struct mblock_struct {
   uint8_t body[4]; // payload
 } *mblock_t;
 
-#define STATED(t) util_sys_log(7, "", __LINE__, __FUNCTION__, \
+#define xSTATED(t) util_sys_log(7, "", __LINE__, __FUNCTION__, \
       "\t%s %s %u/%d/%u %s %d %lu", \
         t->mote?hashname_short(t->mote->link->id):(t==t->tm->signal)?"mysignal":(t==t->tm->beacon)?"mybeacon":"myshared", \
         t->state.is_signal?(t->mote?"<-":"->"):"<>", \
@@ -32,7 +32,8 @@ typedef struct mblock_struct {
         t->state.accepting?"A":(t->state.requesting?"R":(util_frames_busy(t->frames)?"B":"I")), \
         t->frames?util_frames_outlen(t->frames):-1, \
         t->at);
-
+// tmp disabled
+#define STATED(t)
 
 // forward-ho
 static tempo_t tempo_new(tmesh_t tm);
