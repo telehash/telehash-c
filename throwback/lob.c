@@ -27,7 +27,10 @@ static dew_t LOB_body(dew_t stack, dew_t args, dew_t result)
   dew_t to_set = dew_arg(args, 2, IS_QUOTED);
   if(to_set) lob_body(lob, (uint8_t*)dew_get_char(to_set), dew_get_len(to_set));
 
-  dew_set_char(result, (char*)lob_body_get(lob), lob_body_len(lob));
+  // NOTE using raw body pointer, care must be taken as it becomes invalid
+  char *body = (char*)lob_body_get(lob);
+  if(!body) body = ""; // no body is empty buffer
+  dew_set_char(result, body, lob_body_len(lob));
   return stack;
 }
 
@@ -45,15 +48,18 @@ static dew_t LOB_getter(dew_t stack, dew_t this, char *key, uint8_t len, dew_t r
 
 static dew_t tb_lob_get(dew_t stack, dew_t this, char *key, uint8_t len, dew_t result, void *arg)
 {
+  char *val = lob_get(this->value,key);
+  if(!val) return dew_error(dew_set_char(result,"undefined",0), stack);
+
   // TODO better type detection/import from lob
-  dew_set_copy(result, lob_get(this->value, key), lob_get_len(this->value, key));
+  dew_set_copy(result, val, strlen(val));
   return stack;
 }
 
 static dew_t tb_lob_set(dew_t stack, dew_t this, char *key, uint8_t len, dew_t val, void *arg)
 {
   char* json = dew_json(val);
-  lob_set_len(this->value, key, len, json, strlen(json));
+  lob_set_raw(this->value, key, len, json, strlen(json));
   return stack;
 }
 

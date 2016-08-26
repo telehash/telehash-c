@@ -93,8 +93,8 @@ throwback-update:
 	cp ../throwback/dew.c throwback/
 	cp ../throwback/dew.h throwback/
 
-throwback-test: $(FULL_OBJFILES) throwback/all.o throwback/dew.o
-	$(CC) $(CFLAGS) -I include/ -o test/bin/test_throwback throwback/test.c throwback/all.o throwback/dew.o $(FULL_OBJFILES) $(LDFLAGS)
+throwback-test: $(FULL_OBJFILES) throwback/dew.o
+	$(CC) $(CFLAGS) -I include/ -o test/bin/test_throwback throwback/test.c throwback/all.c throwback/dew.o $(FULL_OBJFILES) $(LDFLAGS)
 	./test/bin/test_throwback
 
 .PHONY: arduino test TAGS
