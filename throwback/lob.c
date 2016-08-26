@@ -45,8 +45,8 @@ static dew_t LOB_getter(dew_t stack, dew_t this, char *key, uint8_t len, dew_t r
 
 static dew_t tb_lob_get(dew_t stack, dew_t this, char *key, uint8_t len, dew_t result, void *arg)
 {
-  dew_set_char(result, lob_get(this->value, key), lob_get_len(this->value, key));
-  dew_block(result);
+  // TODO better type detection/import from lob
+  dew_set_copy(result, lob_get(this->value, key), lob_get_len(this->value, key));
   return stack;
 }
 
@@ -59,7 +59,7 @@ static dew_t tb_lob_set(dew_t stack, dew_t this, char *key, uint8_t len, dew_t v
 
 static dew_t tb_lob_free(dew_t this, void *arg)
 {
-
+  return this;
 }
 
 struct dew_type_struct tb_lob_type = {&tb_lob_get, &tb_lob_set, &tb_lob_free, NULL, TYPEOF_LOB};

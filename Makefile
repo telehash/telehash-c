@@ -1,6 +1,6 @@
 CC=gcc
 EMCC=emcc
-CFLAGS+=-g -Wall -Wextra -Wno-unused-parameter -DDEBUG
+CFLAGS+=-g -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -DDEBUG
 #CFLAGS+=-Weverything -Wno-unused-macros -Wno-undef -Wno-gnu-zero-variadic-macro-arguments -Wno-padded -Wno-gnu-label-as-value -Wno-gnu-designator -Wno-missing-prototypes -Wno-format-nonliteral
 INCLUDE+=-Iinclude -Iinclude/lib -Iunix
 
@@ -93,8 +93,8 @@ throwback-update:
 	cp ../throwback/dew.c throwback/
 	cp ../throwback/dew.h throwback/
 
-throwback-test: 
-	$(CC) $(CFLAGS) -I include/ -o test/bin/test_throwback throwback/test.c throwback/all.c $(FULL_OBJFILES) $(LDFLAGS)
+throwback-test: $(FULL_OBJFILES) throwback/all.o throwback/dew.o
+	$(CC) $(CFLAGS) -I include/ -o test/bin/test_throwback throwback/test.c throwback/all.o throwback/dew.o $(FULL_OBJFILES) $(LDFLAGS)
 	./test/bin/test_throwback
 
 .PHONY: arduino test TAGS
