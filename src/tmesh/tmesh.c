@@ -423,6 +423,7 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
         if(mote->signal->state.qos_ping || mote->signal->state.qos_pong) do_qos = true;
         if(mote->stream && (mote->stream->state.requesting || mote->stream->state.accepting)) do_stream = true;
         if(!(do_qos || do_stream)) continue;
+        tempo->c_wait++;
 
         // lead w/ short hn
         memcpy(blocks+(++index*5),mote->link->id,5);
@@ -570,6 +571,7 @@ static tempo_t tempo_blocks_rx(tempo_t tempo, uint8_t *blocks, uint8_t index)
       if(hashname_scmp(id,tm->mesh->id) == 0)
       {
         from = tempo->mote;
+        tempo->c_wait = 0;
       }else if((link = mesh_linkid(tm->mesh, id))){
         // about a neighbor
         about = tmesh_moted(tm, link->id); // if we have a link, we may have a mote
