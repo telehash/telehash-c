@@ -22,7 +22,7 @@ typedef struct mblock_struct {
   uint8_t body[4]; // payload
 } *mblock_t;
 
-#define STATED(t) util_sys_log(7, "", __LINE__, __FUNCTION__, \
+#define xSTATED(t) util_sys_log(7, "", __LINE__, __FUNCTION__, \
       "\t%s %s %u/%d/%u %s %d %lu", \
         t->mote?hashname_short(t->mote->link->id):(t==t->tm->signal)?"mysignal":(t==t->tm->beacon)?"mybeacon":"myshared", \
         t->state.is_signal?(t->mote?"<-":"->"):"<>", \
@@ -32,7 +32,8 @@ typedef struct mblock_struct {
         t->state.accepting?"A":(t->state.requesting?"R":(util_frames_busy(t->frames)?"B":"I")), \
         t->frames?util_frames_outlen(t->frames):-1, \
         t->at);
-
+// tmp disabled
+#define STATED(t)
 
 // forward-ho
 static tempo_t tempo_new(tmesh_t tm);
@@ -423,6 +424,7 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
         if(mote->signal->state.qos_ping || mote->signal->state.qos_pong) do_qos = true;
         if(mote->stream && (mote->stream->state.requesting || mote->stream->state.accepting)) do_stream = true;
         if(!(do_qos || do_stream)) continue;
+        mote->signal->c_wait++; // we are waiting on them
 
         // lead w/ short hn
         memcpy(blocks+(++index*5),mote->link->id,5);
@@ -570,6 +572,7 @@ static tempo_t tempo_blocks_rx(tempo_t tempo, uint8_t *blocks, uint8_t index)
       if(hashname_scmp(id,tm->mesh->id) == 0)
       {
         from = tempo->mote;
+        from->signal->c_wait = 0; // they responded to us so clear if we were waiting on them
       }else if((link = mesh_linkid(tm->mesh, id))){
         // about a neighbor
         about = tmesh_moted(tm, link->id); // if we have a link, we may have a mote

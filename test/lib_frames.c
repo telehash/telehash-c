@@ -104,6 +104,22 @@ int main(int argc, char **argv)
   fail_unless(!util_frames_free(fa));
   fail_unless(!util_frames_free(fb));
   
+  util_frames_t fuzz = util_frames_new(64);
+  uint32_t loops = 10000;
+  uint8_t fframe[64];
+  e3x_init(NULL); // seed rand
+  util_sys_logging(0);
+  while(--loops)
+  {
+    e3x_rand(fframe,64);
+    if(util_frames_inbox(fuzz,fframe,NULL))
+    {
+      printf("frames accepted bad data: %s\n",util_hex(fframe,64,NULL));
+      break;
+    }
+  }
+  fail_unless(loops == 0);
+
   return 0;
 }
 
