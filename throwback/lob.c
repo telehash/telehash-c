@@ -76,7 +76,7 @@ static dew_t tb_lob_free(dew_t this, void *arg)
 
 struct dew_type_struct tb_lob_type = {&tb_lob_get, &tb_lob_set, &tb_lob_free, NULL, TYPEOF_LOB};
 
-dew_t throwback_lib_lob(dew_t stack)
+dew_t dew_lib_lob(dew_t stack)
 {
   dew_set_type(stack,&tb_lob_type);
   stack = dew_act_singleton(stack, "LOB", LOB_getter, NULL, NULL);
