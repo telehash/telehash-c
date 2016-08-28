@@ -6,10 +6,7 @@ lob.foo; // lob getter, creates copy of value
 LOB.body(lob); // returns body
 */
 
-#include "lob.h"
-#include "dew.h"
-
-#define TYPEOF_LOB TYPEOF_EXT1
+#include "throwback.h"
 
 // using upper case LOB prefix for all singleton methods, lower case lob for all object type ones
 

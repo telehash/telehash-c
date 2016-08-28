@@ -1,11 +1,6 @@
-#include "telehash.h"
-#include "dew.h"
+#include "throwback.h"
 #include "../test/unit_test.h"
 
-#define TYPEOF_LOB TYPEOF_EXT1
-extern dew_t telehash_dew(dew_t stack, bool mesh);
-dew_t dew_set_lob(dew_t d, lob_t lob);
-lob_t dew_get_lob(dew_t d, bool own);
 
 int main(int argc, char **argv)
 {
