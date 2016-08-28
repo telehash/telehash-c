@@ -73,6 +73,7 @@ static dew_t tb_lob_set(dew_t stack, dew_t this, char *key, uint8_t len, dew_t v
 
 static dew_t tb_lob_free(dew_t this, void *arg)
 {
+  this->value = lob_free(this->value);
   return this;
 }
 
@@ -85,3 +86,15 @@ dew_t throwback_lib_lob(dew_t stack)
   return stack;
 }
 
+dew_t dew_set_lob(dew_t d, lob_t lob)
+{
+  return dew_set_object(d,TYPEOF_LOB,lob);
+}
+
+lob_t dew_get_lob(dew_t d, bool own)
+{
+  if(!dew_typeof(d,TYPEOF_LOB)) return LOG_DEBUG("invalid type");
+  lob_t ret = d->value;
+  if(own) d->value = NULL;
+  return ret;
+}

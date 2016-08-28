@@ -1,8 +1,11 @@
+#include "telehash.h"
 #include "dew.h"
 #include "../test/unit_test.h"
 
 #define TYPEOF_LOB TYPEOF_EXT1
 extern dew_t telehash_dew(dew_t stack, bool mesh);
+dew_t dew_set_lob(dew_t d, lob_t lob);
+lob_t dew_get_lob(dew_t d, bool own);
 
 int main(int argc, char **argv)
 {
@@ -33,6 +36,13 @@ int main(int argc, char **argv)
   fail_unless(stack);
   dew_dump(res);
   fail_unless(dew_get_cmp(res,"bar",0));
+
+  stack = dew_eval(stack, dew_set_char(dew_new(),"lob",0), res);
+  fail_unless(stack);
+  fail_unless(dew_typeof(res,TYPEOF_LOB));
+  lob_t lob = dew_get_lob(res,false);
+  fail_unless(lob_get_cmp(lob,"foo","bar") == 0);
+  dew_reset(res);
 
   return 0;
 }
