@@ -53,3 +53,32 @@ dew_t dew_lib_xform(dew_t stack)
   return stack;
 }
 
+// similar to singleton pattern, registers a transform
+dew_t dew_set_xform(dew_t stack, char *name, dew_fun_t create, dew_fun_t update, dew_fun_t final, void 
+  *arg)
+{
+  dew_t d = dew_get(stack, name, 0);
+  dew_type_t XForm;
+  dew_t xforms;
+  if(!d || !(XForm = d->value) || !(xforms = XForm->arg)) return LOG_WARN("XForm missing/bad");
+
+  // create the local storage for it, overloading type methods to our own needs
+  dew_type_t xform  = malloc(sizeof(struct dew_type_struct));
+  memset(xform,0,sizeof(struct dew_type_struct));
+  xform->getter = (dew_getter_t)create;
+  xform->setter = (dew_setter_t)update;
+  xform->free = (dew_free_t)final;
+  xform->arg = arg;
+
+  // register on stack
+  xforms = dew_tush(xforms,OF_CHAR);
+  xforms->value = strdup(name);
+  xforms->local = 1;
+  xforms->len = strlen(name);
+  xforms->is = IS_BARE;
+  xforms->statement = dew_new();
+  dew_set_object(xforms->statement,TYPEOF_SINGLETON,xform);
+  XForm->arg = xforms;
+  
+  return stack; // unchanged
+}

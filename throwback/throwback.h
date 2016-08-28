@@ -14,6 +14,8 @@ lob_t dew_get_lob(dew_t d, bool own);
 
 // xform.c
 #define TYPEOF_XFORM TYPEOF_EXT2
+dew_t dew_set_xform(dew_t stack, char *name, dew_fun_t create, dew_fun_t update, dew_fun_t final, void 
+  *arg);
 
 
 #endif 
