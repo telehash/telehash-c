@@ -48,11 +48,19 @@ static dew_t LOB_getter(dew_t stack, dew_t this, char *key, uint8_t len, dew_t r
 
 static dew_t tb_lob_get(dew_t stack, dew_t this, char *key, uint8_t len, dew_t result, void *arg)
 {
-  char *val = lob_get(this->value,key);
-  if(!val) return dew_error(dew_set_char(result,"undefined",0), stack);
+  char *safe = malloc(len+1);
+  memcpy(safe,key,len);
+  safe[len] = 0;
+  char *raw = lob_get_raw(this->value,safe);
+  uint16_t rlen = lob_get_len(this->value,safe);
+  free(safe);
+  if(!raw || !rlen) return dew_error(dew_set_char(result,"undefined",0), stack);
 
-  // TODO better type detection/import from lob
-  dew_set_copy(result, val, strlen(val));
+  // since raw is a json value, just eval it
+  dew_t val = dew_set_char(dew_new(),raw,rlen);
+  stack = dew_eval(stack, val, result);
+  dew_free(val);
+
   return stack;
 }
 
