@@ -26,6 +26,7 @@
 #include <sys/types.h>
 #include <stdint.h>
 #include <string.h>
+#include "sha256.h"
 
 static inline uint32_t
 be32dec(const void *pp)
@@ -121,11 +122,11 @@ le64enc(void *pp, uint64_t x)
 }
 */
 
-typedef struct SHA256Context {
+struct SHA256Context {
 	uint32_t state[8];
 	uint32_t count[2];
 	unsigned char buf[64];
-} SHA256_CTX;
+};
 
 typedef struct HMAC_SHA256Context {
 	SHA256_CTX ictx;
