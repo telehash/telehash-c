@@ -13,16 +13,29 @@ static dew_t XForm_create(dew_t stack, dew_t args, dew_t result)
 
 static dew_t XForm_once(dew_t stack, dew_t args, dew_t result)
 {
-  // TODO
+  dew_t xf = dew_get_this(stack);
+  dew_type_t xform = (dew_type_t)xf;
+  dew_fun_t create = (dew_fun_t)xform->getter;
+  dew_fun_t update = (dew_fun_t)xform->setter;
+  dew_fun_t final = (dew_fun_t)xform->free;
+
+  // TODO WIP
+  stack = create(stack, args, result);
+  stack = update(stack, args, result);
+  stack = final(stack, args, result);
+  
   return stack;
 }
 
-static dew_t XForm_getter(dew_t stack, dew_t this, char *key, uint8_t len, dew_t result, void *xforms)
+static dew_t XForm_getter(dew_t stack, dew_t this, char *key, uint8_t len, dew_t result, void *arg)
 {
-  stack = dew_set_this(stack,(dew_t)xforms);
-  if (strncmp(key,"create",len) == 0){
+  dew_t xforms = (dew_t)arg;
+  dew_t xkey = NULL;
+  if(strncmp(key,"create",len) == 0){
+    stack = dew_set_this(stack, xforms);
     dew_set_fun(result, &XForm_create);
-  } else if (strncmp(key,"once",len) == 0) {
+  }else if((xkey = dew_get(xforms,key,len))){
+    stack = dew_set_this(stack, xkey->statement);
     dew_set_fun(result, &XForm_once);
   }else{
     dew_err(dew_set_char(result,"undefined",0));
