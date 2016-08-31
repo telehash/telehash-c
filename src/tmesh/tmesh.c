@@ -424,7 +424,6 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
         if(mote->signal->state.qos_ping || mote->signal->state.qos_pong) do_qos = true;
         if(mote->stream && (mote->stream->state.requesting || mote->stream->state.accepting)) do_stream = true;
         if(!(do_qos || do_stream)) continue;
-        mote->signal->c_wait++; // we are waiting on them
 
         // lead w/ short hn
         memcpy(blocks+(++index*5),mote->link->id,5);
@@ -441,6 +440,7 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
           if(stream->state.requesting)
           {
             block->head = 1;
+            mote->signal->c_wait++; // we are waiting on them
           }
 
           // accepting changes state
@@ -469,7 +469,11 @@ tempo_t tempo_knock_tx(tempo_t tempo, knock_t knock)
           block->type = tmesh_block_qos;
           memcpy(block->body,&(mote->signal->qos_local),4);
       
-          if(mote->signal->state.qos_ping) block->head = 1;
+          if(mote->signal->state.qos_ping)
+          {
+            block->head = 1;
+            mote->signal->c_wait++; // we are waiting on them
+          }
           if(mote->signal->state.qos_pong)
           {
             block->head = 2;
