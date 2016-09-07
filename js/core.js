@@ -430,11 +430,16 @@ class Mesh extends EventEmitter {
     mesh_on_link(this._mesh, "*", (c_link) => {
       let id = th.UTF8ToString( hashname_char(link_id(c_link)) ).substr(0,8);
       if (link_up(c_link) && !this._links.has(id)){
-        let _link = this._deadLinks.get(id) || new Link(this , c_link)
+        let _link = this._deadLinks.get(id);
+        var no_emit = false;
+        if (_link) {
+          no_emit = true;
+        }
+        _link = _link || new Link(this , c_link);
         _link.c_link(c_link);
         process.nextTick(() => {
           this._links.set(id, _link);
-          this.emit("link", _link)
+          if (!no_emit) this.emit("link", _link)
           _link.emit("up");
         });
       }
