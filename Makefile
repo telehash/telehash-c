@@ -1,6 +1,6 @@
 CC=gcc
 EMCC=emcc
-CFLAGS+=-g -Wall -Wextra -Wno-unused-parameter -DDEBUG
+CFLAGS+=-g -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -DDEBUG
 #CFLAGS+=-Weverything -Wno-unused-macros -Wno-undef -Wno-gnu-zero-variadic-macro-arguments -Wno-padded -Wno-gnu-label-as-value -Wno-gnu-designator -Wno-missing-prototypes -Wno-format-nonliteral
 INCLUDE+=-Iinclude -Iinclude/lib -Iunix
 
@@ -87,6 +87,15 @@ static-tmesh:
 libtelehash: $(FULL_OBJFILES)
 	rm -f libtelehash.a
 	ar crs libtelehash.a $(FULL_OBJFILES)
+
+throwback-update:
+	cd ../throwback && make static
+	cp ../throwback/dew.c throwback/
+	cp ../throwback/dew.h throwback/
+
+throwback-test: $(FULL_OBJFILES) throwback/dew.o
+	$(CC) $(CFLAGS) -I include/ -o test/bin/test_throwback throwback/test.c throwback/all.c throwback/dew.o $(FULL_OBJFILES) $(LDFLAGS)
+	./test/bin/test_throwback
 
 .PHONY: arduino test TAGS
 
