@@ -29,7 +29,7 @@ int main(int argc, char **argv)
 
   stack = dew_eval(stack, dew_set_char(dew_new(),"lob.foo = 'bar';lob.foo",0), res);
   fail_unless(stack);
-  dew_dump(res);
+//  dew_dump(res);
   fail_unless(dew_get_cmp(res,"bar",0));
 
   stack = dew_eval(stack, dew_set_char(dew_new(),"lob",0), res);
@@ -38,6 +38,10 @@ int main(int argc, char **argv)
   lob_t lob = dew_get_lob(res,false);
   fail_unless(lob_get_cmp(lob,"foo","bar") == 0);
   dew_reset(res);
+
+  stack = dew_eval(stack, dew_set_char(dew_new(),"XForm.hex('foobar')",0), res);
+  fail_unless(dew_is(res, OF_CHAR, IS_QUOTED));
+  fail_unless(dew_get_cmp(res,"666f6f626172",0));
 
   return 0;
 }

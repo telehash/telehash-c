@@ -59,7 +59,7 @@ static dew_t XForm_getter(dew_t stack, dew_t this, char *key, uint8_t len, dew_t
     stack = dew_set_this(stack, xforms);
     dew_set_fun(result, &XForm_create);
   }else if((xkey = dew_get(xforms,key,len))){
-    stack = dew_set_this(stack, xkey->statement);
+    stack = dew_set_this(stack, xkey);
     dew_set_fun(result, &XForm_once);
   }else{
     dew_err(dew_set_char(result,"undefined",0));
@@ -138,7 +138,7 @@ dew_t dew_lib_xform(dew_t stack)
 dew_t dew_set_xform(dew_t stack, char *name, dew_fun_t create, dew_fun2_t process, dew_free_t free, void 
   *arg)
 {
-  dew_t d = dew_get(stack, name, 0);
+  dew_t d = dew_get(stack, "XForm", 5);
   dew_type_t XForm;
   dew_t xforms;
   if(!d || !(XForm = d->value) || !(xforms = XForm->arg)) return LOG_WARN("XForm missing/bad");
