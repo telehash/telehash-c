@@ -2,7 +2,7 @@ CC=gcc
 EMCC=emcc
 CFLAGS+=-g -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -DDEBUG
 #CFLAGS+=-Weverything -Wno-unused-macros -Wno-undef -Wno-gnu-zero-variadic-macro-arguments -Wno-padded -Wno-gnu-label-as-value -Wno-gnu-designator -Wno-missing-prototypes -Wno-format-nonliteral
-INCLUDE+=-Iinclude -Iinclude/lib -Iunix
+INCLUDE+=-Iinclude -Iinclude/lib -Iunix -Ithrowback
 
 LIB = src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/lib/chacha.c src/lib/murmur.c src/lib/jwt.c src/lib/base64.c src/lib/aes128.c src/lib/sha256.c src/lib/uECC.c
 E3X = src/e3x/e3x.c src/e3x/self.c src/e3x/exchange.c src/e3x/cipher.c
@@ -12,7 +12,7 @@ EXT =
 NET = src/net/loopback.c 
 UTIL = src/util/util.c src/util/chunks.c src/util/frames.c src/unix/util.c src/unix/util_sys.c
 TMESH = src/tmesh/tmesh.c 
-THROWBACK = throwback/dew.c throwback/all.c throwback/lob.c throwback/xform.c throwback/xform_hex.c
+THROWBACK = throwback/all.c throwback/lob.c throwback/xform.c throwback/xform_hex.c
 
 # CS1c by default
 CS = src/e3x/cs1c/cs1c.c 
@@ -96,7 +96,7 @@ throwback-update:
 	cp ../throwback/dew.h throwback/
 
 throwback-test: $(FULL_OBJFILES) $(TB_OBJFILES)
-	$(CC) $(CFLAGS) -I include/ -o test/bin/test_throwback throwback/test.c $(TB_OBJFILES) $(FULL_OBJFILES) $(LDFLAGS)
+	$(CC) $(CFLAGS) $(INCLUDE) -o test/bin/test_throwback throwback/test.c throwback/dew.c $(TB_OBJFILES) $(FULL_OBJFILES) $(LDFLAGS)
 	./test/bin/test_throwback
 
 .PHONY: arduino test TAGS

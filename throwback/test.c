@@ -21,7 +21,7 @@ int main(int argc, char **argv)
   stack = dew_eval(stack, dew_set_char(dew_new(),"LOB.body(lob,'body')",0), res);
   fail_unless(dew_is(res, OF_CHAR, IS_QUOTED));
   fail_unless(dew_get_len(res) == 4);
-  
+
   stack = dew_eval(stack, dew_set_char(dew_new(),"lob.foo",0), res);
   fail_unless(stack);
   fail_unless(dew_get_cmp(res,"undefined",0));
@@ -32,6 +32,11 @@ int main(int argc, char **argv)
 //  dew_dump(res);
   fail_unless(dew_get_cmp(res,"bar",0));
 
+  stack = dew_eval(stack, dew_set_char(dew_new(),"LOB.json(lob)",0), res);
+  fail_unless(dew_is(res, OF_CHAR, IS_QUOTED));
+  dew_dump(res);
+  fail_unless(dew_get_cmp(res,"{\"foo\":\"bar\"}",0));
+  
   stack = dew_eval(stack, dew_set_char(dew_new(),"lob",0), res);
   fail_unless(stack);
   fail_unless(dew_typeof(res,TYPEOF_LOB));

@@ -31,12 +31,23 @@ static dew_t LOB_body(dew_t stack, dew_t args, dew_t result)
   return stack;
 }
 
+static dew_t LOB_json(dew_t stack, dew_t args, dew_t result)
+{
+  if(!dew_typeof(args,TYPEOF_LOB)) return dew_error(dew_set_char(result,"use LOB.body(<lob>)",0), stack);
+  lob_t lob = (lob_t)(args->value);
+  char *json = lob_json(lob);
+  dew_set_copy(result,json,0);
+  return stack;
+}
+
 static dew_t LOB_getter(dew_t stack, dew_t this, char *key, uint8_t len, dew_t result, void *arg)
 {
   if (strncmp(key,"create",len) == 0){
     dew_set_fun(result, &LOB_create);
   } else if (strncmp(key,"body",len) == 0) {
     dew_set_fun(result, &LOB_body);
+  } else if (strncmp(key,"json",len) == 0) {
+    dew_set_fun(result, &LOB_json);
   }else{
     dew_err(dew_set_char(result,"undefined",0));
   }
