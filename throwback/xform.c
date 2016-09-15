@@ -4,6 +4,8 @@
 // var z = x.final(bytes);
 // var b64 = XForm.base64(bytes); // only some transforms support this
 
+#include "throwback.h"
+
 static dew_t XForm_create(dew_t stack, dew_t args, dew_t result)
 {
   dew_t xforms = dew_get_this(stack);
