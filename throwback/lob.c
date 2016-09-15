@@ -33,7 +33,7 @@ static dew_t LOB_body(dew_t stack, dew_t args, dew_t result)
 
 static dew_t LOB_json(dew_t stack, dew_t args, dew_t result)
 {
-  if(!dew_typeof(args,TYPEOF_LOB)) return dew_error(dew_set_char(result,"use LOB.body(<lob>)",0), stack);
+  if(!dew_typeof(args,TYPEOF_LOB)) return dew_error(dew_set_char(result,"use LOB.json(<lob>)",0), stack);
   lob_t lob = (lob_t)(args->value);
   char *json = lob_json(lob);
   dew_set_copy(result,json,0);
