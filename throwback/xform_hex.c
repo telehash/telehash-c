@@ -1,3 +1,4 @@
+#include "throwback.h"
 
 static dew_t hex_process(dew_t stack, dew_t act, dew_t args1, dew_t args2, dew_t result)
 {

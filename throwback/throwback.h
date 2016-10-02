@@ -2,7 +2,7 @@
 #define throwback_h
 
 #include "telehash.h"
-#include "dew.h"
+#include <dew.h>
 
 // all.c
 extern dew_t telehash_dew(dew_t stack, bool mesh);

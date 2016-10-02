@@ -1,8 +1,8 @@
 #include "throwback.h"
 
-#include "./lob.c"
-#include "./xform.c"
-#include "./xform_hex.c"
+extern dew_t dew_lib_lob(dew_t stack);
+extern dew_t dew_lib_xform(dew_t stack);
+extern dew_t dew_lib_xform_hex(dew_t stack);
 
 // adds in types/singletons for telehash stuff
 dew_t telehash_dew(dew_t stack, bool mesh)

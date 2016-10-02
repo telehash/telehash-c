@@ -12,6 +12,7 @@ EXT =
 NET = src/net/loopback.c 
 UTIL = src/util/util.c src/util/chunks.c src/util/frames.c src/unix/util.c src/unix/util_sys.c
 TMESH = src/tmesh/tmesh.c 
+THROWBACK = throwback/dew.c throwback/all.c throwback/lob.c throwback/xform.c throwback/xform_hex.c
 
 # CS1c by default
 CS = src/e3x/cs1c/cs1c.c 
@@ -45,6 +46,7 @@ EXT_OBJFILES = $(patsubst %.c,%.o,$(EXT))
 NET_OBJFILES = $(patsubst %.c,%.o,$(NET))
 UTIL_OBJFILES = $(patsubst %.c,%.o,$(UTIL))
 CS_OBJFILES = $(patsubst %.c,%.o,$(CS))
+TB_OBJFILES = $(patsubst %.c,%.o,$(THROWBACK))
 
 FULL_OBJFILES = $(LIB_OBJFILES) $(E3X_OBJFILES) $(MESH_OBJFILES) $(EXT_OBJFILES) $(NET_OBJFILES) $(UTIL_OBJFILES) $(CS_OBJFILES)
 
@@ -78,9 +80,9 @@ static-cs1a:
 
 static-tmesh:
 	@echo "#include <telehash.h>" > telehash.c
-	@cat $(LIB) $(E3X) $(MESH) $(EXT) $(UTIL) $(TMESH) >> telehash.c
+	@cat $(LIB) $(E3X) $(MESH) $(EXT) $(UTIL) $(TMESH) $(THROWBACK) >> telehash.c
 	@sed -i '' "/#include \".*h\"/d" telehash.c
-	@cat include/lob.h include/xht.h include/e3x_cipher.h include/e3x_self.h include/e3x_exchange.h include/hashname.h include/mesh.h include/link.h include/chan.h include/util_chunks.h include/util_frames.h include/*.h > telehash.h
+	@cat include/lob.h include/xht.h include/e3x_cipher.h include/e3x_self.h include/e3x_exchange.h include/hashname.h include/mesh.h include/link.h include/chan.h include/util_chunks.h include/util_frames.h include/*.h throwback/throwback.h > telehash.h
 	@sed -i.bak "/#include \".*h\"/d" telehash.h
 	@rm -f telehash.h.bak
 
@@ -93,8 +95,8 @@ throwback-update:
 	cp ../throwback/dew.c throwback/
 	cp ../throwback/dew.h throwback/
 
-throwback-test: $(FULL_OBJFILES) throwback/dew.o
-	$(CC) $(CFLAGS) -I include/ -o test/bin/test_throwback throwback/test.c throwback/all.c throwback/dew.o $(FULL_OBJFILES) $(LDFLAGS)
+throwback-test: $(FULL_OBJFILES) $(TB_OBJFILES)
+	$(CC) $(CFLAGS) -I include/ -o test/bin/test_throwback throwback/test.c $(TB_OBJFILES) $(FULL_OBJFILES) $(LDFLAGS)
 	./test/bin/test_throwback
 
 .PHONY: arduino test TAGS
