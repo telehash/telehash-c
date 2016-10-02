@@ -18,16 +18,20 @@ typedef struct gossip_s
   struct gossip_s *next;
 
   // the binary 5-byte wire format
-  struct {
-    uint8_t type:3; // topic
-    uint8_t head:4; // per-topic
-    uint8_t done:1; // flag in cur context to end a sequence
-    uint8_t body[4]; // payload
-  } bin;
+  union {
+    struct {
+      uint8_t type:3; // topic
+      uint8_t head:4; // per-topic
+      uint8_t done:1; // flag in cur context to end a sequence
+      uint32_t body; // payload
+    };
+    uint8_t bin[5];
+  };
   
 } gossip_s, *gossip_t;
 
 gossip_t gossip_new(void);
+gossip_t gossip_free(gossip_t g);
 
 ///////////// stub notes
 // 

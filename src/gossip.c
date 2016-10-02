@@ -6,9 +6,15 @@
 
 gossip_t gossip_new(void)
 {
-  gossip_s z = {0,};
-  z.x = 1;
   gossip_t ret = malloc(sizeof(gossip_s));
-  memcpy(ret,&z,sizeof(gossip_s));
+  memset(ret,0,sizeof(gossip_s));
   return ret;
+}
+
+gossip_t gossip_free(gossip_t g)
+{
+  if(!g) return NULL;
+  if(g->next) g->next = gossip_free(g->next);
+  free(g);
+  return NULL;
 }

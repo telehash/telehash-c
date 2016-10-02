@@ -9,7 +9,15 @@ int main(int argc, char **argv)
   
   gossip_t g = gossip_new();
   fail_unless(g);
-  fail_unless(g->x == 1);
+  g->type = 1;
+  g->head = 2;
+  g->body = 42;
+  char hex[16];
+  util_hex(g->bin,5,hex);
+  printf("hex is %s\n",hex);
+  fail_unless(strcmp(hex,"110000002a") == 0);
+  
+  fail_unless(!gossip_free(g));
 
   return 0;
 }
