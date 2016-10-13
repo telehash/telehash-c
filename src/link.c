@@ -452,7 +452,6 @@ chan_t link_process_chan(chan_t c, uint32_t now)
   if(!c) return NULL;
   chan_t next = link_process_chan(chan_next(c), now);
   if(!chan_process(c, now)) return next;
-  LOG("alive: %d", chan_id(c));
   c->next = next;
   return c;
 }
