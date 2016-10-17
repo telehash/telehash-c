@@ -1,7 +1,7 @@
 const TelehashAbstractMiddleware = require("./abstract.js");
 const JOI = TelehashAbstractMiddleware.JOI;
 
-class TelehashParserMiddleware extends TelehashAbstractMiddleWare {
+class TelehashParserMiddleware extends TelehashAbstractMiddleware {
   static Test(CHILD, OPTIONS){
     class ParserTest extends TelehashParserMiddleware{
       constructor(){
@@ -9,12 +9,16 @@ class TelehashParserMiddleware extends TelehashAbstractMiddleWare {
       }
       get _dataType(){ return "mqttsn|cbor|json|raw|opc|modbus|...|";}
 
-      get _enable(){
+      get _name(){ return "asdf" }
+
+      get _environment(){ return {internet : false, gps : false}}
+
+      _enable(){
         this._enabled = true;
         return Promise.resolve();
       }
 
-      get _disable(){
+      _disable(){
         this._enabled = false;
         return Promise.resolve();
       }
@@ -37,12 +41,20 @@ class TelehashParserMiddleware extends TelehashAbstractMiddleWare {
 
     }
 
-    return TelehashAbstractMiddleware.Test(CHILD || ParseTest, OPTIONS )
+    return TelehashAbstractMiddleware.Test(CHILD || ParserTest, OPTIONS )
                              .then((instance) => {
                                console.log("telehashtest passed");
-                               return instance.handleEvent({
-                                 type : "GPS",
-                                 specific : "GPS"
+                               return instance.process({
+                                 id : "asdf1234",
+                                 hashname : "adlfajhdlfkjaldkjflakdjflad"
+                               },{
+                                 json : {
+                                   type : "event",
+                                   c : "5",
+                                   label : "giga",
+                                   from : "0987tyru"
+                                 },
+                                 body : new Buffer(40)
                                })
                              })
   }
@@ -112,7 +124,7 @@ class TelehashParserMiddleware extends TelehashAbstractMiddleWare {
     return this.JOI.object().description("no-op");
   }
 
-  get process(link, {json, body}){
+  process(link, {json, body}){
     this.parse(link, {json, body})
         .then((data) => ({
           label : json.label,
@@ -132,12 +144,12 @@ class TelehashParserMiddleware extends TelehashAbstractMiddleWare {
       if (promise instanceof Promise) return promise;
     } catch (error) {
       error = e;
-    } finally {
-      error = error || new Error(`${this.name}._handleEvent(event) returned '${typeof promise}' instead of a promise.`);
-      this.log.error(error);
-      this.emit('error', error);
-      return Promise.reject(error);
     }
+
+    error = error || new Error(`${this.name}._parse(link, packet) returned '${typeof promise}' instead of a promise.`);
+    this.log.error(error);
+    this.emit('error', error);
+    return Promise.reject(error);
   }
 
   _parse(link, packet){
@@ -148,3 +160,18 @@ class TelehashParserMiddleware extends TelehashAbstractMiddleWare {
   }
 
 }
+
+try{
+  if (require.main === module) {
+    console.log('called directly');
+    TelehashParserMiddleware.Test().then((env) => {
+      console.log('passed self test');
+      process.exit();
+    })
+    .catch(e => {
+      console.log(e);
+    })
+  }
+}catch(e){}
+
+module.exports = TelehashParserMiddleware;

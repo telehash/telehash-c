@@ -1,11 +1,57 @@
-var TelehashAbstractMiddleware require("./abstract.js");
+const TelehashAbstractMiddleware = require("./abstract.js");
+const JOI = TelehashAbstractMiddleware.JOI
 
-class TelehashTransportMiddleware extends TelehashAbstractMiddleWare {
+class TelehashTransportMiddleware extends TelehashAbstractMiddleware {
+  static Test(CHILD, OPTIONS){
+    class TransportTest extends TelehashTransportMiddleware{
+      constructor(){
+        super();
+      }
+
+      get _name(){ return "TransportTest"; }
+
+      get _environment(){
+        return ({ internet : false, gps : false, runtime : ["any"], platform : ["any"] });
+      }
+
+      _listen(){
+        return Promise.resolve();
+      }
+
+      _connect(){
+        return Promise.resolve();
+      }
+
+      _announce(){
+        return Promise.resolve();
+      }
+
+      get _handleSchema(){
+        return JOI.object({})
+      }
+    }
+
+    TelehashAbstractMiddleware.Test(CHILD || TransportTest, OPTIONS)
+                              .then((instance) => {
+                                instance.log.info("TransportTest");
+                                return instance;
+                              })
+
+  }
+
+  static get optionsSchema(){
+    return TelehashAbstractMiddleware.optionsSchema.concat(JOI.object())
+  }
+
   constructor(){
     super();
   }
 
-  get type(){ return "transport"; }
+  get _optionsSchema(){
+    return TelehashTransportMiddleware.optionsSchema;
+  }
+
+  get _type(){ return "transport"; }
 
   get handleSchema(){
     let schema = this._handleSchema;
@@ -31,10 +77,10 @@ class TelehashTransportMiddleware extends TelehashAbstractMiddleWare {
 
   validateHandle(handle){
     return TelehashAbstractMiddleware.validateSchema(this.handleSchema, handle)
-                                     .catch((e) => {{
-                                       this.emit('error',e);
+                                     .catch((e) => {
+                                       this.log.warn(e);
                                        return Promise.reject(e);
-                                     }})
+                                     })
   }
 
   connect(handle){
@@ -64,19 +110,28 @@ class TelehashTransportMiddleware extends TelehashAbstractMiddleWare {
                    if (promise instanceof Promise) return promise;
                  } catch (e) {
                    error = e;
-                 } finally {
-                   error = error || new Error(`${this.name}._disconnect() returned '${typeof promise}' instead of a promise.`);
-                   this.log.error(error);
-                   this.emit('error', error);
-                   return Promise.reject(error);
                  }
+                 error = error || new Error(`${this.name}._disconnect() returned '${typeof promise}' instead of a promise.`);
+                 this.log.error(error);
+                 this.emit('error', error);
+                 return Promise.reject(error);
+
                });
   }
 
   announce(){
-    let promise = this._announce();
-    if (promise && typeof promise.then === "function") return promise;
-    else this.emit('error', new Error(`${this.name}._listen() returned '${typeof promise}' instead of a promise.`));
+    var error;
+    try {
+      let promise = this._announce();
+      if (promise instanceof Promise) return promise;
+    } catch (e) {
+      error = e;
+    }
+    error = error || new Error(`${this.name}._announce() returned '${typeof promise}' instead of a promise.`);
+    this.log.error(error);
+    this.emit('error', error);
+    return Promise.reject(error);
+
   }
 
   _listen(){
@@ -103,3 +158,15 @@ class TelehashTransportMiddleware extends TelehashAbstractMiddleWare {
     return Promise.reject(new Error(`${this.name}._announce() undefined`));
   }
 }
+
+try{
+  if (require.main === module) {
+    console.log('called directly');
+    TelehashTransportMiddleware.Test().then((env) => {
+      console.log('passed Transport self test');
+      process.exit();
+    })
+  }
+}catch(e){}
+
+module.exports = TelehashTransportMiddleware;

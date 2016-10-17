@@ -16,7 +16,7 @@ class TelehashAbstractMiddleware extends EnvirEmitter {
   static Test(CHILD, OPTIONS){
     class TelehashMiddleware extends TelehashAbstractMiddleware {
       constructor(){
-        super()
+        super();
       }
 
       get _type() { return "<transport|parser|integration|interface|util>"; }
