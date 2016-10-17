@@ -1,34 +1,70 @@
 const TelehashAbstractMiddleware = require("./abstract.js");
+const JOI = TelehashAbstractMiddleware.JOI;
 
 class TelehashParserMiddleware extends TelehashAbstractMiddleWare {
-  constructor(){
-    super();
+  static Test(CHILD, OPTIONS){
+    class ParserTest extends TelehashParserMiddleware{
+      constructor(){
+        super();
+      }
+      get _dataType(){ return "mqttsn|cbor|json|raw|opc|modbus|...|";}
 
-    this._enabled = false;
-    this._parsed = 0;
+      get _enable(){
+        this._enabled = true;
+        return Promise.resolve();
+      }
+
+      get _disable(){
+        this._enabled = false;
+        return Promise.resolve();
+      }
+
+      get _dataSchema(){
+        return JOI.object().keys({
+          json : this.JOI.object().keys({
+            type : this.JOI.string().min(1).only("event").required().description("the telehash channel type"),
+            c : this.JOI.number().label("Channel ID").required().description("the numerical identifier of this channel instance"),
+            label : this.JOI.string().min(1).required().description("the user set label for the event"),
+            from : this.JOI.shortHashname().required()
+          }).required().description("the parsed JSON portion of the inbound packet"),
+          body : this.JOI.binary().optional().description("the binary Buffer payload of the inbound packet")
+        }).required().description("the raw packet payload");
+      }
+
+      _parse(link, packet){
+        return Promise.resolve(packet)
+      }
+
+    }
+
+    return TelehashAbstractMiddleware.Test(CHILD || ParseTest, OPTIONS )
+                             .then((instance) => {
+                               console.log("telehashtest passed");
+                               return instance.handleEvent({
+                                 type : "GPS",
+                                 specific : "GPS"
+                               })
+                             })
   }
 
-  get type() { return "parser"; }
-
-  get _schema(){
-    return this.JOI.object().keys({
+  static get optionsSchema(){
+    return TelehashAbstractMiddleware.optionsSchema.concat(JOI.object().keys({
       passthrough : this.JOI.boolean().default(false).description("successfully parsing a packet will not prevent other parsers from running")
     }).notes([
       "passthrough parsers are always run first and in parallel",
       "non passthrough parsers (default) will dynamically sorted based on the number of successfully parsed packets since application start"
-    ])
+    ]))
   }
 
-  get _enable(){
-    this._enabled = true;
-    this._parsed = 0;
-    return Promise.resolve();
+  static get _optionsSchema(){
+    return TelehashParserMiddleware.optionsSchema;
   }
 
-  get _disable(){
-    this._enabled = false;
-    return Promise.resolve();
+  constructor(){
+    super();
   }
+
+  get _type() { return "parser"; }
 
   get dataType() {
     let type = this._dataType;
@@ -47,12 +83,12 @@ class TelehashParserMiddleware extends TelehashAbstractMiddleWare {
 
   get eventSchema(){
     return  JOI.object().keys({
-      label : this.JOI.string().min(1).max(32).required(),
+      label : this.JOI.string().min(1).max(32),
       id : this.JOI.shortHashname().required(),
       hashname : this.JOI.hashname().optional(),
       link : this.JOI.object().keys({
-        id : this.JOI.shortHashname().required(),
-        hashname : this.JOI.hashname().required()
+        id : this.JOI.shortHashname(),
+        hashname : this.JOI.hashname()
       }).required().description("link id and full hashname of the link that delivered the data"),
       dataType : this.JOI.string().only(this.dataType).required(),
       data : this.dataSchema
@@ -74,19 +110,6 @@ class TelehashParserMiddleware extends TelehashAbstractMiddleWare {
     process.nextTick(() => this.emit('error',error));
 
     return this.JOI.object().description("no-op");
-    /*
-    saving for raw parser
-
-    .keys({
-      json : this.JOI.object().keys({
-        type : this.JOI.string().min(1).only("event").required().description("the telehash channel type"),
-        c : this.JOI.number().label("Channel ID").required().description("the numerical identifier of this channel instance"),
-        label : this.JOI.string().min(1).required().description("the user set label for the event"),
-        from : this.JOI.shortHashname().required()
-      }).required().description("the parsed JSON portion of the inbound packet"),
-      body : this.JOI.binary().optional().description("the binary Buffer payload of the inbound packet")
-    }).required().description("the raw packet payload");
-    */
   }
 
   get process(link, {json, body}){
@@ -99,7 +122,7 @@ class TelehashParserMiddleware extends TelehashAbstractMiddleWare {
           dataType : this.dataType,
           data
         }))
-        .then((evt) => TelehashAbstractMiddleware.validateSchema(this.eventSchema, evt))
+        .then((evt) => TelehashParserMiddleware.validateSchema(this.eventSchema, evt))
   }
 
   parse(link, packet){

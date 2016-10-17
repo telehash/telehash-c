@@ -1,57 +1,66 @@
 const TelehashAbstractMiddleware = require("./abstract.js");
+const JOI = TelehashAbstractMiddleware.JOI;
 
 class TelehashIntegrationMiddleware extends TelehashAbstractMiddleware {
+
+
+  static Test(CHILD, OPTIONS){
+    class IntegrationTest extends TelehashIntegrationMiddleware{
+      constructor(){
+        super();
+      }
+
+      _handleEvent(event){
+        return Promise.resolve(this);
+      }
+    }
+
+    return TelehashMiddleware.Test(CHILD || IntegrationTest, OPTIONS || {id :"testid"})
+                             .then((instance) => {
+                               console.log("telehashtest passed");
+                               return instance.handleEvent({
+                                 type : "GPS",
+                                 specific : "GPS"
+                               })
+                             })
+  }
+
+  static get optionsSchema(){
+    return TelehashAbstractMiddleware.optionsSchema.concat(JOI.object().keys({
+      dataTypes : JOI.array()
+                      .items(JOI.string())
+                      .default(['any'])
+                      .description(`The data types that will be handled by this integration`)
+                    .label("Data Types"),
+      events : JOI.array()
+                   .items(JOI.string().valid(["error","system","network","data"]))
+                   .default(["data"])
+                   .description(`The event labels that will be handled by this integration`)
+                   .label("Events"),
+      id : JOI.string()
+               .required()
+               .description(`a unique id for this integration`)
+               .label("ID")
+    }).required())
+  }
+
   constructor(){
     super();
   }
 
   get _type() { return "integration"; }
 
-  get _schema() {
-    return this.integrationSchema();
-  }
-
-  get integrationSchema(){
-    let schema = this._integrationSchema;
-    if (schema && schema.isJoi) return this.baseSchema.concat(schema);
-
-    let error = new Error(`${this.name}._integrationSchema is not a JOI object`);
-    this.log.error(error);
-    this.emit('error', error);
-    return this.JOI.object();
-  }
-
-  get _integrationSchema(){
-    this.log.warn(`${this.name}._integrationSchema undefined`);
-    this.log.trace(`${this.name}._integrationSchema undefined`);
-    return this.JOI.object();
-  }
-
-  get baseSchema(){
-    return this.JOI.object().keys({
-      dataTypes : this.JOI
-                      .array()
-                      .items(this.JOI.string().valid(this.mesh.parsers.map(({dataType}) => dataType))
-                      .required()
-                      .description(`The data types that will be handled by this ${this.name} integration`)
-                      .label("Data Types"),
-      events : this.JOI.array()
-                       .items(this.JOI.string())
-                       .default(["*"],"activate on all event labels")
-                       .description(`The event labels that will be handled by this ${this.name} integration`)
-                       .label("Events"),
-      id : this.JOI.string()
-                   .required()
-                   .description(`a unique id for this instance of ${this.name} integration`)
-                   .label("ID")
-    }).required()
+  static get _optionsSchema(){
+    return TelehashIntegrationMiddleware.optionsSchema;
   }
 
   handleEvent(event){
     var error;
     try{
       let promise = this._handleEvent(event);
-      if (promise instanceof Promise) return promise;
+      if (promise instanceof Promise) return promise.catch(e => {
+        this.emit('error',e);
+      });
     } catch (error) {
       error = e;
     } finally {
@@ -70,3 +79,18 @@ class TelehashIntegrationMiddleware extends TelehashAbstractMiddleware {
     return Promise.reject(new Error(warning));
   }
 }
+
+try{
+  if (require.main === module) {
+    console.log('called directly');
+    TelehashAbstractMiddleware.Test().then((env) => {
+      console.log('passed integration self test');
+      process.exit();
+    })
+    .catch(e => {
+      console.log(e);
+    })
+  }
+}catch(e){}
+
+module.exports = TelehashIntegrationMiddleware;
