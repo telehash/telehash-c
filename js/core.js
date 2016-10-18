@@ -526,3 +526,7 @@ const Telehash = module.exports = (on_up, opts) => {
 
   return new Mesh(on_up, opts)
 }
+
+Telehash.Mesh = Mesh;
+Telehash.Link = Link;
+Telehash.Channel = Channel;

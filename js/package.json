@@ -43,7 +43,10 @@
     "url": "https://github.com/telehash/telehash-c/issues"
   },
   "dependencies": {
+    "joi": "^9.1.1",
     "lob-enc": "0.0.17",
+    "loglevel-debug": "0.0.1",
+    "loglevel-message-prefix": "^2.0.1",
     "serialport": "^3.1.2"
   },
   "description": "telehash-c compiled into javascript",
@@ -75,11 +78,13 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "browser":{
-    "crypto" : false
+  "browser": {
+    "crypto": false
   },
-  "babel":{
-    "ignore":["./include/thc.js"]
+  "babel": {
+    "ignore": [
+      "./include/thc.js"
+    ]
   },
   "version": "0.12.3"
 }
