@@ -43,3 +43,4 @@ gossip_t gossip_free(gossip_t g);
 // - stable tempos must have way to ensure sequence advances, is never re-used
 
 #endif
+
