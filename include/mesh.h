@@ -16,7 +16,7 @@ typedef struct chan_struct *chan_t;
 struct mesh_struct
 {
   hashname_t id;
-  lob_t keys, paths;
+  lob_t keys, paths, handshake;
   e3x_self_t self;
   void *on; // internal list of triggers
   // shared network info

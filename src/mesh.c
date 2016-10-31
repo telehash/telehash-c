@@ -29,6 +29,7 @@ mesh_t mesh_new(void)
 
   if(!(mesh = malloc(sizeof (struct mesh_struct)))) return NULL;
   memset(mesh, 0, sizeof(struct mesh_struct));
+  mesh->handshake = lob_new(); // empty blank
   
   LOG_INFO("mesh created version %d.%d.%d",TELEHASH_VERSION_MAJOR,TELEHASH_VERSION_MINOR,TELEHASH_VERSION_PATCH);
 
@@ -58,6 +59,7 @@ mesh_t mesh_free(mesh_t mesh)
     free(on);
   }
 
+  lob_free(mesh->handshake);
   lob_free(mesh->keys);
   lob_free(mesh->paths);
   hashname_free(mesh->id);
