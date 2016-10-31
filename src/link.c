@@ -340,7 +340,7 @@ lob_t link_handshake(link_t link)
   if(!link->x) return LOG_DEBUG("no exchange");
 
   LOG_DEBUG("generating a new handshake in %lu out %lu",link->x->in,link->x->out);
-  lob_t handshake = lob_new();//lob_copy(link->mesh->handshake);
+  lob_t handshake = lob_copy(link->mesh->handshake);
   lob_t tmp = hashname_im(link->mesh->keys, link->csid);
   lob_body(handshake, lob_raw(tmp), lob_len(tmp));
   lob_free(tmp);
