@@ -37,10 +37,12 @@ class TelehashIntegrationMiddleware extends TelehashAbstractMiddleware {
     return TelehashAbstractMiddleware.Test(CHILD || IntegrationTest, OPTIONS || {id :"testid"})
                              .then((instance) => {
                                console.log("telehashtest passed");
-                               return instance.handleEvent({
-                                 type : "GPS",
-                                 specific : "GPS"
-                               })
+                               return instance.enable(new TelehashAbstractMiddleware.Mesh(() => {})).then(() => instance.handleEvent({
+                                 id : "asdf1234",
+                                 dataType : "Double",
+                                 label : "GPS",
+                                 data : 1234
+                               }))
                              })
                              .catch(e => {
                                console.log(e);
@@ -63,7 +65,7 @@ class TelehashIntegrationMiddleware extends TelehashAbstractMiddleware {
                .required()
                .description(`a unique id for this integration`)
                .label("ID")
-    }).required())
+    }).xor('dataTypes','events').required())
   }
 
   static get _optionsSchema(){

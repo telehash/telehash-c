@@ -1,7 +1,27 @@
 const TelehashAbstractMiddleware = require("./abstract.js");
 const JOI = TelehashAbstractMiddleware.JOI;
+const stringify = require('json-stringify-safe');
 
 class TelehashParserMiddleware extends TelehashAbstractMiddleware {
+  static get StubLink()
+  {
+    return {
+      id : "63xpe4is",
+      hashname : "63xpe4isnc5b7sa6n37w5j4x3q7q2qjmi4ufnminklrn6a6vvvta"
+    };
+  }
+
+  static get StubPacket(){
+    return {
+      json : {
+        type : "event",
+        c : "5",
+        label : "giga",
+        from : "7654tyru"
+      }, body : new Buffer(40)
+    };
+  }
+
   static Test(CHILD, OPTIONS){
     class ParserTest extends TelehashParserMiddleware{
       constructor(){
@@ -42,24 +62,16 @@ class TelehashParserMiddleware extends TelehashAbstractMiddleware {
 
     }
 
-    return TelehashAbstractMiddleware.Test(CHILD || ParserTest, OPTIONS )
-                             .then((instance) => {
-                               console.log("telehashtest passed", instance);
-                               return instance.process({
-                                 id : "63xpe4is",
-                                 hashname : "63xpe4isnc5b7sa6n37w5j4x3q7q2qjmi4ufnminklrn6a6vvvta"
-                               },{
-                                 json : {
-                                   type : "event",
-                                   c : "5",
-                                   label : "giga",
-                                   from : "7654tyru"
-                                 }, body : (new Buffer(40))
-                               }).then((res) => {
-                                 console.log("got raw", res);
-                                 return instance;
-                               })
-                             })
+    return TelehashAbstractMiddleware
+          .Test(CHILD || ParserTest, OPTIONS )
+          .then((instance) => new Promise((resolve, reject) => {
+            instance.on('error',reject);
+
+            return instance.process(
+              CHILD ? CHILD.StubLink : TelehashParserMiddleware.StubLink,
+              CHILD ? CHILD.StubPacket : TelehashParserMiddleware.StubPacket
+            ).then(resolve).catch(reject);
+          }));
   }
 
   static get optionsSchema(){
@@ -71,7 +83,7 @@ class TelehashParserMiddleware extends TelehashAbstractMiddleware {
     ]))
   }
 
-  static get _optionsSchema(){
+  get _optionsSchema(){
     return TelehashParserMiddleware.optionsSchema;
   }
 
@@ -85,7 +97,7 @@ class TelehashParserMiddleware extends TelehashAbstractMiddleware {
     let type = this._dataType;
     if (typeof type === "string") return type;
 
-    let error = new Error('._type must be a string');
+    let error = new Error('._dataType must be a string');
     process.nextTick(() => this.emit('error', error));
     return type;
   }
@@ -95,6 +107,8 @@ class TelehashParserMiddleware extends TelehashAbstractMiddleware {
     process.nextTick(() => this.emit('error', error));
     return "undefined";
   }
+
+  get _environment(){ return {internet : false, gps : false}}
 
   get eventSchema(){
     return  JOI.object().keys({
@@ -115,20 +129,22 @@ class TelehashParserMiddleware extends TelehashAbstractMiddleware {
     if (schema && schema.isJoi) return schema;
 
     let error = new Error(`${this.name}._dataSchema must be a JOI schema, got ${typeof schema}`);
-    process.nextTick(() => this.emit('error', error));
+    this.log.error(error);
+    this.emit('error',error);
     return this.JOI.object().required().description("the parsed data payload");
   }
 
   get _dataSchema(){
     let error = new Error(`${this.name}._dataSchema is undefined`);
-    this.log.error(error);
-    process.nextTick(() => this.emit('error',error));
+    this.log.warn(error);
+    this.log.info("*** impliment a ._dataSchema getter that returns a JOI schema for your result data ***")
+    this.emit('error',error);
 
     return this.JOI.object().description("no-op");
   }
 
   process(link, packet){
-    this.log.debug(`.process(Link<${link.id}>, ${JSON.stringify(packet.json)}::${packet.body})`)
+    this.log.debug(`.process(Link<${link.id}>, ${stringify(packet.json)}::${packet.body})`)
     return this.parse(link, packet)
                 .then((data) => ({
                   label : packet.json.label,
@@ -139,13 +155,21 @@ class TelehashParserMiddleware extends TelehashAbstractMiddleware {
                   data
                 }))
                 .then((evt) => {
-                  this.log.debug(`.process() completed, validating result`,evt);
+                  this.log.debug(`.process() completed, validating result`);
                   return TelehashParserMiddleware.validateSchema(this.eventSchema, evt)
+                })
+                .catch(e => {
+                  if (e.name === "ValidationError") {
+                    this.log.warn(`._parse() returned data that was invalid according ${this.name}'s _dataSchema`)
+                    this.log.info('*** only resolve the parse() promise with valid data ***')
+                    this.emit('error',e);
+                  }
+                  return Promise.reject(e);
                 })
   }
 
   parse(link, packet){
-    this.log.debug(`.parse(Link<${link.id}>, ${JSON.stringify(packet.json)}::${packet.body})`)
+    this.log.debug(`.parse(Link<${link.id}>, ${stringify(packet.json)}::${packet.body})`)
     var error;
     try{
       let promise = this._parse(link, packet);

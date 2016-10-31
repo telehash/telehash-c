@@ -1,3 +1,4 @@
+
 const EnvirEmitter = require('enviromitter');
 const Mesh = require("../core.js").Mesh;
 const Link = require("../core.js").Link;
@@ -15,7 +16,7 @@ class TelehashAbstractMiddleware extends EnvirEmitter {
   static get Link(){return Link;}
 
   static get optionsSchema(){
-    return EnvitEmitter.optionsSchema.concat(EnvirEmitter.JOI.object())
+    return EnvirEmitter.optionsSchema.concat(EnvirEmitter.JOI.object())
   }
 
   static Test(CHILD, OPTIONS){
@@ -48,6 +49,7 @@ class TelehashAbstractMiddleware extends EnvirEmitter {
 
     return EnvirEmitter.Test(CHILD || TelehashMiddleware, OPTIONS)
                        .then((instance) => new Promise((resolve, reject) => {
+
                          instance.log.info('completed EnvirEmitter test');
                          let mesh = new Mesh(() => {})
                          instance.enable(mesh)

@@ -1,17 +1,23 @@
 const TelehashAbstractMiddleware = require("./abstract.js");
 const JOI = TelehashAbstractMiddleware.JOI;
 
-const methodSchema = JOI.array().items(JOI.object().keys({
-  name : JOI.string().min(1).required().label("Method Name").description("the key under which the function will be bound to the mesh or link"),
-  method : JOI.func().required().label("Function").description("the function to bind to the mesh or link")
-}).description("objects returned from ._linkMethods or ._meshMethods must conform"));
+class AbstractUtil extends TelehashAbstractMiddleware{
+  static get methodSchema () {
+    return  JOI.array().items(
+      JOI.object().keys({
+        name : JOI.string().min(1).required().label("Method Name").description("the key under which the function will be bound to the mesh or link"),
+        method : JOI.func().required().label("Function").description("the function to bind to the mesh or link"),
+        schema : JOI.object().schema().required().label("JOI Schemas").description("an array of validators to be applied to the arguments of this method"),
+        Test : JOI.func().required()
+      }).description("objects returned from ._linkMethods or ._meshMethods must conform")
+    ).required().min(0);
+  }
 
-const LinkMethodSchema = methodSchema.label("Link.method() schema");
-const MeshMethodSchema = methodSchema.label("Mesh.method() schema");
+  static get LinkMethodSchema () { return AbstractUtil.methodSchema.label("Link.method() schema"); }
+  static get MeshMethodSchema () { return AbstractUtil.methodSchema.label("Mesh.method() schema"); }
 
-class TelehashUtilMiddleware extends TelehashAbstractMiddleware{
   static Test(CHILD, OPTIONS){
-    class UtilTest extends TelehashUtilMiddleware{
+    class UtilTest extends AbstractUtil {
       constructor(){
         super()
       }
@@ -31,10 +37,6 @@ class TelehashUtilMiddleware extends TelehashAbstractMiddleware{
     }
 
     return TelehashAbstractMiddleware.Test(CHILD || UtilTest, OPTIONS)
-                                     .then((instance) => {
-                                       instance.log.info("UtilTest completed");
-                                       return instance;
-                                     })
   }
 
   static get optionsSchema(){
@@ -52,12 +54,12 @@ class TelehashUtilMiddleware extends TelehashAbstractMiddleware{
     this.mesh = mesh;
 
     return Promise.all([
-      this.validateMethods('link', LinkMethodSchema, this.linkMethods),
-      this.validateMethods('mesh'  ,MeshMethodSchema, this.meshMethods)
+      this.validateMethods('link', AbstractUtil.LinkMethodSchema, this.linkMethods),
+      this.validateMethods('mesh', AbstractUtil.MeshMethodSchema, this.meshMethods)
     ])
     .then(([linkMethods, meshMethods]) => {
       this.log.debug(`._enable() methods validated`);
-      mesh.on('link',(link) => this.linkListener(link));
+      mesh.prependListener('link',(link) => this.linkListener(link));
       this.log.debug(`._enable() linkListener attached`);
       return Promise.all([
         this.attachMethods( 'link',mesh._links,linkMethods ),
@@ -74,18 +76,94 @@ class TelehashUtilMiddleware extends TelehashAbstractMiddleware{
   }
 
   get _optionsSchema(){
-    return TelehashUtilMiddleware.optionsSchema;
+    return AbstractUtil.optionsSchema;
+  }
+
+  static makeEvent(stage, details) {
+    return ({stage, details})
+  }
+
+  static curryProgressCallback({start = 0, end = 100, stage}, onProgress) {
+    console.log("curry")
+    var parentStage = stage;
+    return ({stage, percent, details}) => {
+      onProgress({
+        stage : `${parentStage}.${stage}`,
+        percent : Math.round(start + percent * ((end - start) / 100)),
+        details
+      })
+    }
+  }
+
+  curryMethod({schema, method, thing, name})  {
+    return (options = {}, onProgress = () => {}) => {
+      onProgress = AbstractUtil.curryProgressCallback(
+        {
+          start : 0,
+          end : 100,
+          stage : name
+        },
+        onProgress
+      )
+      this.log.debug(`._${name}(${options},${onProgress}) START`);
+      onProgress({stage : "validate", percent : 2});
+      return AbstractUtil
+            .validateSchema(schema, options)
+            .then(() => {
+              this.log.debug(`._${name}(${options},${onProgress}) SCHEMA VALIDATED`);
+              onProgress({stage : "start", percent : 5})
+              var promise;
+              try{
+                promise = method.apply(
+                  thing,
+                  [
+                    options,
+                    AbstractUtil.curryProgressCallback({
+                      start : 5,
+                      end : 95,
+                      stage : "run"
+                    }, onProgress)
+                  ]
+                );
+              } catch(e){
+                e.message = `method '${name}' threw error : ${e.message}`;
+                return Promise.reject(e);
+              }
+
+              if (promise instanceof Promise) return promise;
+
+              return Promise.reject(new Error(`util method '${name}' did not return a promise`))
+            })
+            .then((result) => {
+              this.log.debug(`._${name}(${options},${onProgress}) FINISH`);
+              onProgress({
+                stage : "finish",
+                percent : 100
+              })
+              return result;
+            })
+            .catch(error => {
+              this.log.error(error);
+              onProgress({
+                stage : "error",
+                error : error,
+                percent : -1
+              });
+              return Promise.reject(error);
+            })
+    }
   }
 
   attachMethods(type, iterable, methods){
-    this.log.debug(`.attachMethods('${type}', [${iterable.length}], ['${methods.map(({name}) => name).join("', '")}']) START`);
+    this.log.debug(`.attachMethods('${type}', [${iterable.length || iterable.size}], ['${methods.map(({name}) => name).join("', '")}']) START`);
     if (type != 'mesh' && type != 'link') return Promise.reject(new Error(`unsupported type, expected 'mesh' or 'link', got ${typs}`))
 
-    return Promise.resolve().then(() => {
+    return (new Promise((resolve, reject) => {
       for (var thing of iterable){
-        for (let {name, method} of methods){
+        thing = thing.length === 2 ? thing[1] : thing; // handle iteration over a Map()
+        for (let {name, schema, method} of methods){
           if (!thing[name]) {
-            thing[name] = method.bind(thing);
+            thing[name] = this.curryMethod({method, schema, name, thing}).bind(thing);
             thing[name].middleware = this.name;
             continue;
           } else {
@@ -103,15 +181,16 @@ class TelehashUtilMiddleware extends TelehashAbstractMiddleware{
           }
         }
       }
-      this.log.debug(`.attachMethods('${type}', [${iterable.length}], ['${methods.map(({name}) => name).join("', '")}']) SUCCESS`);
-    }).catch((e) => {
-      this.log.debug(`.attachMethods('${type}', [${iterable.length}], ['${methods.map(({name}) => name).join("', '")}']) FAILURE`);
+      this.log.debug(`.attachMethods('${type}', [${iterable.length || iterable.size}], ['${methods.map(({name}) => name).join("', '")}']) SUCCESS`);
+      resolve()
+    })).catch((e) => {
+      this.log.debug(`.attachMethods('${type}', [${iterable.length || iterable.size}], ['${methods.map(({name}) => name).join("', '")}']) FAILURE`);
       return Promise.reject(e);
     })
   }
 
   detachMethods(type, iterable, methods){
-    this.log.debug(`.detachMethods('${type}', [${iterable.length}], ['${methods.map(({name}) => name).join("', '")}']) START`);
+    this.log.debug(`.detachMethods('${type}', [${iterable.length || iterable.size}], ['${methods.map(({name}) => name).join("', '")}']) START`);
     return Promise.resolve().then(() => {
       for (var thing of iterable){
         for (let {name} of methods){
@@ -123,9 +202,9 @@ class TelehashUtilMiddleware extends TelehashAbstractMiddleware{
           }
         }
       }
-      this.log.debug(`.detachMethods('${type}', [${iterable.length}], ['${methods.map(({name}) => name).join("', '")}']) SUCCESS`);
+      this.log.debug(`.detachMethods('${type}', [${iterable.length || iterable.size}], ['${methods.map(({name}) => name).join("', '")}']) SUCCESS`);
     }).catch((e) => {
-      this.log.debug(`.detachMethods('${type}', [${iterable.length}], ['${methods.map(({name}) => name).join("', '")}']) FAILURE`);
+      this.log.debug(`.detachMethods('${type}', [${iterable.length || iterable.size}], ['${methods.map(({name}) => name).join("', '")}']) FAILURE`);
       return Promise.reject(e);
     })
   }
@@ -133,8 +212,8 @@ class TelehashUtilMiddleware extends TelehashAbstractMiddleware{
   _disable(){
     this.log.debug(`._disable() START`);
     return Promise.all([
-      this.validateMethods('link',LinkMethodSchema, this.linkMethods),
-      this.validateMethods('mesh', MeshMethodSchema, this.meshMethods)
+      this.validateMethods('link', AbstractUtil.LinkMethodSchema, this.linkMethods),
+      this.validateMethods('mesh', AbstractUtil.MeshMethodSchema, this.meshMethods)
     ]).then(([linkMethods, meshMethods]) => {
       this.log.debug(`._disable() passed method check`);
       if (!this.mesh) return Promise.reject(new Error(`._disable() called without .mesh assigned`));
@@ -209,12 +288,17 @@ class TelehashUtilMiddleware extends TelehashAbstractMiddleware{
 try{
   if (require.main === module) {
     console.log('called directly');
-    TelehashUtilMiddleware.Test().then((inst) => {
+    AbstractUtil.Test().then((inst) => {
       inst.log.info("TEST COMPLETE", inst.runtime);
 
       process.exit();
     })
+    .catch(e => {
+      console.log("*** FAIL ***",e)
+    })
   }
-}catch(e){}
+}catch(e){
+  console.log("BAD FAIL",e);
+}
 
-module.exports = TelehashUtilMiddleware;
+module.exports = AbstractUtil;

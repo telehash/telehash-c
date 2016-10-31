@@ -57,6 +57,14 @@ class Chunks{
             console.log("UNDEF",th.UTF8ToString( hashname_char(link_id(link)) ).substr(0,8) )
           }
         })
+        stream.on('end', () => {
+          let l = Mesh._links.get(th.UTF8ToString( hashname_char(link_id(link)) ).substr(0,8))
+          if (l)
+            l.emit('down')
+          else {
+            console.log("UNDEF",th.UTF8ToString( hashname_char(link_id(link)) ).substr(0,8) )
+          }
+        })
       }
 
 
@@ -89,7 +97,6 @@ class Chunks{
       flush();
     })
     var greeting = lob_from_c(mesh_json(mesh));
-    console.log(greeting.json)
     this.chunks.send(lob.encode(greeting.json));
 
   }
@@ -164,6 +171,8 @@ class Frames{
         //th.util_sys_logging(1);
         var link = mesh_receive(mesh,packet);
         if(linked || !link) continue;
+
+        console.log("FRAMES LINKING")
         that._c_link = link;
         mesh_link(mesh, link);
 
@@ -171,6 +180,7 @@ class Frames{
         // catch new link and plumb delivery pipe
         linked = link;
         link_pipe(link, function(link, packet, arg){
+
           if(!packet) return null;
           //console.log("sending packet", frames, packet, lob_len(packet));
           util_frames_send(frames,packet)
@@ -182,6 +192,7 @@ class Frames{
     });
 
     stream.on('close', () => {
+      console.log("frames stream closed");
       flushing = false;
       if (linked){
         let l = Mesh._links.get(th.UTF8ToString( hashname_char(link_id(linked)) ).substr(0,8))
@@ -200,7 +211,7 @@ class Frames{
       if (Mesh._reject.has(hashname)) return null;
       if (Mesh._open || Mesh._accept.has(hashname)) return null; //will get handled by global CB
 
-      process.nextTick(() => Mesh.emit('discover', packet, () =>{
+      process.nextTick(() => {
 
         let link = mesh_add(mesh, discovered, pipe);
         if (!linked && link){
@@ -219,7 +230,7 @@ class Frames{
           },null);
         }
         return link;
-      }))
+      })
 
     })
 
@@ -298,6 +309,7 @@ class Link extends EventEmitter {
     super();
 
     this._c_mesh = Mesh._mesh;
+    this.mesh = Mesh;
     this._c_link = c_link;
     this.hashname = th.UTF8ToString( hashname_char(link_id(c_link)) );
     var id = this.hashname.substr(0,8)
@@ -340,6 +352,13 @@ class Link extends EventEmitter {
     return new Channel( this._c_mesh, this._c_link, open);
   }
 
+  disconnect(){
+    for (let [type, transport] of this.mesh._transports){
+      if (type === this._transport.type) return transport.disconnect(this._transport.handle, this._transport.pipe)
+    }
+    return Promise.reject(new Error(`link disconnect found no transport for type ${this._transport.type}`))
+  }
+
   console(cmd, cb){
     let chan = this.channel({json : {type : "console"}, body : cmd})
     chan.on('data',(packet) => {
@@ -378,6 +397,10 @@ class Mesh extends EventEmitter {
     this._listen = new Set();
     this._connect = new Map();
 
+    this._transports = new Map();
+    this._parsers = new Array();
+    this._discovered = new Map();
+
     this.once("up",on_up);
   }
 
@@ -387,10 +410,12 @@ class Mesh extends EventEmitter {
 
   frames(transport, frame_size){
     this._frames.add(new Frames(this, transport, frame_size));
+    return transport;
   }
 
   chunks(transport, chunk_size){
     this._chunks.add(new Chunks(this, transport, chunk_size));
+    return transport;
   }
 
   init(on_link, opts){
@@ -418,17 +443,38 @@ class Mesh extends EventEmitter {
   start(listen){
     this._mesh = mesh_new();
 
-    mesh_on_discover(this._mesh, "*", (mesh, discovered, pipe) => {
+    this.on('open',(link, packet) => {
+      try {
+        if (this._parsers.length > 0){
+          this._parsers.reduce((promise, parser) => {
+            parser.log.trace("parser", parser.name);
+            return promise.catch(() => parser.process(link,packet).then((evt) => {
+              if (!evt.data) return Promise.reject(new Error('no data'))
+              return evt;
+            }))
+          }, Promise.reject())
+          .then((evt) => {
+            this.emit('data',evt)
+          })
+          .catch(e => {
+            console.error("error",e);
+          });
+        }
+      } catch (e) {
+        console.error("!!!!!! PARSER ERROR BUBBLED OUT TO THC. DANGER WILL ROBINSON !!!!!!")
+      }
+    })
 
-      let packet = lob_from_c(discovered)
-      let hashname = packet.json.hashname;
-      if (this._reject.has(hashname)) return null;
-      if (this._open || this._accept.has(hashname)) return mesh_add(mesh, discovered, pipe);
-      return null;
-    });
+    for( let [type, transport] of this._transports){
+      console.log("starting transport",type);
+      transport.enable(this).catch((e) => this.emit('error',e))
+    }
+
 
     mesh_on_link(this._mesh, "*", (c_link) => {
+
       let id = th.UTF8ToString( hashname_char(link_id(c_link)) ).substr(0,8);
+      console.log("C MESH GOT LINK", id)
       if (link_up(c_link) && !this._links.has(id)){
         let _link = this._deadLinks.get(id);
         var no_emit = false;
@@ -447,12 +493,22 @@ class Mesh extends EventEmitter {
         this._deadLinks.set(id, this._links.get(id))
         this._links.delete(id)
       }
+      if (link_up(c_link) && this._links.has(id)){
+        let _link = this._links.get(id);
+        _link.emit('up')
+      }
     });
 
     mesh_on_open(this._mesh, "*", (c_link, c_open) => {
+      var link = this._links.get( th.UTF8ToString( hashname_char(link_id(c_link)) ).substr(0,8) )
+      var packet = lob_from_c(c_open);
+
+      //TODO: deprecate;
       process.nextTick(() => {
-        this.emit('open', this._links.get( th.UTF8ToString( hashname_char(link_id(c_link)) ).substr(0,8) ) , lob_from_c(c_open) )
+        this.emit('open', link , packet );
       })
+
+
     });
 
     this._getKeys((secrets, keys) => {
@@ -468,8 +524,9 @@ class Mesh extends EventEmitter {
         })
       }
       this.hashname = th.UTF8ToString( hashname_char(mesh_id(this._mesh)));
-      if (listen) this.listen();
-      else this.emit('up',this)
+      //if (listen) //this.listen();
+      //else
+      this.emit('up',this)
     })
   }
 
@@ -488,13 +545,75 @@ class Mesh extends EventEmitter {
     // this function intentionally left blank
   }
 
-  use(middleware){
-    let mid = middleware(this, th);
+  connect(evt){
+    var evt = this._discovered.get(evt.id) || evt;
+
+    var {type, handle, id} = evt;
+
+    if (!this._transports.has(type)) return Promise.reject(new Error('no transport for type'))
+
+    let transport = this._transports.get(type);
+
+    return transport
+           .connect(handle)
+           .then((pipe) => {
+             transport.log.info(`got ${transport.type} pipe for ${id}`);
+             if (pipe.chunk_size) return Promise.resolve(this.chunks(pipe, pipe.chunk_size));
+             if (pipe.frame_size) return Promise.resolve(this.frames(pipe, pipe.frame_size));
+             return Promise.reject(new Error('unknown framing protocol, did you forget to set frame_size getter?'));
+           })
+           .then((pipe) => new Promise((resolve, reject) => {
+             const linkIDChecker = (link) => {
+               link.id = link.hashname.substr(0,8);
+               if (link.id === id) {
+                 this.removeListener('link', linkIDChecker);
+                 link._transport = {type, handle, pipe};
+                 resolve(link)
+               }
+             }
+             this.on('link',linkIDChecker);
+           }))
+  }
+
+  discovered(){
+    var ret = []
+    for (let [id, evt] of this._discovered){
+      ret.push(evt);
+    }
+    return ret;
+  }
+
+  clearDiscovered(){
+    this._discovered.clear();
+    for (let [name, transport] of this._transports){
+      transport._discovered = {};
+    }
+  }
+
+  use(mid){
     switch (mid.type){
       case "transport":
+        mid.log.info(`got thing`)
         if (mid.listen) this._listen.add(mid.listen);
-        if (mid.connect) this._connect.set(mid.type, mid.connect);
+        if (mid.connect) this._connect.set(mid.name, mid.connect);
+        this._transports.set(mid.name, mid);
+        mid.on('discover',(handle, id) => {
+          mid.log.info(`discover : ${id}`);
+          if (!id) return mid.log.warn("discarding discovery with no id");
+          if (this._deadLinks.has(id)) {
+            return this.connect({type : mid.name, id, handle})
+          }
+          let emit = !this._discovered.has(id);
+          this._discovered.set(id, {type : mid.name, id, handle})
+
+          if (emit) {
+            console.log("MESH EMITTING DISCOVERY", id, mid.name);
+            this.emit('discover', {type : mid.name, id, handle});
+          }
+        })
         return;
+      case "util":
+        return mid.enable(this);
       case "channel":
         return this.on('open', mid.open.bind(this) );
       case "keystore":
@@ -503,6 +622,16 @@ class Mesh extends EventEmitter {
         return;
       case "rng":
         e3x_random(th.Runtime.addFunction(mid.randomByte));
+        return;
+      case "parser":
+        if (this._parsers.map(({name}) => name).indexOf(mid.name) < 0) this._parsers.push(mid);
+        mid.once('error',() => {
+          mid.log.error(e);
+          this._parsers = this._parsers.filter((p) => p.name != mid.name);
+          mid.disable();
+        })
+        mid.enable(this);
+        return;
       default:
         return;
     }
