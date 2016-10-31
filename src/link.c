@@ -60,6 +60,7 @@ void link_free(link_t link)
 
   hashname_free(link->id);
   lob_free(link->key);
+  lob_free(link->handshake);
   free(link);
 }
 
@@ -266,7 +267,8 @@ link_t link_receive_handshake(link_t link, lob_t inner)
     mesh_link(link->mesh, link);
   }
 
-  lob_free(inner);
+  link->handshake = lob_free(link->handshake);
+  link->handshake = inner;
   return link;
 }
 

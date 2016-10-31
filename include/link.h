@@ -10,7 +10,7 @@ struct link_struct
   hashname_t id;
   e3x_exchange_t x;
   mesh_t mesh;
-  lob_t key;
+  lob_t key, handshake;
   chan_t chans;
 
   // transport plumbing
