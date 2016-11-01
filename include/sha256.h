@@ -46,6 +46,8 @@ void SHA256_Final(unsigned char digest[32], SHA256_CTX * ctx);
 void SHA256_Update(SHA256_CTX * ctx, const void *in, size_t len);
 void SHA256_Init(SHA256_CTX * ctx);
 
+int hkdf_sha256( uint8_t *salt, uint32_t salt_len, uint8_t *ikm, uint32_t ikm_len, uint8_t *info, uint32_t info_len, uint8_t *okm, uint32_t okm_len);
+
 #ifdef __cplusplus
 }
 #endif

@@ -26,7 +26,7 @@
 #include <sys/types.h>
 #include <stdint.h>
 #include <string.h>
-#include "sha256.h"
+#include "telehash.h"
 
 static inline uint32_t
 be32dec(const void *pp)
@@ -565,6 +565,8 @@ void hmac_256(const unsigned char *key, size_t keylen, const unsigned char *inpu
    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#define SHA256_DIGEST_SIZE 32
+
 /*
  *  hkdf_sha256_extract
  *
@@ -591,18 +593,18 @@ void hmac_256(const unsigned char *key, size_t keylen, const unsigned char *inpu
  *
  */
 static int hkdf_sha256_extract(
-uint8  *salt,
-uint32      salt_len,
-uint8  *ikm,
-uint32      ikm_len,
-uint8       *prk
+uint8_t  *salt,
+uint32_t      salt_len,
+uint8_t  *ikm,
+uint32_t      ikm_len,
+uint8_t       *prk
 )
 {
-  uint8 null_salt[SHA256_DIGEST_SIZE];
+  uint8_t null_salt[SHA256_DIGEST_SIZE];
 
   if (ikm == NULL)
   {
-      printf("Error: incorrect input parameter for hkdf_sha256_extract\n");  
+    LOG_DEBUG("Error: incorrect input parameter for hkdf_sha256_extract");
     return -1;
   }
 
@@ -612,9 +614,9 @@ uint8       *prk
     memset(null_salt, '\0', salt_len);
   }
 
-  hmac_sha256(salt, salt_len,
+  hmac_256(salt, salt_len,
               ikm,  ikm_len,
-              prk,  SHA256_DIGEST_SIZE);
+              prk);
   return 0;
 }
 
@@ -651,45 +653,45 @@ uint8       *prk
  */
 static int hkdf_sha256_expand
 (
-uint8   prk[],
-uint32      prk_len,
-uint8   *info,
-uint32      info_len,
-uint8       okm[],
-uint32      okm_len
+uint8_t   prk[],
+uint32_t      prk_len,
+uint8_t   *info,
+uint32_t      info_len,
+uint8_t       okm[],
+uint32_t      okm_len
 )
 {
-  uint32 hash_len;
-  uint32 N;
-  uint8 T[SHA256_DIGEST_SIZE];
-  uint32 Tlen;
-  uint32 pos;
-  uint32 i;
-  hmac_sha256_ctx* pctx;
-  uint8 c;
+  uint32_t hash_len;
+  uint32_t N;
+  uint8_t T[SHA256_DIGEST_SIZE];
+  uint32_t Tlen;
+  uint32_t pos;
+  uint32_t i;
+  HMAC_SHA256_CTX* pctx;
+  uint8_t c;
 
   if( ( prk_len == 0 ) || ( okm_len == 0 ) || ( okm == NULL ) )
   {
-      printf("Error: incorrect input parameter for hkdf_sha256\n");  
+      LOG_DEBUG("Error: incorrect input parameter for hkdf_sha256");
     return -1;
   }
 
-  pctx = malloc(sizeof(hmac_sha256_ctx));
+  pctx = malloc(sizeof(HMAC_SHA256_CTX));
   if(NULL == pctx)
   {
-      printf("Error: fail to allocate memory for hmac_sha256\n");  
+      LOG_DEBUG("Error: fail to allocate memory for hmac_sha256");
       return -2;
   }
 
   if (info == NULL) {
-    info = (uint8 *)"";
+    info = (uint8_t *)"";
     info_len = 0;
   }
 
   hash_len = SHA256_DIGEST_SIZE;
   if (prk_len < hash_len)
   {
-      printf("Error: prk size (%d) is smaller than hash size (%d)\n", prk_len, hash_len);  
+      LOG_DEBUG("Error: prk size (%d) is smaller than hash size (%d)", prk_len, hash_len);
       return -3;
   }
   N = okm_len / hash_len;
@@ -697,7 +699,7 @@ uint32      okm_len
     N++;
   if (N > 255)
   {
-      printf("Error: incorrect input size (%d) for hkdf_sha256\n", N);
+      LOG_DEBUG("Error: incorrect input size (%d) for hkdf_sha256", N);
       free(pctx);
       return -4;
   }
@@ -706,19 +708,19 @@ uint32      okm_len
   pos = 0;
   for (i = 1; i <= N; i++) {
     c = i;
-    memset( pctx, 0, sizeof(hmac_sha256_ctx) ); 
+    memset( pctx, 0, sizeof(HMAC_SHA256_CTX) );
 
-    hmac_sha256_init(pctx, prk, prk_len);
-    hmac_sha256_update(pctx, T, Tlen);    
-    hmac_sha256_update(pctx, info, info_len);
-    hmac_sha256_update(pctx, &c, 1);
-    hmac_sha256_final(pctx, T, SHA256_DIGEST_SIZE);    
-    
+    HMAC_SHA256_Init(pctx, prk, prk_len);
+    HMAC_SHA256_Update(pctx, T, Tlen);
+    HMAC_SHA256_Update(pctx, info, info_len);
+    HMAC_SHA256_Update(pctx, &c, 1);
+    HMAC_SHA256_Final(T, pctx);
+
     memcpy(okm + pos, T, (i != N) ? hash_len : (okm_len - pos));
     pos += hash_len;
     Tlen = hash_len;
   }
-  memset( pctx, 0, sizeof(hmac_sha256_ctx) );
+  memset( pctx, 0, sizeof(HMAC_SHA256_CTX) );
   free(pctx);
   return 0;
 }
@@ -759,25 +761,25 @@ uint32      okm_len
  *      0 on success, <0 on error.
  *
  */
-int hkdf_sha256( uint8 *salt, uint32 salt_len,
-    uint8 *ikm, uint32 ikm_len,
-    uint8 *info, uint32 info_len,
-    uint8 *okm, uint32 okm_len)
+int hkdf_sha256( uint8_t *salt, uint32_t salt_len,
+    uint8_t *ikm, uint32_t ikm_len,
+    uint8_t *info, uint32_t info_len,
+    uint8_t *okm, uint32_t okm_len)
 {
-  int32 i_ret;
-  uint8 prk[SHA256_DIGEST_SIZE];
+  int32_t i_ret;
+  uint8_t prk[SHA256_DIGEST_SIZE];
 
   i_ret = hkdf_sha256_extract(salt, salt_len, ikm, ikm_len, prk);
   if(0 != i_ret)
   {
-    printf("Error: fail to execute hkdf_sha256_extract()\n");
+    LOG_DEBUG("Error: fail to execute hkdf_sha256_extract()");
     return -1;
   }
 
   i_ret =  hkdf_sha256_expand(prk, SHA256_DIGEST_SIZE, info, info_len, okm, okm_len);
   if(0 != i_ret)
   {
-    printf("Error: fail to execute hkdf_sha256_expand()\n");
+    LOG_DEBUG("Error: fail to execute hkdf_sha256_expand()");
     return -2;
   }
 
