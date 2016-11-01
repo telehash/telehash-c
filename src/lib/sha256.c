@@ -526,3 +526,261 @@ void hmac_256(const unsigned char *key, size_t keylen, const unsigned char *inpu
 {
   sha256_hmac(key, keylen, input, ilen, output, 0);
 }
+
+/*
+   Implements the HKDF algorithm (HMAC-based Extract-and-Expand Key
+   Derivation Function, RFC 5869).
+   This implementation is adapted from IETF's HKDF implementation,
+   see associated license below.
+*/
+/*
+   Copyright (c) 2011 IETF Trust and the persons identified as
+   authors of the code.  All rights reserved.
+   Redistribution and use in source and binary forms, with or
+   without modification, are permitted provided that the following
+   conditions are met:
+   - Redistributions of source code must retain the above
+     copyright notice, this list of conditions and
+     the following disclaimer.
+   - Redistributions in binary form must reproduce the above
+     copyright notice, this list of conditions and the following
+     disclaimer in the documentation and/or other materials provided
+     with the distribution.
+   - Neither the name of Internet Society, IETF or IETF Trust, nor
+     the names of specific contributors, may be used to endorse or
+     promote products derived from this software without specific
+     prior written permission.
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+   CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+   INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+   MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+   DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+   CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+   NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+   LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+   HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+   CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+   OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+   EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+
+/*
+ *  hkdf_sha256_extract
+ *
+ *  Description:
+ *      This function will perform HKDF extraction with SHA256.
+ *
+ *  Parameters:
+ *      salt: [in]
+ *          The optional salt value (a non-secret random value);
+ *          if not provided (salt == NULL), it is set internally
+ *          to a string of HashLen(hmac_algorithm) zeros.
+ *      salt_len: [in]
+ *          The length of the salt value.  (Ignored if salt == NULL.)
+ *      ikm: [in]
+ *          Input keying material.
+ *      ikm_len: [in]
+ *          The length of the input keying material.
+ *      prk: [out]
+ *          Array where the HKDF extraction is to be stored.
+ *          Must be euqual to or larger than 32 bytes
+ *
+ *  Returns:
+ *      0 on success, -1 on error.
+ *
+ */
+static int hkdf_sha256_extract(
+uint8  *salt,
+uint32      salt_len,
+uint8  *ikm,
+uint32      ikm_len,
+uint8       *prk
+)
+{
+  uint8 null_salt[SHA256_DIGEST_SIZE];
+
+  if (ikm == NULL)
+  {
+  	  printf("Error: incorrect input parameter for hkdf_sha256_extract\n");	
+    return -1;
+  }
+
+  if (salt == NULL) {
+    salt = null_salt;
+    salt_len = SHA256_DIGEST_SIZE;
+    memset(null_salt, '\0', salt_len);
+  }
+
+  hmac_sha256(salt, salt_len,
+              ikm,  ikm_len,
+              prk,  SHA256_DIGEST_SIZE);
+  return 0;
+}
+
+/*
+ *  hkdf_sha256_expand
+ *
+ *  Description:
+ *      This function will perform HKDF with SHA256 expansion.
+ *
+ *  Parameters:
+ *      prk: [in]
+ *          The pseudo-random key to be expanded; either obtained
+ *          directly from a cryptographically strong, uniformly
+ *          distributed pseudo-random number generator, or as the
+ *          output from hkdfExtract().
+ *      prk_len: [in]
+ *          The length of the pseudo-random key in prk;
+ *          should at least be equal to HashSize(hmac_algorithm).
+ *      info: [in]
+ *          The optional context and application specific information.
+ *          If info == NULL or a zero-length string, it is ignored.
+ *      info_len: [in]
+ *          The length of the optional context and application specific
+ *          information. (Ignored if info == NULL.)
+ *      okm: [out]
+ *          Where the HKDF is to be stored.
+ *      okm_len: [in]
+ *          The length of the buffer to hold okm.
+ *          okm_len must be <= 255 * SHA256_DIGEST_SIZE
+ *
+ *  Returns:
+ *      0 on success, -1 on error.
+ *
+ */
+static int hkdf_sha256_expand
+(
+uint8   prk[],
+uint32      prk_len,
+uint8   *info,
+uint32      info_len,
+uint8       okm[],
+uint32      okm_len
+)
+{
+  uint32 hash_len;
+  uint32 N;
+  uint8 T[SHA256_DIGEST_SIZE];
+  uint32 Tlen;
+  uint32 pos;
+  uint32 i;
+  hmac_sha256_ctx* pctx;
+  uint8 c;
+
+  if( ( prk_len == 0 ) || ( okm_len == 0 ) || ( okm == NULL ) )
+  {
+  	  printf("Error: incorrect input parameter for hkdf_sha256\n");	
+    return -1;
+  }
+
+  pctx = malloc(sizeof(hmac_sha256_ctx));
+  if(NULL == pctx)
+  {
+  	  printf("Error: fail to allocate memory for hmac_sha256\n");	
+      return -2;
+  }
+
+  if (info == NULL) {
+    info = (uint8 *)"";
+    info_len = 0;
+  }
+
+  hash_len = SHA256_DIGEST_SIZE;
+  if (prk_len < hash_len)
+  {
+  	  printf("Error: prk size (%d) is smaller than hash size (%d)\n", prk_len, hash_len);	
+      return -3;
+  }
+  N = okm_len / hash_len;
+  if (okm_len % hash_len)
+    N++;
+  if (N > 255)
+  {
+  	  printf("Error: incorrect input size (%d) for hkdf_sha256\n", N);
+  	  free(pctx);
+      return -4;
+  }
+
+  Tlen = 0;
+  pos = 0;
+  for (i = 1; i <= N; i++) {
+    c = i;
+    memset( pctx, 0, sizeof(hmac_sha256_ctx) ); 
+
+    hmac_sha256_init(pctx, prk, prk_len);
+    hmac_sha256_update(pctx, T, Tlen);    
+    hmac_sha256_update(pctx, info, info_len);
+    hmac_sha256_update(pctx, &c, 1);
+    hmac_sha256_final(pctx, T, SHA256_DIGEST_SIZE);  	
+    
+    memcpy(okm + pos, T, (i != N) ? hash_len : (okm_len - pos));
+    pos += hash_len;
+    Tlen = hash_len;
+  }
+  memset( pctx, 0, sizeof(hmac_sha256_ctx) );
+  free(pctx);
+  return 0;
+}
+
+/*
+ *  hkdf_sha256
+ *
+ *  Description:
+ *      This function will generate keying material using HKDF with SHA256.
+ *
+ *  Parameters:
+ *      salt: [in]
+ *          The optional salt value (a non-secret random value);
+ *          if not provided (salt == NULL), it is set internally
+ *          to a string of HashLen(hmac_algorithm) zeros.
+ *      salt_len: [in]
+ *          The length of the salt value. (Ignored if salt == NULL.)
+ *      ikm: [in]
+ *          Input keying material.
+ *      ikm_len: [in]
+ *          The length of the input keying material.
+ *      info: [in]
+ *          The optional context and application specific information.
+ *          If info == NULL or a zero-length string, it is ignored.
+ *      info_len: [in]
+ *          The length of the optional context and application specific
+ *          information. (Ignored if info == NULL.)
+ *      okm: [out]
+ *          Where the HKDF is to be stored.
+ *      okm_len: [in]
+ *          The length of the buffer to hold okm.
+ *          okm_len must be <= 255 * 32
+ *
+ *  Notes:
+ *      Calls hkdfExtract() and hkdfExpand().
+ *
+ *  Returns:
+ *      0 on success, <0 on error.
+ *
+ */
+int hkdf_sha256( uint8 *salt, uint32 salt_len,
+		uint8 *ikm, uint32 ikm_len,
+		uint8 *info, uint32 info_len,
+		uint8 *okm, uint32 okm_len)
+{
+	int32 i_ret;
+	uint8 prk[SHA256_DIGEST_SIZE];
+
+	i_ret = hkdf_sha256_extract(salt, salt_len, ikm, ikm_len, prk);
+	if(0 != i_ret)
+	{
+		printf("Error: fail to execute hkdf_sha256_extract()\n");
+		return -1;
+	}
+
+	i_ret =  hkdf_sha256_expand(prk, SHA256_DIGEST_SIZE, info, info_len, okm, okm_len);
+	if(0 != i_ret)
+	{
+		printf("Error: fail to execute hkdf_sha256_expand()\n");
+		return -2;
+	}
+
+	return 0;
+}
+
