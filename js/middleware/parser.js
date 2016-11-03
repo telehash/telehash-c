@@ -70,7 +70,7 @@ class TelehashParserMiddleware extends TelehashAbstractMiddleware {
             return instance.process(
               CHILD ? CHILD.StubLink : TelehashParserMiddleware.StubLink,
               CHILD ? CHILD.StubPacket : TelehashParserMiddleware.StubPacket
-            ).then(resolve).catch(reject);
+            ).then(() => resolve(instance)).catch(reject);
           }));
   }
 

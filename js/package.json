@@ -6,7 +6,7 @@
     ]
   ],
   "_from": "thc@*",
-  "_id": "thc@0.0.19",
+  "_id": "thc@0.1.0-rc1",
   "_inCache": true,
   "_installable": true,
   "_location": "/thc",
@@ -43,10 +43,11 @@
     "url": "https://github.com/telehash/telehash-c/issues"
   },
   "dependencies": {
+    "browserify-fs": "^1.0.0",
+    "enviromitter": "0.0.6",
     "joi": "^9.1.1",
+    "json-stringify-safe": "^5.0.1",
     "lob-enc": "0.0.17",
-    "loglevel-debug": "0.0.1",
-    "loglevel-message-prefix": "^2.0.1",
     "serialport": "^3.1.2"
   },
   "description": "telehash-c compiled into javascript",
@@ -79,12 +80,15 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "browser": {
-    "crypto": false
+    "crypto": false,
+    "fs": false,
+    "json": false
   },
   "babel": {
     "ignore": [
-      "./include/thc.js"
+      "./include/thc.js",
+      "json"
     ]
   },
-  "version": "0.12.3"
+  "version": "0.13.6"
 }

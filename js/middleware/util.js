@@ -59,7 +59,9 @@ class AbstractUtil extends TelehashAbstractMiddleware{
     ])
     .then(([linkMethods, meshMethods]) => {
       this.log.debug(`._enable() methods validated`);
-      mesh.prependListener('link',(link) => this.linkListener(link));
+      mesh.on('link',(link) => this.linkListener(link));
+      let l = mesh.listeners('link')
+      l.unshift(l.pop());
       this.log.debug(`._enable() linkListener attached`);
       return Promise.all([
         this.attachMethods( 'link',mesh._links,linkMethods ),
@@ -84,7 +86,7 @@ class AbstractUtil extends TelehashAbstractMiddleware{
   }
 
   static curryProgressCallback({start = 0, end = 100, stage}, onProgress) {
-    console.log("curry")
+    //console.log("curry")
     var parentStage = stage;
     return ({stage, percent, details}) => {
       onProgress({
