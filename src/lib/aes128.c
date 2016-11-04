@@ -24,7 +24,7 @@
  *  http://csrc.nist.gov/encryption/aes/rijndael/Rijndael.pdf
  *  http://csrc.nist.gov/publications/fips/fips197/fips-197.pdf
  */
-
+#ifdef BUILD_SOFT_AES
 
 #include <string.h>
 #include "aes128.h"
@@ -873,3 +873,5 @@ int mbedtls_aes_crypt_ctr( mbedtls_aes_context *ctx,
 
     return( 0 );
 }
+
+#endif
