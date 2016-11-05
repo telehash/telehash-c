@@ -25,6 +25,8 @@
  *  http://csrc.nist.gov/publications/fips/fips197/fips-197.pdf
  */
 
+// when this is defined the app must provide the aes_128_ctr() method
+#ifndef AES_EXTERNAL
 
 #include <string.h>
 #include "aes128.h"
@@ -873,3 +875,5 @@ int mbedtls_aes_crypt_ctr( mbedtls_aes_context *ctx,
 
     return( 0 );
 }
+
+#endif
