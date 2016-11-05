@@ -7,7 +7,3 @@
 152	e3x_cipher_t
 88	e3x_exchange_t
 80	chan_t
-136	tmesh_t
-56	mote_t
-104	tempo_t
-104	knock_t
