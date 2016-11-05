@@ -24,7 +24,9 @@
  *  http://csrc.nist.gov/encryption/aes/rijndael/Rijndael.pdf
  *  http://csrc.nist.gov/publications/fips/fips197/fips-197.pdf
  */
-#ifdef BUILD_SOFT_AES
+
+// when this is defined the app must provide the aes_128_ctr() method
+#ifndef AES_EXTERNAL
 
 #include <string.h>
 #include "aes128.h"
