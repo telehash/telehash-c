@@ -19,9 +19,7 @@ struct mesh_struct
   lob_t keys, paths, handshake;
   e3x_self_t self;
   void *on; // internal list of triggers
-  // shared network info
-  uint16_t port_local, port_public;
-  char *ipv4_local, *ipv4_public;
+  uint32_t state; // our current state (from app)
   link_t links;
 };
 

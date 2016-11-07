@@ -12,6 +12,7 @@ struct link_struct
   mesh_t mesh;
   lob_t key, handshake;
   chan_t chans;
+  uint32_t state; // peer's current state
 
   // transport plumbing
   void *send_arg;

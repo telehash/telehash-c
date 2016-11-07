@@ -96,7 +96,6 @@ net_udp4_t net_udp4_new(mesh_t mesh, lob_t options)
   socklen_t size = sizeof(struct sockaddr_in);
   
   port = lob_get_int(options,"port");
-  if(!port) port = mesh->port_local; // might be another in use
 
   // create a udp socket
   if((sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP) ) < 0 ) return LOG_ERROR("failed to create socket %s",strerror(errno));
@@ -124,7 +123,6 @@ net_udp4_t net_udp4_new(mesh_t mesh, lob_t options)
   net->mesh = mesh;
   net->server = sock;
   net->port = ntohs(sa.sin_port);
-  if(!mesh->port_local) mesh->port_local = (uint16_t)net->port; // use ours as the default if no others
 
   return net;
 }
