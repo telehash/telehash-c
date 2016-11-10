@@ -1,6 +1,6 @@
 'use strict';
 const EventEmitter = require("events").EventEmitter;
-const lob = require("lob-enc");
+const lob = require("./lob/index.js");
 //const hashname = require("hashname");
 //const base32 = require("base32")
 const path = require("path");
@@ -552,12 +552,18 @@ class Mesh extends EventEmitter {
     return transport
       .connect(handle)
       .then((pipe) => {
-        transport.log.info(`got ${transport.type} pipe for ${id}`);
+
+        transport.log.info(`got ${transport.name} pipe for ${id}`);
         if (pipe.chunk_size) return Promise.resolve(this.chunks(pipe, pipe.chunk_size));
         if (pipe.frame_size) return Promise.resolve(this.frames(pipe, pipe.frame_size));
         return Promise.reject(new Error('unknown framing protocol, did you forget to set frame_size getter?'));
       })
       .then((pipe) => new Promise((resolve, reject) => {
+        if (this._deadLinks.has(id)){
+          this._deadLinks.get(id)._transport = {type, handle, pipe};
+          this._deadLinks.delete(id);
+          return resolve();
+        }
         const linkIDChecker = (link) => {
           link.id = link.hashname.substr(0, 8);
           if (link.id === id) {
@@ -610,7 +616,7 @@ class Mesh extends EventEmitter {
       case "util":
         return mid.enable(this);
       case "integration":
-        return mid.enable(this).then(() => this.on('data', mid.handleEvent.bind(mid));
+        return mid.enable(this).then(() => this.on('data', mid.handleEvent.bind(mid)));
       case "channel":
         return this.on('open', mid.open.bind(this));
       case "keystore":
