@@ -480,6 +480,7 @@ class Mesh extends EventEmitter {
         _link.c_link(c_link);
         process.nextTick(() => {
           this._links.set(id, _link);
+          this._deadLinks.delete(id);
           if (!no_emit) this.emit("link", _link)
           _link.emit("up");
         });
@@ -561,7 +562,6 @@ class Mesh extends EventEmitter {
       .then((pipe) => new Promise((resolve, reject) => {
         if (this._deadLinks.has(id)){
           this._deadLinks.get(id)._transport = {type, handle, pipe};
-          this._deadLinks.delete(id);
           return resolve();
         }
         const linkIDChecker = (link) => {
