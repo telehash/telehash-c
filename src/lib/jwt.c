@@ -168,5 +168,6 @@ lob_t jwk_get(e3x_self_t self, lob_t jwk, bool private)
 
 e3x_self_t jwk_self(lob_t jwk)
 {
-  return NULL;
+  if(!jwk || !lob_get(jwk,"kty")) return LOG("missing/bad args");
+  return e3x_self_new(NULL, jwk);
 }

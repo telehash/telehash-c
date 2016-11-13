@@ -30,5 +30,6 @@ char *jwt_alg(char *alg);
 
 // extending support for more JOSE
 lob_t jwk_get(e3x_self_t self, lob_t jwk, bool private);
+e3x_self_t jwk_self(lob_t jwk);
 
 #endif

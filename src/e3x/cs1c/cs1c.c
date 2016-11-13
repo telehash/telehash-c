@@ -145,6 +145,31 @@ local_t local_new(lob_t keys, lob_t secrets)
   local_t local = NULL;
   lob_t key, secret;
 
+  // support new from jwk
+  if(lob_get_cmp(keys,"kty","EC") == 0 && lob_get_cmp(keys,"crv","P-256") == 0)
+  {
+    lob_t d = lob_get_base64(keys,"d");
+    if(!d) return LOG("missing private key 'd'");
+    lob_t x = lob_get_base64(keys,"x");
+    if(!x) return LOG("missing public key 'x'");
+    lob_t y = lob_get_base64(keys,"x");
+    if(!y) return LOG("missing public key 'y'");
+    if(d->body_len != SECRET_BYTES || (x->body_len + y->body_len) != KEY_BYTES)
+    {
+      lob_free(d);
+      lob_free(x);
+      lob_free(y);
+      return LOG("invalid key size");
+    }
+
+    if(!(local = malloc(sizeof(struct local_struct)))) return LOG("OOM");
+    memset(local,0,sizeof (struct local_struct));
+    memcpy(local->secret,d->body,d->body_len);
+    memcpy(local->key,x->body,x->body_len);
+    memcpy(local->key+x->body_len,y->body,y->body_len);
+    return local;
+  }
+
   if(!keys) keys = lob_linked(secrets); // for convenience
   key = lob_get_base32(keys,"1c");
   if(!key) return LOG("invalid key");

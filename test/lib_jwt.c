@@ -118,6 +118,10 @@ int main(int argc, char **argv)
     LOG_DEBUG("JWK: %s",lob_json(jwk));
     fail_unless(lob_get(jwk,"x"));
     fail_unless(lob_get(jwk,"y"));
+    
+    fail_unless(jwk_get(self,jwk,true));
+    e3x_self_t kself = jwk_self(jwk);
+    fail_unless(kself);
   }
 
   // brunty
