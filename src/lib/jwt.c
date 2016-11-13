@@ -152,19 +152,21 @@ char *jwt_alg(char *alg)
 }
 
 // we're overloading local_sign() right now until a refactor
-lob_t jwk_get(e3x_self_t self, uint8_t id, bool private)
+lob_t jwk_get(e3x_self_t self, lob_t jwk, bool private)
 {
-  if(!self || !id) return LOG("missing/bad args");
-  e3x_cipher_t cs = e3x_cipher_set(id,NULL);
-  if(!cs || !cs->local_sign || !cs->alg || !strstr(cs->alg,"JWK")) return LOG("no support for %x",id);
-  local_t local = self->locals[cs->id];
-  if(!local) return LOG("no keys for %x",id);
+  if(!self) return LOG("missing/bad args");
+  for(uint8_t i=0; i<CS_MAX; i++)
+  {
+    e3x_cipher_t cs = e3x_cipher_sets[i];
+    if(!cs || !self->locals[i] || !cs->local_sign || !cs->alg || !strstr(cs->alg,"JWK")) continue;
+    lob_t ret = cs->local_sign(self->locals[i],jwk,NULL,private?1:0); // OVERLOADED (refactor me)
+    if(ret) return ret;
+  }
+  
+  return NULL;
+}
 
-  // build args
-  lob_t args = lob_new();
-  lob_set(args,"alg","JWK");
-  if(private) lob_set_int(args,"private",1);
-  lob_t jwk = cs->local_sign(local,args,NULL,0);
-  lob_free(args);
-  return jwk;
+e3x_self_t jwk_self(lob_t jwk)
+{
+  return NULL;
 }

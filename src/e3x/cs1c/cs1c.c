@@ -237,15 +237,12 @@ lob_t local_sign(local_t local, lob_t args, uint8_t *data, size_t len)
     return args;
   }
 
-  if(lob_get_cmp(args,"alg","JWK") == 0)
+  if(lob_get_cmp(args,"kty","EC") == 0 && lob_get_cmp(args,"crv","P-256") == 0)
   {
-    lob_t jwk = lob_new();
-    lob_set(jwk,"kty","EC");
-    lob_set(jwk,"crv","P-256");
-    lob_set_base64(jwk,"x",local->key,KEY_BYTES/2);
-    lob_set_base64(jwk,"y",local->key+KEY_BYTES/2,KEY_BYTES/2);
-    if(lob_get_int(args,"private") == 1) lob_set_base64(jwk,"d",local->secret,SECRET_BYTES);
-    return jwk;
+    lob_set_base64(args,"x",local->key,KEY_BYTES/2);
+    lob_set_base64(args,"y",local->key+KEY_BYTES/2,KEY_BYTES/2);
+    if(len == 1) lob_set_base64(args,"d",local->secret,SECRET_BYTES);
+    return args;
   }
 
   return NULL;

@@ -29,6 +29,6 @@ lob_t jwt_sign(lob_t token, e3x_self_t self); // attaches signature to the claim
 char *jwt_alg(char *alg);
 
 // extending support for more JOSE
-lob_t jwk_get(e3x_self_t self, uint8_t id, bool private);
+lob_t jwk_get(e3x_self_t self, lob_t jwk, bool private);
 
 #endif

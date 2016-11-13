@@ -111,9 +111,13 @@ int main(int argc, char **argv)
     fail_unless(x);
     fail_unless(jwt_verify(es256,x));
     
-    lob_t jwk = jwk_get(self,0x1c,false);
-    fail_unless(jwk);
+    lob_t jwk = lob_new();
+    lob_set(jwk,"kty","EC");
+    lob_set(jwk,"crv","P-256");
+    fail_unless(jwk_get(self,jwk,false));
     LOG_DEBUG("JWK: %s",lob_json(jwk));
+    fail_unless(lob_get(jwk,"x"));
+    fail_unless(lob_get(jwk,"y"));
   }
 
   // brunty
