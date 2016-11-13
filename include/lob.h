@@ -74,6 +74,7 @@ lob_t lob_set_uint(lob_t p, char *key, unsigned int val);
 lob_t lob_set_float(lob_t p, char *key, float val, uint8_t places);
 lob_t lob_set_printf(lob_t p, char *key, const char *format, ...);
 lob_t lob_set_base32(lob_t p, char *key, uint8_t *val, size_t vlen);
+lob_t lob_set_base64(lob_t p, char *key, uint8_t *bin, size_t blen);
 
 // copies keys from json into p
 lob_t lob_set_json(lob_t p, lob_t json);

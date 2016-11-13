@@ -379,6 +379,19 @@ lob_t lob_set_base32(lob_t p, char *key, uint8_t *bin, size_t blen)
   return p;
 }
 
+lob_t lob_set_base64(lob_t p, char *key, uint8_t *bin, size_t blen)
+{
+  char *val;
+  if(!p || !key || !bin || !blen) return LOG("bad args");
+  if(!(val = malloc(base64_encode_length(blen)+2))) return LOG("OOM"); // include surrounding quotes
+  val[0] = '"';
+  size_t vlen = base64_encoder(bin, blen, val+1);
+  val[1+vlen] = '"';
+  lob_set_raw(p,key,0,val,vlen+2);
+  free(val);
+  return p;
+}
+
 // creates cached string on lob
 char *lob_cache(lob_t p, size_t len)
 {

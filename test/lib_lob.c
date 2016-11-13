@@ -31,6 +31,12 @@ int main(int argc, char **argv)
   fail_unless(bin);
   fail_unless(bin->body_len == len);
 
+  lob_free(packet);
+  packet = lob_new();
+  lob_set_base64(packet,"64",buf,len);
+  fail_unless(lob_get(packet,"64"));
+  fail_unless(lob_get_cmp(packet,"64","AB17InR5cGUiOiJ0ZXN0IiwiZm9vIjpbImJhciJdfWFueSBiaW5hcnkh") == 0);
+
   lob_set(packet,"key","value");
   fail_unless(lob_keys(packet) == 2);
 
@@ -39,7 +45,7 @@ int main(int argc, char **argv)
   lob_set(packet,"a","value");
   lob_set(packet,"z","value");
   lob_sort(packet);
-  fail_unless(util_cmp(lob_get_index(packet,0),"32") == 0);
+  fail_unless(util_cmp(lob_get_index(packet,0),"64") == 0);
   fail_unless(util_cmp(lob_get_index(packet,2),"a") == 0);
   fail_unless(util_cmp(lob_get_index(packet,4),"key") == 0);
   fail_unless(util_cmp(lob_get_index(packet,6),"z") == 0);
