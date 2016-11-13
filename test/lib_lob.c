@@ -36,6 +36,9 @@ int main(int argc, char **argv)
   lob_set_base64(packet,"64",buf,len);
   fail_unless(lob_get(packet,"64"));
   fail_unless(lob_get_cmp(packet,"64","AB17InR5cGUiOiJ0ZXN0IiwiZm9vIjpbImJhciJdfWFueSBiaW5hcnkh") == 0);
+  lob_t bin2 = lob_get_base64(packet,"64");
+  fail_unless(bin2);
+  fail_unless(bin2->body_len == len);
 
   lob_set(packet,"key","value");
   fail_unless(lob_keys(packet) == 2);

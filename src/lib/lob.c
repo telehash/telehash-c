@@ -581,6 +581,25 @@ lob_t lob_get_base32(lob_t p, char *key)
   return ret;
 }
 
+// creates new packet w/ a body of the decoded base64 key value
+lob_t lob_get_base64(lob_t p, char *key)
+{
+  lob_t ret;
+  char *val;
+  size_t len = 0;
+  if(!p || !key) return NULL;
+
+  val = js0n(key,0,(char*)p->head,p->head_len,&len);
+  if(!val) return NULL;
+
+  ret = lob_new();
+  // make space to decode into the body
+  if(!lob_body(ret,NULL,base64_decoder(val,len,NULL))) return lob_free(ret);
+  // if the decoding wasn't successful, fail
+  if(!base64_decoder(val,len,ret->body)) return lob_free(ret);
+  return ret;
+}
+
 // just shorthand for util_cmp to match a key/value
 int lob_get_cmp(lob_t p, char *key, char *val)
 {

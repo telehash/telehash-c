@@ -107,6 +107,7 @@ size_t lob_get_len(lob_t p, char *key);
 lob_t lob_get_json(lob_t p, char *key); // creates new packet from key:object value
 lob_t lob_get_array(lob_t p, char *key); // list of packet->next from key:[object,object]
 lob_t lob_get_base32(lob_t p, char *key); // decoded binary is the return body
+lob_t lob_get_base64(lob_t p, char *key);
 
 // TODO, this would be handy, js syntax to get a json value
 // char *lob_eval(lob_t p, "foo.bar[0]['zzz']");
