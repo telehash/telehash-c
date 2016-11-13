@@ -150,3 +150,21 @@ char *jwt_alg(char *alg)
   if(!alg) return LOG("missing arg");
   return (e3x_cipher_set(0,alg)) ? alg : NULL;
 }
+
+// we're overloading local_sign() right now until a refactor
+lob_t jwk_get(e3x_self_t self, uint8_t id, bool private)
+{
+  if(!self || !id) return LOG("missing/bad args");
+  e3x_cipher_t cs = e3x_cipher_set(id,NULL);
+  if(!cs || !cs->local_sign || !cs->alg || !strstr(cs->alg,"JWK")) return LOG("no support for %x",id);
+  local_t local = self->locals[cs->id];
+  if(!local) return LOG("no keys for %x",id);
+
+  // build args
+  lob_t args = lob_new();
+  lob_set(args,"alg","JWK");
+  if(private) lob_set_int(args,"private",1);
+  lob_t jwk = cs->local_sign(local,args,NULL,0);
+  lob_free(args);
+  return jwk;
+}

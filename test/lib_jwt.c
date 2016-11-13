@@ -94,6 +94,28 @@ int main(int argc, char **argv)
     fail_unless(jwt_verify(test,x));
   }
 
+  if(jwt_alg("ES256"))
+  {
+    lob_t es256 = lob_new();
+    lob_set(es256,"alg","ES256");
+    lob_set(es256,"typ","JWT");
+    lob_t esp = lob_new();
+    lob_set_int(esp,"sub",42);
+    lob_link(es256,esp);
+    fail_unless(jwt_sign(es256,self));
+    fail_unless(esp->body_len == 64);
+    LOG("signed JWT: %s",jwt_encode(es256));
+
+    lob_t key = lob_get_base32(lob_linked(id),"1c");
+    e3x_exchange_t x = e3x_exchange_new(self, 0x1c, key);
+    fail_unless(x);
+    fail_unless(jwt_verify(es256,x));
+    
+    lob_t jwk = jwk_get(self,0x1c,false);
+    fail_unless(jwk);
+    LOG_DEBUG("JWK: %s",lob_json(jwk));
+  }
+
   // brunty
   int i = 1000;
   char *tok = strdup(jwt);

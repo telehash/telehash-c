@@ -75,7 +75,7 @@ e3x_cipher_t cs1c_init(lob_t options)
   memcpy(ret->hex,"1c",3);
 
   // which alg's we support
-  ret->alg = "HS256 ES256";
+  ret->alg = "HS256 ES256 JWK";
 
   // normal init stuff
   uECC_set_rng(&RNG);
@@ -237,6 +237,17 @@ lob_t local_sign(local_t local, lob_t args, uint8_t *data, size_t len)
     return args;
   }
 
+  if(lob_get_cmp(args,"alg","JWK") == 0)
+  {
+    lob_t jwk = lob_new();
+    lob_set(jwk,"kty","EC");
+    lob_set(jwk,"crv","P-256");
+    lob_set_base64(jwk,"x",local->key,KEY_BYTES/2);
+    lob_set_base64(jwk,"y",local->key+KEY_BYTES/2,KEY_BYTES/2);
+    if(lob_get_int(args,"private") == 1) lob_set_base64(jwk,"d",local->secret,SECRET_BYTES);
+    return jwk;
+  }
+
   return NULL;
 }
 
@@ -341,7 +352,7 @@ uint8_t remote_validate(remote_t remote, lob_t args, lob_t sig, uint8_t *data, s
     return (util_ct_memcmp(sig->body,hash,32) == 0) ? 0 : 3;
   }
 
-  if(lob_get_cmp(args,"alg","ES160") == 0)
+  if(lob_get_cmp(args,"alg","ES256") == 0)
   {
     if(!remote || sig->body_len != KEY_BYTES) return 2;
     // hash data first
