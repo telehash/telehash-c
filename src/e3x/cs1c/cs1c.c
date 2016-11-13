@@ -148,6 +148,16 @@ local_t local_new(lob_t keys, lob_t secrets)
   // support new from jwk
   if(lob_get_cmp(keys,"kty","EC") == 0 && lob_get_cmp(keys,"crv","P-256") == 0)
   {
+    // OVERLOADED generate flag first
+    if(secrets)
+    {
+      uint8_t secret[SECRET_BYTES], key[KEY_BYTES];
+      if(!uECC_make_key(key, secret, curve)) return LOG("key gen failed");
+      lob_set_base64(keys,"x",key,KEY_BYTES/2);
+      lob_set_base64(keys,"y",key+KEY_BYTES/2,KEY_BYTES/2);
+      lob_set_base64(keys,"d",secret,SECRET_BYTES);
+    }
+
     lob_t d = lob_get_base64(keys,"d");
     if(!d) return LOG("missing private key 'd'");
     lob_t x = lob_get_base64(keys,"x");
@@ -167,6 +177,9 @@ local_t local_new(lob_t keys, lob_t secrets)
     memcpy(local->secret,d->body,d->body_len);
     memcpy(local->key,x->body,x->body_len);
     memcpy(local->key+x->body_len,y->body,y->body_len);
+    lob_free(d);
+    lob_free(x);
+    lob_free(y);
     return local;
   }
 
