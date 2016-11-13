@@ -152,7 +152,7 @@ char *jwt_alg(char *alg)
 }
 
 // we're overloading local_sign() right now until a refactor
-lob_t jwk_get(e3x_self_t self, lob_t jwk, bool private)
+lob_t jwk_local_get(e3x_self_t self, lob_t jwk, bool private)
 {
   if(!self) return LOG("missing/bad args");
   for(uint8_t i=0; i<CS_MAX; i++)
@@ -166,8 +166,41 @@ lob_t jwk_get(e3x_self_t self, lob_t jwk, bool private)
   return NULL;
 }
 
-e3x_self_t jwk_self(lob_t jwk)
+e3x_self_t jwk_local_load(lob_t jwk, bool generate)
 {
   if(!jwk || !lob_get(jwk,"kty")) return LOG("missing/bad args");
-  return e3x_self_new(NULL, jwk);
+  lob_t gen = NULL;
+  if(generate) gen = lob_new(); // OVERLOADED for gen flag
+  e3x_self_t self = e3x_self_new(gen, jwk);
+  lob_free(gen);
+  return self;
+}
+
+lob_t jwk_remote_get(e3x_exchange_t x, lob_t jwk)
+{
+  return NULL;
+}
+
+e3x_exchange_t jwk_remote_load(lob_t jwk)
+{
+  if(!jwk || !lob_get(jwk,"kty")) return LOG("missing/bad args");
+  return NULL;//e3x_self_new(NULL, jwk);
+}
+
+lob_t jwe_jwt(e3x_exchange_t to, lob_t jwt)
+{
+  // generate ephemeral self
+  // put jwk into jwe
+  // gen iv, get shared secret, do hkdf
+  // add ciphertext
+  // add tag
+  return NULL;
+}
+
+lob_t jwe_decrypt(e3x_self_t self, lob_t jwe, uint8_t *secret)
+{
+  // load jwk remote
+  // shared secret, hkdf, decipher
+  // validate tag
+  return NULL;
 }
