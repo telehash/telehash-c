@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 typedef struct lob_struct
 {
@@ -72,6 +73,7 @@ lob_t lob_set_len(lob_t p, char *key, size_t klen, char *val, size_t vlen); // s
 lob_t lob_set_int(lob_t p, char *key, int val);
 lob_t lob_set_uint(lob_t p, char *key, unsigned int val);
 lob_t lob_set_float(lob_t p, char *key, float val, uint8_t places);
+lob_t lob_set_bool(lob_t p, char *key, bool val);
 lob_t lob_set_printf(lob_t p, char *key, const char *format, ...);
 lob_t lob_set_base32(lob_t p, char *key, uint8_t *val, size_t vlen);
 lob_t lob_set_base64(lob_t p, char *key, uint8_t *bin, size_t blen);
@@ -93,6 +95,7 @@ char *lob_get(lob_t p, char *key);
 int lob_get_int(lob_t p, char *key);
 unsigned int lob_get_uint(lob_t p, char *key);
 float lob_get_float(lob_t p, char *key);
+bool lob_get_bool(lob_t p, char *key);
 
 char *lob_get_index(lob_t p, uint32_t i); // returns ["0","1","2","3"] or {"0":"1","2":"3"}
 

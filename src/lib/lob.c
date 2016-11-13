@@ -285,6 +285,14 @@ lob_t lob_set_uint(lob_t p, char *key, unsigned int val)
   return p;
 }
 
+lob_t lob_set_bool(lob_t p, char *key, bool val)
+{
+  if(!p || !key) return LOG("bad args");
+  if(val) lob_set_raw(p,key,0,"true",4);
+  else lob_set_raw(p,key,0,"false",5);
+  return p;
+}
+
 // embedded friendly float to string, printf float support is a morass
 lob_t lob_set_float(lob_t p, char *key, float value, uint8_t places)
 {
@@ -504,6 +512,16 @@ float lob_get_float(lob_t p, char *key)
   char *val = lob_get(p,key);
   if(!val) return 0;
   return strtof(val,NULL);
+}
+
+bool lob_get_bool(lob_t p, char *key)
+{
+  if(!p || !key) return false;
+  char *val = lob_get(p,key);
+  if(!val) return 0;
+  if(*(val-1) == '"') return false;
+  if(strcmp(val,"true") == 0) return true;
+  return false;
 }
 
 // returns ["0","1","2"]

@@ -111,6 +111,12 @@ int main(int argc, char **argv)
   fail_unless(lob_get_int(ft,"bar0") == 42);
   LOG("floats %s",lob_json(ft));
 
+  lob_t truth = lob_new();
+  lob_set_bool(truth,"true",true);
+  fail_unless(lob_get_bool(truth,"true"));
+  lob_set_bool(truth,"true",false);
+  fail_unless(!lob_get_bool(truth,"true"));
+
   return 0;
 }
 
