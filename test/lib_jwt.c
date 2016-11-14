@@ -114,14 +114,22 @@ int main(int argc, char **argv)
     lob_t jwk = lob_new();
     lob_set(jwk,"kty","EC");
     lob_set(jwk,"crv","P-256");
-    fail_unless(jwk_get(self,jwk,false));
+    fail_unless(jwk_local_get(self,jwk,false));
     LOG_DEBUG("JWK: %s",lob_json(jwk));
     fail_unless(lob_get(jwk,"x"));
     fail_unless(lob_get(jwk,"y"));
     
-    fail_unless(jwk_get(self,jwk,true));
-    e3x_self_t kself = jwk_self(jwk);
+    fail_unless(jwk_local_get(self,jwk,true));
+    e3x_self_t kself = jwk_local_load(jwk,false);
     fail_unless(kself);
+
+    jwk = lob_new();
+    lob_set(jwk,"kty","EC");
+    lob_set(jwk,"crv","P-256");
+    kself = jwk_local_load(jwk,true);
+    fail_unless(kself);
+    fail_unless(lob_get(jwk,"x"));
+    fail_unless(lob_get(jwk,"d"));
   }
 
   // brunty
