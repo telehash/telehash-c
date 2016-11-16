@@ -130,6 +130,8 @@ int main(int argc, char **argv)
     fail_unless(kself);
     fail_unless(lob_get(jwk,"x"));
     fail_unless(lob_get(jwk,"d"));
+    
+    lob_t jwe = jwe_jwt_1c(x, es256);
   }
 
   // brunty

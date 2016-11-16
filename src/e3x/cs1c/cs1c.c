@@ -345,6 +345,34 @@ lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
   lob_t outer;
   size_t inner_len;
 
+  if(lob_get_cmp(inner,"alg","ECDH-EH") == 0 && lob_get_cmp(inner,"enc","A128CTR-HS256") == 0)
+  {
+    LOG_DEBUG("doing JWE");
+    lob_t jwe = lob_new();
+    lob_set_raw(jwe,"header",6,lob_json(inner),0);
+
+    // shared secret
+    if(!uECC_shared_secret(remote->key, remote->esecret, hash, curve)) return lob_free(jwe);
+    
+    // get unique shared key via HKDF
+    lob_t salt = lob_get_base64(inner, "hks");
+    if(hkdf_sha256(lob_body_get(salt), lob_body_len(salt), hash, 32, (uint8_t*)"JWE", 3, shared, 32)) return lob_free(jwe);
+    
+    // encrypt the payload in-place
+    e3x_rand(iv,16);
+    lob_set_base64(jwe,"iv",iv,16);
+    aes_128_ctr(shared,lob_body_len(inner),iv,lob_body_get(inner),lob_body_get(inner));
+    
+    // add ciphertext
+    lob_set_base64(jwe,"ciphertext",lob_body_get(inner),lob_body_len(inner));
+    
+    // gen/add auth tag
+    hmac_256(shared,32,lob_body_get(inner),lob_body_len(inner),hash);
+    lob_set_base64(jwe,"tag",hash,32);
+
+    return jwe;
+  }
+
   outer = lob_new();
   lob_head(outer,&csid,1);
   inner_len = lob_len(inner);

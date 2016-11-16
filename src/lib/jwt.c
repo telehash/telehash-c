@@ -187,8 +187,57 @@ e3x_exchange_t jwk_remote_load(lob_t jwk)
   return NULL;//e3x_self_new(NULL, jwk);
 }
 
-lob_t jwe_jwt(e3x_exchange_t to, lob_t jwt)
+/*
 {
+  "header": {
+    "alg": "ECDH-EH",
+    "enc": "A128CTR-HS256",
+    "hks": "akrFmMyGcsF3nQWxpY2U",
+    "epk": {
+      "kty": "EC",
+      "crv": "P-256",
+      "x": "gI0GAILBdu7T53akrFmMyGcsF3n5dO7MmwNBHKW5SV0",
+      "y": "SLW_xSffzlPWrHEVI30DHM_4egVwt3NQqeUD7nMFpps"
+    }
+  },
+  "iv": "AxY8DCtDaGlsbGljb3RoZQ",
+  "ciphertext": "KDlTtXchhZTGufMYmOYGS4HffxPSUrfmqCHXaI9wOGY",
+  "tag": "Mz-VPPyU4RlcuYv1IwIvzw"
+}
+*/
+
+lob_t jwe_jwt_1c(e3x_exchange_t to, lob_t jwt)
+{
+  uint8_t buf[16];
+
+  // generate ephemeral EC
+  lob_t ek = lob_new();
+  lob_set(ek,"kty","EC");
+  lob_set(ek,"crv","P-256");
+  e3x_self_t ephem = jwk_local_load(ek, true);
+  
+  // get just the public JWK of it
+  lob_t epk = lob_new();
+  lob_set(epk,"kty","EC");
+  lob_set(epk,"crv","P-256");
+  jwk_local_get(ephem, epk, false);
+
+  lob_t header = lob_new();
+  lob_set(header,"alg","ECDH-EH");
+  lob_set(header,"enc","A128CTR-HS256");
+  e3x_rand(buf,8);
+  lob_set_base64(header,"hks",buf,8);
+  lob_set_raw(header,"epk",3,lob_json(epk),0);
+  
+  // add the payload
+  char *encoded = jwt_encode(jwt);
+  lob_body(header,(uint8_t*)encoded,strlen(encoded));
+
+  // trigger CS JWE mode
+  lob_t jwe = to->cs->remote_encrypt(to->remote,ephem,header);  
+  
+  printf("JWE: %s\n",lob_json(jwe));
+
   // generate ephemeral self
   // put jwk into jwe
   // gen iv, get shared secret, do hkdf
@@ -197,7 +246,7 @@ lob_t jwe_jwt(e3x_exchange_t to, lob_t jwt)
   return NULL;
 }
 
-lob_t jwe_decrypt(e3x_self_t self, lob_t jwe, uint8_t *secret)
+lob_t jwe_decrypt_1c(e3x_self_t self, lob_t jwe, uint8_t *secret)
 {
   // load jwk remote
   // shared secret, hkdf, decipher
