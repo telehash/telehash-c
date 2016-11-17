@@ -3,8 +3,6 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdarg.h>
-
-#define _GNU_SOURCE
 #include <stdio.h>
 
 lob_t lob_new()
