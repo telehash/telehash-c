@@ -1,14 +1,11 @@
 #include "telehash.h"
 #include <string.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <stdint.h>
 #include <stdarg.h>
-#include "telehash.h" // util_sort(), util_sys_short()
-#include "telehash.h" // e3x_rand()
-#include "telehash.h"
-#include "telehash.h"
-#include "telehash.h"
+
+#define _GNU_SOURCE
+#include <stdio.h>
 
 lob_t lob_new()
 {

@@ -5,7 +5,7 @@
 #include "telehash.h"
 
 // max payload size per frame
-#define PAYLOAD(f) (f->size - 4)
+#define PAYLOAD(f) (uint32_t)(f->size - 4)
 
 // one malloc per frame, put storage after it
 util_frames_t util_frame_new(util_frames_t frames)
@@ -159,7 +159,7 @@ util_frames_t util_frames_await(util_frames_t frames)
   // need more to complete inbox
   if(frames->cache) return frames;
   // outbox is complete, awaiting flush
-  if((frames->out * PAYLOAD(frames)) > (uint32_t)lob_len(frames->outbox)) return frames;
+  if((frames->out * PAYLOAD(frames)) > lob_len(frames->outbox)) return frames;
   return NULL;
 }
 
