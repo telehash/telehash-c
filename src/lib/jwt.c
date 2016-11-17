@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include <stdio.h>
 #include "telehash.h"
 
 // this lib implements basic JWT support using the crypto/lob utilities in telehash-c
@@ -190,9 +191,11 @@ e3x_exchange_t jwk_remote_load(lob_t jwk)
 /*
 {
   "header": {
-    "alg": "ECDH-EH",
+    "alg": "ECDH-EH+A128CTR-HS256",
     "enc": "A128CTR-HS256",
     "hks": "akrFmMyGcsF3nQWxpY2U",
+    "tag": "Mz-VPPyU4RlcuYv1IwIvzw",
+    "iv": "AxY8DCtDaGlsbGljb3RoZQ",
     "epk": {
       "kty": "EC",
       "crv": "P-256",
@@ -200,50 +203,81 @@ e3x_exchange_t jwk_remote_load(lob_t jwk)
       "y": "SLW_xSffzlPWrHEVI30DHM_4egVwt3NQqeUD7nMFpps"
     }
   },
+  "encrypted_key": "6KB707dM9YTIgHtLvtgWQ8mKwboJW3of9locizkDTHzBC2IlrT1oOQ",
   "iv": "AxY8DCtDaGlsbGljb3RoZQ",
   "ciphertext": "KDlTtXchhZTGufMYmOYGS4HffxPSUrfmqCHXaI9wOGY",
   "tag": "Mz-VPPyU4RlcuYv1IwIvzw"
 }
 */
 
-lob_t jwe_jwt_1c(e3x_exchange_t to, lob_t jwt)
+lob_t jwe_jwt_1c(e3x_exchange_t to, lob_t jwt, uint8_t *ckey)
 {
   uint8_t buf[16];
 
   // generate ephemeral EC
   lob_t ek = lob_new();
-  lob_set(ek,"kty","EC");
-  lob_set(ek,"crv","P-256");
+  lob_set(ek,"kty","EC");  lob_set(ek,"crv","P-256");
   e3x_self_t ephem = jwk_local_load(ek, true);
-  
+  ek = lob_free(ek);
+
   // get just the public JWK of it
   lob_t epk = lob_new();
   lob_set(epk,"kty","EC");
   lob_set(epk,"crv","P-256");
   jwk_local_get(ephem, epk, false);
 
+  // create the header
   lob_t header = lob_new();
-  lob_set(header,"alg","ECDH-EH");
+  lob_set(header,"alg","ECDH-EH+A128CTR-HS256");
   lob_set(header,"enc","A128CTR-HS256");
   e3x_rand(buf,8);
   lob_set_base64(header,"hks",buf,8);
+  e3x_rand(buf,16);
+  lob_set_base64(header,"iv",buf,16);
   lob_set_raw(header,"epk",3,lob_json(epk),0);
+  epk = lob_free(epk);
   
-  // add the payload
+  // encrypt the shared key first
   char *encoded = jwt_encode(jwt);
-  lob_body(header,(uint8_t*)encoded,strlen(encoded));
-
-  // trigger CS JWE mode
-  lob_t jwe = to->cs->remote_encrypt(to->remote,ephem,header);  
+  lob_body(header,ckey,32);
   
-  printf("JWE: %s\n",lob_json(jwe));
+  // let the JWE crypto backend generate a tag and ciphertext key
+  lob_t key = lob_new();
+  lob_set(key,"req","ECDH HK256 A128CTR HS256");
+  lob_link(header,key);
+  if(!to->cs->remote_encrypt(to->remote,ephem->locals[to->cs->id],header))
+  {
+    LOG_WARN("JWE failed for %s",lob_json(header));
+    return lob_free(header);
+  }
+  lob_unlink(header); // detach key
+  
+  lob_t jwe = lob_new();
+  lob_set_base64(jwe,"encrypted_key",lob_body_get(header),lob_body_len(header));
+  lob_set_raw(jwe,"header",6,lob_json(header),0);
 
-  // generate ephemeral self
-  // put jwk into jwe
-  // gen iv, get shared secret, do hkdf
-  // add ciphertext
-  // add tag
-  return NULL;
+  encoded = jwt_encode(jwt);
+  lob_body(jwe,(uint8_t*)encoded,strlen(encoded));
+  e3x_rand(buf,16);
+  lob_set_base64(jwe,"iv",buf,16);
+  
+  // encrypt outer part of the JWE
+  lob_set(key,"req","A128CTR HS256");
+  lob_body(key,ckey,32);
+  lob_link(jwe,key);
+  if(!to->cs->remote_encrypt(to->remote,ephem,jwe))
+  {
+    LOG_WARN("JWE failed for %s",lob_json(header));
+    return lob_free(header);
+  }
+  lob_unlink(jwe); // detach key
+  lob_free(key);
+  lob_link(jwe,header); // return orig header linked
+  
+  lob_set_base64(jwe,"ciphertext",lob_body_get(jwe),lob_body_len(jwe));
+  lob_body(jwe,NULL,0);
+  
+  return jwe;
 }
 
 lob_t jwe_decrypt_1c(e3x_self_t self, lob_t jwe, uint8_t *secret)

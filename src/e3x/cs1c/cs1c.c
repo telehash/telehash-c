@@ -345,32 +345,46 @@ lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
   lob_t outer;
   size_t inner_len;
 
-  if(lob_get_cmp(inner,"alg","ECDH-EH") == 0 && lob_get_cmp(inner,"enc","A128CTR-HS256") == 0)
+  lob_t key = lob_linked(inner);
+  char *req = lob_get(key,"req");
+  if(req)
   {
-    LOG_DEBUG("doing JWE");
-    lob_t jwe = lob_new();
-    lob_set_raw(jwe,"header",6,lob_json(inner),0);
-
-    // shared secret
-    if(!uECC_shared_secret(remote->key, remote->esecret, hash, curve)) return lob_free(jwe);
-    
-    // get unique shared key via HKDF
-    lob_t salt = lob_get_base64(inner, "hks");
-    if(hkdf_sha256(lob_body_get(salt), lob_body_len(salt), hash, 32, (uint8_t*)"JWE", 3, shared, 32)) return lob_free(jwe);
-    
-    // encrypt the payload in-place
-    e3x_rand(iv,16);
-    lob_set_base64(jwe,"iv",iv,16);
-    aes_128_ctr(shared,lob_body_len(inner),iv,lob_body_get(inner),lob_body_get(inner));
-    
-    // add ciphertext
-    lob_set_base64(jwe,"ciphertext",lob_body_get(inner),lob_body_len(inner));
-    
+      // shared secret
+    if(strstr(req,"ECDH"))
+    {
+      if(!uECC_shared_secret(remote->key, local->secret, hash, curve)) return LOG_WARN("ECDH failed");
+      lob_body(key, hash, 32);
+    }
+    // HKDF
+    if(strstr(req,"HK256"))
+    {
+      lob_t hks = lob_get_base64(inner,"hks");
+      int ret = hkdf_sha256(lob_body_get(hks), lob_body_len(hks), lob_body_get(key), lob_body_len(key), NULL, 0, hash, 32);
+      lob_free(hks);
+      if(ret) return LOG_WARN("hkdf failed");
+      lob_body(key, hash, 32);
+    }
+    // text->ciphertext
+    if(strstr(req,"A128CTR"))
+    {
+      lob_t ivv = lob_get_base64(inner,"iv");
+      bool ok = false;
+      if(lob_body_len(ivv) == 16 && lob_body_len(key) == 32)
+      {
+        aes_128_ctr(lob_body_get(key),lob_body_len(inner),lob_body_get(ivv),lob_body_get(inner),lob_body_get(inner));
+        ok = true;
+      }
+      lob_free(ivv);
+      if(!ok) return LOG_WARN("aes128 failed");
+    }
     // gen/add auth tag
-    hmac_256(shared,32,lob_body_get(inner),lob_body_len(inner),hash);
-    lob_set_base64(jwe,"tag",hash,32);
-
-    return jwe;
+    if(strstr(req,"HS256"))
+    {
+      hmac_256(lob_body_get(key),lob_body_len(key),lob_body_get(inner),lob_body_len(inner),hash);
+      lob_set_base64(inner,"tag",hash,32);
+    }
+    // return modified inner result of one or more of the above 
+    return inner;
   }
 
   outer = lob_new();

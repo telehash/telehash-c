@@ -40,5 +40,7 @@ e3x_exchange_t jwk_remote_load(lob_t jwk);
 lob_t jwe_jwt(e3x_exchange_t to, lob_t jwt);
 lob_t jwe_decrypt(e3x_self_t self, lob_t jwe, uint8_t *secret);
 
+lob_t jwe_jwt_1c(e3x_exchange_t to, lob_t jwt, uint8_t *ckey);
+
 
 #endif
