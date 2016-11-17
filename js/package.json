@@ -62,7 +62,7 @@
     "telehash"
   ],
   "license": "ISC",
-  "main": "core.js",
+  "main": "index.js",
   "maintainers": [
     {
       "name": "rynomad",
