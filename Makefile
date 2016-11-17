@@ -1,6 +1,6 @@
 CC=gcc
 EMCC=emcc
-CFLAGS+=-g -std=c99 -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -DDEBUG
+CFLAGS+=-g -std=c99 -std=gnu99 -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -DDEBUG
 #CFLAGS+=-Weverything -Wno-unused-macros -Wno-undef -Wno-gnu-zero-variadic-macro-arguments -Wno-padded -Wno-gnu-label-as-value -Wno-gnu-designator -Wno-missing-prototypes -Wno-format-nonliteral
 INCLUDE+=-Iinclude -Iinclude/lib -Iunix -Ithrowback
 
