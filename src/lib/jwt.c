@@ -182,10 +182,11 @@ lob_t jwk_remote_get(e3x_exchange_t x, lob_t jwk)
   return NULL;
 }
 
-e3x_exchange_t jwk_remote_load(lob_t jwk)
+e3x_exchange_t jwk_remote_load(lob_t jwk, uint8_t csid)
 {
-  if(!jwk || !lob_get(jwk,"kty")) return LOG("missing/bad args");
-  return NULL;//e3x_self_new(NULL, jwk);
+  if(!jwk || !csid || !lob_get(jwk,"kty")) return LOG("missing/bad args");
+
+  return e3x_exchange_new(NULL, csid, jwk);
 }
 
 /*
@@ -210,7 +211,7 @@ e3x_exchange_t jwk_remote_load(lob_t jwk)
 }
 */
 
-lob_t jwe_jwt_1c(e3x_exchange_t to, lob_t jwt, uint8_t *ckey)
+lob_t jwe_encrypt_1c(e3x_exchange_t to, lob_t jwt, uint8_t *ckey)
 {
   uint8_t buf[16];
 
@@ -280,10 +281,29 @@ lob_t jwe_jwt_1c(e3x_exchange_t to, lob_t jwt, uint8_t *ckey)
   return jwe;
 }
 
-lob_t jwe_decrypt_1c(e3x_self_t self, lob_t jwe, uint8_t *secret)
+lob_t jwe_decrypt_1c(e3x_self_t self, lob_t jwe, uint8_t *ckey)
 {
-  // load jwk remote
-  // shared secret, hkdf, decipher
-  // validate tag
+  e3x_cipher_t cs = e3x_cipher_set(0x1c,NULL);
+  if(!cs || !self || !self->locals[cs->id]) return LOG("cs1c unavailable");
+
+  lob_t header = lob_get_json(jwe,"header");
+  
+  // decrypt the shared key first using the header
+  lob_t ekey = lob_get_base64(jwe,"encrypted_key");
+  lob_body(header,lob_body_get(ekey),lob_body_len(ekey));
+  
+  lob_t key = lob_new();
+  lob_set(key,"req","ECDH HK256 A128CTR HS256");
+  lob_link(header,key);
+  if(!cs->local_decrypt(self->locals[cs->id],header))
+  {
+    LOG_WARN("JWE failed for %s",lob_json(header));
+    return lob_free(header);
+  }
+  lob_unlink(header); // detach key
+  
+  memcpy(ckey,lob_body_get(key),32);
+  LOG_DEBUG("deciphered key: %s",(char*)ckey);
+
   return NULL;
 }

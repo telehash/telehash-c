@@ -14,14 +14,14 @@ e3x_exchange_t e3x_exchange_new(e3x_self_t self, uint8_t csid, lob_t key)
   remote_t remote;
   e3x_cipher_t cs = NULL;
 
-  if(!self || !csid || !key || !key->body_len) return LOG("bad args");
+  if(!csid || !key) return LOG("bad args");
 
   // find matching csid
   for(i=0; i<CS_MAX; i++)
   {
     if(!e3x_cipher_sets[i]) continue;
     if(e3x_cipher_sets[i]->csid != csid) continue;
-    if(!self->locals[i]) continue;
+    if(self && !self->locals[i]) continue;
     cs = e3x_cipher_sets[i];
     break;
   }
@@ -40,7 +40,7 @@ e3x_exchange_t e3x_exchange_new(e3x_self_t self, uint8_t csid, lob_t key)
   memcpy(x->token,token,16);
 
   // determine order, if we sort first, we're even
-  for(i = 0; i < key->body_len; i++)
+  if(self) for(i = 0; i < key->body_len; i++)
   {
     if(key->body[i] == self->keys[cs->id]->body[i]) continue;
     x->order = (key->body[i] > self->keys[cs->id]->body[i]) ? 2 : 1;

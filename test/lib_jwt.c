@@ -132,11 +132,15 @@ int main(int argc, char **argv)
     fail_unless(lob_get(jwk,"d"));
     
     uint8_t ckey[32] = "just testing";
-    lob_t jwe = jwe_jwt_1c(x, es256, ckey);
+    lob_t jwe = jwe_encrypt_1c(x, es256, ckey);
     fail_unless(jwe);
     printf("JWE: %s\n",lob_json(jwe));
     fail_unless(lob_get(jwe,"header"));
     fail_unless(lob_get(jwe,"ciphertext"));
+    
+    memset(ckey,0,32);
+    lob_t jwk2 = jwe_decrypt_1c(kself,jwe,ckey);
+    fail_unless(jwk2);
   }
 
   // brunty
