@@ -182,11 +182,20 @@ lob_t jwk_remote_get(e3x_exchange_t x, lob_t jwk)
   return NULL;
 }
 
-e3x_exchange_t jwk_remote_load(lob_t jwk, uint8_t csid)
+e3x_exchange_t jwk_remote_load(lob_t jwk)
 {
-  if(!jwk || !csid || !lob_get(jwk,"kty")) return LOG("missing/bad args");
+  if(!jwk || !lob_get(jwk,"kty")) return LOG("missing/bad args");
 
-  return e3x_exchange_new(NULL, csid, jwk);
+  // this is such a (TEMPORARY) hack, :(
+  for(uint8_t i=0; i<CS_MAX; i++)
+  {
+    e3x_cipher_t cs = e3x_cipher_sets[i];
+    if(!cs || !cs->remote_new || !cs->alg || !strstr(cs->alg,"JWK")) continue;
+    if(!cs->remote_new(jwk,NULL)) continue;
+    return e3x_exchange_new(NULL, cs->csid, jwk);
+  }
+
+  return LOG_WARN("unsupported JWK: %s",lob_json(jwk));
 }
 
 /*
@@ -301,9 +310,20 @@ lob_t jwe_decrypt_1c(e3x_self_t self, lob_t jwe, uint8_t *ckey)
     return lob_free(header);
   }
   lob_unlink(header); // detach key
+  memcpy(ckey,lob_body_get(header),32);
   
-  memcpy(ckey,lob_body_get(key),32);
-  LOG_DEBUG("deciphered key: %s",(char*)ckey);
+  lob_t ctext = lob_get_base64(jwe,"ciphertext");
+  lob_body(jwe,lob_body_get(ctext),lob_body_len(ctext));
+  
+  lob_set(key,"req","A128CTR HS256");
+  lob_body(key,ckey,32);
+  lob_link(jwe,key);
+  if(!cs->local_decrypt(self->locals[cs->id],jwe))
+  {
+    LOG_WARN("JWE failed for %s",lob_json(jwe));
+    return NULL;
+  }
+  lob_unlink(jwe); // detach key
 
-  return NULL;
+  return jwt_decode((char*)lob_body_get(jwe),lob_body_len(jwe));
 }

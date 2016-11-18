@@ -131,16 +131,23 @@ int main(int argc, char **argv)
     fail_unless(lob_get(jwk,"x"));
     fail_unless(lob_get(jwk,"d"));
     
+    e3x_exchange_t kx = jwk_remote_load(jwk);
+    fail_unless(kx);
+
     uint8_t ckey[32] = "just testing";
-    lob_t jwe = jwe_encrypt_1c(x, es256, ckey);
+    LOG_DEBUG("key: %s",util_hex(ckey,32,NULL));
+    lob_t jwe = jwe_encrypt_1c(kx, es256, ckey);
     fail_unless(jwe);
     printf("JWE: %s\n",lob_json(jwe));
     fail_unless(lob_get(jwe,"header"));
     fail_unless(lob_get(jwe,"ciphertext"));
     
     memset(ckey,0,32);
-    lob_t jwk2 = jwe_decrypt_1c(kself,jwe,ckey);
-    fail_unless(jwk2);
+    lob_t jwt = jwe_decrypt_1c(kself,jwe,ckey);
+    fail_unless(jwt);
+    LOG_DEBUG("deciphered JWT: %s",lob_json(jwt));
+    fail_unless(memcmp(ckey,"just testing",12) == 0);
+    fail_unless(jwt_verify(jwt,x));
   }
 
   // brunty
