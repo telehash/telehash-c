@@ -143,7 +143,6 @@ static void fold3(uint8_t in[32], uint8_t out[4])
 local_t local_new(lob_t keys, lob_t secrets)
 {
   local_t local = NULL;
-  lob_t key, secret;
 
   // support new from jwk
   if(lob_get_cmp(keys,"kty","EC") == 0 && lob_get_cmp(keys,"crv","P-256") == 0)
@@ -182,10 +181,10 @@ local_t local_new(lob_t keys, lob_t secrets)
   }
 
   if(!keys) keys = lob_linked(secrets); // for convenience
-  key = lob_get_base32(keys,"1c");
+  lob_t key = lob_get_base32(keys,"1c");
   if(!key) return LOG("invalid key");
 
-  secret = lob_get_base32(secrets,"1c");
+  lob_t secret = lob_get_base32(secrets,"1c");
   if(!secret) return LOG("invalid secret");
 
   if(key->body_len == COMP_BYTES && secret->body_len == SECRET_BYTES)
@@ -506,7 +505,7 @@ uint8_t remote_validate(remote_t remote, lob_t args, lob_t sig, uint8_t *data, s
     return (uECC_verify(remote->key, hash, 32, sig->body, curve) == 1) ? 0 : 3;
   }
 
-  return 3;
+  return 4;
 }
 
 ephemeral_t ephemeral_new(remote_t remote, lob_t outer)
