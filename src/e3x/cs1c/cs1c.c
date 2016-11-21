@@ -75,7 +75,7 @@ e3x_cipher_t cs1c_init(lob_t options)
   memcpy(ret->hex,"1c",3);
 
   // which alg's we support
-  ret->alg = "HS256 ES256";
+  ret->alg = "HS256 ES256 JWK";
 
   // normal init stuff
   uECC_set_rng(&RNG);
@@ -143,13 +143,48 @@ static void fold3(uint8_t in[32], uint8_t out[4])
 local_t local_new(lob_t keys, lob_t secrets)
 {
   local_t local = NULL;
-  lob_t key, secret;
+
+  // support new from jwk
+  if(lob_get_cmp(keys,"kty","EC") == 0 && lob_get_cmp(keys,"crv","P-256") == 0)
+  {
+    // OVERLOADED generate flag first
+    if(secrets)
+    {
+      uint8_t secret[SECRET_BYTES], key[KEY_BYTES];
+      if(!uECC_make_key(key, secret, curve)) return LOG("key gen failed");
+      lob_set_base64(keys,"x",key,KEY_BYTES/2);
+      lob_set_base64(keys,"y",key+KEY_BYTES/2,KEY_BYTES/2);
+      lob_set_base64(keys,"d",secret,SECRET_BYTES);
+    }
+
+    lob_t d = lob_get_base64(keys,"d");
+    if(!d) return LOG("missing private key 'd'");
+    lob_t x = lob_get_base64(keys,"x");
+    lob_t y = lob_get_base64(keys,"y");
+    if(d->body_len != SECRET_BYTES || !x || !y || (x->body_len + y->body_len) != KEY_BYTES)
+    {
+      lob_free(d);
+      lob_free(x);
+      lob_free(y);
+      return LOG("invalid key size");
+    }
+
+    if(!(local = malloc(sizeof(struct local_struct)))) return LOG("OOM");
+    memset(local,0,sizeof (struct local_struct));
+    memcpy(local->secret,d->body,d->body_len);
+    memcpy(local->key,x->body,x->body_len);
+    memcpy(local->key+x->body_len,y->body,y->body_len);
+    lob_free(d);
+    lob_free(x);
+    lob_free(y);
+    return local;
+  }
 
   if(!keys) keys = lob_linked(secrets); // for convenience
-  key = lob_get_base32(keys,"1c");
+  lob_t key = lob_get_base32(keys,"1c");
   if(!key) return LOG("invalid key");
 
-  secret = lob_get_base32(secrets,"1c");
+  lob_t secret = lob_get_base32(secrets,"1c");
   if(!secret) return LOG("invalid secret");
 
   if(key->body_len == COMP_BYTES && secret->body_len == SECRET_BYTES)
@@ -184,21 +219,67 @@ void local_free(local_t local)
 
 lob_t local_decrypt(local_t local, lob_t outer)
 {
-  uint8_t key[KEY_BYTES], shared[SECRET_BYTES], iv[16], hash[32];
-  lob_t inner, tmp;
+  uint8_t keybuf[KEY_BYTES], shared[SECRET_BYTES], iv[16], hash[32];
+
+  lob_t key = lob_linked(outer);
+  char *req = lob_get(key,"req");
+  if(req)
+  {
+      // shared secret
+    if(strstr(req,"ECDH"))
+    {
+      lob_t epk = lob_get_json(outer,"epk");
+      remote_t remote = remote_new(epk, NULL);
+      if(!remote) return LOG_WARN("failed to load epk");
+      if(!uECC_shared_secret(remote->key, local->secret, hash, curve)) return LOG_WARN("ECDH failed");
+      lob_body(key, hash, 32);
+    }
+    // HKDF
+    if(strstr(req,"HK256"))
+    {
+      lob_t hks = lob_get_base64(outer,"hks");
+      int ret = hkdf_sha256(lob_body_get(hks), lob_body_len(hks), lob_body_get(key), lob_body_len(key), NULL, 0, hash, 32);
+      lob_free(hks);
+      if(ret) return LOG_WARN("hkdf failed");
+      lob_body(key, hash, 32);
+    }
+    // gen/validate auth tag
+    if(strstr(req,"HS256"))
+    {
+      hmac_256(lob_body_get(key),lob_body_len(key),lob_body_get(outer),lob_body_len(outer),hash);
+      lob_t tag = lob_get_base64(outer,"tag");
+      if(memcmp(lob_body_get(tag),hash,32) != 0) return LOG_WARN("HMAC tag mismatch");
+    }
+    // text->ciphertext
+    if(strstr(req,"A128CTR"))
+    {
+      lob_t ivv = lob_get_base64(outer,"iv");
+      bool ok = false;
+      if(lob_body_len(ivv) == 16 && lob_body_len(key) == 32)
+      {
+        aes_128_ctr(lob_body_get(key),lob_body_len(outer),lob_body_get(ivv),lob_body_get(outer),lob_body_get(outer));
+        ok = true;
+      }
+      lob_free(ivv);
+      if(!ok) return LOG_WARN("aes128 failed");
+    }
+    // return modified outer result of one or more of the above 
+    return outer;
+  }
 
 //  * `KEY` - 32 bytes, the sender's ephemeral exchange public key in compressed format
 //  * `IV` - 4 bytes, a random but unique value determined by the sender
 //  * `INNER` - (minimum 21+2 bytes) the AES-128-CTR encrypted inner packet ciphertext
 //  * `HMAC` - 4 bytes, the calculated HMAC of all of the previous KEY+INNER bytes
 
+  lob_t inner, tmp;
   if(outer->body_len <= (33+4+0+4)) return NULL;
   tmp = lob_new();
   if(!lob_body(tmp,NULL,outer->body_len-(4+33+4))) return lob_free(tmp);
 
   // get the shared secret to create the iv+key for the open aes
-  uECC_decompress(outer->body,key, curve);
-  if(!uECC_shared_secret(key, local->secret, shared, curve)) return lob_free(tmp);
+  uECC_decompress(outer->body,keybuf, curve);
+  if(!uECC_shared_secret(keybuf, local->secret, shared, curve)) return lob_free(tmp);
   e3x_hash(shared,SHARED_BYTES,hash);
   fold1(hash,hash);
   memset(iv,0,16);
@@ -237,6 +318,14 @@ lob_t local_sign(local_t local, lob_t args, uint8_t *data, size_t len)
     return args;
   }
 
+  if(lob_get_cmp(args,"kty","EC") == 0 && lob_get_cmp(args,"crv","P-256") == 0)
+  {
+    lob_set_base64(args,"x",local->key,KEY_BYTES/2);
+    lob_set_base64(args,"y",local->key+KEY_BYTES/2,KEY_BYTES/2);
+    if(len == 1) lob_set_base64(args,"d",local->secret,SECRET_BYTES);
+    return args;
+  }
+
   return NULL;
 }
 
@@ -244,7 +333,32 @@ remote_t remote_new(lob_t key, uint8_t *token)
 {
   uint8_t hash[32];
   remote_t remote;
-  if(!key || key->body_len != COMP_BYTES) return LOG("invalid key %d != %d",(key)?key->body_len:0,COMP_BYTES);
+  if(!key) return LOG("missing key");
+
+  // support new from jwk
+  if(lob_get_cmp(key,"kty","EC") == 0 && lob_get_cmp(key,"crv","P-256") == 0)
+  {
+    lob_t x = lob_get_base64(key,"x");
+    lob_t y = lob_get_base64(key,"y");
+    if(!x || !y || (x->body_len + y->body_len) != KEY_BYTES)
+    {
+      lob_free(x);
+      lob_free(y);
+      return LOG("invalid key size");
+    }
+
+    uint8_t xy[KEY_BYTES];
+    memcpy(xy,x->body,x->body_len);
+    memcpy(xy+x->body_len,y->body,y->body_len);
+    lob_free(x);
+    lob_free(y);
+    
+    lob_body(key,NULL,COMP_BYTES);
+    uECC_compress(xy, lob_body_get(key), curve);
+    // fall-through w/ the key in body as expected
+  }
+
+  if(key->body_len != COMP_BYTES) return LOG("invalid key %d != %d",key->body_len,COMP_BYTES);
 
   if(!(remote = malloc(sizeof(struct remote_struct)))) return NULL;
   memset(remote,0,sizeof (struct remote_struct));
@@ -299,6 +413,48 @@ lob_t remote_encrypt(remote_t remote, local_t local, lob_t inner)
   lob_t outer;
   size_t inner_len;
 
+  lob_t key = lob_linked(inner);
+  char *req = lob_get(key,"req");
+  if(req)
+  {
+      // shared secret
+    if(strstr(req,"ECDH"))
+    {
+      if(!uECC_shared_secret(remote->key, local->secret, hash, curve)) return LOG_WARN("ECDH failed");
+      lob_body(key, hash, 32);
+    }
+    // HKDF
+    if(strstr(req,"HK256"))
+    {
+      lob_t hks = lob_get_base64(inner,"hks");
+      int ret = hkdf_sha256(lob_body_get(hks), lob_body_len(hks), lob_body_get(key), lob_body_len(key), NULL, 0, hash, 32);
+      lob_free(hks);
+      if(ret) return LOG_WARN("hkdf failed");
+      lob_body(key, hash, 32);
+    }
+    // text->ciphertext
+    if(strstr(req,"A128CTR"))
+    {
+      lob_t ivv = lob_get_base64(inner,"iv");
+      bool ok = false;
+      if(lob_body_len(ivv) == 16 && lob_body_len(key) == 32)
+      {
+        aes_128_ctr(lob_body_get(key),lob_body_len(inner),lob_body_get(ivv),lob_body_get(inner),lob_body_get(inner));
+        ok = true;
+      }
+      lob_free(ivv);
+      if(!ok) return LOG_WARN("aes128 failed");
+    }
+    // gen/add auth tag
+    if(strstr(req,"HS256"))
+    {
+      hmac_256(lob_body_get(key),lob_body_len(key),lob_body_get(inner),lob_body_len(inner),hash);
+      lob_set_base64(inner,"tag",hash,32);
+    }
+    // return modified inner result of one or more of the above 
+    return inner;
+  }
+
   outer = lob_new();
   lob_head(outer,&csid,1);
   inner_len = lob_len(inner);
@@ -341,7 +497,7 @@ uint8_t remote_validate(remote_t remote, lob_t args, lob_t sig, uint8_t *data, s
     return (util_ct_memcmp(sig->body,hash,32) == 0) ? 0 : 3;
   }
 
-  if(lob_get_cmp(args,"alg","ES160") == 0)
+  if(lob_get_cmp(args,"alg","ES256") == 0)
   {
     if(!remote || sig->body_len != KEY_BYTES) return 2;
     // hash data first
@@ -349,7 +505,7 @@ uint8_t remote_validate(remote_t remote, lob_t args, lob_t sig, uint8_t *data, s
     return (uECC_verify(remote->key, hash, 32, sig->body, curve) == 1) ? 0 : 3;
   }
 
-  return 3;
+  return 4;
 }
 
 ephemeral_t ephemeral_new(remote_t remote, lob_t outer)
