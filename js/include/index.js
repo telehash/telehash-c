@@ -7,6 +7,7 @@ var th = require("./thc.js");
 const returntypes = {
   "_lob_json" : "json",
   "_hashname_short" : "string",
+  "_jwt_encode" : "string",
   "_lob_get" : "string"
 };
 
