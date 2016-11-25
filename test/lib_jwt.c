@@ -94,6 +94,62 @@ int main(int argc, char **argv)
     fail_unless(jwt_verify(test,x));
   }
 
+  if(jwt_alg("ES256"))
+  {
+    lob_t es256 = lob_new();
+    lob_set(es256,"alg","ES256");
+    lob_set(es256,"typ","JWT");
+    lob_t esp = lob_new();
+    lob_set_int(esp,"sub",42);
+    lob_link(es256,esp);
+    fail_unless(jwt_sign(es256,self));
+    fail_unless(esp->body_len == 64);
+    LOG("signed JWT: %s",jwt_encode(es256));
+
+    lob_t key = lob_get_base32(lob_linked(id),"1c");
+    e3x_exchange_t x = e3x_exchange_new(self, 0x1c, key);
+    fail_unless(x);
+    fail_unless(jwt_verify(es256,x));
+    
+    lob_t jwk = lob_new();
+    lob_set(jwk,"kty","EC");
+    lob_set(jwk,"crv","P-256");
+    fail_unless(jwk_local_get(self,jwk,false));
+    LOG_DEBUG("JWK: %s",lob_json(jwk));
+    fail_unless(lob_get(jwk,"x"));
+    fail_unless(lob_get(jwk,"y"));
+    
+    fail_unless(jwk_local_get(self,jwk,true));
+    e3x_self_t kself = jwk_local_load(jwk,false);
+    fail_unless(kself);
+
+    jwk = lob_new();
+    lob_set(jwk,"kty","EC");
+    lob_set(jwk,"crv","P-256");
+    kself = jwk_local_load(jwk,true);
+    fail_unless(kself);
+    fail_unless(lob_get(jwk,"x"));
+    fail_unless(lob_get(jwk,"d"));
+    
+    e3x_exchange_t kx = jwk_remote_load(jwk);
+    fail_unless(kx);
+
+    uint8_t ckey[32] = "just testing";
+    LOG_DEBUG("key: %s",util_hex(ckey,32,NULL));
+    lob_t jwe = jwe_encrypt_1c(kx, es256, ckey);
+    fail_unless(jwe);
+    printf("JWE: %s\n",lob_json(jwe));
+    fail_unless(lob_get(jwe,"header"));
+    fail_unless(lob_get(jwe,"ciphertext"));
+    
+    memset(ckey,0,32);
+    lob_t jwt = jwe_decrypt_1c(kself,jwe,ckey);
+    fail_unless(jwt);
+    LOG_DEBUG("deciphered JWT: %s",lob_json(jwt));
+    fail_unless(memcmp(ckey,"just testing",12) == 0);
+    fail_unless(jwt_verify(jwt,x));
+  }
+
   // brunty
   int i = 1000;
   char *tok = strdup(jwt);

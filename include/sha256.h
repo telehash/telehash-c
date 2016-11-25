@@ -37,9 +37,10 @@ void hmac_256(const unsigned char *key, size_t keylen,
 
 // provide these for direct access as a lib
 typedef struct SHA256Context {
-  uint32_t state[8];
-  uint32_t count[2];
-  unsigned char buf[64];
+	uint32_t state[8];
+	uint32_t chunk[16];
+	uint32_t chunk_len;
+	uint32_t totallen;
 } SHA256_CTX;
 
 void SHA256_Final(unsigned char digest[32], SHA256_CTX * ctx);

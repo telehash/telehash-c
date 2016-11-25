@@ -28,4 +28,17 @@ lob_t jwt_sign(lob_t token, e3x_self_t self); // attaches signature to the claim
 // checks if this alg is supported
 char *jwt_alg(char *alg);
 
+///////////////////////////////////
+// extending support for more JOSE
+
+lob_t jwk_local_get(e3x_self_t self, lob_t jwk, bool private);
+e3x_self_t jwk_local_load(lob_t jwk, bool generate);
+
+lob_t jwk_remote_get(e3x_exchange_t x, lob_t jwk);
+e3x_exchange_t jwk_remote_load(lob_t jwk);
+
+lob_t jwe_encrypt_1c(e3x_exchange_t to, lob_t jwt, uint8_t *ckey);
+lob_t jwe_decrypt_1c(e3x_self_t self, lob_t jwe, uint8_t *ckey);
+
+
 #endif

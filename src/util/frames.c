@@ -5,7 +5,7 @@
 #include "telehash.h"
 
 // max payload size per frame
-#define PAYLOAD(f) (f->size - 4)
+#define PAYLOAD(f) (uint32_t)(f->size - 4)
 
 // one malloc per frame, put storage after it
 util_frames_t util_frame_new(util_frames_t frames)

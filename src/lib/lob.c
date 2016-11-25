@@ -1,14 +1,9 @@
 #include "telehash.h"
 #include <string.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <stdint.h>
 #include <stdarg.h>
-#include "telehash.h" // util_sort(), util_sys_short()
-#include "telehash.h" // e3x_rand()
-#include "telehash.h"
-#include "telehash.h"
-#include "telehash.h"
+#include <stdio.h>
 
 lob_t lob_new()
 {
@@ -285,6 +280,14 @@ lob_t lob_set_uint(lob_t p, char *key, unsigned int val)
   return p;
 }
 
+lob_t lob_set_bool(lob_t p, char *key, bool val)
+{
+  if(!p || !key) return LOG("bad args");
+  if(val) lob_set_raw(p,key,0,"true",4);
+  else lob_set_raw(p,key,0,"false",5);
+  return p;
+}
+
 // embedded friendly float to string, printf float support is a morass
 lob_t lob_set_float(lob_t p, char *key, float value, uint8_t places)
 {
@@ -374,6 +377,19 @@ lob_t lob_set_base32(lob_t p, char *key, uint8_t *bin, size_t blen)
   val[0] = '"';
   base32_encode(bin, blen, val+1,vlen+1);
   val[vlen+1] = '"';
+  lob_set_raw(p,key,0,val,vlen+2);
+  free(val);
+  return p;
+}
+
+lob_t lob_set_base64(lob_t p, char *key, uint8_t *bin, size_t blen)
+{
+  char *val;
+  if(!p || !key || !bin || !blen) return LOG("bad args");
+  if(!(val = malloc(base64_encode_length(blen)+2))) return LOG("OOM"); // include surrounding quotes
+  val[0] = '"';
+  size_t vlen = base64_encoder(bin, blen, val+1);
+  val[1+vlen] = '"';
   lob_set_raw(p,key,0,val,vlen+2);
   free(val);
   return p;
@@ -493,6 +509,16 @@ float lob_get_float(lob_t p, char *key)
   return strtof(val,NULL);
 }
 
+bool lob_get_bool(lob_t p, char *key)
+{
+  if(!p || !key) return false;
+  char *val = lob_get(p,key);
+  if(!val) return 0;
+  if(*(val-1) == '"') return false;
+  if(strcmp(val,"true") == 0) return true;
+  return false;
+}
+
 // returns ["0","1","2"]
 char *lob_get_index(lob_t p, uint32_t i)
 {
@@ -565,6 +591,25 @@ lob_t lob_get_base32(lob_t p, char *key)
   if(!lob_body(ret,NULL,base32_decode_floor(len))) return lob_free(ret);
   // if the decoding wasn't successful, fail
   if(base32_decode(val,len,ret->body,ret->body_len) < ret->body_len) return lob_free(ret);
+  return ret;
+}
+
+// creates new packet w/ a body of the decoded base64 key value
+lob_t lob_get_base64(lob_t p, char *key)
+{
+  lob_t ret;
+  char *val;
+  size_t len = 0;
+  if(!p || !key) return NULL;
+
+  val = js0n(key,0,(char*)p->head,p->head_len,&len);
+  if(!val) return NULL;
+
+  ret = lob_new();
+  // make space to decode into the body
+  if(!lob_body(ret,NULL,base64_decoder(val,len,NULL))) return lob_free(ret);
+  // if the decoding wasn't successful, fail
+  if(!base64_decoder(val,len,ret->body)) return lob_free(ret);
   return ret;
 }
 
