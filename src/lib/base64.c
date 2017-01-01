@@ -6,11 +6,11 @@
 // decode str of len into out (must be base64_decode_length(len) bit), return actual decoded len
 size_t base64_decoder(const char *str, size_t len, uint8_t *save)
 {
-    const char *cur;
+    const uint8_t *cur;
     uint8_t *start;
     int8_t d;
     uint8_t c, phase, dlast;
-    static int8_t table[256] = {
+    static int8_t table[] = {
         -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,  /* 00-0F */
         -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,  /* 10-1F */
         -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,62,-1,62,-1,63,  /* 20-2F */
@@ -18,19 +18,12 @@ size_t base64_decoder(const char *str, size_t len, uint8_t *save)
         -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12,13,14,  /* 40-4F */
         15,16,17,18,19,20,21,22,23,24,25,-1,-1,-1,-1,63,  /* 50-5F */
         -1,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,  /* 60-6F */
-        41,42,43,44,45,46,47,48,49,50,51,-1,-1,-1,-1,-1,  /* 70-7F */
-        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,  /* 80-8F */
-        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,  /* 90-9F */
-        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,  /* A0-AF */
-        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,  /* B0-BF */
-        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,  /* C0-CF */
-        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,  /* D0-DF */
-        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,  /* E0-EF */
-        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1   /* F0-FF */
+        41,42,43,44,45,46,47,48,49,50,51,-1,-1,-1,-1,-1   /* 70-7F */
     };
 
     if(!str) return 0;
     if(!len) len = strlen(str);
+    if((len % 4) == 1) return 0; // invalid remainder
     
     // allow null save to just return exact size
     uint8_t *out = save;
@@ -38,46 +31,38 @@ size_t base64_decoder(const char *str, size_t len, uint8_t *save)
 
     d = dlast = phase = 0;
     start = out;
-    for (cur = str; *cur != '\0' && len; ++cur, --len)
+    for (cur = (uint8_t*)str; *cur != '\0' && len; ++cur, --len)
     {
-        /* handle newlines as seperate chunks */
-        if(*cur == '\n' || *cur == '\r')
-        {
-            phase = dlast = 0;
-            continue;
-        }
+        if(*cur & 0x80) return 0; // invalid
 
-        d = table[(int)*cur];
-        if(d >= 0)
+        d = table[*cur];
+        if(d < 0) return 0;
+
+        switch(phase)
         {
-            switch(phase)
-            {
-            case 0:
-                ++phase;
-                break;
-            case 1:
-                c = ((dlast << 2) | ((d & 0x30) >> 4));
-                if(save) *out = c;
-                ++out;
-                ++phase;
-                break;
-            case 2:
-                c = (((dlast & 0xf) << 4) | ((d & 0x3c) >> 2));
-                if(save) *out = c;
-                ++out;
-                ++phase;
-                break;
-            case 3:
-                c = (((dlast & 0x03 ) << 6) | d);
-                if(save) *out = c;
-                ++out;
-                phase = 0;
-                break;
-            }
-            dlast = d;
-        }else{
-          return 0;
+        case 0:
+            ++phase;
+            break;
+        case 1:
+            c = ((dlast << 2) | ((d & 0x30) >> 4));
+            if(save) *out = c;
+            ++out;
+            ++phase;
+            break;
+        case 2:
+            c = (((dlast & 0xf) << 4) | ((d & 0x3c) >> 2));
+            if(save) *out = c;
+            ++out;
+            ++phase;
+            break;
+        case 3:
+            c = (((dlast & 0x03 ) << 6) | d);
+            if(save) *out = c;
+            ++out;
+            phase = 0;
+            break;
         }
+        dlast = d;
     }
     return out - start;
 }
