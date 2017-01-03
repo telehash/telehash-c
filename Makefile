@@ -6,12 +6,11 @@ INCLUDE+=-Iinclude -Iinclude/lib -Iunix -Ithrowback
 
 LIB = src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/lib/chacha.c src/lib/murmur.c src/lib/jwt.c src/lib/base64.c src/lib/aes128.c src/lib/sha256.c src/lib/uECC.c
 E3X = src/e3x/e3x.c src/e3x/self.c src/e3x/exchange.c src/e3x/cipher.c
-MESH = src/mesh.c src/link.c src/chan.c src/gossip.c
+MESH = src/mesh.c src/link.c src/chan.c
 EXT = 
 #NET = src/net/loopback.c src/net/udp4.c src/net/tcp4.c src/net/serial.c
 NET = src/net/loopback.c 
 UTIL = src/util/util.c src/util/chunks.c src/util/frames.c src/unix/util.c src/unix/util_sys.c
-TMESH = src/tmesh/tmesh.c 
 THROWBACK = throwback/all.c throwback/lob.c throwback/xform.c throwback/xform_hex.c
 
 # CS1c by default
@@ -78,9 +77,9 @@ static-cs1a:
 	@sed -i.bak "/#include \".*h\"/d" telehash.h
 	@rm -f telehash.h.bak
 
-static-tmesh:
+static-throwback:
 	@echo "#include <telehash.h>" > telehash.c
-	@cat $(LIB) $(E3X) $(MESH) $(EXT) $(UTIL) $(TMESH) $(THROWBACK) >> telehash.c
+	@cat $(LIB) $(E3X) $(MESH) $(EXT) $(UTIL) $(THROWBACK) >> telehash.c
 	@sed -i '' "/#include \".*h\"/d" telehash.c
 	@cat include/lob.h include/xht.h include/e3x_cipher.h include/e3x_self.h include/e3x_exchange.h include/hashname.h include/mesh.h include/link.h include/chan.h include/util_chunks.h include/util_frames.h include/*.h throwback/throwback.h > telehash.h
 	@sed -i.bak "/#include \".*h\"/d" telehash.h
