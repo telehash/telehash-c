@@ -4,55 +4,129 @@
 #include <stdbool.h>
 #include "telehash.h"
 
+/********** RECEIVING PROCESSING LOGIC ********************
 
-// sequence frames are array of
-typedef struct seq_s
+        packet: a single variable length payload
+         frame: configurable length
+      sequence: one or more frames currently being transferred
+          HHHH: murmur3 32bit checkhash
+      abstract: 5 byte description of any frame
+         BHHHH: frame abstract, leading byte of bitflags and four checkhash bytesH
+sequence frame: used for exchanging state, array of abstracts and tail checkhash
+               ┌─────────────────────────────────────────────────────────────────────┐
+               │[BHHHH,BHHHH,BHHHH,...]                                          HHHH│
+               └─────────────────────────────────────────────────────────────────────┘
+    data frame: all payload data, checkhash must match a known abstract
+  packet frame: contains end of packet, payload <= frame length
+
+
+                                    ┌──────────────┐
+                                    │receive frame │
+                                    └──────────────┘
+
+                                           Λ
+                                    is sequence frame?
+                                         ╱   ╲
+                  ┌──────yes────────────▕     ▏───────────────────────────────────────no──────────────────────────────────┐
+                  ▼                      ╲   ╱                                                                            ▼
+                  Λ                       ╲ ╱                                                                             Λ
+            who's sequence?                V                                                                       is data frame?
+                ╱   ╲                                                                                                   ╱   ╲
+        ┌──────▕     ▏────────────────────────theirs───────────────────┐                               ┌───no───────── ▕     ▏──────yes───┐
+        │       ╲   ╱                                                  │                               │                ╲   ╱             │
+      ours       ╲ ╱                                                   │                               │                 ╲ ╱              │
+        │         V                                                    │                               │                  V               │
+        ▼                                                              ▼                               ▼                                  ▼
+┌──────────────┐                                               ┌──────────────┐                ┌──────────────┐                   ┌──────────────┐
+│   compare    │                                               │   compare    │                │ all receive  │                   │  verify and  │
+│ abstracts to │─mismatch────┐                   ┌───mismatch──│ abstracts to │                │    errors    │                   │  queue, set  │
+│     ours     │             ▼                   ▼             │  last known  │                │+flush_theirs │                   │received state│
+└──────────────┘     ┌──────────────┐    ┌──────────────┐      └──────────────┘                └──────────────┘                   └──────────────┘
+        │            │              │    │ becomes new  │              │                                                                 │
+        ▼            │ +flush_ours  │    │  receiving   │              ▼                                                                 │
+┌──────────────┐     │              │    │   sequence   │      ┌──────────────┐                                                          │
+│    update    │     └──────────────┘    └──────────────┘      │              │                                                          │    ┌──────────────┐
+│  received &  │                                 │             │+flush_theirs │                                                          │    │  if packet   │
+│resend states │                                 ▼             │              │                                                          ├───▶│  done/more,  │
+└──────────────┘                         ┌──────────────┐      └──────────────┘                                                          │    │queue->packet │
+        │                                │    clear     │              │                                                                 │    └──────────────┘
+ frame received                          │ flush_theirs │       compare│states                                                           │    ┌──────────────┐
+        │                                │              │              │                                                                 │    │if last frame │
+        │    ┌──────────────┐            └──────────────┘              │    ┌──────────────┐                                             └───▶│ in sequence  │
+        │    │is stop frame │                    │                     │    │ skip any we  │                                                  │+flush_theirs │
+        ├───▶│ release sent │               check states               ├───▶│   have as    │                                                  └──────────────┘
+        │    │    packet    │                    │   ┌──────────────┐  │    │   received   │
+        │    └──────────────┘                    │   │ keep pre-set │  │    └──────────────┘
+        │    ┌──────────────┐                    ├──▶│received state│  │    ┌──────────────┐
+        │    │is last frame │                    │   │(lossy frames)│  │    │any sent state│
+        └───▶│ in sequence, │                    │   └──────────────┘  └───▶│ sets resend  │
+             │load next seq │                    │   ┌──────────────┐       │              │
+             └──────────────┘                    │   │any sent state│       └──────────────┘
+                                                 └──▶│ sets resend, │
+                                                     │+flush_theirs │
+                                                     └──────────────┘
+
+orig notes:
+  send:
+    create frame_t list for packet
+    fill with sequence frames for packet size / frame size
+    set flush_send
+  sending
+    if flush_receive, send back their last sequence frame
+    if flush_send, send our sequence frame 
+    else send next frame in sequence w/ state resend
+    else send next frame in sequence w/ state unknown
+    else nothing
+  receiving
+    their sequence frame
+      compare all abstracts, must match except state bits
+        skip our received
+        if sent, set resend
+        flush_receive
+      else replaces any existing sequence and clears flush_receive
+        if state != unknown set resend and flush_receive
+    data frame
+      verify and add to queue
+      update frame state bits, set received
+    stop frame
+      same as data
+      process queue into packet
+    last frame in sequence
+      set flush_receive
+      (leave sequence frame in place after complete in case of resend)
+    any error
+      set flush_receive
+    our sequence frame
+      compare all abstracts, must match except state bits (TODO: backpressure)
+        their received and resend state overwrite ours
+        if received a stop, release packet
+        if received all, release sequence and start next if any
+      else any mismatch set flush_send
+
+***************/
+
+// single bit-packed byte used in frame abstract
+typedef struct bits_s
 {
-  uint8_t parity:1;
-  uint8_t state:2; // unknown sent received resend 
-  uint8_t stop:1; // is last one in sequence array and last data frame for a packet
-  uint8_t size:2;
-  uint8_t more:1; // another packet waiting
-  uint8_t transport:1;
+  union {
+    struct {
+      uint8_t parity:1;
+      uint8_t type:2; // unused, data, packet (last data frame for a packet) done, packet more (more packets follow)
+      uint8_t state:2; // default, sent, received, resend 
+      uint8_t size:2; // final byte length in packet frame, backpressure signal for data frames
+      uint8_t transport:1;
+    };
+    uint8_t byte;
+  }
+} bits_s;
+
+// sequence frames are array of frame abstracts
+typedef struct abs_s
+{
+  bits_s bits;
   uint8_t hash[4];
-} seq_s, *seq_t;
+} abs_s, *abs_t;
 
-/*
-send:
-  create frame_t list for packet
-  fill with sequence frames for packet size / frame size
-  unknown state
-  set flush_send
-sending
-  if flush_receive, send back their last sequence frame
-  if flush_send, send sequence frame 
-  else send next frame in sequence w/ resend
-  else send next frame in sequence w/ unknown
-  else nothing
-receiving
-  sender's sequence frame
-    compare state
-      skip our received
-      if sent, set resend
-      flush_receive
-    else replaces any existing and clears flush_receive
-      if state != unknown set resend and flush_receive
-  data frame
-    verify and add to queue
-    update sequence frame flags, set received
-  stop frame
-    also set flush_receive
-    process queue into packet
-    leave sequence frame in place after flush_receive in case of resend
-  any error
-    set flush_receive
-  recipient's sequence frame
-    validate hashes, if mismatch set flush_send
-    copy in received and resend states
-
-
-
-*/
 
 // one malloc per frame, put storage after it
 util_frames_t util_frame_new(util_frames_t frames)
