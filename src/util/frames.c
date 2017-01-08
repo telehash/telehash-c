@@ -4,8 +4,55 @@
 #include <stdbool.h>
 #include "telehash.h"
 
-// max payload size per frame
-#define PAYLOAD(f) (uint32_t)(f->size - 4)
+
+// sequence frames are array of
+typedef struct seq_s
+{
+  uint8_t parity:1;
+  uint8_t state:2; // unknown sent received resend 
+  uint8_t stop:1; // is last one in sequence array and last data frame for a packet
+  uint8_t size:2;
+  uint8_t more:1; // another packet waiting
+  uint8_t transport:1;
+  uint8_t hash[4];
+} seq_s, *seq_t;
+
+/*
+send:
+  create frame_t list for packet
+  fill with sequence frames for packet size / frame size
+  unknown state
+  set flush_send
+sending
+  if flush_receive, send back their last sequence frame
+  if flush_send, send sequence frame 
+  else send next frame in sequence w/ resend
+  else send next frame in sequence w/ unknown
+  else nothing
+receiving
+  sender's sequence frame
+    compare state
+      skip our received
+      if sent, set resend
+      flush_receive
+    else replaces any existing and clears flush_receive
+      if state != unknown set resend and flush_receive
+  data frame
+    verify and add to queue
+    update sequence frame flags, set received
+  stop frame
+    also set flush_receive
+    process queue into packet
+    leave sequence frame in place after flush_receive in case of resend
+  any error
+    set flush_receive
+  recipient's sequence frame
+    validate hashes, if mismatch set flush_send
+    copy in received and resend states
+
+
+
+*/
 
 // one malloc per frame, put storage after it
 util_frames_t util_frame_new(util_frames_t frames)

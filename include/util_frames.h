@@ -20,22 +20,18 @@ typedef struct util_frames_struct
 
   util_frame_t cache; // stacked linked list of incoming frames in progress
 
-  uint32_t inbase; // last confirmed inbox hash
-  uint32_t outbase; // last confirmed outbox hash
+  util_frame_t sending;
+  util_frame_t receiving;
 
-  uint8_t in; // number of incoming frames received/waiting
-  uint8_t out; //  number of outgoing frames of outbox sent since outbase
-
-  uint8_t size; // frame size
+  uint16_t size; // frame size
   uint8_t flush:1; // bool to signal a flush is needed
   uint8_t err:1; // unrecoverable failure
-  uint8_t more:1; // last incoming meta said there was more
 
 } *util_frames_t;
 
 
-// size of each frame, min 16 max 128, multiple of 4
-util_frames_t util_frames_new(uint8_t size);
+// size of each frame, ideal is for(i=0;i<=1024;i++) if((i-4)%5 == 0 && (i%4)==0) console.log(i);
+util_frames_t util_frames_new(uint16_t size);
 
 util_frames_t util_frames_free(util_frames_t frames);
 
