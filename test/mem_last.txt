@@ -3,7 +3,7 @@
 88	link_t
 88	lob_t
 16	util_chunk_t
-64	e3x_self_t
+32	e3x_self_t
 152	e3x_cipher_t
 88	e3x_exchange_t
 80	chan_t

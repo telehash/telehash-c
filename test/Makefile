@@ -18,12 +18,8 @@ EXT =
 NET = src/net/loopback.c  src/net/udp4.c
 UTIL = src/util/util.c src/util/chunks.c src/util/frames.c src/unix/util.c src/unix/util_sys.c
 
-# CS1a by default
-CS = src/e3x/cs1a/cs1a.c 
-TESTS += e3x_cs1a
-
-# CS1c also
-CS += src/e3x/cs1c/cs1c.c 
+# CS1c by default
+CS = src/e3x/cs1c/cs1c.c 
 TESTS += e3x_cs1c
 
 # check for CS3a deps
