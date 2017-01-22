@@ -62,7 +62,6 @@ e3x_cipher_t e3x_cipher_set(uint8_t csid, char *hex);
 // init functions for each
 e3x_cipher_t cs1a_init(lob_t options);
 e3x_cipher_t cs1c_init(lob_t options);
-e3x_cipher_t cs2a_init(lob_t options);
 e3x_cipher_t cs3a_init(lob_t options);
 
 #endif

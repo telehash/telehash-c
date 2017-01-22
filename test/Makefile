@@ -26,17 +26,6 @@ TESTS += e3x_cs1a
 CS += src/e3x/cs1c/cs1c.c 
 TESTS += e3x_cs1c
 
-# check for CS2a deps
-ifneq ("$(wildcard ../node_modules/libtomcrypt-c/libtomcrypt.a)","")
-CS += src/e3x/cs2a/cs2a_tom.c
-CFLAGS += -DLTM_DESC
-LDFLAGS += ../node_modules/libtomcrypt-c/libtomcrypt.a ../node_modules/libtommath-c/libtommath.a
-INCLUDE += -I../node_modules/libtomcrypt-c/src/headers -I../node_modules/libtommath-c
-TESTS += e3x_cs2a
-else
-CS += src/e3x/cs2a_disabled.c
-endif
-
 # check for CS3a deps
 ifneq ("$(wildcard ../node_modules/libsodium-c/src/libsodium/.libs/libsodium.a)","")
 CS += src/e3x/cs3a/cs3a.c

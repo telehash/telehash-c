@@ -19,16 +19,6 @@ CS = src/e3x/cs1c/cs1c.c
 # also CS1a
 CS += src/e3x/cs1a/cs1a.c
 
-# check for CS2a deps
-ifneq ("$(wildcard node_modules/libtomcrypt-c/libtomcrypt.a)","")
-CS += src/e3x/cs2a/cs2a_tom.c
-CFLAGS += -DLTM_DESC
-LDFLAGS += node_modules/libtomcrypt-c/libtomcrypt.a node_modules/libtommath-c/libtommath.a
-INCLUDE += -I./node_modules/libtomcrypt-c/src/headers -I./node_modules/libtommath-c
-else
-CS += src/e3x/cs2a_disabled.c
-endif
-
 # check for CS3a deps
 ifneq ("$(wildcard node_modules/libsodium-c/src/libsodium/.libs/libsodium.a)","")
 CS += src/e3x/cs3a/cs3a.c
@@ -71,7 +61,7 @@ static: libtelehash
 
 static-cs1a:
 	@echo "#include <telehash.h>" > telehash.c
-	@cat $(LIB) $(E3X) $(MESH) $(EXT) $(UTIL) src/e3x/cs1a/cs1a.c src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c >> telehash.c
+	@cat $(LIB) $(E3X) $(MESH) $(EXT) $(UTIL) src/e3x/cs1a/cs1a.c src/e3x/cs3a_disabled.c >> telehash.c
 	@sed -i '' "/#include \".*h\"/d" telehash.c
 	@cat include/lob.h include/xht.h include/e3x_cipher.h include/e3x_self.h include/e3x_exchange.h include/hashname.h include/mesh.h include/link.h include/chan.h include/util_chunks.h include/util_frames.h include/*.h > telehash.h
 	@sed -i.bak "/#include \".*h\"/d" telehash.h
@@ -99,12 +89,6 @@ throwback-test: $(FULL_OBJFILES) $(TB_OBJFILES)
 	./test/bin/test_throwback
 
 .PHONY: arduino test TAGS
-
-arduino: static
-	cp telehash.c arduino/src/telehash/
-	@cat src/e3x/cs2a_disabled.c src/e3x/cs3a_disabled.c >> arduino/src/telehash/telehash.c
-	cp src/e3x/cs1a/cs1a.c arduino/src/cs1a/
-	cp $(HEADERS) arduino/src/telehash/
 
 test: $(FULL_OBJFILES) ping
 	cd test; $(MAKE) $(MFLAGS)

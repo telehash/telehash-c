@@ -24,10 +24,6 @@ uint8_t e3x_cipher_init(lob_t options)
   if(e3x_cipher_sets[CS_1c]) e3x_cipher_default = e3x_cipher_sets[CS_1c];
   if(lob_get(options, "err")) return 1;
   
-  e3x_cipher_sets[CS_2a] = cs2a_init(options);
-  if(e3x_cipher_sets[CS_2a]) e3x_cipher_default = e3x_cipher_sets[CS_2a];
-  if(lob_get(options, "err")) return 1;
-
   e3x_cipher_sets[CS_3a] = cs3a_init(options);
   if(e3x_cipher_sets[CS_3a]) e3x_cipher_default = e3x_cipher_sets[CS_3a];
   if(lob_get(options, "err")) return 1;
