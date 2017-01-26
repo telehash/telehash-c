@@ -1,4 +1,4 @@
-TESTS = gossip_core tmesh_core lib_base32 lib_lob lib_hashname lib_murmur lib_chunks lib_frames lib_util lib_xht \
+TESTS = lib_base32 lib_lob lib_hashname lib_murmur lib_chunks lib_frames lib_util lib_xht \
 		e3x_core e3x_self e3x_exchange \
 		mesh_core net_loopback lib_chacha \
 		lib_socketio lib_jwt lib_base64 lib_sha \
@@ -12,31 +12,15 @@ INCLUDE+=-I../unix -I../include -I../include/lib
 
 LIB = src/lib/lob.c src/lib/hashname.c src/lib/xht.c src/lib/js0n.c src/lib/base32.c src/lib/chacha.c src/lib/murmur.c src/lib/socketio.c src/lib/jwt.c src/lib/base64.c src/lib/aes128.c src/lib/sha256.c src/lib/uECC.c
 E3X = src/e3x/e3x.c src/e3x/self.c src/e3x/exchange.c src/e3x/cipher.c
-MESH = src/mesh.c src/link.c src/chan.c src/gossip.c
+MESH = src/mesh.c src/link.c src/chan.c
 EXT = 
 #NET = src/net/loopback.c src/net/udp4.c src/net/tcp4.c src/net/serial.c
 NET = src/net/loopback.c  src/net/udp4.c
 UTIL = src/util/util.c src/util/chunks.c src/util/frames.c src/unix/util.c src/unix/util_sys.c
-TMESH = src/tmesh/tmesh.c 
 
-# CS1a by default
-CS = src/e3x/cs1a/cs1a.c 
-TESTS += e3x_cs1a
-
-# CS1c also
-CS += src/e3x/cs1c/cs1c.c 
+# CS1c by default
+CS = src/e3x/cs1c/cs1c.c 
 TESTS += e3x_cs1c
-
-# check for CS2a deps
-ifneq ("$(wildcard ../node_modules/libtomcrypt-c/libtomcrypt.a)","")
-CS += src/e3x/cs2a/cs2a_tom.c
-CFLAGS += -DLTM_DESC
-LDFLAGS += ../node_modules/libtomcrypt-c/libtomcrypt.a ../node_modules/libtommath-c/libtommath.a
-INCLUDE += -I../node_modules/libtomcrypt-c/src/headers -I../node_modules/libtommath-c
-TESTS += e3x_cs2a
-else
-CS += src/e3x/cs2a_disabled.c
-endif
 
 # check for CS3a deps
 ifneq ("$(wildcard ../node_modules/libsodium-c/src/libsodium/.libs/libsodium.a)","")
@@ -56,9 +40,8 @@ EXT_OBJFILES = $(patsubst %.c,../%.o,$(EXT))
 NET_OBJFILES = $(patsubst %.c,../%.o,$(NET))
 UTIL_OBJFILES = $(patsubst %.c,../%.o,$(UTIL))
 CS_OBJFILES = $(patsubst %.c,../%.o,$(CS))
-TMESH_OBJFILES = $(patsubst %.c,../%.o,$(TMESH))
 
-FULL_OBJFILES = $(LIB_OBJFILES) $(E3X_OBJFILES) $(MESH_OBJFILES) $(EXT_OBJFILES) $(NET_OBJFILES) $(UTIL_OBJFILES) $(CS_OBJFILES) $(TMESH_OBJFILES)
+FULL_OBJFILES = $(LIB_OBJFILES) $(E3X_OBJFILES) $(MESH_OBJFILES) $(EXT_OBJFILES) $(NET_OBJFILES) $(UTIL_OBJFILES) $(CS_OBJFILES)
 
 all: test
 
