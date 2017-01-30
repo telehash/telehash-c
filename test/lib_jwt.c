@@ -105,6 +105,9 @@ int main(int argc, char **argv)
     fail_unless(jwt_sign(es256,self));
     fail_unless(esp->body_len == 64);
     LOG("signed JWT: %s",jwt_encode(es256));
+    lob_t tmp = jwt_decode(jwt_encode(es256),0);
+    fail_unless(tmp);
+    fail_unless(lob_body_len(jwt_claims(tmp)) == 64);
 
     lob_t key = lob_get_base32(lob_linked(id),"1c");
     e3x_exchange_t x = e3x_exchange_new(self, 0x1c, key);

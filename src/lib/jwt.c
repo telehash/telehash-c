@@ -20,18 +20,18 @@ lob_t jwt_decode(char *encoded, size_t len)
 
   if(!encoded) return NULL;
   if(!len) len = strlen(encoded);
-  end = encoded+(len-1);
+  end = encoded+len;
   
   // make sure the dot separators are there
-  dot1 = strchr(encoded,'.');
-  if(!dot1 || dot1+1 >= end) return LOG_INFO("missing/bad first separator");
+  dot1 = memchr(encoded,'.',(end-encoded));
+  if(!dot1) return LOG_INFO("missing/bad first separator");
   dot1++;
-  dot2 = strchr(dot1,'.');
-  if(!dot2 || (dot2+1) >= end) return LOG_INFO("missing/bad second separator");
+  dot2 = memchr(dot1,'.',(end-dot1));
+  if(!dot2) return LOG_INFO("missing/bad second separator");
   dot2++;
 
   // quick sanity check of the base64
-  if(!base64_decoder(dot2, (end-dot2)+1, NULL)) return LOG_INFO("invalid sig base64: %.*s",(end-dot2)+1,dot2);
+  if(!base64_decoder(dot2, (end-dot2), NULL)) return LOG_INFO("invalid sig base64: %.*s",(end-dot2),dot2);
   if(!base64_decoder(dot1, (dot2-dot1)-1, NULL)) return LOG_INFO("invalid claims base64: %.*s",(dot2-dot1)-1,dot1);
   if(!base64_decoder(encoded, (dot1-encoded)-1, NULL)) return LOG_INFO("invalid header b64: %.*s",(dot1-encoded)-1,encoded);
 
@@ -43,8 +43,8 @@ lob_t jwt_decode(char *encoded, size_t len)
   base64_decoder(dot1, (dot2-dot1)-1, lob_head_get(claims));
 
   // decode claims sig 
-  lob_body(claims, NULL, base64_decoder(dot2, (end-dot2)+1, NULL));
-  base64_decoder(dot2, (end-dot2)+1, lob_body_get(claims));
+  lob_body(claims, NULL, base64_decoder(dot2, (end-dot2), NULL));
+  base64_decoder(dot2, (end-dot2), lob_body_get(claims));
 
   // decode header json
   lob_head(header, NULL, base64_decoder(encoded, (dot1-encoded)-1, NULL));
