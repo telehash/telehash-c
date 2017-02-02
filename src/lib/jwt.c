@@ -112,7 +112,7 @@ lob_t jwt_verify(lob_t token, e3x_exchange_t x)
   char *dot = strchr(encoded,'.');
   dot = strchr(dot+1,'.');
   
-  LOG("checking %lu %.*s",lob_body_len(token),dot-encoded,encoded);
+  LOG("checking %lu %.*s",lob_body_len(claims),dot-encoded,encoded);
 
   // do the validation against the sig on the claims using info from the token
   uint8_t err = e3x_exchange_validate(x, token, claims, (uint8_t*)encoded, dot-encoded);
