@@ -44,11 +44,9 @@ typedef struct e3x_cipher_struct
 
 
 // all possible cipher sets, as index into cipher_sets global
-#define CS_1a 0
-#define CS_1c 1
-#define CS_2a 2
-#define CS_3a 3
-#define CS_MAX 4
+#define CS_1c 0
+#define CS_3a 1
+#define CS_MAX 2
 
 extern e3x_cipher_t e3x_cipher_sets[]; // all created
 extern e3x_cipher_t e3x_cipher_default; // just one of them for the rand/hash utils
@@ -60,9 +58,7 @@ uint8_t e3x_cipher_init(lob_t options);
 e3x_cipher_t e3x_cipher_set(uint8_t csid, char *hex);
 
 // init functions for each
-e3x_cipher_t cs1a_init(lob_t options);
 e3x_cipher_t cs1c_init(lob_t options);
-e3x_cipher_t cs2a_init(lob_t options);
 e3x_cipher_t cs3a_init(lob_t options);
 
 #endif

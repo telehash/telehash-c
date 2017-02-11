@@ -248,7 +248,6 @@ lob_t jwe_encrypt_1c(e3x_exchange_t to, lob_t jwt, uint8_t *ckey)
   epk = lob_free(epk);
   
   // encrypt the shared key first
-  char *encoded = jwt_encode(jwt);
   lob_body(header,ckey,32);
   
   // let the JWE crypto backend generate a tag and ciphertext key
@@ -266,7 +265,7 @@ lob_t jwe_encrypt_1c(e3x_exchange_t to, lob_t jwt, uint8_t *ckey)
   lob_set_base64(jwe,"encrypted_key",lob_body_get(header),lob_body_len(header));
   lob_set_raw(jwe,"header",6,lob_json(header),0);
 
-  encoded = jwt_encode(jwt);
+  char *encoded = jwt_encode(jwt);
   lob_body(jwe,(uint8_t*)encoded,strlen(encoded));
   e3x_rand(buf,16);
   lob_set_base64(jwe,"iv",buf,16);
