@@ -12,14 +12,14 @@ uint32_t murmur4(const uint8_t *data, uint32_t len)
 
 char *murmur8(const uint8_t *data, uint32_t len, char *hex)
 {
-  uint32_t hash = murmur4(data,len);
+  uint32_t hash = PMurHash32(0, data, len);
   sprintf(hex,"%08lx",(unsigned long)hash);
   return hex;
 }
 
-uint8_t *murmur(const uint8_t *data, uint32_t len, uint8_t *hash)
+uint8_t *murmur(uint32_t seed, const uint8_t *data, uint32_t len, uint8_t *hash)
 {
-  uint32_t num = murmur4(data,len);
+  uint32_t num = PMurHash32(seed, data, len);
   memcpy(hash,&num,4);
   return hash;
 }

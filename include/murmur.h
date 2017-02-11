@@ -7,8 +7,8 @@ uint32_t murmur4(const uint8_t *data, uint32_t len);
 // hex must be 8+\0
 char *murmur8(const uint8_t *data, uint32_t len, char *hex);
 
-// more convenient, caller must ensure 4-byte sizing
-uint8_t *murmur(const uint8_t *data, uint32_t len, uint8_t *hash);
+// more convenient, caller must ensure 4-byte size of hash output
+uint8_t *murmur(uint32_t seed, const uint8_t *data, uint32_t len, uint8_t *hash);
 
 
 /*-----------------------------------------------------------------------------
