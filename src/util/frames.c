@@ -106,10 +106,25 @@ orig notes:
 packet done frame sizing
   progressive murmur 4byte checksum until match, size is actual bytes in last 4byte block
 
-// magic sizes that are x%4 and (x-4)%5
-24,44,64,84,104,124,144,164,184,204,224,244,264,284,...
+magic sizes that are x%4 and (x-4)%5
+  24,44,64,84,104,124,144,164,184,204,224,244,264,284,...
+
+high bit on first byte is 0=data, 1=sequence
+  sequence abstract header contains replacement data bit 
+
+our vs. their determined by sequence murmur seed
 
 ***************/
+
+#define AB_TYPE_NONE 0
+#define AB_TYPE_DATA 1
+#define AB_TYPE_LAST 2
+#define AB_TYPE_MORE 3
+
+#define AB_STATE_UNKN 0
+#define AB_STATE_SENT 1
+#define AB_STATE_RCVD 2
+#define AB_STATE_RSND 3
 
 // single bit-packed header byte used in frame abstract
 typedef struct ahead_s
@@ -135,9 +150,13 @@ typedef struct abstract_s
 
 // sequence frames are array of abstracts
 typedef struct sequence_s {
+  struct sequence_s *next;
+  uint8_t *data; // the data in this sequence
   uint8_t hash[4];
-  abstract_s abs[];
+  abstract_s abs[]; // must remain uint32 aligned in this struct for murmur
 } sequence_s, *sequence_t;
+
+#define seq_isours(frames, seq) (frames && seq && seq->abs[0]->head.parity == frames->parity)
 
 // overall manager state
 struct util_frames_s {
@@ -145,41 +164,75 @@ struct util_frames_s {
   lob_t inbox; // received packets waiting to be processed
   lob_t outbox; // current packet being sent out
 
-  uint8_t *in; // cache for current incoming sequence data frames
-  uint8_t *out; // convenience, just pointer from lob_body_get(outbox);
+  // active incoming/outgoing sequence lists
+  sequence_t in, out;
 
-  sequence_t sending;
-  sequence_t receiving;
+  // current sequence in the in/out lists
+  sequence_t receiving, sending;
 
   uint16_t size; // frame size
+  uint8_t per; // data frames per sequence ((frame_size-4)/5)
+  uint8_t parity : 1; // our parity bit
   uint8_t flush : 1; // bool to signal a flush is needed
   uint8_t err : 1; // unrecoverable failure
 
 };
 
-// one malloc per frame, put storage after it
-static util_frames_t frame_new(util_frames_t frames)
+// create a single blank sequence
+static sequence_t seq_new(util_frames_t frames)
 {
-  frame_t frame;
-  size_t size = sizeof (struct util_frame_struct);
-  size += PAYLOAD(frames);
-  if(!(frame = malloc(size))) return LOG_WARN("OOM");
-  memset(frame,0,size);
-  
-  // add to inbox
-  frame->prev = frames->cache;
-  frames->cache = frame;
-  frames->in++;
-
-  return frames;
+  if(!frames) return NULL;
+  sequence_t seq = NULL;
+  uint16_t size = sizeof(sequence_s) + (sizeof(abstract_s) * frames->per);
+  if(!(seq = malloc(size))) return LOG_WARN("OOM");
+  memset(seq,0,size);
+  return seq;
 }
 
-util_frame_t util_frame_free(util_frame_t frame)
+static sequence_t seq_free(sequence_t seq)
 {
-  if(!frame) return NULL;
-  util_frame_t prev = frame->prev;
-  free(frame);
-  return util_frame_free(prev);
+  if(!seq) return NULL;
+  if(seq->next) seq_free(seq->next);
+  if(!seq_isours(seq)) free(seq->data); // their data is malloc'd
+  free(seq);
+  return NULL;
+}
+
+static sequence_t seq_out(util_frames_t frames)
+{
+  if(!frames || !frames->outbox) return NULL;
+  
+  seq_t out = NULL;
+  seq_t cur = NULL;
+  uint8_t *data = lob_raw(frames->outbox);
+  // loop once per sequence
+  for(uint16_t i=0;i<lob_len(frames->outbox);)
+  {
+    if(!out)
+    {
+      out = cur = seq_new(frames);
+    }else{
+      cur->next = seq_new(frames);
+      cur = cur->next;
+    }
+    // loop once per frame in a sequence
+    uint16_t j=0;
+    for(;i<lob_len(frames->outbox) && j<frames->per;i+=frames->size,j++)
+    {
+      if(j==0) cur->abs[j].head.parity = frames->parity;
+      cur->abs[j].head.type = ((j+1)==frames->per)?AB_TYPE_MORE:AB_TYPE_DATA;
+      cur->abs[j].head.state = AB_STATE_UNKN;
+      // last frame
+      if(i+frames->size >= lob_len(frames->outbox))
+      {
+        cur->abs[j].head.type = AB_TYPE_LAST;
+        LOG_WARN("TODO cumulative hash and size");
+        continue;
+      }
+      murmur(data + i, frames->size, cur->abs[j].hash);
+    }
+    murmur((uint8_t*)(cur->abs), (sizeof(abstract_s) * frames->per, cur->hash);
+  }
 }
 
 util_frames_t util_frames_clear(util_frames_t frames)
