@@ -4,30 +4,8 @@
 #include <stdint.h>
 #include "lob.h"
 
-// for list of incoming frames
-typedef struct util_frame_struct
-{
-  struct util_frame_struct *prev;
-  uint32_t hash;
-  uint8_t data[];
-} *util_frame_t;
 
-typedef struct util_frames_struct
-{
-
-  lob_t inbox; // received packets waiting to be processed
-  lob_t outbox; // current packet being sent out
-
-  util_frame_t cache; // stacked linked list of incoming frames in progress
-
-  util_frame_t sending;
-  util_frame_t receiving;
-
-  uint16_t size; // frame size
-  uint8_t flush:1; // bool to signal a flush is needed
-  uint8_t err:1; // unrecoverable failure
-
-} *util_frames_t;
+typedef struct util_frames_s util_frames_s, *util_frames_t;
 
 
 // size of each frame, ideal is for(i=0;i<=1024;i++) if((i-4)%5 == 0 && (i%4)==0) console.log(i);

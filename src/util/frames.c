@@ -103,35 +103,64 @@ orig notes:
         if received all, release sequence and start next if any
       else any mismatch set flush_send
 
+packet done frame sizing
+  progressive murmur 4byte checksum until match, size is actual bytes in last 4byte block
+
+// magic sizes that are x%4 and (x-4)%5
+24,44,64,84,104,124,144,164,184,204,224,244,264,284,...
+
 ***************/
 
-// single bit-packed byte used in frame abstract
-typedef struct bits_s
+// single bit-packed header byte used in frame abstract
+typedef struct ahead_s
 {
   union {
     struct {
-      uint8_t parity:1;
-      uint8_t type:2; // unused, data, packet (last data frame for a packet) done, packet more (more packets follow)
+      uint8_t parity:1; // direction identifier, ours/theirs, must be set on first abstract
+      uint8_t type:2; // unused, data, packet (last data frame for a packet) done, packet more (more packets follow): packet ones only on last abstract in a sequence
       uint8_t state:2; // default, sent, received, resend 
-      uint8_t size:2; // final byte length in packet frame, backpressure signal for data frames
-      uint8_t transport:1;
+      uint8_t size:2; // final byte length in packet frame, future backpressure signal for data frames
+      uint8_t transport:1; // boolean flagging abstract for transport use
     };
-    uint8_t byte;
+    uint8_t bits;
   }
-} bits_s;
+} ahead_s;
 
-// sequence frames are array of frame abstracts
-typedef struct abs_s
+// abstract is header + checkhash
+typedef struct abstract_s
 {
-  bits_s bits;
+  ahead_s head;
   uint8_t hash[4];
-} abs_s, *abs_t;
+} abstract_s, *abstract_t;
 
+// sequence frames are array of abstracts
+typedef struct sequence_s {
+  uint8_t hash[4];
+  abstract_s abs[];
+} sequence_s, *sequence_t;
+
+// overall manager state
+struct util_frames_s {
+
+  lob_t inbox; // received packets waiting to be processed
+  lob_t outbox; // current packet being sent out
+
+  uint8_t *in; // cache for current incoming sequence data frames
+  uint8_t *out; // convenience, just pointer from lob_body_get(outbox);
+
+  sequence_t sending;
+  sequence_t receiving;
+
+  uint16_t size; // frame size
+  uint8_t flush : 1; // bool to signal a flush is needed
+  uint8_t err : 1; // unrecoverable failure
+
+};
 
 // one malloc per frame, put storage after it
-util_frames_t util_frame_new(util_frames_t frames)
+static util_frames_t frame_new(util_frames_t frames)
 {
-  util_frame_t frame;
+  frame_t frame;
   size_t size = sizeof (struct util_frame_struct);
   size += PAYLOAD(frames);
   if(!(frame = malloc(size))) return LOG_WARN("OOM");
