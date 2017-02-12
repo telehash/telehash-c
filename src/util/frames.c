@@ -126,12 +126,12 @@ typedef struct ahead_s
 {
   union {
     struct {
-      uint8_t frame : 1; // is this a data frame (false is ignored, abstract can be used by transport)
+      uint8_t packet : 1; // is this a packet frame (false is ignored, abstract can be used by transport)
+      uint8_t start : 1; // start frame, abstract contains uint32_t len, data/state/hold special
+      uint8_t end : 1; // last frame (if both, data follows self-contained)
       uint8_t data : 1; // replacement bit for data frame
       uint8_t state : 2; // default, sent, received, resend
-      uint8_t hold : 1; // backpressure signalling
-      uint8_t last : 1; // is this the last data frame for a packet
-      uint8_t size : 2; // final byte length in last data frame
+      uint8_t hold : 2; // backpressure signalling
     };
     uint8_t bits;
   }
@@ -226,9 +226,9 @@ static sequence_t seq_out(util_frames_t frames)
         LOG_WARN("TODO cumulative hash and size");
         continue;
       }
-      murmur(data + i, frames->size, cur->abs[j].hash);
+      murmur(frames->ours, data + i, frames->size, cur->abs[j].hash);
     }
-    murmur((uint8_t*)(cur->abs), (sizeof(abstract_s) * frames->per, cur->hash);
+    murmur(frames->ours, (uint8_t*)(cur->abs), (sizeof(abstract_s) * frames->per, cur->hash);
   }
 }
 
@@ -322,163 +322,92 @@ size_t util_frames_outlen(util_frames_t frames)
 }
 
 // is a frame pending to be sent immediately
-bool util_frames_pending(util_frames_t frames)
+util_frames_t util_frames_pending(util_frames_t frames)
 {
   if(!frames) return LOG_WARN("bad args");
-  if(frames->flush) return true;
+  if(frames->flush) return frames;
   if(!frames->sending) return LOG_CRAZY("empty");
 
   sequence_t s = frames->sending;
   for(uint8_t i = 0; i < frames->per; i++)
     if(s->abs[i].head.frame) {
       if(!s->abs[i].head.hold) return LOG_CRAZY("held");
-      if(s->abs[i].head.state != AB_SENT) return true;
+      if(s->abs[i].head.state != AB_SENT) return frames;
     }
 
   return LOG_CRAZY("nothing");
 }
 
 // the next frame of data in/out, if data NULL bool is just ready check
-util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *meta)
+util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *raw)
 {
   if(!frames) return LOG_WARN("bad args");
-  if(frames->err) return LOG_WARN("frame state error");
-  if(!data) return util_frames_await(frames);
+  if(!raw) return LOG_WARN("TODO old usage");
   
-  // conveniences for code readability
-  uint8_t size = PAYLOAD(frames);
-  uint32_t hash1;
-  memcpy(&(hash1),data+size,4);
-  uint32_t hash2 = murmur4(data,size);
-  uint32_t inlast = (frames->cache)?frames->cache->hash:frames->inbase;
-  
-//  LOG("frame sz %u hash rx %lu check %lu",size,hash1,hash2);
-  
-  // meta frames are self contained
-  if(hash1 == hash2)
+  // first, sequence or data frame
+  if(raw[0] & 0b10000000)
   {
-//    LOG("meta frame %s",util_hex(data,size+4,NULL));
+    // is a sequence frame, checkhash to decide who's
+    uint8_t hash[4];
 
-    // if requested, copy in metadata block
-    if(meta) memcpy(meta,data+10,size-10);
+    murmur(frames->ours, raw+4, frames->size-4, hash);
+    hash[0] |= 0b10000000;
+    if(memcmp(raw,hash,4) == 0)
+    {
+      LOG_CRAZY("our sequence frame");
+      return frames;
+    }
 
-    // verify sender's last rx'd hash
-    uint32_t rxd;
-    memcpy(&rxd,data,4);
-    uint8_t *bin = lob_raw(frames->outbox);
-    uint32_t len = lob_len(frames->outbox);
-    uint32_t rxs = frames->outbase;
-    uint8_t next = 0;
-    do {
-      // here next is always the frame to be re-sent, rxs is always the previous frame
-      if(rxd == rxs)
-      {
-        frames->out = next;
-        break;
+    murmur(frames->theirs, raw + 4, frames->size - 4, hash);
+    hash[0] |= 0b10000000;
+    if(memcmp(raw, hash, 4) == 0) {
+      LOG_CRAZY("their sequence frame");
+      return frames;
+    }
+
+    LOG_DEBUG("RAW[%s]",util_hex(raw,frame->size,NULL));
+    return LOG_INFO("checkhash failed on possible sequence frame");
+  }
+
+  // do we know how to receive data yet?
+  if(!frames->receiving) return LOG_INFO("possible data frame but no receiving sequence");
+
+  // is a data frame, check both possible hashes
+  uint8_t zero[4], one[4];
+  murmur(frames->theirs, raw, frames->size, zero);
+  raw[0] |= 0b10000000;
+  murmur(frames->theirs, raw, frames->size, one);
+
+  sequence_t s = frames->receiving;
+  uint8_t dpos = 0; // data frame position, 1-based index
+  for(uint8_t i = 0; i < frames->per; i++)
+  {
+    if(!s->abs[i].head.frame) continue;
+    dpos++;
+    uint8_t *hash = (s->abs[i].head.data)?one:zero;
+    // non-last data frames are simple compare
+    if(!s->abs[i].head.last) {
+      if(memcmp(s->abs[i].hash, hash) != 0) continue;
+    }else{
+      // last data frame is cumulative hash check
+      for(uint16_t at = 0; at < frames->size; at += 4) {
+
       }
-
-      // handle tail hash correctly like sender
-      uint32_t at = next * size;
-      rxs ^= murmur4((bin+at), ((at+size) > len) ? (len - at) : size);
-      rxs += next;
-      if(len < size) break;
-    }while((++next) && (next*size) <= len);
-
-    // it must have matched something above
-    if(rxd != rxs)
-    {
-      LOG_WARN("invalid received frame hash %lu check %lu",rxd,rxs);
-      frames->err = 1;
-      return NULL;
-    }
-    
-    // advance full packet once confirmed
-    if((frames->out * size) > len)
-    {
-      frames->out = 0;
-      frames->outbase = rxd;
-      lob_t done = lob_shift(frames->outbox);
-      frames->outbox = done->next;
-      done->next = NULL;
-      lob_free(done);
     }
 
-    // sender's last tx'd hash mismatch causes flush
-    memcpy(&rxd,data+4,4);
-    if(rxd != inlast)
-    {
-      frames->flush = 1;
-      LOG_DEBUG("flushing mismatch, hash %lu last %lu",rxd,inlast);
-    }
-    
-    // update more flag (TODO move incoming byte to bitfield)
-    frames->more = (data[8])?1:0;
+    LOG_CRAZY("we've got ourselves a data frame");
+    // set first bit back to zero if proper
+    if(!s->abs[i].head.data) raw[0] &= 0b01111111;
+    memcpy(s->data+(frames->size * (dpos-1)), raw, frames->size);
+    s->abs[i].head.state = AB_RECEIVED;
 
+    if(s->abs[i].head.last)
+    // update status and done
     return frames;
   }
-  
-  // dedup, ignore if identical to any received one
-  if(hash1 == frames->inbase) return frames;
-  util_frame_t cache = frames->cache;
-  for(;cache;cache = cache->prev) if(cache->hash == hash1) return frames;
 
-  // full data frames must match combined w/ previous
-  hash2 ^= inlast;
-  hash2 += frames->in;
-  if(hash1 == hash2)
-  {
-    if(!util_frame_new(frames)) return LOG_WARN("OOM");
-    // append, update inlast, continue
-    memcpy(frames->cache->data,data,size);
-    frames->cache->hash = hash1;
-    frames->flush = 0;
-//    LOG("got data frame %lu",hash1);
-    return frames;
-  }
-  
-  // check if it's a tail data frame
-  uint8_t tail = data[size-1];
-  if(tail >= size)
-  {
-    frames->flush = 1;
-    return LOG_DEBUG("invalid frame %u tail %u >= %u hash %lu/%lu base %lu last %lu",frames->in,tail,size,hash1,hash2,frames->inbase,inlast);
-  }
-  
-  // hash must match
-  hash2 = murmur4(data,tail);
-  hash2 ^= inlast;
-  hash2 += frames->in;
-  if(hash1 != hash2)
-  {
-    frames->flush = 1;
-    return LOG_DEBUG("invalid frame %u tail %u hash %lu != %lu base %lu last %lu",frames->in,tail,hash1,hash2,frames->inbase,inlast);
-  }
-  
-  // process full packet w/ tail, update inlast, set flush
-//  LOG("got frame tail of %u",tail);
-  frames->flush = 1;
-  frames->inbase = hash1;
-  frames->more = 0; // clear any more flag also
+  return LOG_INFO("checkhash failed on possible data frame");
 
-  size_t tlen = (frames->in * size) + tail;
-
-  // TODO make a lob_new that creates space to prevent double-copy here
-  uint8_t *buf = malloc(tlen);
-  if(!buf) return LOG_WARN("OOM");
-  
-  // copy in tail
-  memcpy(buf+(frames->in * size), data, tail);
-  
-  // eat cached frames copying in reverse
-  util_frame_t frame = frames->cache;
-  while(frames->in && frame)
-  {
-    frames->in--;
-    memcpy(buf+(frames->in*size),frame->data,size);
-    frame = frame->prev;
-  }
-  frames->cache = util_frame_free(frames->cache);
-  
   lob_t packet = lob_parse(buf,tlen);
   if(!packet) LOG_WARN("packet parsing failed: %s",util_hex(buf,tlen,NULL));
   free(buf);
