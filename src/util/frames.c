@@ -122,8 +122,7 @@ our vs. their determined by sequence murmur seed
 #define AB_RESEND   3
 
 // single bit-packed header byte used in frame abstract
-typedef struct ahead_s
-{
+typedef struct ahead_s {
   union {
     struct {
       uint8_t packet : 1; // is this a packet frame (false is ignored, abstract can be used by transport)
@@ -138,16 +137,13 @@ typedef struct ahead_s
 } ahead_s;
 
 // abstract is header + checkhash
-typedef struct abstract_s
-{
+typedef struct abstract_s {
   ahead_s head;
   uint8_t hash[4];
 } abstract_s, *abstract_t;
 
 // sequence frames are array of abstracts
 typedef struct sequence_s {
-  struct sequence_s *next;
-  uint8_t *data; // the data in this sequence
   uint8_t hash[4];
   abstract_s abs[]; // must remain uint32 aligned in this struct for murmur
 } sequence_s, *sequence_t;
@@ -155,25 +151,40 @@ typedef struct sequence_s {
 // overall manager state
 struct util_frames_s {
 
-  lob_t inbox; // received packets waiting to be processed
-  lob_t outbox; // current packet being sent out
-
-  // active incoming/outgoing sequence lists
-  sequence_t ins, outs;
-
-  // current sequence in the in/out lists
-  sequence_t receiving, sending;
-
-  // checkhash seed to determine sequence frame ownership
+  // checkhash seed to determine sequence frame direction
   uint32_t ours, theirs;
 
+  // queue of packets ready for processing/delivery
+  lob_t inbox;
+  lob_t outbox;
+
+  // sending in progress state
+  sequence_t sending;
+  uint8_t *out; // into outbox raw packet
+  uint32_t len; // remaining in out
+
+  // receiving in progress state
+  sequence_t receiving;
+  lob_t in; // full packet
+  uint8_t *at; // current sequence into raw in packet
+  
   // frame size and data frames per sequence ((frame_size-4)/5)
   uint16_t size;
   uint8_t per;
 
   // boolean flags
-  uint8_t flush : 1; // bool to signal a flush is needed
+  uint8_t flush_in : 1;
+  uint8_t flush_out : 1;
 };
+
+// for iterating
+static uint8_t abs_next(sequence_t seq, uint8_t pos)
+{
+  // when supporting in-line data an abstract may cross multiple
+  return pos+1;
+}
+
+#define abs_isframe(ab) (ab && ab->head.packet && !ab->head.start)
 
 // create a single blank sequence
 static sequence_t seq_new(util_frames_t frames)
@@ -186,50 +197,56 @@ static sequence_t seq_new(util_frames_t frames)
   return seq;
 }
 
-static sequence_t seq_free(sequence_t seq, bool data)
+static sequence_t seq_free(sequence_t seq)
 {
-  if(!seq) return NULL;
-  if(seq->next) seq_free(seq->next, data);
-  if(data) free(seq->data); // their data is malloc'd
-  free(seq);
+  if(seq) free(seq);
   return NULL;
 }
 
+// stages next packet to send from outbox 
 static sequence_t seq_out(util_frames_t frames)
 {
   if(!frames || !frames->outbox) return NULL;
   
-  seq_t out = NULL;
-  seq_t cur = NULL;
-  uint8_t *data = lob_raw(frames->outbox);
-  // loop once per sequence
-  for(uint16_t i=0;i<lob_len(frames->outbox);)
-  {
-    if(!out)
+  frames->out = lob_raw(frames->outbox);
+  frames->len = lob_len(frames->outbox);
+  sequence_t seq = frames->sending = seq_new(frames);
+
+  // fill in sequence
+  for(uint16_t i = 0, j = 0; i < frames->per; i++) {
+    abstract_t ab = seq->abs[i];
+    ab->head.packet = true;
+    if(i == 0)
     {
-      out = cur = seq_new(frames);
-    }else{
-      cur->next = seq_new(frames);
-      cur = cur->next;
+      ab->head.start = true;
+      memcpy(ab->head.hash, &(frames->len), 4);
+      continue;
     }
-    // loop once per frame in a sequence
-    uint16_t j=0;
-    for(;i<lob_len(frames->outbox) && j<frames->per;i+=frames->size,j++)
+    uint8_t *start = frames->out + (j * frames->size); // this frame starting point
+    j++; // count of data frames done
+    ab->head.data = (*start) & 0b10000000; // stash copy of first bit from data frame
+    ab->head.state = AB_UNKNOWN;
+    // last frame special handling
+    if(j * frames->size >= frames->len)
     {
-      cur->abs[j].head.frame = true;
-      cur->abs[j].head.data = data[i] & 0b10000000; // stash copy of first bit from data frame
-      cur->abs[j].head.state = AB_UNKNOWN;
-      // last frame
-      if(i+frames->size >= lob_len(frames->outbox))
+      ab->head.last = true;
+      uint16_t rem = frames->len % frames->size;
+      // remainder must hash full frame
+      if(rem)
       {
-        cur->abs[j].head.last = true;
-        LOG_WARN("TODO cumulative hash and size");
+        uint8_t *tmp = malloc(frames->size);
+        memset(tmp,0,frames->size);
+        memcpy(tmp, start, rem);
+        murmur(frames->ours, tmp, frames->size, ab->hash);
+        free(tmp);
         continue;
       }
-      murmur(frames->ours, data + i, frames->size, cur->abs[j].hash);
     }
-    murmur(frames->ours, (uint8_t*)(cur->abs), (sizeof(abstract_s) * frames->per, cur->hash);
+    murmur(frames->ours, start, frames->size, ab->hash);
   }
+  murmur(frames->ours, (uint8_t*)(seq->abs), (sizeof(abstract_s) * frames->per, seq->hash);
+
+  return frames;
 }
 
 util_frames_t util_frames_new(uint16_t size, uint32_t ours, uint32_t theirs)
@@ -240,9 +257,10 @@ util_frames_t util_frames_new(uint16_t size, uint32_t ours, uint32_t theirs)
   util_frames_t frames;
   if(!(frames = malloc(sizeof (struct util_frames_struct)))) return LOG_WARN("OOM");
   memset(frames,0,sizeof (struct util_frames_struct));
-  frames->size = size;
   frames->ours = ours;
   frames->theirs = theirs;
+  frames->size = size;
+  frames->per = (size - 4) / 5;
 
   return frames;
 }
@@ -250,10 +268,11 @@ util_frames_t util_frames_new(uint16_t size, uint32_t ours, uint32_t theirs)
 util_frames_t util_frames_free(util_frames_t frames)
 {
   if(!frames) return NULL;
-  seq_free(ins, true);
-  seq_free(outs, false);
+  seq_free(receiving);
+  seq_free(sending);
   lob_freeall(frames->inbox);
   lob_freeall(frames->outbox);
+  lob_free(frames->in);
   free(frames);
   return NULL;
 }
@@ -267,7 +286,7 @@ util_frames_t util_frames_send(util_frames_t frames, lob_t out)
     frames->outbox = lob_push(frames->outbox, out);
   }else{
     LOG_WARN("TODO remove any hold bits on frames->sending");
-    frames->flush = 1;
+    frames->flush_out = 1;
   }
 
   return frames;
@@ -294,13 +313,16 @@ size_t util_frames_inlen(util_frames_t frames)
     len += lob_len(cur);
     cur = lob_next(cur);
   }while(cur);
-  
-  // add in-progress data (estimate only)
-  for(sequence_t s = frames->ins; s; s = s->next)
-    for(uint8_t i = 0; i < frames->per; i++)
-      if(s->abs[i].head.frame && s->abs[i].head.state == AB_RECEIVED) len += frames->size;
 
-  return len;
+  if(!frames->receiving) return len;
+
+  // add in-progress data
+  len += frames->at - lob_raw(frames->in);
+  sequence_t s = frames->receiving;
+  for(uint8_t i = 0; i < frames->per; i = abs_next(s,i))
+    if(abs_isframe(&(s->abs[i])) && !s->abs[i].head.end && s->abs[i].head.state == AB_RECEIVED) len += frames->size;
+
+    return len;
 }
 
 size_t util_frames_outlen(util_frames_t frames)
@@ -313,10 +335,12 @@ size_t util_frames_outlen(util_frames_t frames)
     cur = lob_next(cur);
   }while(cur);
   
+  if(!frames->sending) return len;
   // subtract sent
-  for(sequence_t s = frames->outs; s; s = s->next)
-    for(uint8_t i = 0; i < frames->per; i++)
-      if(s->abs[i].head.frame && s->abs[i].head.state == AB_SENT) len -= frames->size;
+  len -= frames->out - lob_raw(frames->outbox);
+  sequence_t s = frames->sending;
+  for(uint8_t i = 0; i < frames->per; i = abs_next(s, i))
+    if(abs_isframe(&(s->abs[i])) && !s->abs[i].head.end && s->abs[i].head.state != AB_UNKNOWN) len -= frames->size;
 
   return len;
 }
@@ -329,11 +353,14 @@ util_frames_t util_frames_pending(util_frames_t frames)
   if(!frames->sending) return LOG_CRAZY("empty");
 
   sequence_t s = frames->sending;
-  for(uint8_t i = 0; i < frames->per; i++)
-    if(s->abs[i].head.frame) {
-      if(!s->abs[i].head.hold) return LOG_CRAZY("held");
-      if(s->abs[i].head.state != AB_SENT) return frames;
-    }
+  for(uint8_t i = 0; i < frames->per; i = abs_next(s, i))
+  {
+    abstract_t ab = &(s->abs[i]);
+    if(!abs_isframe(ab)) continue;
+    if(!ab->head.hold) return LOG_CRAZY("held");
+    if(ab->head.state == AB_UNKNOWN) return frames;
+    if(ab->head.state == AB_RESEND) return frames;
+  }
 
   return LOG_CRAZY("nothing");
 }
