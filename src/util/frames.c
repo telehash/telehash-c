@@ -116,10 +116,17 @@ our vs. their determined by sequence murmur seed
 
 ***************/
 
+// state bits
 #define AB_UNKNOWN  0
 #define AB_SENT     1
 #define AB_RECEIVED 2
 #define AB_RESEND   3
+
+// hold bits
+#define AB_PROCEED  0
+#define AB_HOLD     0
+#define AB_PAUSE    0
+#define AB_RESTART  0
 
 // single bit-packed header byte used in frame abstract
 typedef struct ahead_s {
@@ -130,7 +137,7 @@ typedef struct ahead_s {
       uint8_t end : 1; // last frame (if both, data follows self-contained)
       uint8_t data : 1; // replacement bit for data frame
       uint8_t state : 2; // default, sent, received, resend
-      uint8_t hold : 2; // backpressure signalling, = 3 means restart entire packet
+      uint8_t hold : 2; // backpressure signalling
     };
     uint8_t bits;
   }
@@ -212,24 +219,34 @@ static sequence_t seq_out(util_frames_t frames)
 {
   if(!frames || !frames->outbox) return NULL;
   
-  frames->out = lob_raw(frames->outbox);
-  frames->len = lob_len(frames->outbox);
-  sequence_t seq = frames->sending = seq_new(frames);
+  // start w/ new packet if none staged
+  if(!frames->out)
+  {
+    frames->out = lob_raw(frames->outbox);
+    frames->len = lob_len(frames->outbox);
+    frames->sending = seq_new(frames);
+  }
 
-  // fill in sequence
+  sequence_t seq = frames->sending;
+
+  // fill in this sequence's abstracts
   for(uint8_t i = 0, j = 0; i < frames->per; i++) {
     abstract_t ab = seq->abs[i];
     ab->head.packet = true;
-    if(i == 0)
+
+    // very first abstract is start and contains len
+    if(i == 0 && frames->len == lob_len(frames->outbox))
     {
       ab->head.start = true;
       memcpy(ab->head.hash, &(frames->len), 4);
       continue;
     }
+
     uint8_t *start = frames->out + (j * frames->size); // this frame starting point
     j++; // count of data frames done
     ab->head.data = (*start) & 0b10000000; // stash copy of first bit from data frame
     ab->head.state = AB_UNKNOWN;
+
     // last frame special handling
     if(j * frames->size >= frames->len)
     {
@@ -246,8 +263,11 @@ static sequence_t seq_out(util_frames_t frames)
         continue;
       }
     }
+
     murmur(frames->ours, start, frames->size, ab->hash);
   }
+
+  // overall sequence checkhash
   murmur(frames->ours, (uint8_t*)(seq->abs), (sizeof(abstract_s) * frames->per, seq->hash);
 
   return frames;
@@ -372,23 +392,27 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *raw)
     // is a sequence frame, checkhash to decide who's
     uint8_t hash[4];
 
-    murmur(frames->ours, raw + 4, frames->size - 4, hash);
-    hash[0] |= 0b10000000;
-    if(memcmp(raw,hash,4) == 0)
-    {
-      LOG_CRAZY("our sequence frame");
-      return frames;
-    }
-
+    // see if it's their sequence frame first
     murmur(frames->theirs, raw + 4, frames->size - 4, hash);
     hash[0] |= 0b10000000;
     if(memcmp(raw, hash, 4) == 0) {
-      LOG_CRAZY("their sequence frame");
+      LOG_WARN("TODO their sequence frame");
       return frames;
     }
 
-    LOG_DEBUG("RAW[%s]",util_hex(raw,frame->size,NULL));
-    return LOG_INFO("checkhash failed on possible sequence frame");
+    // can't receive our sequence frame if not sending
+    if(!frames->sending) return LOG_INFO("possible sequence when not sending");
+
+    // now process our sequence frame, swap out hash to mirror sender's copy
+    uint8_t orig[4];
+    memcpy(orig, raw, 4);
+    memcpy(raw,frames->sending->hash,4);
+    murmur(frames->ours, raw, frames->size, hash);
+    hash[0] |= 0b10000000;
+    if(memcmp(raw, hash, 4) != 0) return LOG_INFO("possible sequence checkhash failed");
+
+    LOG_WARN("TODO our sequence frame");
+    return frames;
   }
 
   // do we know how to receive data yet?
