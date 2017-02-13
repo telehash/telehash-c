@@ -80,31 +80,49 @@ size_t lob_len(lob_t p)
   return 2+p->head_len+p->body_len;
 }
 
+bool lob_valid(const uint8_t *raw, size_t len)
+{
+
+  return true;
+}
+
 lob_t lob_parse(const uint8_t *raw, size_t len)
 {
-  lob_t p;
+  // validity check before copying
   uint16_t nlen, hlen;
-  size_t jtest;
-
-  // make sure is at least size valid
-  if(!raw || len < 2) return NULL;
-  memcpy(&nlen,raw,2);
+  if(!raw || len < 2) return LOG_DEBUG("bad args");
+  memcpy(&nlen, raw, 2);
   hlen = util_sys_short(nlen);
-  if(hlen > len-2) return NULL;
+  if(hlen > len - 2) return LOG_DEBUG("invalid head len");
+
+  uint8_t *raw2 = NULL;
+  if(!(raw2 = malloc(len))) return LOG_DEBUG("OOM");
+  memcpy(raw2,raw,len);
+  return lob_direct(raw2, len); 
+}
+
+lob_t lob_direct(uint8_t *raw, size_t len)
+{
+  // get header len
+  uint16_t nlen, hlen;
+  if(!raw || len < 2) return LOG_DEBUG("bad args");
+  memcpy(&nlen, raw, 2);
+  hlen = util_sys_short(nlen);
+  if(hlen > len - 2) return LOG_DEBUG("invalid head len");
+
+  // validate any json first
+  size_t jtest = 0;
+  if(hlen >= 7) js0n("\0", 1, (char *)raw+2, hlen, &jtest);
+  if(jtest) return LOG_DEBUG("invalid json");
 
   // copy in and update pointers
-  p = lob_new();
-  if(!(p->raw = realloc(p->raw,len))) return lob_free(p);
-  memcpy(p->raw,raw,len);
+  lob_t p = lob_new();
+  free(p->raw);
+  p->raw = raw;
   p->head_len = hlen;
   p->head = p->raw+2;
   p->body_len = len-(2+p->head_len);
   p->body = p->raw+(2+p->head_len);
-
-  // validate any json
-  jtest = 0;
-  if(p->head_len >= 7) js0n("\0",1,(char*)p->head,p->head_len,&jtest);
-  if(jtest) return lob_free(p);
 
   return p;
 }
