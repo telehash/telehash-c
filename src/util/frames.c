@@ -130,7 +130,7 @@ typedef struct ahead_s {
       uint8_t end : 1; // last frame (if both, data follows self-contained)
       uint8_t data : 1; // replacement bit for data frame
       uint8_t state : 2; // default, sent, received, resend
-      uint8_t hold : 2; // backpressure signalling
+      uint8_t hold : 2; // backpressure signalling, = 3 means restart entire packet
     };
     uint8_t bits;
   }
@@ -168,6 +168,10 @@ struct util_frames_s {
   lob_t in; // full packet
   uint8_t *at; // current sequence into raw in packet
   
+  // number of frames received/sent in progress
+  uint16_t count_in;
+  uint16_t count_out;
+
   // frame size and data frames per sequence ((frame_size-4)/5)
   uint16_t size;
   uint8_t per;
@@ -213,7 +217,7 @@ static sequence_t seq_out(util_frames_t frames)
   sequence_t seq = frames->sending = seq_new(frames);
 
   // fill in sequence
-  for(uint16_t i = 0, j = 0; i < frames->per; i++) {
+  for(uint8_t i = 0, j = 0; i < frames->per; i++) {
     abstract_t ab = seq->abs[i];
     ab->head.packet = true;
     if(i == 0)
@@ -283,6 +287,7 @@ util_frames_t util_frames_send(util_frames_t frames, lob_t out)
   
   if(out)
   {
+    LOG_WARN("ISR FIXME");
     frames->outbox = lob_push(frames->outbox, out);
   }else{
     LOG_WARN("TODO remove any hold bits on frames->sending");
@@ -296,6 +301,7 @@ util_frames_t util_frames_send(util_frames_t frames, lob_t out)
 lob_t util_frames_receive(util_frames_t frames)
 {
   if(!frames || !frames->inbox) return NULL;
+  LOG_WARN("ISR FIXME");
   lob_t pkt = lob_shift(frames->inbox);
   frames->inbox = pkt->next;
   pkt->next = NULL;
@@ -314,15 +320,9 @@ size_t util_frames_inlen(util_frames_t frames)
     cur = lob_next(cur);
   }while(cur);
 
-  if(!frames->receiving) return len;
+  len += frames->count_in * frames->size;
 
-  // add in-progress data
-  len += frames->at - lob_raw(frames->in);
-  sequence_t s = frames->receiving;
-  for(uint8_t i = 0; i < frames->per; i = abs_next(s,i))
-    if(abs_isframe(&(s->abs[i])) && !s->abs[i].head.end && s->abs[i].head.state == AB_RECEIVED) len += frames->size;
-
-    return len;
+  return len;
 }
 
 size_t util_frames_outlen(util_frames_t frames)
@@ -334,13 +334,9 @@ size_t util_frames_outlen(util_frames_t frames)
     len += lob_len(cur);
     cur = lob_next(cur);
   }while(cur);
-  
-  if(!frames->sending) return len;
-  // subtract sent
-  len -= frames->out - lob_raw(frames->outbox);
-  sequence_t s = frames->sending;
-  for(uint8_t i = 0; i < frames->per; i = abs_next(s, i))
-    if(abs_isframe(&(s->abs[i])) && !s->abs[i].head.end && s->abs[i].head.state != AB_UNKNOWN) len -= frames->size;
+
+  size_t sent = frames->count_out * frames->size;
+  len -= (sent < len)?sent:len;
 
   return len;
 }
@@ -353,8 +349,7 @@ util_frames_t util_frames_pending(util_frames_t frames)
   if(!frames->sending) return LOG_CRAZY("empty");
 
   sequence_t s = frames->sending;
-  for(uint8_t i = 0; i < frames->per; i = abs_next(s, i))
-  {
+  for(uint8_t i = 0; i < frames->per; i = abs_next(s, i)) {
     abstract_t ab = &(s->abs[i]);
     if(!abs_isframe(ab)) continue;
     if(!ab->head.hold) return LOG_CRAZY("held");
@@ -377,7 +372,7 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *raw)
     // is a sequence frame, checkhash to decide who's
     uint8_t hash[4];
 
-    murmur(frames->ours, raw+4, frames->size-4, hash);
+    murmur(frames->ours, raw + 4, frames->size - 4, hash);
     hash[0] |= 0b10000000;
     if(memcmp(raw,hash,4) == 0)
     {
@@ -406,40 +401,64 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *raw)
   murmur(frames->theirs, raw, frames->size, one);
 
   sequence_t s = frames->receiving;
-  uint8_t dpos = 0; // data frame position, 1-based index
-  for(uint8_t i = 0; i < frames->per; i++)
-  {
-    if(!s->abs[i].head.frame) continue;
-    dpos++;
-    uint8_t *hash = (s->abs[i].head.data)?one:zero;
-    // non-last data frames are simple compare
-    if(!s->abs[i].head.last) {
-      if(memcmp(s->abs[i].hash, hash) != 0) continue;
-    }else{
-      // last data frame is cumulative hash check
-      for(uint16_t at = 0; at < frames->size; at += 4) {
-
-      }
+  bool all = true;
+  for(uint8_t i = 0, j = 0; i < frames->per; i = abs_next(s, i)) {
+    abstract_t ab = &(s->abs[i]);
+    if(!abs_isframe(ab)) continue;
+    uint8_t *start = frames->at + (j * frames->size); // this frame starting point
+    j++;
+    uint8_t *hash = (ab->head.data)?one:zero;
+    if(memcmp(ab->hash, (ab->head.data) ? one : zero) != 0)
+    {
+      // track if all have been received so far
+      if(ab->head.state != AB_RECEIVED) all = false;
+      continue;
+    }
+    
+    if(ab->head.state == AB_RECEIVED)
+    {
+      LOG_DEBUG("ignoring duplicate data frame");
+      return frames;
     }
 
-    LOG_CRAZY("we've got ourselves a data frame");
-    // set first bit back to zero if proper
-    if(!s->abs[i].head.data) raw[0] &= 0b01111111;
-    memcpy(s->data+(frames->size * (dpos-1)), raw, frames->size);
-    s->abs[i].head.state = AB_RECEIVED;
+    // handle last frame partial
+    uint16_t len = frames->size;
+    if(ab->head.end)
+    {
+      uint16_t rem = frames->len % frames->size;
+      if(rem) len = rem;
+    }
 
-    if(s->abs[i].head.last)
-    // update status and done
+    // reject a request to write past end of packet
+    if(start+len > lob_raw(frames->in) + lob_len(frames->in))
+    {
+      ab->head.hold = 3; // packet rejection/restart signal
+      frames->flush_in = true;
+      return LOG_WARN("rejecting data past end of current packet");
+    }
+
+    frames->count_in++;
+    LOG_CRAZY("we've got ourselves a data frame len %u total %u", len, frames->count_in);
+    // above raw[0] bit was set to 1, set back to zero if necessary
+    if(!ab->head.data) raw[0] &= 0b01111111;
+    memcpy(start, raw, len);
+    ab->head.state = AB_RECEIVED;
+
+    // if packet complete, party!
+    if(ab->head.last && all)
+    {
+      LOG_DEBUG("last frame received, packet done");
+      frames->flush_in = true;
+      frames->inbox = lob_push(frames->inbox, frames->in);
+      frames->in = NULL;
+      frames->at = NULL;
+      frames->count_in = 0;
+    }
+
     return frames;
   }
 
   return LOG_INFO("checkhash failed on possible data frame");
-
-  lob_t packet = lob_parse(buf,tlen);
-  if(!packet) LOG_WARN("packet parsing failed: %s",util_hex(buf,tlen,NULL));
-  free(buf);
-  frames->inbox = lob_push(frames->inbox,packet);
-  return frames;
 }
 
 util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *meta)
