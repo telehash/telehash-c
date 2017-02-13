@@ -124,9 +124,9 @@ our vs. their determined by sequence murmur seed
 
 // hold bits
 #define AB_PROCEED  0
-#define AB_HOLD     0
-#define AB_PAUSE    0
-#define AB_RESTART  0
+#define AB_HOLD     1
+#define AB_PAUSE    2
+#define AB_RESTART  3
 
 // single bit-packed header byte used in frame abstract
 typedef struct ahead_s {
@@ -151,6 +151,17 @@ typedef struct abstract_s {
 
 // sequence frames are array of abstracts
 typedef struct sequence_s {
+  lob_t pkt;
+  uint8_t *data;
+  uint32_t len;
+  uint16_t count; // received data frames since seq started, good or bad
+  struct state {
+    uint8_t abid; // references an abs[abid] for below states
+    uint8_t do_flush : 1;
+    uint8_t is_held : 1;
+    uint8_t is_paused : 1;
+    uint8_t out_sending : 1;
+  };
   uint8_t hash[4];
   abstract_s abs[]; // must remain uint32 aligned in this struct for murmur
 } sequence_s, *sequence_t;
@@ -161,31 +172,19 @@ struct util_frames_s {
   // checkhash seed to determine sequence frame direction
   uint32_t ours, theirs;
 
-  // queue of packets ready for processing/delivery
+  // a single queued packet ready for processing/delivery
   lob_t inbox;
   lob_t outbox;
 
-  // sending in progress state
-  sequence_t sending;
-  uint8_t *out; // into outbox raw packet
-  uint32_t len; // remaining in out
-
-  // receiving in progress state
-  sequence_t receiving;
-  lob_t in; // full packet
-  uint8_t *at; // current sequence into raw in packet
+  // in-progress states
+  sequence_t sending, receiving;
   
-  // number of frames received/sent in progress
-  uint16_t count_in;
-  uint16_t count_out;
-
-  // frame size and data frames per sequence ((frame_size-4)/5)
+  // frame size and frames per sequence ((frame_size-4)/5)
   uint16_t size;
   uint8_t per;
 
   // boolean flags
-  uint8_t flush_in : 1;
-  uint8_t flush_out : 1;
+  uint8_t do_reset : 1;
 };
 
 // for iterating
@@ -215,19 +214,22 @@ static sequence_t seq_free(sequence_t seq)
 }
 
 // stages next packet to send from outbox 
-static sequence_t seq_out(util_frames_t frames)
+static util_frames_t seq_out(util_frames_t frames)
 {
-  if(!frames || !frames->outbox) return NULL;
-  
+  if(!frames) return NULL;
+  sequence_t seq = frames->sending;
+
   // start w/ new packet if none staged
-  if(!frames->out)
+  if(!seq)
   {
-    frames->out = lob_raw(frames->outbox);
-    frames->len = lob_len(frames->outbox);
-    frames->sending = seq_new(frames);
+    if(!frames->outbox) return LOG_DEBUG("no packet to sequence");
+    seq = frames->sending = seq_new(frames);
+    seq->pkt = frames->outbox;
+    frames->outbox = NULL;
+    seq->data = lob_raw(seq->pkt);
+    seq->len = lob_len(seq->pkt);
   }
 
-  sequence_t seq = frames->sending;
 
   // fill in this sequence's abstracts
   for(uint8_t i = 0, j = 0; i < frames->per; i++) {
@@ -235,23 +237,23 @@ static sequence_t seq_out(util_frames_t frames)
     ab->head.packet = true;
 
     // very first abstract is start and contains len
-    if(i == 0 && frames->len == lob_len(frames->outbox))
+    if(i == 0 && seq->len == lob_len(seq->pkt))
     {
       ab->head.start = true;
-      memcpy(ab->head.hash, &(frames->len), 4);
+      memcpy(ab->head.hash, &(seq->len), 4);
       continue;
     }
 
-    uint8_t *start = frames->out + (j * frames->size); // this frame starting point
+    uint8_t *start = seq->data + (j * frames->size); // this frame starting point
     j++; // count of data frames done
     ab->head.data = (*start) & 0b10000000; // stash copy of first bit from data frame
     ab->head.state = AB_UNKNOWN;
 
     // last frame special handling
-    if(j * frames->size >= frames->len)
+    if(j * frames->size >= seq->len)
     {
       ab->head.last = true;
-      uint16_t rem = frames->len % frames->size;
+      uint16_t rem = seq->len % frames->size;
       // remainder must hash full frame
       if(rem)
       {
@@ -305,14 +307,24 @@ util_frames_t util_frames_send(util_frames_t frames, lob_t out)
 {
   if(!frames) return LOG_WARN("bad args");
   
-  if(out)
+  if(!out)
   {
-    LOG_WARN("ISR FIXME");
-    frames->outbox = lob_push(frames->outbox, out);
-  }else{
+    sequence_t s = (frames->sending)?frames->sending:frames->receiving;
+    if(!s) {
+      LOG_DEBUG("reset flush requested");
+      frames->do_reset = true;
+      return frames;
+    }
+    if(s->is_paused) return LOG_DEBUG("paused");
     LOG_WARN("TODO remove any hold bits on frames->sending");
-    frames->flush_out = 1;
+    s->do_flush = 1;
+    return frames;
   }
+
+  // queue and kick-start sequence if necessary
+  if(frames->outbox) return LOG_DEBUG("outbox full");
+  frames->outbox = out;
+  if(!frames->sending) seq_out(frames);
 
   return frames;
 }
@@ -320,11 +332,9 @@ util_frames_t util_frames_send(util_frames_t frames, lob_t out)
 // get any packets that have been reassembled from incoming frames
 lob_t util_frames_receive(util_frames_t frames)
 {
-  if(!frames || !frames->inbox) return NULL;
-  LOG_WARN("ISR FIXME");
-  lob_t pkt = lob_shift(frames->inbox);
-  frames->inbox = pkt->next;
-  pkt->next = NULL;
+  if(!frames) return NULL;
+  lob_t pkt = frames->inbox;
+  frames->inbox = NULL;
   return pkt;
 }
 
@@ -365,7 +375,7 @@ size_t util_frames_outlen(util_frames_t frames)
 util_frames_t util_frames_pending(util_frames_t frames)
 {
   if(!frames) return LOG_WARN("bad args");
-  if(frames->flush) return frames;
+  if(frames->flush_in || frames->flush_out) return frames;
   if(!frames->sending) return LOG_CRAZY("empty");
 
   sequence_t s = frames->sending;
@@ -485,61 +495,49 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *raw)
   return LOG_INFO("checkhash failed on possible data frame");
 }
 
-util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *meta)
+util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
 {
   if(!frames) return LOG_WARN("bad args");
-  if(frames->err) return LOG_WARN("frame state error");
-  if(!data) return util_frames_waiting(frames); // just a ready check
-  uint8_t size = PAYLOAD(frames);
-  uint8_t *out = lob_raw(frames->outbox);
-  uint32_t len = lob_len(frames->outbox); 
-  
-  // clear/init
-  uint32_t hash = frames->outbase;
-  
-  // first get the last sent hash
-  if(len)
-  {
-    // safely only hash the packet size correctly
-    uint32_t at, i;
-    for(i = at = 0;at < len && i < frames->out;i++,at += size)
-    {
-      hash ^= murmur4((out+at), ((at - len) < size) ? (at - len) : size);
-      hash += i;
-    }
-  }
+  if(!data) return util_frames_pending(frames); // just a ready check
 
-  // if flushing, or nothing to send, just send meta frame w/ hashes
-  if(frames->flush || !len || (frames->out * size) > len)
-  {
-    frames->flush = 1; // so _sent() does us proper
-    memset(data,0,size+4);
-    uint32_t inlast = (frames->cache)?frames->cache->hash:frames->inbase;
-    memcpy(data,&(inlast),4);
-    memcpy(data+4,&(hash),4);
-    if(len && (frames->out * size) <= len) data[8] = 1; // flag we have more to send
-    if(meta) memcpy(data+10,meta,size-10);
-    murmur(data,size,data+size);
-    LOG_CRAZY("sending meta frame inlast %lu cur %lu",inlast,hash);
+  if(frames->flush_in) {
+    // send frames->receiving sequence frame
+    frames->flush_in = false;
     return frames;
   }
-  
-  // send next frame
-  memset(data,0,size+4);
-  uint32_t at = frames->out * size;
-  if((at + size) > len)
-  {
-    size = len - at;
-    data[PAYLOAD(frames)-1] = size;
-  }
-  // TODO there's extra space in tail frames that could be used for meta
-  memcpy(data,out+at,size);
-  hash ^= murmur4(data,size);
-  hash += frames->out;
-  memcpy(data+PAYLOAD(frames),&(hash),4);
-  LOG_CRAZY("sending data frame %u %lu",frames->out,hash);
 
-  return frames;
+  if(frames->flush_out) {
+    // send frames->sending sequence frame
+    // fills in empty sequence frame if not sending
+    frames->flush_out = false;
+    return frames;
+  }
+
+  if(!frames->sending) return LOG_DEBUG("nothing to send");
+
+  LOG_DEBUG("looking for a data frame")
+  sequence_t s = frames->sending;
+  for(uint8_t i = 0, j = 0; i < frames->per; i = abs_next(s, i)) {
+    abstract_t ab = &(s->abs[i]);
+    if(!abs_isframe(ab)) continue;
+    uint8_t *start = frames->out + (j * frames->size); // this frame starting point
+    j++;
+    if(ab->head.state == AB_SENT) continue;
+    if(ab->head.state == AB_RECEIVED) continue;
+    if(ab->head.hold) return LOG_DEBUG("hold requested, flush to continue");
+
+    // got one
+    uint16_t len = frames->size;
+    if(ab->head.end) {
+      uint16_t rem = frames->len % frames->size;
+      if(rem) len = rem;
+    }
+    LOG_DEBUG("sending data frame %u len %u",i,len);
+    memcpy(out,start,len);
+    return frames;
+  }
+
+  return LOG_DEBUG("no more data frames to send");
 }
 
 // out state changes, returns if more to send
