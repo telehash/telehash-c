@@ -436,7 +436,53 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *raw)
     hash[0] |= 0b10000000;
     if(memcmp(raw, hash, 4) != 0) return LOG_INFO("possible sequence checkhash failed");
 
-    LOG_WARN("TODO our sequence frame");
+    LOG_WARN("processing our sequence frame");
+    seq->is_held = seq->is_paused = false;
+
+    // walk through each incoming abstract and sync w/ it
+    abstract_t *abs1 = (abstract_t*)(raw+4);
+    for(uint8_t i = 0, j = 0; i < frames->per; i = abs_next(seq, i)) {
+      abstract_t ab0 = seq->abs + i;
+      abstract_t ab1 = abs1 + i;
+      if(!abs_isframe(ab0)) continue;
+      j++;
+      if(ab0->head.state == AB_RECEIVED) continue; // locked
+      if(ab1->head.state == AB_RECEIVED) {
+        ab0->head.state = AB_RECEIVED;
+        if((j * frames->size) > seq->len)
+        {
+          LOG_DEBUG("sequence confirmed received!");
+          seq->is_done = true;
+          return frames;
+        }
+        continue;
+      }
+      if(ab1->head.state == AB_RESEND) {
+        ab0->head.state = AB_RESEND;
+        switch(ab1->head.hold) {
+          case AB_HOLD: {
+            if(seq->is_held || seq->is_paused) continue;
+            seq->is_held = true;
+            seq->abid = i;
+            LOG_DEBUG("hold requested");
+          } break;
+          case AB_PAUSE: {
+            if(seq->is_paused) continue;
+            seq->is_paused = true;
+            seq->is_held = false; // for consistency
+            seq->abid = i;
+            LOG_DEBUG("pause requested");
+          } break;
+          case AB_REJECT: {
+            LOG_DEBUG("packet rejected");
+            seq->is_done = true;
+          } break;
+          default:
+        }
+        continue;
+      }
+    }
+
     return frames;
   }
 
@@ -524,6 +570,14 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *raw)
 util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
 {
   if(!frames) return LOG_WARN("bad args");
+
+  // check if current sequence is done and advance
+  sequence_t seq = frames->receiving;
+  if(seq && seq->is_done)
+  {
+
+  }
+
   if(!data) return util_frames_pending(frames); // just a ready check
 
   // global reset state check first
@@ -533,7 +587,8 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
     return frames;
   }
 
-  sequence_t seq = frames->receiving;
+  // do any return flush
+  seq = frames->receiving;
   if(seq && seq->do_flush) {
     murmur(frames->theirs, seq->hash, frames->size, data);
     memcpy(data + 4, seq->hash + 4, frames->size - 4);
@@ -604,6 +659,7 @@ util_frames_t util_frames_sent(util_frames_t frames)
 
   if(!seq->out_sending) return LOG_DEBUG("didn't send anything");
   seq->out_sending = false;
+  seq->abs[seq->abid].head.state = AB_SENT;
   return frames;
 }
 
