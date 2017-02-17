@@ -443,7 +443,7 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *raw)
     abstract_t *abs1 = (abstract_t*)(raw+4);
     for(uint8_t i = 0, j = 0; i < frames->per; i = abs_next(seq, i)) {
       abstract_t ab0 = seq->abs + i;
-      abstract_t ab1 = abs1 + i;
+      abstract_t ab1 = abs1[i];
       if(!abs_isframe(ab0)) continue;
       j++;
       if(ab0->head.state == AB_RECEIVED) continue; // locked
@@ -477,7 +477,6 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *raw)
             LOG_DEBUG("packet rejected");
             seq->is_done = true;
           } break;
-          default:
         }
         continue;
       }
