@@ -79,7 +79,7 @@ pipe_t udp4_pipe(net_udp4_t net, struct sockaddr_in *from)
   to->sa.sin_family = AF_INET;
   to->sa.sin_addr = from->sin_addr;
   to->sa.sin_port = from->sin_port;
-  to->frames = util_frames_new(128);
+  to->frames = util_frames_new(128,0,1);
   
   // link into list
   to->next = net->pipes;
@@ -158,7 +158,7 @@ net_udp4_t net_udp4_process(net_udp4_t net)
     if(pipe)
     {
       LOG_CRAZY("receive from %s at %s:%u",(pipe->link)?hashname_short(pipe->link->id):"unknown",inet_ntoa(pipe->sa.sin_addr), ntohs(pipe->sa.sin_port));
-      util_frames_inbox(pipe->frames, frame, NULL);
+      util_frames_inbox(pipe->frames, frame);
     }
   }
 
@@ -183,7 +183,7 @@ net_udp4_t net_udp4_process(net_udp4_t net)
     }
     
     // send all/any waiting frames
-    while(util_frames_outbox(pipe->frames,frame,NULL))
+    while(util_frames_outbox(pipe->frames,frame))
     {
       if(sendto(net->server, frame, sizeof(frame), 0, (struct sockaddr *)&(pipe->sa), sizeof(struct sockaddr_in)) < 0)
       {
