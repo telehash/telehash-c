@@ -17,6 +17,7 @@ int main(int argc, char **argv)
   frames = util_frames_new(24,0,1);
   lob_t packet = lob_new();
   lob_body(packet,0,100);
+  for(uint32_t i=0;i<100;i++) packet->body[i] = i;
   fail_unless(util_frames_send(frames, lob_copy(packet)));
   fail_unless(util_frames_outlen(frames) == 102);
   fail_unless(util_frames_pending(frames));
@@ -27,7 +28,7 @@ int main(int argc, char **argv)
   fail_unless(util_frames_send(frames,NULL));
   fail_unless(util_frames_outbox(frames,frame));
   printf("frame %s\n",util_hex(frame,24,NULL));
-  fail_unless(strcmp("2a0000002a000000010000002bb69634",util_hex(frame,24,NULL)) == 0);
+  fail_unless(strcmp("90424d60036600000001800efc66018ce2366801ffeeee16", util_hex(frame, 24, NULL)) == 0);
   fail_unless(!util_frames_sent(frames));
 
   // receive the flush frame
