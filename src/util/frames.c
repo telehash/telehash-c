@@ -410,6 +410,8 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *raw)
     // see if it's their sequence frame first
     murmur(frames->theirs, raw + 4, frames->size - 4, hash);
     hash[0] |= 0b10000000;
+    LOG_DEBUG("raw %s",util_hex(raw,4,NULL));
+    LOG_DEBUG("theirs %s", util_hex(hash, 4, NULL));
     if(memcmp(raw, hash, 4) == 0) {
       LOG_WARN("TODO their sequence frame");
       return frames;
@@ -574,7 +576,7 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
   sequence_t seq = frames->receiving;
   if(seq && seq->is_done)
   {
-
+    LOG_DEBUG("TODO advance");
   }
 
   if(!data) return util_frames_pending(frames); // just a ready check
@@ -599,7 +601,7 @@ util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data)
   if(!seq) return LOG_DEBUG("nothing to send");
 
   if(seq->do_flush) {
-    murmur(frames->ours, seq->hash, frames->size, data);
+    murmur(frames->ours, seq->hash + 4, frames->size - 4, data);
     memcpy(data + 4, seq->hash + 4, frames->size - 4);
     data[0] |= 0b10000000; // sequence frame bit
     return frames;

@@ -28,21 +28,22 @@ int main(int argc, char **argv)
   fail_unless(util_frames_send(frames,NULL));
   fail_unless(util_frames_outbox(frames,frame));
   printf("frame %s\n",util_hex(frame,24,NULL));
-  fail_unless(strcmp("90424d60036600000001800efc66018ce2366801ffeeee16", util_hex(frame, 24, NULL)) == 0);
-  fail_unless(!util_frames_sent(frames));
+  fail_unless(strcmp("c8cc807f036600000001800efc66018ce2366801ffeeee16", util_hex(frame, 24, NULL)) == 0);
+  fail_unless(util_frames_sent(frames));
 
   // receive the flush frame
-  fail_unless(util_frames_inbox(frames,frame));
+  util_frames_t frames2 = util_frames_new(24, 1, 0);
+  fail_unless(util_frames_inbox(frames2, frame));
 
   // cause a data frame
   fail_unless(util_frames_outbox(frames,frame));
   printf("frame %s\n",util_hex(frame,24,NULL));
-  fail_unless(strcmp("000000000000000000000000611441d9",util_hex(frame,24,NULL)) == 0);
+  fail_unless(strcmp("0000000102030405060708090a0b0c0d0e0f101112131415", util_hex(frame, 24, NULL)) == 0);
   fail_unless(util_frames_sent(frames));
   
   // receive the data frame
-  fail_unless(util_frames_inbox(frames,frame));
-  fail_unless(util_frames_inlen(frames) == 12);
+  fail_unless(util_frames_inbox(frames2,frame));
+  fail_unless(util_frames_inlen(frames2) == 12);
 
   // do rest
   while(util_frames_busy(frames) && util_frames_outbox(frames,frame) && util_frames_sent(frames)) fail_unless(util_frames_inbox(frames,frame));
