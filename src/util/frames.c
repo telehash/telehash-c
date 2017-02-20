@@ -14,9 +14,6 @@ struct util_frames_s {
   uint32_t magic;
   uint32_t max;
 
-  qlob_t inbox, inend; // owned by inbox()
-  qlob_t outbox, outend; // owned by outbox()
-
   // inlen is expected, inat is partial progress
   uint8_t *in;
   uint32_t inlen, inat;
@@ -24,6 +21,13 @@ struct util_frames_s {
   // either header or lob_raw(outbox)
   uint8_t *out;
   uint32_t outlen;
+
+  // internal queues for ISR safety
+  qlob_t inbox; // owned by inbox(), locked by receive()
+  qlob_t outbox; // owned by outbox(), locked by send()
+
+  uint8_t is_receiving : 1;
+  uint8_t is_sending : 1;
 };
 
 qlob_t qlob_append(qlob_t q, lob_t lob)
@@ -83,8 +87,9 @@ util_frames_t util_frames_send(util_frames_t frames, lob_t out)
     return NULL;
   }
 
-  LOG_WARN("TODO use outend for ISR safety");
+  frames->is_sending = true;
   frames->outbox = qlob_append(frames->outbox, out);
+  frames->is_sending = false;
   return frames;
 }
 
@@ -92,13 +97,16 @@ util_frames_t util_frames_send(util_frames_t frames, lob_t out)
 lob_t util_frames_receive(util_frames_t frames)
 {
   if(!frames) return LOG_WARN("bad args");
+  frames->is_receiving = true;
+  lob_t ret = NULL;
   for(qlob_t q = frames->inbox;q;q = q->next) if(q->pkt)
   {
-    lob_t ret = q->pkt;
+    ret = q->pkt;
     q->pkt = NULL;
-    return ret;
+    break;
   }
-  return NULL;
+  frames->is_receiving = false;
+  return ret;
 }
 
 // total bytes in the inbox/outbox
@@ -173,11 +181,22 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint32_t le
     free(frames->in);
     frames->in = NULL;
     frames->inlen = frames->inat = 0;
+    // ensure correct
     if(inmagic != frames->magic || inlen > frames->max) return LOG_INFO("magic/length header mismatch: %lu/%lu %lu<%lu",frames->magic,inmagic,inlen,frames->max);
+    // make space for full packet frame
     if(!(frames->in = malloc(inlen))) return LOG_WARN("OOM");
     frames->inlen = inlen;
   }else{
+    // free any leading inbox empties
+    qlob_t q = NULL;
+    while(!frames->is_receiving && (q = frames->inbox) && !q->pkt) {
+      frames->inbox = q->next;
+      q->next = NULL;
+      qlob_free(q);
+    }
+
     // new inbox packet yay
+    LOG_DEBUG("new pkt len %lu",frames->inlen);
     frames->inbox = qlob_append(frames->inbox, lob_direct(frames->in,frames->inlen));
     frames->in = NULL;
     frames->inlen = frames->inat = 0;
@@ -197,7 +216,7 @@ uint8_t *util_frames_outbox(util_frames_t frames, uint32_t *len)
   {
     // free any leading empties
     qlob_t q = NULL;
-    while((q = frames->outbox) && !q->pkt) {
+    while(!frames->is_sending && (q = frames->outbox) && !q->pkt) {
       frames->outbox = q->next;
       q->next = NULL;
       qlob_free(q);
@@ -228,17 +247,14 @@ util_frames_t util_frames_sent(util_frames_t frames)
     frames->out = lob_raw(frames->outbox->pkt);
     frames->outlen = lob_len(frames->outbox->pkt);
   }else{
-    // packet is sent, advance
+    // packet is sent
     frames->out = NULL;
     frames->outlen = 0;
-    qlob_t q = frames->outbox;
-    frames->outbox = q->next;
-    q->next = NULL;
-    qlob_free(q);
+    frames->outbox->pkt = lob_free(frames->outbox->pkt);
   }
 
   // return if there's more to go
-  return frames->outbox?frames:NULL;
+  return util_frames_outlen(frames)?frames:NULL;
 }
 
 // are we active to sending/receiving frames
