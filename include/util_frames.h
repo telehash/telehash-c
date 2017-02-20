@@ -24,8 +24,7 @@ uint32_t util_frames_outlen(util_frames_t frames);
 uint32_t util_frames_awaiting(util_frames_t frames);
 util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint32_t len);
 
-uint32_t util_frames_pending(util_frames_t frames);
-uint8_t *util_frames_outbox(util_frames_t frames);
+uint8_t *util_frames_outbox(util_frames_t frames, uint32_t *len);
 
 util_frames_t util_frames_sent(util_frames_t frames);
 

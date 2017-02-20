@@ -4,46 +4,135 @@
 #include <stdbool.h>
 #include "telehash.h"
 
+// simple packet list
+typedef struct qlob_s {
+  struct qlob_s *next;
+  lob_t pkt;
+} qlob_s, *qlob_t;
+
+struct util_frames_s {
+  uint32_t magic;
+  uint32_t max;
+
+  qlob_t inbox, inend; // owned by inbox()
+  qlob_t outbox, outend; // owned by outbox()
+
+  // inlen is expected, inat is partial progress
+  uint8_t *in;
+  uint32_t inlen, inat;
+
+  // either header or lob_raw(outbox)
+  uint8_t *out;
+  uint32_t outlen;
+};
+
+qlob_t qlob_append(qlob_t q, lob_t, lob)
+{
+  if(!q)
+  {
+    q = malloc(sizeof(qlob_s));
+    q->next = NULL;
+    q->pkt = lob;
+  } else if(!q->next) {
+    q->next = qlob_append(NULL, lob);
+  }else{
+    qlob_append(q->next, lob);
+  }
+  return q;
+}
+
+qlob_t qlob_free(qlob_t q)
+{
+  if(!q) return NULL;
+  qlob_t next = q->next;
+  lob_free(q->lob);
+  free(q);
+  return qlob_free(next);
+}
+
 util_frames_t util_frames_new(uint32_t max, uint32_t magic)
 {
-  return NULL;
+  util_frames_t frames;
+  if(!(frames = malloc(sizeof(struct util_frames_s)))) return LOG_WARN("OOM");
+  memset(frames, 0, sizeof(struct util_frames_s));
+  frames->max = max;
+  frames->magic = magic;
+
+  // prepare for first header
+  frames->in = malloc(8);
+  frames->inlen = 8;
+
+  return frames;
 }
 
 util_frames_t util_frames_free(util_frames_t frames)
 {
+  if(!frames) return NULL;
+  qlob_free(frames->inbox);
+  qlob_free(frames->outbox);
+  if(frames->inlen == 8) free(frames->in);
+  if(frames->outlen == 8) free(frames->out);
+  free(frames);
   return NULL;
 }
 
-// turn this packet into frames and append, free's out
+static void frames_out(util_frames_t frames)
+{
+  if(!frames || !frames->outbox) return;
+  if(frames->outlen) return;
+  frames->outlen = lob_len(frames->outbox->)
+}
+
+// turn this packet into frames and append, takes ownership of out
 util_frames_t util_frames_send(util_frames_t frames, lob_t out)
 {
-  return NULL;
+  if(!frames) return LOG_WARN("bad args");
+  LOG_WARN("TODO use outend for ISR safety");
+  frames->outbox = qlob_append(frames->outbox, out);
+  return frames;
 }
 
 // get any packets that have been reassembled from incoming frames
 lob_t util_frames_receive(util_frames_t frames)
 {
+  if(!frames) return LOG_WARN("bad args");
+  for(qlob_t q = frames->inbox;q;q = q->next) if(q->pkt)
+  {
+    lob_t ret = q->pkt;
+    q->pkt = NULL;
+    return ret;
+  }
   return NULL;
 }
 
 // total bytes in the inbox/outbox
 uint32_t util_frames_inlen(util_frames_t frames)
 {
-  return 0;
+  if(!frames) return LOG_WARN("bad args");
+  uint32_t total = 0;
+  for(qlob_t q = frames->inbox; q; q = q->next) total += lob_len(q->pkt);
+  return total;
 }
 
 uint32_t util_frames_outlen(util_frames_t frames)
 {
-  return 0;
+  if(!frames) return LOG_WARN("bad args");
+  uint32_t total = 0;
+  for(qlob_t q = frames->outbox; q; q = q->next) total += lob_len(q->pkt);
+  return total;
 }
 
 uint32_t util_frames_awaiting(util_frames_t frames)
 {
-  return 0;
+  if(!frames) return 0;
+  return frames->inlen - frames->inat;
 }
 
 util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint32_t len)
 {
+  // if len < awaiting, take partial and advance
+  // if len > awaiting, take partial and recurse
+  // if starting new and magic mismatch, discard and return error
   return NULL;
 }
 
@@ -69,143 +158,6 @@ util_frames_t util_frames_busy(util_frames_t frames)
 }
 
 /********** RECEIVING PROCESSING LOGIC ********************
-
-// sequence frames are array of abstracts
-typedef struct sequence_s {
-  lob_t pkt;
-  uint8_t *data; // progress into raw packet
-  uint32_t len; // length remaining
-  uint16_t count; // sent/received data frames since seq started, good or bad
-  uint8_t abid; // references an abs[abid] for below flags
-  union {
-    struct {
-      uint8_t do_flush : 1;
-      uint8_t is_held : 1;
-      uint8_t is_paused : 1;
-      uint8_t out_sending : 1;
-      uint8_t is_done : 1;
-    };
-    uint8_t flags;  // easy clear
-  };
-  uint8_t hash[4];
-  abstract_s abs[]; // must remain uint32 aligned in this struct for murmur
-} sequence_s, *sequence_t;
-
-// overall manager state
-struct util_frames_s {
-
-  // checkhash seed to determine sequence frame direction
-  uint32_t ours;
-  uint32_t theirs;
-
-  // a single queued packet ready for processing/delivery
-  lob_t inbox;
-  lob_t outbox;
-
-  // in-progress states
-  sequence_t sending;
-  sequence_t receiving;
-  
-  // frame size and frames per sequence ((frame_size-4)/5)
-  uint16_t size;
-  uint8_t per;
-
-  // boolean flags
-  uint8_t do_reset : 1;
-};
-
-// for iterating
-static uint8_t abs_next(sequence_t seq, uint8_t pos)
-{
-  // when supporting in-line data an abstract may cross multiple
-  return pos+1;
-}
-
-#define abs_isframe(ab) (ab && ab->head.packet && !ab->head.start)
-
-// create a single blank sequence
-static sequence_t seq_new(util_frames_t frames)
-{
-  if(!frames) return NULL;
-  sequence_t seq = NULL;
-  uint16_t size = sizeof(sequence_s) + (sizeof(abstract_s) * frames->per);
-  if(!(seq = malloc(size))) return LOG_WARN("OOM");
-  memset(seq,0,size);
-  return seq;
-}
-
-static sequence_t seq_free(sequence_t seq)
-{
-  if(seq) free(seq);
-  return NULL;
-}
-
-// stages next sequence
-static util_frames_t seq_prep(util_frames_t frames)
-{
-  if(!frames) return NULL;
-  sequence_t seq = frames->sending;
-
-  // start w/ new packet if none staged
-  if(!seq || seq->is_done)
-  {
-    if(!frames->outbox) return LOG_DEBUG("no packet to sequence");
-    if(!seq) seq = frames->sending = seq_new(frames);
-    else memset(seq,0,sizeof(sequence_s));
-    seq->pkt = frames->outbox;
-    frames->outbox = NULL;
-    seq->data = lob_raw(seq->pkt);
-    seq->len = lob_len(seq->pkt);
-  }
-
-  // clean per-sequence state
-  memset(seq->hash, 0, frames->size);
-  seq->flags = 0;
-
-  // fill in this sequence's abstracts
-  for(uint8_t i = 0, j = 0; i < frames->per; i++) {
-    abstract_t ab = seq->abs+i;
-    ab->head.packet = true;
-
-    // very first abstract is start and contains len
-    if(i == 0 && seq->len == lob_len(seq->pkt))
-    {
-      ab->head.start = true;
-      memcpy(ab->hash, &(seq->len), 4);
-      continue;
-    }
-
-    uint8_t *start = seq->data + (j * frames->size); // this frame starting point
-    j++; // count of data frames done
-    ab->head.data = (*start) & 0b10000000; // stash copy of first bit from data frame
-    ab->head.state = AB_UNKNOWN;
-
-    // last frame special handling
-    if(j * frames->size >= seq->len)
-    {
-      ab->head.end = true;
-      uint16_t rem = seq->len % frames->size;
-      // remainder must hash full frame
-      if(rem)
-      {
-        uint8_t *tmp = malloc(frames->size);
-        memset(tmp,0,frames->size);
-        memcpy(tmp, start, rem);
-        murmur(frames->ours, tmp, frames->size, ab->hash);
-        free(tmp);
-        continue;
-      }
-    }
-
-    murmur(frames->ours, start, frames->size, ab->hash);
-  }
-
-  // final setup of sequence
-  seq->do_flush = 1;
-  murmur(frames->ours, (uint8_t*)(seq->abs), sizeof(abstract_s) * frames->per, seq->hash);
-
-  return frames;
-}
 
 util_frames_t util_frames_new(uint16_t size, uint32_t ours, uint32_t theirs)
 {
