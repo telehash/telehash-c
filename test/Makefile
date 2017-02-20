@@ -6,7 +6,7 @@ TESTS = lib_base32 lib_lob lib_hashname lib_murmur lib_chunks lib_frames lib_uti
 #		net_udp4 net_tcp4 net_serial
 
 CC=gcc
-CFLAGS+=-g -Wall -Wextra -Wno-unused-parameter -DDEBUG -DRADIOS_MAX=2
+CFLAGS+=-g -std=c99 -std=gnu99 -Wall -Wextra -Wno-unused-parameter -DDEBUG -DRADIOS_MAX=2
 INCLUDE+=-I../unix -I../include -I../include/lib
 
 
