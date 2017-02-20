@@ -42,7 +42,7 @@ PING_OBJFILES = $(FULL_OBJFILES) util/ping.o
 
 HEADERS=$(wildcard include/*.h)
 
-all: idgen router ping static
+all: idgen ping static
 	@echo "TODO\t`git grep TODO | wc -l | tr -d ' '`"
 
 deps:
