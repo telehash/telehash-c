@@ -27,11 +27,11 @@ int main(int argc, char **argv)
   fail_unless(frame);
   printf("frame %s\n",util_hex(frame,8,NULL));
   fail_unless(strcmp("2a00000066000000", util_hex(frame, 8, NULL)) == 0);
-  fail_unless(util_frames_sent(frames));
 
   // receive the header frame
   util_frames_t frames2 = util_frames_new(42, 1024);
   fail_unless(util_frames_inbox(frames2, frame, 8));
+  fail_unless(util_frames_sent(frames));
 
   // expecting data frame now
   uint32_t len2 = 0;
