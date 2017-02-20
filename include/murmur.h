@@ -8,8 +8,10 @@ uint32_t murmur4(const uint8_t *data, uint32_t len);
 char *murmur8(const uint8_t *data, uint32_t len, char *hex);
 
 // more convenient, caller must ensure 4-byte size of hash output
-uint8_t *murmur(uint32_t seed, const uint8_t *data, uint32_t len, uint8_t *hash);
+uint8_t *murmur(const uint8_t *data, uint32_t len, uint8_t *hash);
 
+// pass initial seed in also
+uint8_t *murmurs(uint32_t seed, const uint8_t *data, uint32_t len, uint8_t *hash);
 
 /*-----------------------------------------------------------------------------
  * MurmurHash3 was written by Austin Appleby, and is placed in the public

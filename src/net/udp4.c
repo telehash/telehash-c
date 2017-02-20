@@ -79,7 +79,7 @@ pipe_t udp4_pipe(net_udp4_t net, struct sockaddr_in *from)
   to->sa.sin_family = AF_INET;
   to->sa.sin_addr = from->sin_addr;
   to->sa.sin_port = from->sin_port;
-  to->frames = util_frames_new(128,0,1);
+  to->frames = util_frames_new(1280,42);
   
   // link into list
   to->next = net->pipes;
@@ -143,7 +143,7 @@ net_udp4_t net_udp4_process(net_udp4_t net)
   struct sockaddr_in sa;
   size_t salen = sizeof(sa);
   memset(&sa,0,salen);
-  uint8_t frame[128];
+  uint8_t frame[1280];
   
   // try receiving anything waiting
   pipe_t pipe = NULL;
@@ -151,14 +151,18 @@ net_udp4_t net_udp4_process(net_udp4_t net)
   {
     ssize_t len = recvfrom(net->server, frame, sizeof(frame), 0, (struct sockaddr *)&sa, (socklen_t *)&salen);
     if(len < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) break;
-    if(len <= 0) return LOG_WARN("recvfrom error %s",strerror(errno));
+    if(len <= 0)
+    {
+      LOG_WARN("recvfrom error %s",strerror(errno));
+      break;
+    }
     
     // get the pipe and return
     if(!pipe || memcmp(&(pipe->sa.sin_addr), &(sa.sin_addr), sizeof(struct in_addr)) || pipe->sa.sin_port != sa.sin_port) pipe = udp4_pipe(net, &sa);
     if(pipe)
     {
       LOG_CRAZY("receive from %s at %s:%u",(pipe->link)?hashname_short(pipe->link->id):"unknown",inet_ntoa(pipe->sa.sin_addr), ntohs(pipe->sa.sin_port));
-      util_frames_inbox(pipe->frames, frame);
+      util_frames_inbox(pipe->frames, frame, len);
     }
   }
 
@@ -183,9 +187,10 @@ net_udp4_t net_udp4_process(net_udp4_t net)
     }
     
     // send all/any waiting frames
-    while(util_frames_outbox(pipe->frames,frame))
+    uint8_t *out = NULL;
+    while((out = util_frames_outbox(pipe->frames)))
     {
-      if(sendto(net->server, frame, sizeof(frame), 0, (struct sockaddr *)&(pipe->sa), sizeof(struct sockaddr_in)) < 0)
+      if(sendto(net->server, out, util_frames_pending(pipe->frames), 0, (struct sockaddr *)&(pipe->sa), sizeof(struct sockaddr_in)) < 0)
       {
         LOG_WARN("sendto failed: %s to %s:%u",strerror(errno),inet_ntoa(pipe->sa.sin_addr), ntohs(pipe->sa.sin_port));
         break;

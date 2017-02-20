@@ -17,10 +17,15 @@ char *murmur8(const uint8_t *data, uint32_t len, char *hex)
   return hex;
 }
 
-uint8_t *murmur(uint32_t seed, const uint8_t *data, uint32_t len, uint8_t *hash)
+uint8_t *murmur(const uint8_t *data, uint32_t len, uint8_t *hash)
+{
+  return murmurs(0,data,len,hash);
+}
+
+uint8_t *murmurs(uint32_t seed, const uint8_t *data, uint32_t len, uint8_t *hash)
 {
   uint32_t num = PMurHash32(seed, data, len);
-  memcpy(hash,&num,4);
+  memcpy(hash, &num, 4);
   return hash;
 }
 
