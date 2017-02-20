@@ -74,7 +74,8 @@ int main(int argc, char **argv)
   // chat
   while(util_frames_busy(fa))
   {
-    util_frames_inbox(fb,util_frames_outbox(fa,&len),len);
+    fail_unless((frame = util_frames_outbox(fa, &len)));
+    fail_unless(util_frames_inbox(fb, frame, len));
     util_frames_sent(fa);
   }
 
