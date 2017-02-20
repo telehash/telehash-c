@@ -2,7 +2,7 @@ TESTS = lib_base32 lib_lob lib_hashname lib_murmur lib_chunks lib_frames lib_uti
 		e3x_core e3x_self e3x_exchange \
 		mesh_core net_loopback lib_chacha \
 		lib_socketio lib_jwt lib_base64 lib_sha \
-		chan_core net_bulk net_udp4
+		chan_core net_bulk 
 #		net_udp4 net_tcp4 net_serial
 
 CC=gcc
@@ -15,7 +15,7 @@ E3X = src/e3x/e3x.c src/e3x/self.c src/e3x/exchange.c src/e3x/cipher.c
 MESH = src/mesh.c src/link.c src/chan.c
 EXT = 
 #NET = src/net/loopback.c src/net/udp4.c src/net/tcp4.c src/net/serial.c
-NET = src/net/loopback.c  src/net/udp4.c
+NET = src/net/loopback.c 
 UTIL = src/util/util.c src/util/chunks.c src/util/frames.c src/unix/util.c src/unix/util_sys.c
 
 # CS1c by default

@@ -50,7 +50,7 @@ qlob_t qlob_free(qlob_t q)
   return qlob_free(next);
 }
 
-util_frames_t util_frames_new(uint32_t max, uint32_t magic)
+util_frames_t util_frames_new(uint32_t magic, uint32_t max)
 {
   util_frames_t frames;
   if(!(frames = malloc(sizeof(struct util_frames_s)))) return LOG_WARN("OOM");
@@ -138,14 +138,8 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint32_t le
 {
   if(!frames || !data || !len) return LOG_WARN("bad args");
 
-  // safety ensure valid internal state
-  if(!frames->inlen || (frames->inat >= frames->inlen))
-  {
-    LOG_WARN("invalid state, resetting");
-    if(frames->in) free(frames->in);
-    frames->inlen = 0;
-    util_frames_awaiting(frames, NULL);
-  }
+  // init to header if none
+  if(!frames->inlen) util_frames_awaiting(frames, NULL);
 
   uint32_t await = frames->inlen - frames->inat;
 

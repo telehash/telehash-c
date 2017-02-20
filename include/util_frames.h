@@ -7,7 +7,7 @@
 
 typedef struct util_frames_s util_frames_s, *util_frames_t;
 
-util_frames_t util_frames_new(uint32_t max, uint32_t magic);
+util_frames_t util_frames_new(uint32_t magic, uint32_t max);
 
 util_frames_t util_frames_free(util_frames_t frames);
 
