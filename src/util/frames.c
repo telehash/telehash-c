@@ -173,7 +173,7 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint32_t le
     free(frames->in);
     frames->in = NULL;
     frames->inlen = frames->inat = 0;
-    if(inmagic != frames->magic || inlen > frames->max) return LOG_INFO("magic/length header mismatch");
+    if(inmagic != frames->magic || inlen > frames->max) return LOG_INFO("magic/length header mismatch: %lu/%lu %lu<%lu",frames->magic,inmagic,inlen,frames->max);
     if(!(frames->in = malloc(inlen))) return LOG_WARN("OOM");
     frames->inlen = inlen;
   }else{
