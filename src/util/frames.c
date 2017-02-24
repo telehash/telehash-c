@@ -28,6 +28,7 @@ struct util_frames_s {
 
   uint8_t is_receiving : 1;
   uint8_t is_sending : 1;
+  uint8_t inbox_err : 1;
 };
 
 qlob_t qlob_append(qlob_t q, lob_t lob)
@@ -74,6 +75,26 @@ util_frames_t util_frames_free(util_frames_t frames)
   if(frames->outlen == 8) free(frames->out);
   free(frames);
   return NULL;
+}
+
+util_frames_t util_frames_clear(util_frames_t frames)
+{
+  if(!frames) return NULL;
+  if(frames->inlen == 8) free(frames->in);
+  frames->in = NULL;
+  frames->inlen = frames->inat = 0;
+  frames->inbox_err = false;
+
+// cannot clear out as it may be active
+//  if(frames->outlen == 8) free(frames->out);
+//  frames->out = NULL;
+//  frames->outlen = 0;
+  return frames;
+}
+
+util_frames_t util_frames_ok(util_frames_t frames)
+{
+  return (frames && !frames->inbox_err)?frames:NULL;
 }
 
 // turn this packet into frames and append, takes ownership of out
@@ -124,6 +145,11 @@ uint32_t util_frames_outlen(util_frames_t frames)
   uint32_t total = 0;
   for(qlob_t q = frames->outbox; q; q = q->next) total += lob_len(q->pkt);
   return total;
+}
+
+util_frames_t util_frames_pending(util_frames_t frames)
+{
+  return (util_frames_outlen(frames))?frames:NULL;
 }
 
 uint8_t *util_frames_awaiting(util_frames_t frames, uint32_t *len)
@@ -182,7 +208,12 @@ util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint32_t le
     frames->in = NULL;
     frames->inlen = frames->inat = 0;
     // ensure correct
-    if(inmagic != frames->magic || inlen > frames->max) return LOG_INFO("magic/length header mismatch: %lu/%lu %lu<%lu",frames->magic,inmagic,inlen,frames->max);
+    if(inmagic != frames->magic || inlen > frames->max)
+    {
+      frames->inbox_err = true;
+      return LOG_INFO("magic/length header mismatch: %lu/%lu %lu<%lu",frames->magic,inmagic,inlen,frames->max);
+    }
+    frames->inbox_err = false;
     // make space for full packet frame
     if(!(frames->in = malloc(inlen))) return LOG_WARN("OOM");
     frames->inlen = inlen;
@@ -221,7 +252,7 @@ uint8_t *util_frames_outbox(util_frames_t frames, uint32_t *len)
       q->next = NULL;
       qlob_free(q);
     }
-    if(!frames->outbox) return LOG_DEBUG("empty");
+    if(!frames->outbox) return NULL; // empty
 
     // add header for next pkt
     LOG_DEBUG("sending header");

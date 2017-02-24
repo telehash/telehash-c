@@ -11,6 +11,12 @@ util_frames_t util_frames_new(uint32_t magic, uint32_t max);
 
 util_frames_t util_frames_free(util_frames_t frames);
 
+// ask if there was any inbox errors
+util_frames_t util_frames_ok(util_frames_t frames);
+
+// resets any in-progress sending and/or receiving
+util_frames_t util_frames_clear(util_frames_t frames);
+
 // turn this packet into frames and append, free's out
 util_frames_t util_frames_send(util_frames_t frames, lob_t out);
 
@@ -20,6 +26,9 @@ lob_t util_frames_receive(util_frames_t frames);
 // total bytes in the inbox/outbox
 uint32_t util_frames_inlen(util_frames_t frames);
 uint32_t util_frames_outlen(util_frames_t frames);
+
+// if anything waiting to be sent (same as outlen > 0)
+util_frames_t util_frames_pending(util_frames_t frames);
 
 // returns direct buffer to fill
 uint8_t *util_frames_awaiting(util_frames_t frames, uint32_t *len);
