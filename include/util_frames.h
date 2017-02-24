@@ -4,40 +4,18 @@
 #include <stdint.h>
 #include "lob.h"
 
-// for list of incoming frames
-typedef struct util_frame_struct
-{
-  struct util_frame_struct *prev;
-  uint32_t hash;
-  uint8_t data[];
-} *util_frame_t;
 
-typedef struct util_frames_struct
-{
+typedef struct util_frames_s util_frames_s, *util_frames_t;
 
-  lob_t inbox; // received packets waiting to be processed
-  lob_t outbox; // current packet being sent out
-
-  util_frame_t cache; // stacked linked list of incoming frames in progress
-
-  uint32_t inbase; // last confirmed inbox hash
-  uint32_t outbase; // last confirmed outbox hash
-
-  uint8_t in; // number of incoming frames received/waiting
-  uint8_t out; //  number of outgoing frames of outbox sent since outbase
-
-  uint8_t size; // frame size
-  uint8_t flush:1; // bool to signal a flush is needed
-  uint8_t err:1; // unrecoverable failure
-  uint8_t more:1; // last incoming meta said there was more
-
-} *util_frames_t;
-
-
-// size of each frame, min 16 max 128, multiple of 4
-util_frames_t util_frames_new(uint8_t size);
+util_frames_t util_frames_new(uint32_t magic, uint32_t max);
 
 util_frames_t util_frames_free(util_frames_t frames);
+
+// ask if there was any inbox errors
+util_frames_t util_frames_ok(util_frames_t frames);
+
+// resets any in-progress sending and/or receiving
+util_frames_t util_frames_clear(util_frames_t frames);
 
 // turn this packet into frames and append, free's out
 util_frames_t util_frames_send(util_frames_t frames, lob_t out);
@@ -46,32 +24,24 @@ util_frames_t util_frames_send(util_frames_t frames, lob_t out);
 lob_t util_frames_receive(util_frames_t frames);
 
 // total bytes in the inbox/outbox
-size_t util_frames_inlen(util_frames_t frames);
-size_t util_frames_outlen(util_frames_t frames);
+uint32_t util_frames_inlen(util_frames_t frames);
+uint32_t util_frames_outlen(util_frames_t frames);
 
-// meta space is (size - 14) and only filled when receiving a meta frame
-util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint8_t *meta); // data=NULL is ready check
-
-// fills data with the next frame, if no payload available always fills w/ meta frame, safe to re-run (idempotent)
-util_frames_t util_frames_outbox(util_frames_t frames, uint8_t *data, uint8_t *meta); // data=NULL is ready-check
-
-// this must be called immediately (no inbox interleaved) after last outbox is actually sent to advance payload or clear flush request, returns if more to send
-util_frames_t util_frames_sent(util_frames_t frames);
-
-// is just a check to see if there's data waiting to be sent
-util_frames_t util_frames_waiting(util_frames_t frames);
-
-// is there an expectation of an incoming frame
-util_frames_t util_frames_await(util_frames_t frames);
-
-// are we waiting to send/receive a frame (both waiting && await)
-util_frames_t util_frames_busy(util_frames_t frames);
-
-// is a frame pending to be sent immediately
+// if anything waiting to be sent (same as outlen > 0)
 util_frames_t util_frames_pending(util_frames_t frames);
 
-// check error state and clearing it
-util_frames_t util_frames_ok(util_frames_t frames);
-util_frames_t util_frames_clear(util_frames_t frames);
+// returns direct buffer to fill
+uint8_t *util_frames_awaiting(util_frames_t frames, uint32_t *len);
+
+// receive partial/stream
+util_frames_t util_frames_inbox(util_frames_t frames, uint8_t *data, uint32_t len);
+
+// returns direct sending buffer
+uint8_t *util_frames_outbox(util_frames_t frames, uint32_t *len);
+
+util_frames_t util_frames_sent(util_frames_t frames);
+
+// active sending and/or receiving
+util_frames_t util_frames_busy(util_frames_t frames);
 
 #endif

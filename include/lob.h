@@ -44,6 +44,9 @@ lob_t lob_unlink(lob_t parent);
 // initialize head/body from raw, parses json
 lob_t lob_parse(const uint8_t *raw, size_t len);
 
+// like lob_parse but takes over raw directly w/ no copy
+lob_t lob_direct(uint8_t *raw, size_t len);
+
 // return full encoded packet
 uint8_t *lob_raw(lob_t p);
 size_t lob_len(lob_t p);
