@@ -2,13 +2,13 @@ add_definitions(
     -D_GNU_SOURCE
 )
 
-set(LIB_SOURCES
+set(LIB_INCLUDES
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/include/lib
 )
 
 include_directories(
-    ${LIB_SOURCES}
+    ${LIB_INCLUDES}
 )
 
 
