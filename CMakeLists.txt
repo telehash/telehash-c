@@ -5,6 +5,8 @@ add_definitions(
 set(LIB_INCLUDES
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/include/lib
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include/lib
 )
 
 include_directories(
@@ -30,3 +32,5 @@ set(MESH_SOURCES src/mesh.c src/link.c src/chan.c)
 set(UTIL_SOURCES src/util/util.c src/util/chunks.c src/util/frames.c src/unix/util.c src/unix/util_sys.c)
 
 add_library(telehash ${LIB_SOURCES} ${E3X_SOURCES} ${MESH_SOURCES} ${UTIL_SOURCES})
+add_library(telehash_bl ${LIB_SOURCES} ${E3X_SOURCES} ${MESH_SOURCES} ${UTIL_SOURCES})
+target_compile_definitions(telehash_bl PUBLIC NOLOG=true)
