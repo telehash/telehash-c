@@ -28,15 +28,21 @@ void *util_sys_log(uint8_t level, const char *file, int line, const char *functi
 // default LOG is DEBUG level and compile-time optional
 #ifdef NOLOG
 #define LOG(...) NULL
+#define LOG_DEBUG LOG
+#define LOG_INFO LOG
+#define LOG_WARN LOG
+#define LOG_ERROR LOG
+#define LOG_CRAZY LOG
 #else
 #define LOG(fmt, ...) util_sys_log(7, __FILE__, __LINE__, __func__, fmt, ## __VA_ARGS__)
-#endif
-
-// most things just need these
 #define LOG_DEBUG LOG
 #define LOG_INFO(fmt, ...) util_sys_log(6, __FILE__, __LINE__, __func__, fmt, ## __VA_ARGS__)
 #define LOG_WARN(fmt, ...) util_sys_log(4, __FILE__, __LINE__, __func__, fmt, ## __VA_ARGS__)
 #define LOG_ERROR(fmt, ...) util_sys_log(3, __FILE__, __LINE__, __func__, fmt, ## __VA_ARGS__)
 #define LOG_CRAZY(fmt, ...) util_sys_log(8, __FILE__, __LINE__, __func__, fmt, ## __VA_ARGS__)
+#endif
+
+// most things just need these
+
 
 #endif
