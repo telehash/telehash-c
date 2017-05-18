@@ -182,7 +182,7 @@ lob_t jwk_remote_get(e3x_exchange_t x, lob_t jwk)
   return NULL;
 }
 
-e3x_exchange_t jwk_remote_load(lob_t jwk)
+e3x_exchange_t blocklet_jwk_remote_load(lob_t jwk)
 {
   if(!jwk || !lob_get(jwk,"kty")) return LOG("missing/bad args");
 
@@ -190,13 +190,16 @@ e3x_exchange_t jwk_remote_load(lob_t jwk)
   for(uint8_t i=0; i<CS_MAX; i++)
   {
     e3x_cipher_t cs = e3x_cipher_sets[i];
+    remote_t remote = NULL;
     if(!cs || !cs->remote_new || !cs->alg || !strstr(cs->alg,"JWK")) continue;
-    if(!cs->remote_new(jwk,NULL)) continue;
+    if(!(remote = cs->remote_new(jwk,NULL))) continue;
+    remote_free(remote);
     return e3x_exchange_new(NULL, cs->csid, jwk);
   }
 
   return LOG_WARN("unsupported JWK: %s",lob_json(jwk));
 }
+
 
 /*
 {
