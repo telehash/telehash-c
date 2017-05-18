@@ -182,7 +182,7 @@ lob_t jwk_remote_get(e3x_exchange_t x, lob_t jwk)
   return NULL;
 }
 
-e3x_exchange_t blocklet_jwk_remote_load(lob_t jwk)
+e3x_exchange_t jwk_remote_load(lob_t jwk)
 {
   if(!jwk || !lob_get(jwk,"kty")) return LOG("missing/bad args");
 
