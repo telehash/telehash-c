@@ -193,7 +193,7 @@ e3x_exchange_t jwk_remote_load(lob_t jwk)
     remote_t remote = NULL;
     if(!cs || !cs->remote_new || !cs->alg || !strstr(cs->alg,"JWK")) continue;
     if(!(remote = cs->remote_new(jwk,NULL))) continue;
-    remote_free(remote);
+    free(remote);
     return e3x_exchange_new(NULL, cs->csid, jwk);
   }
 
