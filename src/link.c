@@ -213,7 +213,7 @@ link_t link_up(link_t link)
 // process an incoming handshake
 link_t link_receive_handshake(link_t link, lob_t inner)
 {
-  uint32_t in, out, at, err;
+  uint32_t out, at, err;
   uint8_t csid = 0;
   lob_t outer = lob_linked(inner);
 
@@ -236,7 +236,6 @@ link_t link_receive_handshake(link_t link, lob_t inner)
     return LOG("handshake verification fail: %d",err);
   }
 
-  in = e3x_exchange_in(link->x,0);
   out = e3x_exchange_out(link->x,0);
   at = lob_get_uint(inner,"at");
   link_t ready = link_up(link);
