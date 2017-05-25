@@ -243,7 +243,7 @@ link_t link_receive_handshake(link_t link, lob_t inner)
   // if bad at, always send current handshake
   if(e3x_exchange_in(link->x, at) < out)
   {
-    LOG("old handshake: %s (%d,%d,%d)",lob_json(inner),at,in,out);
+    LOG("old handshake: %s (%d,%d,%d)",lob_json(inner),at,out);
     link_sync(link);
     lob_free(inner);
     return link;
