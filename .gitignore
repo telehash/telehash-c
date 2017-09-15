@@ -8,3 +8,6 @@ node_modules/
 telehash.c
 telehash.h
 /TAGS
+CMakeFiles
+Makefile
+cmake_install.cmake
