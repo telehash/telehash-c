@@ -24,7 +24,7 @@ typedef struct util_chunks_struct
   uint8_t readat; // always less than a max chunk, offset into reading
 
   uint8_t cap;
-  uint8_t blocked:1, blocking:1, ack:1, err:1; // bool flags
+  uint8_t blocked:1, blocking:1, ack:1, err:1, completed:1; // bool flags
 } *util_chunks_t;
 
 

@@ -203,7 +203,12 @@ uint8_t *util_chunks_write(util_chunks_t chunks)
   if(!util_chunks_len(chunks)) return NULL;
   
   // always write the chunk size byte first, is also the ack/flush
-  if(!chunks->waitat) return &chunks->waiting;
+  if(!chunks->waitat) {
+    if (chunks->waiting == 0) {
+      chunks->completed = 1; // set completed flag if we've just written the final zero
+    }
+    return &chunks->waiting;
+  }
   
   // into the raw data
   return lob_raw(chunks->writing)+chunks->writeat+(chunks->waitat-1);
@@ -230,7 +235,7 @@ util_chunks_t util_chunks_written(util_chunks_t chunks, size_t len)
     if(chunks->waiting == chunks->cap) chunks->blocked = chunks->blocking;
 
     // only advance packet after we wrote a flushing 0
-    if(len == 1 && chunks->writing && chunks->writeat == lob_len(chunks->writing))
+    if(len == 1 && chunks->completed && chunks->writing && chunks->writeat == lob_len(chunks->writing))
     {
       lob_t old = lob_shift(chunks->writing);
       chunks->writing = old->next;
