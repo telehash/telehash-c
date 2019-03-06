@@ -36,8 +36,8 @@ int util_ct_memcmp(const void* s1, const void* s2, size_t n);
 
 // embedded may not have strdup but it's a kinda handy shortcut
 char *util_strdup(const char *str);
-#ifndef strdup
+#ifdef DEF_STRDUP
 #define strdup util_strdup
-#endif
+#endif // DEF_STRDUP
 
 #endif

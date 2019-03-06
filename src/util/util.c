@@ -190,6 +190,7 @@ char *util_strdup(const char *str)
   char *ret;
   size_t len = 0;
   if(str) len = strlen(str);
+  if(!len) return NULL;
   if(!(ret = malloc(len+1))) return NULL;
   memcpy(ret,str,len);
   ret[len] = 0;
